@@ -1,4 +1,4 @@
-# storecontrolcenter
+# storecontrol
 
 ## Project setup
 ```
