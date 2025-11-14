@@ -1300,3 +1300,9 @@
     </div>
   </div>
 </template>
+<style scoped>
+@reference "tailwindcss";
+.active {
+    @apply bg-gray-200/70 text-cyan-700 dark:bg-neutral-700 dark:text-cyan-400 before:absolute before:inset-y-0 before:-start-2 before:w-1 before:h-full before:rounded-e-full before:bg-cyan-700 dark:before:bg-cyan-400
+}
+</style>
