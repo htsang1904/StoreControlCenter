@@ -1,6 +1,7 @@
 <script setup>
-import { reactive, ref } from 'vue';
-
+import { nextTick, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
+const route = useRoute()
 const TABS = [
   {
     label: 'Yêu cầu xử lý',
@@ -16,10 +17,17 @@ const TABS = [
   }
 ]
 const tabs = reactive(TABS)
-const selectedTab = ref(0)
-function selectTab(index) {
-  selectedTab.value = index
+const selectedTab = ref(null)
+
+function selectTab() {
+  setTimeout(() => {
+    selectedTab.value = route.path
+  }, 100)
 }
+onMounted(async () => {
+  await nextTick()
+  selectTab()
+})
 </script>
 <template>
   <div id="hs-pro-sidebar" class="hs-overlay [--auto-close:md] hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform w-65 hs-overlay-minified:w-13 overflow-hidden hidden fixed inset-y-0 z-60 start-0 bg-white border-e border-gray-200 dark:border-neutral-700 md:block md:translate-x-0 md:end-auto md:bottom-0 dark:bg-neutral-800" role="dialog" tabindex="-1" aria-label="Sidebar">
@@ -70,13 +78,13 @@ function selectTab(index) {
       <div class="mb-5 px-2 flex flex-col gap-y-5">
         <!-- List -->
         <ul class="flex flex-col gap-y-0.5">
-          <li v-for="(tab, index) in tabs" :key="index" @click="selectTab(index)">
-            <router-link :to="tab.path" :class="{'active': selectedTab == index }" class="hover-target group relative w-full flex items-center gap-1 py-1.5 px-2.5 text-sm text-gray-800 rounded-lg before:absolute before:inset-y-0 before:-start-2 before:rounded-e-full before:w-1 before:h-full hover:bg-gray-100/70 focus:outline-hidden focus:bg-gray-100/70 dark:hover:bg-neutral-700/50 dark:focus:bg-neutral-700/50 dark:text-neutral-200" href="#">
+          <li v-for="(tab, index) in tabs" :key="index" @click="selectTab">
+            <router-link :to="tab.path" :class="{'active': selectedTab === tab.path }" class="hover-target group relative w-full flex items-center gap-1 py-1.5 px-2.5 text-sm text-gray-800 rounded-lg before:absolute before:inset-y-0 before:-start-2 before:rounded-e-full before:w-1 before:h-full hover:bg-gray-100/70 focus:outline-hidden focus:bg-gray-100/70 dark:hover:bg-neutral-700/50 dark:focus:bg-neutral-700/50 dark:text-neutral-200" href="#">
               <span class="-ms-[5px] flex shrink-0 justify-center items-center size-6">
                <lord-icon
                   :src="tab.icon"
                   trigger="hover"
-                  :colors="selectedTab === index ? 'primary:#ffffff' : 'primary:#333333'"
+                  :colors="selectedTab === tab.path ? 'primary:#ffffff' : 'primary:#333333'"
                   target=".hover-target">
               </lord-icon>
               </span>

@@ -17,7 +17,6 @@ onMounted( async () => {
 </script>
 <template>
 <div ref="upload" data-hs-file-upload='{
-    "showThumbnail": true,
     "url": "https://api.escuelajs.co/api/v1/files/upload",
     "extensions": {
         "default": {
@@ -35,19 +34,19 @@ onMounted( async () => {
         }
     }
     }'>
-    <template data-hs-file-upload-preview="">
+    <div class="hidden" data-hs-file-upload-preview="">
         <div class="p-3 bg-white border border-solid border-gray-300 rounded-xl dark:bg-neutral-800 dark:border-neutral-600">
         <div class="mb-1 flex justify-between items-center">
             <div class="flex items-center gap-x-3">
-            <span class="size-10 flex justify-center items-center border border-gray-200 text-gray-500 rounded-lg dark:border-neutral-700 dark:text-neutral-500" data-hs-file-upload-file-icon="">
-                <img class="rounded-lg hidden" data-dz-thumbnail>
-            </span>
-            <div>
-                <p class="text-sm font-medium text-gray-800 dark:text-white">
-                <span class="truncate inline-block max-w-75 align-bottom" data-hs-file-upload-file-name=""></span>.<span data-hs-file-upload-file-ext=""></span>
-                </p>
-                <p class="text-xs text-gray-500 dark:text-neutral-500" data-hs-file-upload-file-size=""></p>
-            </div>
+                <span class="size-10 flex justify-center items-center border border-gray-200 text-gray-500 rounded-lg dark:border-neutral-700 dark:text-neutral-500" data-hs-file-upload-file-icon="">
+                    <img class="rounded-lg" data-dz-thumbnail="">
+                </span>
+                <div>
+                    <p class="text-sm font-medium text-gray-800 dark:text-white">
+                    <span class="truncate inline-block max-w-75 align-bottom" data-hs-file-upload-file-name=""></span>.<span data-hs-file-upload-file-ext=""></span>
+                    </p>
+                    <p class="text-xs text-gray-500 dark:text-neutral-500" data-hs-file-upload-file-size=""></p>
+                </div>
             </div>
             <div class="flex items-center gap-x-2">
             <button type="button" class="text-gray-500 hover:text-gray-800 focus:outline-hidden focus:text-gray-800 dark:text-neutral-500 dark:hover:text-neutral-200 dark:focus:text-neutral-200" data-hs-file-upload-remove="">
@@ -73,7 +72,7 @@ onMounted( async () => {
             </div>
         </div>
         </div>
-    </template>
+    </div>
 
     <div class="cursor-pointer p-12 flex justify-center bg-white border border-dashed border-gray-300 rounded-xl dark:bg-neutral-800 dark:border-neutral-600" data-hs-file-upload-trigger="">
         <div class="text-center">
