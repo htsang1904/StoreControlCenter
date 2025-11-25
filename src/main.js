@@ -1,19 +1,31 @@
 import './assets/main.css'
+import 'dropzone/dist/dropzone-min.js';
+import $ from 'jquery';
+import _ from 'lodash';
+import HSFileUpload from '@preline/file-upload';
+window.Dropzone.autoDiscover = false;
+window.HSFileUpload = HSFileUpload;
+window._ = _;
+window.$ = $;
+window.jQuery = $;
 
 import { createApp } from 'vue'
 import App from './App.vue'
-import 'preline'
-import router from './router'
+
+import router from './router';
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   if (to.meta) {
       if (to.meta.auth && !token) {
-          next('/login');
-          return;
+          next('/login')
+          return
       }
   }
-  next();
-});
+  next()
+})
+import { defineElement } from "@lordicon/element"
+defineElement()
 const app = createApp(App)
 app.use(router)
 app.mount('#app')
+import('preline/dist/index.js');

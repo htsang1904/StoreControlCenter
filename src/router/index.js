@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useApp } from '@/plugins/app'
+import { nextTick } from 'vue'
 import 'preline'
 
 const router = createRouter({
@@ -9,14 +10,30 @@ const router = createRouter({
         {
             name: 'default',
             path: '/',
-            redirect: '/ticket',
             component: () => import('@/layout/default.vue'),
             children: [
+                {
+                    path: '',
+                    redirect: '/ticket'
+                },
                 {
                     path: 'ticket',
                     name: 'Ticket Management',
                     component: () => import('@/pages/TicketManagementPage.vue'),
                     meta: { auth: true }
+                },
+                {
+                    path: 'ticket/add-ticket',
+                    name: 'Ticket Add',
+                    component: () => import('@/pages/AddTicketPage.vue'),
+                    meta: { auth: true }
+                },
+                {
+                    path: 'ticket/:id',
+                    name: 'Ticket Detail',
+                    component: () => import('@/pages/TicketDetailPage.vue'),
+                    meta: { auth: true },
+                    props: true
                 },
                 {
                     path: 'QC',
@@ -46,9 +63,10 @@ const router = createRouter({
     ],
 })
 
+
 router.afterEach(async (to, from, failure) => {
-  if (!failure) setTimeout(() => window.HSStaticMethods.autoInit(), 10000);
-});
+  if (!failure) setTimeout(() => window.HSStaticMethods.autoInit(), 100);
+})
 
 
 export default router

@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "tickets",
+  "info": {
+    "singularName": "ticket",
+    "pluralName": "tickets",
+    "displayName": "Ticket",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "code": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "start_date": {
+      "type": "string"
+    },
+    "end_date": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "ticket_category": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::ticket-category.ticket-category"
+    },
+    "ticket_logs": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::ticket-log.ticket-log"
+    },
+    "store": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::store.store"
+    }
+  }
+}

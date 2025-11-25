@@ -1,0 +1,29 @@
+{
+  "kind": "collectionType",
+  "collectionName": "ticket_logs",
+  "info": {
+    "singularName": "ticket-log",
+    "pluralName": "ticket-logs",
+    "displayName": "TicketLog",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "message": {
+      "type": "text"
+    },
+    "achivements": {
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ],
+      "type": "media",
+      "multiple": true
+    }
+  }
+}

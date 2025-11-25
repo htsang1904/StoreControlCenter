@@ -1,0 +1,21 @@
+{
+  "kind": "collectionType",
+  "collectionName": "ticket_categories",
+  "info": {
+    "singularName": "ticket-category",
+    "pluralName": "ticket-categories",
+    "displayName": "TicketCategory"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "content": {
+      "type": "string"
+    },
+    "code": {
+      "type": "string"
+    }
+  }
+}
