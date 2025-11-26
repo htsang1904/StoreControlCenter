@@ -1,13 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
 @import 'tailwindcss';
 @import 'preline/variants.css';
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
     --color-guta-blue: #1d7de2;
     --color-guta-dark-blue: #025dd5;
     --gradient-guta: linear-gradient(282deg, #00b0ff 5.54%, #3e98eb);
 }
-@custom-variant dark (&:where(.dark, .dark *));
 * {
      font-family: "Montserrat", sans-serif;
 }

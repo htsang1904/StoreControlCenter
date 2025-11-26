@@ -22,7 +22,7 @@ const selectedTab = ref(null)
 function selectTab() {
   setTimeout(() => {
     selectedTab.value = route.path
-  }, 100)
+  }, 50)
 }
 onMounted(async () => {
   await nextTick()
@@ -177,6 +177,7 @@ onMounted(async () => {
   </div>
 </template>
 <style scoped>
+@custom-variant dark (&:where(.dark, .dark *));
 @reference "tailwindcss";
 .active {
   @apply relative bg-blue-600 text-white before:absolute before:inset-y-0
