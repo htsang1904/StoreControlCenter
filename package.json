@@ -16,15 +16,16 @@
     "@preline/file-upload": "^3.2.1",
     "@preline/theme-switch": "^3.2.1",
     "@tailwindcss/vite": "^4.1.17",
+    "axios": "^1.13.2",
     "dropzone": "^6.0.0-beta.2",
+    "jquery": "^3.7.1",
     "lodash": "^4.17.21",
     "preline": "^3.2.1",
     "sass": "^1.94.0",
     "sass-loader": "^16.0.6",
     "tailwindcss": "^4.1.17",
     "vue": "^3.5.22",
-    "vue-router": "^4.6.3",
-    "jquery": "^3.7.1"
+    "vue-router": "^4.6.3"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.1",

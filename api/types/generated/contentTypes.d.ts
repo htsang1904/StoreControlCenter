@@ -362,183 +362,6 @@ export interface AdminUser extends Schema.CollectionType {
   };
 }
 
-export interface ApiDepartmentDepartment extends Schema.CollectionType {
-  collectionName: 'departments';
-  info: {
-    displayName: 'Department';
-    pluralName: 'departments';
-    singularName: 'department';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    code: Attribute.String;
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::department.department',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    name: Attribute.String;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::department.department',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
-export interface ApiStoreStore extends Schema.CollectionType {
-  collectionName: 'stores';
-  info: {
-    description: '';
-    displayName: 'Store';
-    pluralName: 'stores';
-    singularName: 'store';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    address: Attribute.String;
-    code: Attribute.String;
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::store.store',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    name: Attribute.String;
-    store_id: Attribute.Integer;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::store.store',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
-export interface ApiTicketCategoryTicketCategory extends Schema.CollectionType {
-  collectionName: 'ticket_categories';
-  info: {
-    displayName: 'TicketCategory';
-    pluralName: 'ticket-categories';
-    singularName: 'ticket-category';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    code: Attribute.String;
-    content: Attribute.String;
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::ticket-category.ticket-category',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::ticket-category.ticket-category',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
-export interface ApiTicketLogTicketLog extends Schema.CollectionType {
-  collectionName: 'ticket_logs';
-  info: {
-    description: '';
-    displayName: 'TicketLog';
-    pluralName: 'ticket-logs';
-    singularName: 'ticket-log';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    achivements: Attribute.Media<
-      'images' | 'files' | 'videos' | 'audios',
-      true
-    >;
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::ticket-log.ticket-log',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    message: Attribute.Text;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::ticket-log.ticket-log',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
-export interface ApiTicketTicket extends Schema.CollectionType {
-  collectionName: 'tickets';
-  info: {
-    description: '';
-    displayName: 'Ticket';
-    pluralName: 'tickets';
-    singularName: 'ticket';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    code: Attribute.String;
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::ticket.ticket',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    end_date: Attribute.String;
-    start_date: Attribute.String;
-    status: Attribute.String;
-    store: Attribute.Relation<
-      'api::ticket.ticket',
-      'oneToOne',
-      'api::store.store'
-    >;
-    ticket_category: Attribute.Relation<
-      'api::ticket.ticket',
-      'oneToOne',
-      'api::ticket-category.ticket-category'
-    >;
-    ticket_logs: Attribute.Relation<
-      'api::ticket.ticket',
-      'oneToMany',
-      'api::ticket-log.ticket-log'
-    >;
-    title: Attribute.String;
-    type: Attribute.String;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::ticket.ticket',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
 export interface ApiUserInfoUserInfo extends Schema.CollectionType {
   collectionName: 'user_infos';
   info: {
@@ -559,13 +382,10 @@ export interface ApiUserInfoUserInfo extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-    departments: Attribute.Relation<
-      'api::user-info.user-info',
-      'oneToMany',
-      'api::department.department'
-    >;
     email: Attribute.String;
+    is_active: Attribute.Boolean;
     name: Attribute.String;
+    suite_token: Attribute.Text;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::user-info.user-info',
@@ -1012,11 +832,6 @@ declare module '@strapi/types' {
       'admin::transfer-token': AdminTransferToken;
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
-      'api::department.department': ApiDepartmentDepartment;
-      'api::store.store': ApiStoreStore;
-      'api::ticket-category.ticket-category': ApiTicketCategoryTicketCategory;
-      'api::ticket-log.ticket-log': ApiTicketLogTicketLog;
-      'api::ticket.ticket': ApiTicketTicket;
       'api::user-info.user-info': ApiUserInfoUserInfo;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

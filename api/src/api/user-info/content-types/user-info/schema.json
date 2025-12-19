@@ -15,16 +15,17 @@
     "name": {
       "type": "string"
     },
-    "access_token": {
-      "type": "string"
-    },
     "email": {
       "type": "string"
     },
-    "departments": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::department.department"
+    "access_token": {
+      "type": "string"
+    },
+    "suite_token": {
+      "type": "text"
+    },
+    "is_active": {
+      "type": "boolean"
     }
   }
 }
