@@ -14,7 +14,12 @@ export function useApp() {
             if(res) {
                 try {
                     const result = await login(res)
-                    console.log(result)
+                    if(result) {
+                        state.userInfo = result.userDetail
+                        state.token = result.token
+                        localStorage.setItem('token', state.token)
+                        router.push('/')
+                    }
                 }
                 catch (err) {
                     console.log('Lỗi đăng nhập vào hệ thống: ', err)

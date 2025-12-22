@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, ref, nextTick } from 'vue'
 import { useRouter } from 'vue-router';
 
 const router = useRouter()
+const loading = ref(false)
 function goToTicketDetail(id) {
   router.push(`/ticket/${id}`)
 }
@@ -10,12 +11,17 @@ function goToTicketDetail(id) {
 function goToAddTicket() {
   router.push(`/ticket/add-ticket`)
 }
-onMounted(() => {
+onMounted(async () => {
+   loading.value = true
+    await nextTick()
+    setTimeout(() => {
+      loading.value = false
+    },1000)
 })
 </script>
 
 <template>
-  <div>
+  <div v-loading="loading">
     <div class="header max-w-full flex items-center h-[52px] p-2.5 text-[18px] font-bold text-white mx-4 mt-6 box-border rounded-lg bg-linear-to-r from-blue-600 to-blue-500">Danh sách yêu cầu hỗ trợ</div>
 
     <div class="max-w-full mx-4 py-4 overflow-hidden">

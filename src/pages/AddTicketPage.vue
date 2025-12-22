@@ -1,10 +1,11 @@
 <script setup>
-import { onMounted, nextTick, useTemplateRef } from 'vue'
+import { onMounted, nextTick, useTemplateRef, ref } from 'vue'
 import { useRouter } from "vue-router"
 import HSFileUpload from '@preline/file-upload'
 import FileUploadItem from '@/components/FileUploadItem.vue'
 const router = useRouter()
 const upload = useTemplateRef('file-upload')
+const loading = ref(false)
 // const { element } = HSFileUpload.getInstance('#hs-file-upload', true);
 // const { dropzone } = element;
 
@@ -12,7 +13,11 @@ const upload = useTemplateRef('file-upload')
 //   console.log('Item uploaded!');
 // });
 onMounted( async () => {
+    loading.value = true
     await nextTick()
+    setTimeout(() => {
+        loading.value = false
+    },1000)
 })
 function handleFile(e) {
     console.log('hello')
@@ -23,7 +28,7 @@ function goBack() {
 </script>
 
 <template>
-  <div>
+  <div v-loading="loading">
     <div class="header max-w-full p-2.5 text-[18px] font-bold text-white mx-4 mt-6 box-border rounded-lg bg-linear-to-r from-blue-600 to-blue-500 flex items-center">
         <button @click="goBack" type="button" class="cursor-pointer p-1 mr-2 inline-flex items-center rounded-lg bg-white/40 text-white shadow-2xs hover:bg-white/30 focus:outline-hidden focus:bg-white/30">
             <svg class="shrink-0 size-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>

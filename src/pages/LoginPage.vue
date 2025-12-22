@@ -2,12 +2,26 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useApp } from '@/plugins/app'
 const { state, userLogin } = useApp()
+const loading = ref(false)
 const formData = reactive({
     username: '',
     password: '',
 })
-function submitData() {
-  userLogin(formData)
+async function submitData() {
+  try {
+    loading.value = true
+    await userLogin(formData)
+  }
+  catch(err) {
+    setTimeout(() => {
+        loading.value = false
+    }, 1000)
+  }
+  finally {
+    setTimeout(() => {
+        loading.value = false
+    }, 1000)
+  }
 }
 onMounted(() => {
     console.log(state.token)
@@ -65,7 +79,10 @@ onMounted(() => {
                   </div>
                 </div>
                 <div class="w-full text-center">
-                  <button type="submit" class="w-fit py-3 px-14 inline-flex justify-center items-center gap-x-2 text-[16px] font-bold rounded-lg border border-transparent bg-linear-to-r from-blue-600 to-blue-500 text-white hover:bg-blue-700 focus:outline-hidden focus:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none">Đăng nhập ngay</button>
+                  <button type="submit" class="w-full py-3 px-14 inline-flex justify-center items-center gap-x-2 text-[16px] font-bold rounded-lg border border-transparent bg-linear-to-r from-blue-600 to-blue-500 text-white hover:bg-blue-700 focus:outline-hidden focus:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none" :disabled="loading">
+                    <span v-if="loading" class="animate-spin inline-block size-6 border-3 border-current border-t-transparent text-white rounded-full" role="status" aria-label="loading"></span>
+                    <span v-else>Đăng nhập ngay</span>
+                  </button>
                 </div>
               </div>
             </form>
