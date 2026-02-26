@@ -145,7 +145,7 @@ onMounted(async () => {
     </div>
 
     <div class="max-w-full px-4 py-4 mx-auto">
-      <div class="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden" v-loading="pageLoading">
+      <div class="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden" v-loading="pageLoading || submitting">
         <form @submit.prevent="submitTicket">
           <div class="bg-white rounded-xl shadow-xs">
             <div class="p-4 sm:p-7">

@@ -40,7 +40,7 @@ const pageTitle = computed(() => {
         </button>
 
         <div class="min-w-0">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Store Control Center</p>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Trung tâm điều phối cửa hàng</p>
           <h1 class="font-heading truncate text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100">{{ pageTitle }}</h1>
         </div>
       </div>

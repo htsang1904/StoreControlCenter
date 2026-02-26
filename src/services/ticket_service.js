@@ -21,3 +21,7 @@ export const listTickets = (params = {}) => {
 
   return http.get(`/api/tickets?${searchParams.toString()}`)
 }
+
+export const deleteTicket = (id) => {
+  return http.delete(`/api/tickets/${id}`)
+}

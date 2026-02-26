@@ -17,20 +17,11 @@ const errorResponse = (ctx, status, message) => {
   };
 };
 
-const buildTicketCodePrefix = () => {
-  const now = new Date();
-  const year = now.getUTCFullYear();
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(now.getUTCDate()).padStart(2, '0');
-  return `TCK-${year}${month}${day}`;
-};
-
 const generateTicketCode = async (strapi) => {
-  const prefix = buildTicketCodePrefix();
-
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const randomSuffix = crypto.randomInt(1000, 10000);
-    const ticketCode = `${prefix}-${randomSuffix}`;
+    const timePart = Date.now().toString(36).toUpperCase().slice(-6);
+    const randomPart = crypto.randomInt(36 ** 2).toString(36).toUpperCase().padStart(2, '0');
+    const ticketCode = `TK-${timePart}${randomPart}`;
 
     const existedTicket = await strapi.entityService.findMany('api::ticket.ticket', {
       filters: { ticket_code: ticketCode },
@@ -191,5 +182,52 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
         pageCount: Math.ceil(total / pageSize),
       },
     });
+  },
+
+  async deleteTicket(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'status', 'handler_id'],
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (ticket.requester_id !== user.id) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền xóa phiếu này');
+    }
+
+    const isAcceptedByDepartment = ticket.status !== 'new' || Number(ticket.handler_id) > 0;
+    if (isAcceptedByDepartment) {
+      return errorResponse(ctx, 400, 'Phiếu đã được bộ phận phụ trách tiếp nhận, không thể xóa');
+    }
+
+    try {
+      const logs = await strapi.entityService.findMany('api::ticket-log.ticket-log', {
+        filters: { ticket: { id: ticket.id } },
+        fields: ['id'],
+      });
+
+      await Promise.all(
+        logs.map((log) => strapi.entityService.delete('api::ticket-log.ticket-log', log.id))
+      );
+
+      await strapi.entityService.delete('api::ticket.ticket', ticket.id);
+
+      return successResponse('Xóa phiếu thành công');
+    } catch (error) {
+      strapi.log.error('Delete ticket failed', error);
+      return errorResponse(ctx, 500, 'Xóa phiếu thất bại');
+    }
   },
 }));

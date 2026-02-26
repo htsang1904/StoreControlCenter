@@ -401,6 +401,38 @@ export interface ApiDepartmentDepartment extends Schema.CollectionType {
   };
 }
 
+export interface ApiStoreStore extends Schema.CollectionType {
+  collectionName: 'stores';
+  info: {
+    displayName: 'Store';
+    pluralName: 'stores';
+    singularName: 'store';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    address: Attribute.String;
+    code: Attribute.String;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::store.store',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    publishedAt: Attribute.DateTime;
+    shortAddress: Attribute.String;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::store.store',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiTicketLogTicketLog extends Schema.CollectionType {
   collectionName: 'ticket_logs';
   info: {
@@ -977,6 +1009,7 @@ declare module '@strapi/types' {
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
       'api::department.department': ApiDepartmentDepartment;
+      'api::store.store': ApiStoreStore;
       'api::ticket-log.ticket-log': ApiTicketLogTicketLog;
       'api::ticket.ticket': ApiTicketTicket;
       'api::user-info.user-info': ApiUserInfoUserInfo;

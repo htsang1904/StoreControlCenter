@@ -1,13 +1,14 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { listTickets } from '@/services/ticket_service'
+import { deleteTicket as deleteTicketApi, listTickets } from '@/services/ticket_service'
 import { useApp } from '@/plugins/app'
 
 const router = useRouter()
 const { state } = useApp()
 
 const loading = ref(false)
+const deletingId = ref(null)
 const errorMessage = ref('')
 const tickets = ref([])
 const searchInput = ref('')
@@ -25,6 +26,10 @@ const pagination = reactive({
 })
 
 const hasTickets = computed(() => tickets.value.length > 0)
+const canDeleteTicket = computed(() => {
+  const role = String(state.userInfo?.role || '').toLowerCase()
+  return role === 'store' || role === 'admin'
+})
 
 const statusOptions = [
   { value: 'new', label: 'Mới tạo' },
@@ -150,6 +155,30 @@ async function nextPage() {
   await fetchTickets()
 }
 
+async function handleDeleteTicket(ticket) {
+  if (!ticket?.id || deletingId.value) return
+
+  const canDelete = window.confirm(`Bạn có chắc muốn xoá yêu cầu ${ticket.ticket_code || `#${ticket.id}`}?`)
+  if (!canDelete) return
+
+  deletingId.value = ticket.id
+  errorMessage.value = ''
+
+  try {
+    await deleteTicketApi(ticket.id)
+
+    const isLastItemOnPage = tickets.value.length <= 1 && pagination.page > 1
+    if (isLastItemOnPage) {
+      pagination.page -= 1
+    }
+    await fetchTickets()
+  } catch (err) {
+    errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể xoá yêu cầu.'
+  } finally {
+    deletingId.value = null
+  }
+}
+
 onMounted(async () => {
   await fetchTickets()
 })
@@ -253,13 +282,14 @@ onMounted(async () => {
               <table class="min-w-[760px] w-full divide-y divide-gray-200 dark:divide-neutral-700">
                 <thead class="bg-gray-50 dark:bg-neutral-800">
                   <tr>
-                    <th class="px-4 sm:px-6 py-3 text-start text-xs font-semibold uppercase text-gray-700">Mã yêu cầu</th>
-                    <th class="px-4 sm:px-6 py-3 text-start text-xs font-semibold uppercase text-gray-700">Tiêu đề</th>
-                    <th class="px-4 sm:px-6 py-3 text-start text-xs font-semibold uppercase text-gray-700">Người gửi</th>
-                    <th class="px-4 sm:px-6 py-3 text-start text-xs font-semibold uppercase text-gray-700">Cửa hàng</th>
-                    <th class="px-4 sm:px-6 py-3 text-start text-xs font-semibold uppercase text-gray-700">Bộ phận</th>
-                    <th class="px-4 sm:px-6 py-3 text-start text-xs font-semibold uppercase text-gray-700">Trạng thái</th>
-                    <th class="px-4 sm:px-6 py-3 text-start text-xs font-semibold uppercase text-gray-700">Cập nhật</th>
+                    <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Mã yêu cầu</th>
+                    <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Tiêu đề</th>
+                    <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Người gửi</th>
+                    <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Cửa hàng</th>
+                    <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Bộ phận</th>
+                    <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Trạng thái</th>
+                    <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Cập nhật</th>
+                    <th v-if="canDeleteTicket" class="px-3 sm:px-4 py-2.5 text-end text-xs font-semibold uppercase text-gray-700">Tác vụ</th>
                   </tr>
                 </thead>
 
@@ -270,23 +300,50 @@ onMounted(async () => {
                     class="bg-white hover:bg-gray-50 cursor-pointer"
                     @click="goToTicketDetail(ticket.id)"
                   >
-                    <td class="px-4 sm:px-6 py-3 text-sm font-medium text-blue-600">{{ ticket.ticket_code || `#${ticket.id}` }}</td>
-                    <td class="px-4 sm:px-6 py-3 text-sm text-gray-700">{{ ticket.title || '--' }}</td>
-                    <td class="px-4 sm:px-6 py-3 text-sm text-gray-700">#{{ ticket.requester_id || '--' }}</td>
-                    <td class="px-4 sm:px-6 py-3 text-sm text-gray-700">{{ ticket.store_id || '--' }}</td>
-                    <td class="px-4 sm:px-6 py-3 text-sm text-gray-700">{{ ticket.responsible_department?.name || '--' }}</td>
-                    <td class="px-4 sm:px-6 py-3">
+                    <td class="px-3 sm:px-4 py-2 text-sm font-medium text-blue-600">{{ ticket.ticket_code || `#${ticket.id}` }}</td>
+                    <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">{{ ticket.title || '--' }}</td>
+                    <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">#{{ ticket.requester_id || '--' }}</td>
+                    <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">{{ ticket.store_id || '--' }}</td>
+                    <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">{{ ticket.responsible_department?.name || '--' }}</td>
+                    <td class="px-3 sm:px-4 py-2">
                       <span class="inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="statusClass(ticket.status)">
                         {{ normalizeStatus(ticket.status) }}
                       </span>
                     </td>
-                    <td class="px-4 sm:px-6 py-3 text-sm text-gray-600">{{ formatDateTime(ticket.updatedAt || ticket.createdAt) }}</td>
+                    <td class="px-3 sm:px-4 py-2 text-sm text-gray-600">{{ formatDateTime(ticket.updatedAt || ticket.createdAt) }}</td>
+                    <td v-if="canDeleteTicket" class="px-3 sm:px-4 py-2 text-end">
+                      <div class="hs-dropdown relative inline-flex [--placement:bottom-right]">
+                        <button
+                          type="button"
+                          class="cursor-pointer size-8 inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white text-slate-600 hover:bg-gray-50"
+                          aria-haspopup="menu"
+                          aria-expanded="false"
+                          @click.stop
+                        >
+                          <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="5" r="1.8" />
+                            <circle cx="12" cy="12" r="1.8" />
+                            <circle cx="12" cy="19" r="1.8" />
+                          </svg>
+                        </button>
+                        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-32 z-20 bg-white shadow-md rounded-lg mt-2 border border-gray-200">
+                          <button
+                            type="button"
+                            class="cursor-pointer w-full px-3 py-2 text-sm text-left text-red-600 hover:bg-red-50 disabled:opacity-50"
+                            :disabled="deletingId === ticket.id"
+                            @click.stop="handleDeleteTicket(ticket)"
+                          >
+                            {{ deletingId === ticket.id ? 'Đang xoá...' : 'Xoá yêu cầu' }}
+                          </button>
+                        </div>
+                      </div>
+                    </td>
                   </tr>
                 </tbody>
 
                 <tbody v-else>
                   <tr>
-                    <td colspan="7" class="py-10">
+                    <td :colspan="canDeleteTicket ? 8 : 7" class="py-10">
                       <div class="flex flex-col items-center justify-center text-gray-500">
                         <p class="text-sm">Không có dữ liệu</p>
                       </div>
@@ -303,6 +360,16 @@ onMounted(async () => {
                 class="cursor-pointer rounded-xl border border-gray-200 bg-white p-3.5 hover:bg-gray-50"
                 @click="goToTicketDetail(ticket.id)"
               >
+                <div v-if="canDeleteTicket" class="flex justify-end">
+                  <button
+                    type="button"
+                    class="cursor-pointer text-xs font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+                    :disabled="deletingId === ticket.id"
+                    @click.stop="handleDeleteTicket(ticket)"
+                  >
+                    {{ deletingId === ticket.id ? 'Đang xoá...' : 'Xoá' }}
+                  </button>
+                </div>
                 <div class="rounded-lg bg-slate-50 px-3 py-2.5">
                   <p class="text-base font-semibold text-slate-700">Mã yêu cầu: <span class="text-blue-600">{{ ticket.ticket_code || `#${ticket.id}` }}</span></p>
                   <p class="mt-1 text-sm leading-snug font-semibold text-slate-700 line-clamp-2">{{ ticket.title || '--' }}</p>
