@@ -8,5 +8,31 @@ module.exports = {
                 auth: false,
             },
         },
+        {
+            method: "GET",
+            path: "/user-info/me",
+            handler: "user-info.me",
+            config: {
+                auth: false,
+                policies: ["global::app-auth"],
+            },
+        },
+        {
+            method: "POST",
+            path: "/user-info/refresh",
+            handler: "user-info.refresh",
+            config: {
+                auth: false,
+            },
+        },
+        {
+            method: "POST",
+            path: "/user-info/logout",
+            handler: "user-info.logout",
+            config: {
+                auth: false,
+                policies: ["global::app-auth"],
+            },
+        },
     ]
 }

@@ -374,7 +374,6 @@ export interface ApiUserInfoUserInfo extends Schema.CollectionType {
     draftAndPublish: false;
   };
   attributes: {
-    access_token: Attribute.String;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::user-info.user-info',
@@ -385,7 +384,10 @@ export interface ApiUserInfoUserInfo extends Schema.CollectionType {
     email: Attribute.String;
     is_active: Attribute.Boolean;
     name: Attribute.String;
+    refresh_token_expires_at: Attribute.DateTime;
+    refresh_token_hash: Attribute.String;
     suite_token: Attribute.Text;
+    token_version: Attribute.Integer & Attribute.DefaultTo<0>;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::user-info.user-info',

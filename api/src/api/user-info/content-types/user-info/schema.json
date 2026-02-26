@@ -18,14 +18,21 @@
     "email": {
       "type": "string"
     },
-    "access_token": {
-      "type": "string"
-    },
     "suite_token": {
       "type": "text"
     },
     "is_active": {
       "type": "boolean"
+    },
+    "refresh_token_hash": {
+      "type": "string"
+    },
+    "refresh_token_expires_at": {
+      "type": "datetime"
+    },
+    "token_version": {
+      "type": "integer",
+      "default": 0
     }
   }
 }

@@ -4,7 +4,7 @@ import { useApp } from '@/plugins/app'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
 import { RouterView } from 'vue-router'
-const { state, logout } = useApp()
+useApp()
 onMounted(() => {
 })
 </script>

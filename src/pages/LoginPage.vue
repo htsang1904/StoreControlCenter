@@ -1,31 +1,26 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useApp } from '@/plugins/app'
-const { state, userLogin } = useApp()
+const { userLogin } = useApp()
 const loading = ref(false)
+const errorMessage = ref('')
 const formData = reactive({
     username: '',
     password: '',
 })
 async function submitData() {
+  errorMessage.value = ''
+  loading.value = true
   try {
-    loading.value = true
     await userLogin(formData)
   }
-  catch(err) {
-    setTimeout(() => {
-        loading.value = false
-    }, 1000)
+  catch (err) {
+    errorMessage.value = err?.message || 'Đăng nhập thất bại'
   }
   finally {
-    setTimeout(() => {
-        loading.value = false
-    }, 1000)
+    loading.value = false
   }
 }
-onMounted(() => {
-    console.log(state.token)
-})
 </script>
 
 <template>
@@ -44,6 +39,9 @@ onMounted(() => {
           <div class="mt-5">
             <form @submit.prevent="submitData">
               <div class="grid gap-y-4">
+                <p v-if="errorMessage" class="text-sm text-red-600">
+                  {{ errorMessage }}
+                </p>
   
                 <div class="max-w-sm space-y-3">
                   <div class="relative">

@@ -1,6 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useApp } from '@/plugins/app'
-import { nextTick } from 'vue'
 import 'preline'
 
 const router = createRouter({
@@ -52,8 +50,8 @@ const router = createRouter({
             },
 
             beforeEnter: (to, from, next) => {
-                const {state} = useApp()
-                if (state.token) {
+                const token = localStorage.getItem('token')
+                if (token) {
                     next({ path: '/ticket' });
                 } else {
                     next();
@@ -65,7 +63,13 @@ const router = createRouter({
 
 
 router.afterEach(async (to, from, failure) => {
-  if (!failure) setTimeout(() => window.HSStaticMethods.autoInit(), 100);
+  if (!failure) {
+    setTimeout(() => {
+      if (window.HSStaticMethods?.autoInit) {
+        window.HSStaticMethods.autoInit()
+      }
+    }, 100)
+  }
 })
 
 

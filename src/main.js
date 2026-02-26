@@ -12,6 +12,7 @@ window.jQuery = $;
 import { createApp } from 'vue'
 import App from './App.vue'
 import loading from '@/directives/loading'
+import { useApp } from '@/plugins/app'
 import router from './router';
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
@@ -25,6 +26,8 @@ router.beforeEach((to, from, next) => {
 })
 import { defineElement } from "@lordicon/element"
 defineElement()
+const { initializeAuth } = useApp()
+await initializeAuth()
 const app = createApp(App)
 app.directive('loading',loading)
 app.use(router)

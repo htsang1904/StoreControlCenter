@@ -1,6 +1,6 @@
 <script setup>
 import { useApp } from '@/plugins/app'
-const { logout } = useApp()
+const { logout, state } = useApp()
 </script>
 <template>
     <div class="md:ms-65 xl:hs-overlay-layout-open:me-96 md:hs-overlay-minified:ms-13 transition-all duration-300 fixed top-0 inset-x-0 flex flex-wrap md:justify-start md:flex-nowrap z-48 md:z-61 bg-white py-2.5 dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700">
@@ -82,10 +82,10 @@ const { logout } = useApp()
               <div class="hs-dropdown-menu hs-dropdown-open:opacity-100 w-60 transition-[opacity,margin] duration opacity-0 hidden z-20 bg-white border border-gray-200 rounded-xl shadow-xl dark:bg-neutral-900 dark:border-neutral-700" role="menu" aria-orientation="vertical" aria-labelledby="hs-dnad">
                 <div class="py-2 px-3.5">
                   <span class="font-medium text-gray-800 dark:text-neutral-300">
-                    James Collison
+                    {{ state.userInfo?.name || 'Người dùng' }}
                   </span>
                   <p class="text-sm text-gray-500 dark:text-neutral-500">
-                    jamescollison@site.com
+                    {{ state.userInfo?.email || '' }}
                   </p>
                   <div class="mt-1.5">
                     <a class="flex justify-center items-center gap-x-1.5 py-2 px-2.5 font-medium text-[13px] bg-cyan-700 text-white rounded-lg hover:bg-cyan-600 focus:outline-hidden focus:bg-cyan-600 disabled:opacity-50 disabled:pointer-events-none" href="#">

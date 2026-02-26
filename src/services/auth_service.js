@@ -8,3 +8,12 @@ export const loginBySuite = (payload) => {
 export const login = (payload) => {
   return http.post('/api/user-info/login', payload)
 }
+export const getMe = () => {
+  return http.get('/api/user-info/me')
+}
+export const logout = () => {
+  return http.post('/api/user-info/logout')
+}
+export const refreshToken = (payload) => {
+  return http.post('/api/user-info/refresh', payload)
+}
