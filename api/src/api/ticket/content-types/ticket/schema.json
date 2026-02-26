@@ -1,0 +1,74 @@
+{
+  "kind": "collectionType",
+  "collectionName": "tickets",
+  "info": {
+    "singularName": "ticket",
+    "pluralName": "tickets",
+    "displayName": "Ticket",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "ticket_code": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text",
+      "required": true
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["new", "assigned", "in_progress", "resolved", "closed", "rejected"],
+      "default": "new",
+      "required": true
+    },
+    "requester_id": {
+      "type": "integer",
+      "required": true
+    },
+    "handler_id": {
+      "type": "integer"
+    },
+    "store_id": {
+      "type": "integer",
+      "required": true
+    },
+    "responsible_department": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::department.department",
+      "inversedBy": "tickets",
+      "required": true
+    },
+    "ticket_category_id": {
+      "type": "integer"
+    },
+    "type": {
+      "type": "string"
+    },
+    "start_date": {
+      "type": "datetime"
+    },
+    "end_date": {
+      "type": "datetime"
+    },
+    "attachments": {
+      "type": "json"
+    },
+    "ticket_logs": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::ticket-log.ticket-log",
+      "mappedBy": "ticket"
+    }
+  }
+}

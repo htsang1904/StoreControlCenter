@@ -30,13 +30,17 @@ export function useApp() {
             if (state.refreshToken) {
                 localStorage.setItem('refreshToken', state.refreshToken)
             }
-            const meResult = await getMe()
-            const user = meResult?.data?.user || meResult?.userDetail
-            if (!meResult?.success || !user) {
-                throw new Error('Không thể lấy thông tin người dùng')
-            }
-            state.userInfo = user
-            await router.push('/')
+
+            // Do not block navigation if profile fetch has transient issues.
+            try {
+                const meResult = await getMe()
+                const user = meResult?.data?.user || meResult?.userDetail || meResult?.data
+                if (user) {
+                    state.userInfo = user
+                }
+            } catch (_err) {}
+
+            await router.replace('/ticket')
             return result
         } catch (err) {
             state.token = null

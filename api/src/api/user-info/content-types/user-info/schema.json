@@ -33,6 +33,12 @@
     "token_version": {
       "type": "integer",
       "default": 0
+    },
+    "role": {
+      "type": "enumeration",
+      "enum": ["store", "handler", "qc", "admin"],
+      "default": "store",
+      "required": true
     }
   }
 }

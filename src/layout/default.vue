@@ -1,24 +1,20 @@
 <script setup>
-import { onMounted } from 'vue'
+import { RouterView } from 'vue-router'
 import { useApp } from '@/plugins/app'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
-import { RouterView } from 'vue-router'
+
 useApp()
-onMounted(() => {
-})
 </script>
 
 <template>
-    <body class="dark:bg-neutral-800">
-        <Sidebar/>
-        <main class="md:ps-65 md:hs-overlay-minified:ps-13 transition-all duration-300 pb-4 h-screen flex flex-col">
-            <Header/>
-            <RouterView class="mt-14 box-border"/>
-        </main>
-    </body>
+  <div class="app-shell dark:bg-neutral-950">
+    <Sidebar />
+    <main class="md:ps-65 md:hs-overlay-minified:ps-16 transition-[padding] duration-300 ease-in-out min-h-dvh pb-6">
+      <Header />
+      <section class="px-3 sm:px-5 pt-20">
+        <RouterView />
+      </section>
+    </main>
+  </div>
 </template>
-
-<style scoped>
-
-</style>

@@ -1,187 +1,174 @@
 <script setup>
-import { nextTick, onMounted, reactive, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useApp } from '@/plugins/app'
+
 const route = useRoute()
-const TABS = [
+const { state, logout } = useApp()
+
+const tabs = [
   {
     label: 'Yêu cầu xử lý',
-    value: 0,
     icon: 'https://cdn.lordicon.com/rguyoaum.json',
-    path: '/ticket'
+    path: '/ticket',
   },
   {
     label: 'Báo cáo QC',
-    value: 1,
     icon: 'https://cdn.lordicon.com/wwcdwkaf.json',
-    path: '/QC'
-  }
+    path: '/QC',
+  },
 ]
-const tabs = reactive(TABS)
-const selectedTab = ref(null)
 
-function selectTab() {
-  setTimeout(() => {
-    selectedTab.value = route.path
-  }, 50)
+const selectedPath = computed(() => route.path)
+const isTabActive = (tabPath) => {
+  if (!selectedPath.value) return false
+  if (tabPath === '/') return selectedPath.value === '/'
+  return selectedPath.value === tabPath || selectedPath.value.startsWith(`${tabPath}/`)
 }
-onMounted(async () => {
-  await nextTick()
-  selectTab()
+const userName = computed(() => state.userInfo?.name || 'Người dùng')
+const userContact = computed(() => state.userInfo?.phone || state.userInfo?.phoneNumber || state.userInfo?.email || '')
+const userInitials = computed(() => {
+  const name = userName.value?.trim() || ''
+  if (!name) return 'ND'
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() || '')
+    .join('')
 })
 </script>
+
 <template>
-  <div id="hs-pro-sidebar" class="hs-overlay [--auto-close:md] hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform w-65 hs-overlay-minified:w-13 overflow-hidden hidden fixed inset-y-0 z-60 start-0 bg-white border-e border-gray-200 dark:border-neutral-700 md:block md:translate-x-0 md:end-auto md:bottom-0 dark:bg-neutral-800" role="dialog" tabindex="-1" aria-label="Sidebar">
-    <div class="relative flex flex-col h-full max-h-full">
-
-      <header class="py-2.5 px-4 flex justify-between items-center gap-x-2">
-        <div class="-ms-2 flex items-center gap-x-1">
-          <div class="md:hs-overlay-minified:hidden">
-            <a class="shrink-0 inline-flex justify-center items-center w-[70%] rounded-lg text-xl font-semibold hover:bg-gray-100 focus:outline-hidden focus:bg-gray-100 dark:hover:bg-neutral-700 dark:focus:bg-neutral-700" href="" aria-label="Guta">
-              <img class="w-auto" src="/src/assets/images/logo.png" alt="">
-            </a>
-          </div>
-
-          <button type="button" class="hidden md:hs-overlay-minified:flex justify-center items-center flex-none gap-x-3 size-9 text-sm text-gray-500 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-gray-100 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:focus:bg-neutral-700" aria-haspopup="dialog" aria-expanded="true" aria-controls="hs-pro-sidebar" aria-label="Minify navigation" data-hs-overlay-minifier="#hs-pro-sidebar">
-            <svg class="hidden hs-overlay-minified:block shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-              <path d="M15 3v18"></path>
-              <path d="m8 9 3 3-3 3"></path>
-            </svg>
-            <svg class="hs-overlay-minified:hidden shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-              <path d="M15 3v18"></path>
-              <path d="m10 15-3-3 3-3"></path>
-            </svg>
-          </button>
+  <aside
+    id="hs-pro-sidebar"
+    class="hs-overlay [--auto-close:md] hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform w-65 hs-overlay-minified:w-16 overflow-hidden hidden fixed inset-y-0 z-60 start-0 px-2 py-3 md:hs-overlay-minified:px-1.5 md:block md:translate-x-0 md:end-auto md:bottom-0"
+    role="dialog"
+    tabindex="-1"
+    aria-label="Sidebar"
+  >
+    <div class="glass-card relative flex h-full max-h-full flex-col rounded-2xl">
+      <header class="px-3 py-3 flex items-center justify-between gap-2 border-b border-slate-200/70 dark:border-slate-700/70 md:hs-overlay-minified:px-1.5 md:hs-overlay-minified:justify-center">
+        <div class="min-w-0 flex-1 md:hs-overlay-minified:hidden">
+          <a class="inline-flex w-full items-center rounded-xl px-2 py-1.5 hover:bg-slate-100/80 dark:hover:bg-slate-800/80" href="#" aria-label="Guta">
+            <img class="h-5 w-auto max-w-[132px] object-contain" src="/src/assets/images/logo.png" alt="StoreControlCenter" />
+          </a>
         </div>
 
-        <button type="button" class="hidden md:hs-overlay-minified:hidden md:flex justify-center items-center flex-none gap-x-3 size-9 text-sm text-gray-500 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-gray-100 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:focus:bg-neutral-700" aria-haspopup="dialog" aria-expanded="true" aria-controls="hs-pro-sidebar" aria-label="Minify navigation" data-hs-overlay-minifier="#hs-pro-sidebar">
-          <svg class="hidden hs-overlay-minified:block shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-            <path d="M15 3v18"></path>
-            <path d="m8 9 3 3-3 3"></path>
-          </svg>
-          <svg class="hs-overlay-minified:hidden shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button
+          type="button"
+          class="hidden md:flex justify-center items-center size-9 text-slate-500 rounded-lg hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          aria-haspopup="dialog"
+          aria-expanded="true"
+          aria-controls="hs-pro-sidebar"
+          aria-label="Minify navigation"
+          data-hs-overlay-minifier="#hs-pro-sidebar"
+        >
+          <svg class="hs-overlay-minified:hidden shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect width="18" height="18" x="3" y="3" rx="2"></rect>
             <path d="M15 3v18"></path>
             <path d="m10 15-3-3 3-3"></path>
           </svg>
+          <svg class="hidden hs-overlay-minified:block shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+            <path d="M15 3v18"></path>
+            <path d="m8 9 3 3-3 3"></path>
+          </svg>
         </button>
-        <button type="button" class="flex md:hidden justify-center items-center gap-x-3 size-6 bg-white border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 rounded-full disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-gray-100 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:focus:bg-neutral-700 dark:hover:text-neutral-200 dark:focus:text-neutral-200" data-hs-overlay="#hs-pro-sidebar" aria-expanded="true">
-          <svg class="shrink-0 size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+
+        <button
+          type="button"
+          class="flex md:hidden justify-center items-center size-7 bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-full dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300"
+          data-hs-overlay="#hs-pro-sidebar"
+          aria-expanded="true"
+          aria-label="Close sidebar"
+        >
+          <svg class="shrink-0 size-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 6 6 18" />
             <path d="m6 6 12 12" />
           </svg>
         </button>
       </header>
 
-      <div class="mb-5 px-2 flex flex-col gap-y-5">
-        <!-- List -->
-        <ul class="flex flex-col gap-y-0.5">
-          <li v-for="(tab, index) in tabs" :key="index" @click="selectTab">
-            <router-link :to="tab.path" :class="{'active': selectedTab === tab.path }" class="hover-target group relative w-full flex items-center gap-1 py-1.5 px-2.5 text-sm text-gray-800 rounded-lg before:absolute before:inset-y-0 before:-start-2 before:rounded-e-full before:w-1 before:h-full hover:bg-gray-100/70 focus:outline-hidden focus:bg-gray-100/70 dark:hover:bg-neutral-700/50 dark:focus:bg-neutral-700/50 dark:text-neutral-200" href="#">
-              <span class="-ms-[5px] flex shrink-0 justify-center items-center size-6">
-               <lord-icon
+      <div class="p-2.5 md:hs-overlay-minified:px-1 md:hs-overlay-minified:py-2">
+        <ul class="space-y-1">
+          <li v-for="tab in tabs" :key="tab.path">
+            <router-link
+              :to="tab.path"
+              class="group hover-target relative flex w-full items-center gap-2 rounded-xl py-2 px-2.5 text-sm text-slate-700 transition-colors duration-200 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 md:hs-overlay-minified:size-10 md:hs-overlay-minified:mx-auto md:hs-overlay-minified:justify-center md:hs-overlay-minified:gap-0 md:hs-overlay-minified:px-0"
+              :class="{ active: isTabActive(tab.path) }"
+            >
+              <span class="nav-icon flex shrink-0 justify-center items-center size-6">
+                <lord-icon
                   :src="tab.icon"
                   trigger="hover"
-                  :colors="selectedTab === tab.path ? 'primary:#ffffff' : 'primary:#333333'"
-                  target=".hover-target">
-              </lord-icon>
+                  :colors="isTabActive(tab.path) ? 'primary:#ffffff' : 'primary:#1e293b'"
+                  target=".hover-target"
+                ></lord-icon>
               </span>
-              <span class="relative hs-overlay-minified:opacity-0 transition-opacity duration-300 pr-3.5">
-                <span class="truncate text-sm">{{ tab.label }}</span>
-                <span v-if="false" class="absolute -top-0.5 -end-0.5">
-                  <span class="relative flex">
-                    <span class="animate-ping absolute inline-flex size-full rounded-full bg-red-400 dark:bg-red-600 opacity-75"></span>
-                    <span class="relative inline-flex size-2 bg-red-500 rounded-full"></span>
-                  </span>
-                </span>
-              </span>
+              <span class="truncate transition-opacity duration-300 md:hs-overlay-minified:hidden">{{ tab.label }}</span>
             </router-link>
           </li>
         </ul>
       </div>
 
-      <div class="hs-overlay-minified:opacity-0 transition-opacity duration-300 pb-4 px-2 size-full flex flex-col gap-y-5 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 dark:[&::-webkit-scrollbar-track]:bg-neutral-700 dark:[&::-webkit-scrollbar-thumb]:bg-neutral-500">
-        <div class="flex flex-col">
-          <span class="block ps-2.5 mb-2 text-sm text-gray-400 dark:text-neutral-500">
-            Xử lý gần nhất
-          </span>
-
-          <ul class="flex flex-col gap-y-0.5">
-            <li>
-              <div class="relative group">
-                <a class="w-full flex items-center gap-x-2 py-2 ps-2.5 pe-8 text-sm text-gray-800 truncate rounded-lg hover:bg-gray-100/70 focus:outline-hidden focus:bg-gray-100/70 dark:hover:bg-neutral-700/50 dark:focus:bg-neutral-700/50 dark:text-neutral-200" href="#">
-                  <span class="truncate">Preline UI Overview</span>
-                </a>
-
-                <div class="absolute top-1/2 end-0 z-1 -translate-y-1/2 group-hover:opacity-100 opacity-0 transition-opacity duration-300">
-                  <!-- More Dropdown -->
-                  <div class="hs-dropdown [--scope:window] relative inline-flex">
-                    <button id="hs-pro-chthmdid1" type="button" class="flex justify-center items-center gap-x-3 size-8 text-sm text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-gray-100 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:focus:bg-neutral-700 dark:hover:text-neutral-200 dark:focus:text-neutral-200">
-                      <svg class="shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="1" />
-                        <circle cx="12" cy="5" r="1" />
-                        <circle cx="12" cy="19" r="1" />
-                      </svg>
-                    </button>
-
-                    <!-- More Dropdown -->
-                    <div class="hs-dropdown-menu hs-dropdown-open:opacity-100 w-32 transition-[opacity,margin] duration opacity-0 hidden z-60 bg-white border border-gray-200 rounded-xl shadow-lg before:absolute before:-top-4 before:start-0 before:w-full before:h-5 dark:bg-neutral-950 dark:border-neutral-700" role="menu" aria-orientation="vertical" aria-labelledby="hs-pro-chthmdid1">
-                      <div class="p-1 space-y-0.5">
-                        <button type="button" class="w-full flex items-center gap-x-3 py-1.5 px-2 rounded-lg text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-gray-100 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800">
-                          <svg class="shrink-0 size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                            <polyline points="16 6 12 2 8 6" />
-                            <line x1="12" x2="12" y1="2" y2="15" />
-                          </svg>
-                          Share
-                        </button>
-                        <button type="button" class="w-full flex items-center gap-x-3 py-1.5 px-2 rounded-lg text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-gray-100 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800">
-                          <svg class="shrink-0 size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
-                            <path d="m15 5 4 4" />
-                          </svg>
-                          Rename
-                        </button>
-                        <button type="button" class="w-full flex items-center gap-x-3 py-1.5 px-2 rounded-lg text-sm text-gray-800 hover:bg-gray-100 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-gray-100 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:focus:bg-neutral-800">
-                          <svg class="shrink-0 size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect width="20" height="5" x="2" y="3" rx="1" />
-                            <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
-                            <path d="M10 12h4" />
-                          </svg>
-                          Archive
-                        </button>
-                        <button type="button" class="w-full flex items-center gap-x-3 py-1.5 px-2 rounded-lg text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:pointer-events-none focus:outline-hidden focus:bg-red-50 dark:text-red-500 dark:hover:bg-red-500/20 dark:focus:bg-red-500/20">
-                          <svg class="shrink-0 size-3.5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                            <line x1="10" x2="10" y1="11" y2="17" />
-                            <line x1="14" x2="14" y1="11" y2="17" />
-                          </svg>
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                    <!-- End More Dropdown -->
-                  </div>
-                  <!-- End More Dropdown -->
+      <div class="mt-auto p-2.5">
+        <div class="md:hs-overlay-minified:hidden">
+          <div class="hs-dropdown [--strategy:absolute] [--placement:top-left] relative inline-flex w-full">
+            <button
+              type="button"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-left transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800"
+            >
+              <div class="flex items-center gap-2.5">
+                <div class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
+                  {{ userInitials }}
                 </div>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{{ userName }}</p>
+                  <p class="truncate text-xs text-slate-500 dark:text-slate-400">{{ userContact || 'Tài khoản nội bộ' }}</p>
+                </div>
+                <svg class="size-4 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="m6 9 6 6 6-6"></path>
+                </svg>
               </div>
-            </li>
-          </ul>
+            </button>
+
+            <div class="hs-dropdown-menu hs-dropdown-open:opacity-100 w-58 transition-[opacity,margin] duration opacity-0 hidden z-70 bg-white border border-slate-200 rounded-xl shadow-lg dark:bg-slate-900 dark:border-slate-700">
+              <div class=" p-1.5">
+                <button type="button" class="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15" @click="logout">
+                  <span>Đăng xuất</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hidden md:hs-overlay-minified:flex justify-center items-center">
+          <button
+            type="button"
+            class="inline-flex h-10 w-10 min-h-10 min-w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-0 text-[13px] font-semibold leading-none text-blue-700 transition-colors hover:bg-slate-100"
+            :title="userName"
+            aria-label="Mở rộng thanh bên"
+            data-hs-overlay-minifier="#hs-pro-sidebar"
+          >
+            {{ userInitials }}
+          </button>
         </div>
       </div>
     </div>
-  </div>
+  </aside>
 </template>
+
 <style scoped>
 @custom-variant dark (&:where(.dark, .dark *));
 @reference "tailwindcss";
+
 .active {
-  @apply relative bg-blue-600 text-white before:absolute before:inset-y-0
-         before:-start-2 before:rounded-e-full before:w-1 before:h-full before:bg-blue-600 font-medium
-         dark:bg-neutral-700 dark:text-cyan-400 dark:before:bg-cyan-400;
+  @apply bg-blue-600 text-white shadow-sm hover:bg-blue-700 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500;
+}
+
+.nav-icon :deep(lord-icon) {
+  width: 22px;
+  height: 22px;
+  display: block;
 }
 </style>

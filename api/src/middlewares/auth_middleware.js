@@ -26,7 +26,7 @@ module.exports = (_config, { strapi }) => {
     }
 
     const user = await strapi.entityService.findOne('api::user-info.user-info', decoded.sub, {
-      fields: ['id', 'name', 'email', 'is_active', 'token_version'],
+      fields: ['id', 'name', 'email', 'is_active', 'role', 'token_version'],
     });
 
     if (!user || user.is_active === false) {
@@ -37,7 +37,10 @@ module.exports = (_config, { strapi }) => {
       throw new UnauthorizedError('Phiên đăng nhập không hợp lệ');
     }
 
-    ctx.state.userDetail = user;
+    ctx.state.userDetail = {
+      ...user,
+      role: user.role || 'store',
+    };
     await next();
   };
 };

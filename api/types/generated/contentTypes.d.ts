@@ -362,6 +362,145 @@ export interface AdminUser extends Schema.CollectionType {
   };
 }
 
+export interface ApiDepartmentDepartment extends Schema.CollectionType {
+  collectionName: 'departments';
+  info: {
+    description: '';
+    displayName: 'Department';
+    pluralName: 'departments';
+    singularName: 'department';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    code: Attribute.UID<'api::department.department', 'name'> &
+      Attribute.Required &
+      Attribute.Unique;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::department.department',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    is_active: Attribute.Boolean & Attribute.DefaultTo<true>;
+    name: Attribute.String & Attribute.Required;
+    tickets: Attribute.Relation<
+      'api::department.department',
+      'oneToMany',
+      'api::ticket.ticket'
+    >;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::department.department',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiTicketLogTicketLog extends Schema.CollectionType {
+  collectionName: 'ticket_logs';
+  info: {
+    description: '';
+    displayName: 'TicketLog';
+    pluralName: 'ticket-logs';
+    singularName: 'ticket-log';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    attachments: Attribute.JSON;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::ticket-log.ticket-log',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    message: Attribute.Text & Attribute.Required;
+    sender: Attribute.Relation<
+      'api::ticket-log.ticket-log',
+      'manyToOne',
+      'api::user-info.user-info'
+    >;
+    sender_type: Attribute.Enumeration<['store', 'handler', 'system']> &
+      Attribute.DefaultTo<'store'>;
+    ticket: Attribute.Relation<
+      'api::ticket-log.ticket-log',
+      'manyToOne',
+      'api::ticket.ticket'
+    > &
+      Attribute.Required;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::ticket-log.ticket-log',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiTicketTicket extends Schema.CollectionType {
+  collectionName: 'tickets';
+  info: {
+    description: '';
+    displayName: 'Ticket';
+    pluralName: 'tickets';
+    singularName: 'ticket';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    attachments: Attribute.JSON;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::ticket.ticket',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    description: Attribute.Text & Attribute.Required;
+    end_date: Attribute.DateTime;
+    handler_id: Attribute.Integer;
+    requester_id: Attribute.Integer & Attribute.Required;
+    responsible_department: Attribute.Relation<
+      'api::ticket.ticket',
+      'manyToOne',
+      'api::department.department'
+    > &
+      Attribute.Required;
+    start_date: Attribute.DateTime;
+    status: Attribute.Enumeration<
+      ['new', 'assigned', 'in_progress', 'resolved', 'closed', 'rejected']
+    > &
+      Attribute.Required &
+      Attribute.DefaultTo<'new'>;
+    store_id: Attribute.Integer & Attribute.Required;
+    ticket_category_id: Attribute.Integer;
+    ticket_code: Attribute.String & Attribute.Required & Attribute.Unique;
+    ticket_logs: Attribute.Relation<
+      'api::ticket.ticket',
+      'oneToMany',
+      'api::ticket-log.ticket-log'
+    >;
+    title: Attribute.String & Attribute.Required;
+    type: Attribute.String;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::ticket.ticket',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiUserInfoUserInfo extends Schema.CollectionType {
   collectionName: 'user_infos';
   info: {
@@ -386,6 +525,9 @@ export interface ApiUserInfoUserInfo extends Schema.CollectionType {
     name: Attribute.String;
     refresh_token_expires_at: Attribute.DateTime;
     refresh_token_hash: Attribute.String;
+    role: Attribute.Enumeration<['store', 'handler', 'qc', 'admin']> &
+      Attribute.Required &
+      Attribute.DefaultTo<'store'>;
     suite_token: Attribute.Text;
     token_version: Attribute.Integer & Attribute.DefaultTo<0>;
     updatedAt: Attribute.DateTime;
@@ -834,6 +976,9 @@ declare module '@strapi/types' {
       'admin::transfer-token': AdminTransferToken;
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
+      'api::department.department': ApiDepartmentDepartment;
+      'api::ticket-log.ticket-log': ApiTicketLogTicketLog;
+      'api::ticket.ticket': ApiTicketTicket;
       'api::user-info.user-info': ApiUserInfoUserInfo;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

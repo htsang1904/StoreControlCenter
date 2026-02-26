@@ -13,6 +13,7 @@ const ACCESS_EXPIRES_IN = process.env.AUTH_ACCESS_EXPIRES_IN || '15m';
 const REFRESH_EXPIRES_IN = process.env.AUTH_REFRESH_EXPIRES_IN || '30d';
 const REFRESH_EXPIRES_IN_MS = Number(process.env.AUTH_REFRESH_EXPIRES_IN_MS || 30 * 24 * 60 * 60 * 1000);
 const REFRESH_TOKEN_SALT = process.env.AUTH_REFRESH_TOKEN_SALT || '';
+const ALLOWED_ROLES = ['store', 'handler', 'qc', 'admin'];
 
 const hashToken = (token) => crypto.createHash('sha256').update(`${token}${REFRESH_TOKEN_SALT}`).digest('hex');
 
@@ -57,6 +58,7 @@ const sanitizeUser = (user) => ({
   name: user.name,
   email: user.email,
   is_active: user.is_active,
+  role: user.role || 'store',
 });
 
 const successResponse = (message, data = {}) => ({
@@ -105,12 +107,14 @@ module.exports = createCoreController('api::user-info.user-info', ({ strapi }) =
 
       let userRecord = foundUsers[0];
       if (!userRecord) {
+        const assignedRole = ALLOWED_ROLES.includes(suiteUser.role) ? suiteUser.role : 'store';
         userRecord = await strapi.entityService.create('api::user-info.user-info', {
           data: {
             name: suiteUser.name || '',
             email: suiteUser.email,
             suite_token: data.token,
             token_version: 0,
+            role: assignedRole,
           },
           populate: '*',
         });
@@ -178,7 +182,16 @@ module.exports = createCoreController('api::user-info.user-info', ({ strapi }) =
     }
 
     const user = await strapi.entityService.findOne('api::user-info.user-info', decoded.sub, {
-      fields: ['id', 'name', 'email', 'is_active', 'token_version', 'refresh_token_hash', 'refresh_token_expires_at'],
+      fields: [
+        'id',
+        'name',
+        'email',
+        'is_active',
+        'role',
+        'token_version',
+        'refresh_token_hash',
+        'refresh_token_expires_at',
+      ],
     });
 
     if (!user || user.is_active === false) {

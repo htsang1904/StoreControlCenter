@@ -1,0 +1,40 @@
+{
+  "kind": "collectionType",
+  "collectionName": "ticket_logs",
+  "info": {
+    "singularName": "ticket-log",
+    "pluralName": "ticket-logs",
+    "displayName": "TicketLog",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "message": {
+      "type": "text",
+      "required": true
+    },
+    "attachments": {
+      "type": "json"
+    },
+    "sender_type": {
+      "type": "enumeration",
+      "enum": ["store", "handler", "system"],
+      "default": "store"
+    },
+    "ticket": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::ticket.ticket",
+      "inversedBy": "ticket_logs",
+      "required": true
+    },
+    "sender": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::user-info.user-info"
+    }
+  }
+}

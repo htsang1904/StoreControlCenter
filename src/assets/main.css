@@ -1,20 +1,82 @@
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Montserrat:wght@500;600;700&display=swap');
 @import 'tailwindcss';
 @import 'preline/variants.css';
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-    --color-guta-blue: #1d7de2;
-    --color-guta-dark-blue: #025dd5;
-    --gradient-guta: linear-gradient(282deg, #00b0ff 5.54%, #3e98eb);
+  --color-guta-blue: #1d7de2;
+  --color-guta-dark-blue: #025dd5;
+  --gradient-guta: linear-gradient(110deg, #0f6adf 0%, #36a3ff 100%);
 }
+
+:root {
+  --app-bg: #f3f7fb;
+  --surface: #ffffff;
+  --surface-muted: #f8fbff;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --stroke: #dbe5f0;
+  --ring: #2563eb;
+  --shadow-soft: 0 8px 30px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 4px 16px rgba(15, 23, 42, 0.05);
+  --radius-xl: 16px;
+}
+
+.dark {
+  --app-bg: #f3f7fb;
+  --surface: #ffffff;
+  --surface-muted: #f8fbff;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --stroke: #dbe5f0;
+  --ring: #2563eb;
+  --shadow-soft: 0 8px 30px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
 * {
-     font-family: "Montserrat", sans-serif;
+  font-family: 'Manrope', sans-serif;
 }
+
+body {
+  color: var(--text-primary);
+  background:
+    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.12), transparent 42%),
+    radial-gradient(circle at 88% 18%, rgba(14, 165, 233, 0.1), transparent 36%),
+    var(--app-bg);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-heading {
+  font-family: 'Montserrat', sans-serif;
+}
+
 .custom-scroll::-webkit-scrollbar {
   display: none;
 }
+
 .custom-scroll {
   -ms-overflow-style: none;
-  scrollbar-width: none;  
+  scrollbar-width: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.app-shell {
+  min-height: 100dvh;
+}
+
+.glass-card {
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  border: 1px solid color-mix(in srgb, var(--stroke) 85%, transparent);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(8px);
 }
