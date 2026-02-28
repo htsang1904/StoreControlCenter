@@ -1,19 +1,161 @@
 <script setup>
-import { nextTick, onMounted, ref } from 'vue';
-import HSFileUpload from '@preline/file-upload';
-const upload = ref(null)
-onMounted( async () => {
-    await nextTick()
-    HSFileUpload.autoInit()
-    
-    const { element } =  HSFileUpload.getInstance(upload.value, true)
-    const { dropzone } = element;
-    console.log(upload.value)
-    dropzone.on('complete', (e) => {
-    console.log(e);
-    });
+import { nextTick, onMounted, ref, watch } from 'vue'
+import HSFileUpload from '@preline/file-upload'
+import { uploadTicketAttachments } from '@/services/ticket_service'
 
+const props = defineProps({
+  modelValue: {
+    type: Array,
+    default: () => [],
+  },
 })
+
+const emit = defineEmits(['update:modelValue'])
+const upload = ref(null)
+const dropzoneRef = ref(null)
+
+const getApiBaseUrl = () => String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+const toAbsoluteUrl = (url) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${getApiBaseUrl()}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
+const normalizeModelFiles = (source) => {
+  const items = Array.isArray(source) ? source : []
+  return items
+    .map((file) => ({
+      id: Number(file?.id),
+      name: String(file?.name || ''),
+      url: String(file?.url || ''),
+      size: Number(file?.size || 0),
+    }))
+    .filter((file) => Number.isInteger(file.id) && file.id > 0 && file.url)
+}
+
+const emitModelFiles = (files) => {
+  emit('update:modelValue', files)
+}
+
+const upsertModelFile = (file) => {
+  const next = Array.isArray(props.modelValue) ? [...props.modelValue] : []
+  const targetId = Number(file?.id)
+  const index = next.findIndex((item) => Number(item?.id) === targetId)
+  if (index >= 0) {
+    next[index] = file
+  } else {
+    next.push(file)
+  }
+  emitModelFiles(next)
+}
+
+const removeModelFile = (dropzoneFile) => {
+  const targetId = Number(dropzoneFile?.__uploadedId || dropzoneFile?.id)
+  if (!Number.isInteger(targetId) || targetId <= 0) return
+
+  const next = (Array.isArray(props.modelValue) ? props.modelValue : []).filter(
+    (item) => Number(item?.id) !== targetId
+  )
+  emitModelFiles(next)
+}
+
+const syncModelToDropzone = () => {
+  const dropzone = dropzoneRef.value
+  if (!dropzone) return
+
+  const existingIds = new Set(
+    (dropzone.files || [])
+      .map((file) => Number(file?.__uploadedId || file?.id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  )
+
+  normalizeModelFiles(props.modelValue).forEach((file) => {
+    if (existingIds.has(file.id)) return
+
+    const mockFile = {
+      name: file.name || `image-${file.id}`,
+      size: file.size || 0,
+      accepted: true,
+      status: 'success',
+      __isMock: true,
+      __uploadedId: file.id,
+      __uploadedUrl: file.url,
+    }
+
+    dropzone.emit('addedfile', mockFile)
+    dropzone.emit('thumbnail', mockFile, toAbsoluteUrl(file.url))
+    dropzone.emit('success', mockFile)
+    dropzone.emit('complete', mockFile)
+    dropzone.files.push(mockFile)
+  })
+}
+
+onMounted(async () => {
+  await nextTick()
+  HSFileUpload.autoInit()
+
+  const instance = HSFileUpload.getInstance(upload.value, true)
+  const dropzone = instance?.element?.dropzone
+  if (!dropzone) return
+
+  dropzoneRef.value = dropzone
+  dropzone.options.url = `${getApiBaseUrl()}/api/tickets/upload-attachments`
+  dropzone.options.paramName = 'files'
+  dropzone.options.acceptedFiles = 'image/*'
+  dropzone.options.autoProcessQueue = false
+
+  dropzone.on('addedfile', async (file) => {
+    if (file?.__isMock) return
+
+    try {
+      const formData = new FormData()
+      formData.append('files', file)
+
+      const result = await uploadTicketAttachments(formData)
+      const uploadedFile = result?.data?.files?.[0] || result?.files?.[0]
+      if (!uploadedFile?.id) {
+        throw new Error('Upload không trả về file hợp lệ')
+      }
+
+      file.__uploadedId = uploadedFile.id
+      file.__uploadedUrl = uploadedFile.url
+
+      dropzone.emit('thumbnail', file, toAbsoluteUrl(uploadedFile.url))
+      dropzone.emit('uploadprogress', file, 100)
+      dropzone.emit('success', file, result)
+      dropzone.emit('complete', file)
+
+      upsertModelFile({
+        id: uploadedFile.id,
+        name: uploadedFile.name,
+        url: uploadedFile.url,
+        mime: uploadedFile.mime,
+        size: uploadedFile.size,
+        ext: uploadedFile.ext,
+        formats: uploadedFile.formats || null,
+      })
+    } catch (error) {
+      const message =
+        error?.response?.data?.message || error?.message || 'Tải ảnh lên thất bại'
+      dropzone.emit('error', file, message)
+      dropzone.emit('complete', file)
+    }
+  })
+
+  dropzone.on('removedfile', (file) => {
+    removeModelFile(file)
+  })
+
+  syncModelToDropzone()
+})
+
+watch(
+  () => props.modelValue,
+  () => {
+    syncModelToDropzone()
+  },
+  { deep: true }
+)
 </script>
 <template>
 <div ref="upload" data-hs-file-upload='{
@@ -38,8 +180,8 @@ onMounted( async () => {
         <div class="p-3 bg-white border border-solid border-gray-300 rounded-xl dark:bg-neutral-800 dark:border-neutral-600">
         <div class="mb-1 flex justify-between items-center">
             <div class="flex items-center gap-x-3">
-                <span class="size-10 flex justify-center items-center border border-gray-200 text-gray-500 rounded-lg dark:border-neutral-700 dark:text-neutral-500" data-hs-file-upload-file-icon="">
-                    <img class="rounded-lg" data-dz-thumbnail="">
+                <span class="size-10 shrink-0 overflow-hidden flex justify-center items-center border border-gray-200 text-gray-500 rounded-lg dark:border-neutral-700 dark:text-neutral-500" data-hs-file-upload-file-icon="">
+                    <img class="block w-full h-full object-cover rounded-lg" data-dz-thumbnail="">
                 </span>
                 <div>
                     <p class="text-sm font-medium text-gray-800 dark:text-white">

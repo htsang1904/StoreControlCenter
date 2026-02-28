@@ -15,6 +15,12 @@ const router = createRouter({
                     redirect: '/ticket'
                 },
                 {
+                    path: 'dashboard',
+                    name: 'Dashboard',
+                    component: () => import('@/pages/DashboardPage.vue'),
+                    meta: { auth: true }
+                },
+                {
                     path: 'ticket',
                     name: 'Ticket Management',
                     component: () => import('@/pages/TicketManagementPage.vue'),
@@ -25,6 +31,13 @@ const router = createRouter({
                     name: 'Ticket Add',
                     component: () => import('@/pages/AddTicketPage.vue'),
                     meta: { auth: true }
+                },
+                {
+                    path: 'ticket/:id/edit',
+                    name: 'Ticket Edit',
+                    component: () => import('@/pages/AddTicketPage.vue'),
+                    meta: { auth: true },
+                    props: true
                 },
                 {
                     path: 'ticket/:id',

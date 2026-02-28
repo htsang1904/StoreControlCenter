@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const { createCoreController } = require('@strapi/strapi').factories;
+const { createNotifications, loadTicketAudience } = require('../../../utils/notification');
 
 const successResponse = (message, data = {}) => ({
   success: true,
@@ -37,7 +38,530 @@ const generateTicketCode = async (strapi) => {
   throw new Error('TICKET_CODE_GENERATION_FAILED');
 };
 
+const ticketPopulate = {
+  store: {
+    fields: ['id', 'storeId', 'code', 'address', 'shortAddress'],
+  },
+  requester: {
+    fields: ['id', 'name', 'email', 'role'],
+  },
+  handler: {
+    fields: ['id', 'name', 'email', 'role'],
+  },
+  assignees: {
+    fields: ['id', 'name', 'email', 'role'],
+  },
+  responsible_department: {
+    fields: ['id', 'name', 'code'],
+  },
+  attachments_media: {
+    fields: ['id', 'name', 'url', 'mime', 'size', 'ext', 'formats'],
+  },
+};
+
+const normalizeAttachmentFileIds = (rawValue) => {
+  if (rawValue === undefined) return null;
+  if (!Array.isArray(rawValue)) return null;
+
+  const normalized = [...new Set(rawValue.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0))];
+  return normalized;
+};
+
+const normalizeAssigneeIds = (rawValue) => {
+  if (rawValue === undefined) return null;
+  if (!Array.isArray(rawValue)) return null;
+
+  const normalized = [
+    ...new Set(
+      rawValue
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item > 0)
+    ),
+  ];
+  return normalized;
+};
+
+const extractUploadFiles = (filesInput) => {
+  if (!filesInput) return [];
+
+  if (Array.isArray(filesInput)) {
+    return filesInput.filter(Boolean);
+  }
+
+  if (filesInput.files) {
+    const nested = Array.isArray(filesInput.files) ? filesInput.files : [filesInput.files];
+    return nested.filter(Boolean);
+  }
+
+  return Object.values(filesInput)
+    .flatMap((item) => (Array.isArray(item) ? item : [item]))
+    .filter(Boolean);
+};
+
+const hydrateTicketUsers = async (strapi, ticketsInput) => {
+  const tickets = Array.isArray(ticketsInput) ? ticketsInput : [ticketsInput];
+  const missingUserIds = new Set();
+
+  tickets.forEach((ticket) => {
+    const requesterId = Number(ticket?.requester_id || 0);
+    const handlerId = Number(ticket?.handler_id || 0);
+
+    if (!ticket?.requester?.id && requesterId > 0) {
+      missingUserIds.add(requesterId);
+    }
+    if (!ticket?.handler?.id && handlerId > 0) {
+      missingUserIds.add(handlerId);
+    }
+  });
+
+  if (!missingUserIds.size) {
+    return ticketsInput;
+  }
+
+  const users = await strapi.entityService.findMany('api::user-info.user-info', {
+    filters: { id: { $in: Array.from(missingUserIds) } },
+    fields: ['id', 'name', 'email', 'role'],
+    limit: missingUserIds.size,
+  });
+
+  const userMap = new Map((users || []).map((user) => [Number(user.id), user]));
+
+  const hydrated = tickets.map((ticket) => {
+    const requesterId = Number(ticket?.requester_id || 0);
+    const handlerId = Number(ticket?.handler_id || 0);
+
+    return {
+      ...ticket,
+      requester: ticket?.requester?.id ? ticket.requester : (userMap.get(requesterId) || null),
+      handler: ticket?.handler?.id ? ticket.handler : (userMap.get(handlerId) || null),
+    };
+  });
+
+  return Array.isArray(ticketsInput) ? hydrated : hydrated[0];
+};
+
+const getRole = (user) => String(user?.role || '').toLowerCase();
+const isAdmin = (user) => getRole(user) === 'admin';
+const getRequesterId = (ticket) => Number(ticket?.requester?.id || ticket?.requester_id || 0);
+const getHandlerId = (ticket) => Number(ticket?.handler?.id || ticket?.handler_id || 0);
+const getTicketAssigneeIds = (ticket) => (
+  Array.isArray(ticket?.assignees)
+    ? ticket.assignees
+      .map((item) => Number(item?.id || item))
+      .filter((item) => Number.isInteger(item) && item > 0)
+    : []
+);
+const getTicketStoreId = (ticket) => Number(ticket?.store_id || 0);
+const getTicketDepartmentId = (ticket) => Number(ticket?.responsible_department?.id || ticket?.responsible_department || 0);
+const getUserDepartmentId = (user) => Number(user?.department?.id || user?.department_id || 0);
+const getUserStoreIds = (user) => (
+  Array.isArray(user?.store_ids)
+    ? user.store_ids
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0)
+    : []
+);
+const canAccessTicketStore = (user, ticket) => {
+  const storeId = getTicketStoreId(ticket);
+  if (!Number.isInteger(storeId) || storeId <= 0) return false;
+  return getUserStoreIds(user).includes(storeId);
+};
+
+const canViewTicket = (user, ticket) => {
+  if (!user || !ticket) return false;
+  const role = getRole(user);
+  if (role === 'admin' || role === 'qc') return true;
+  if (role === 'handler') {
+    const handlerDepartmentId = getUserDepartmentId(user);
+    const ticketDepartmentId = getTicketDepartmentId(ticket);
+    const isAssignee = getTicketAssigneeIds(ticket).includes(Number(user.id));
+    if (isAssignee) return true;
+    return handlerDepartmentId > 0 && ticketDepartmentId > 0 && handlerDepartmentId === ticketDepartmentId;
+  }
+  return getRequesterId(ticket) === Number(user.id) || canAccessTicketStore(user, ticket);
+};
+
+const canManageTicket = (user, ticket) => {
+  if (!user || !ticket) return false;
+  if (isAdmin(user)) return true;
+  return getRequesterId(ticket) === Number(user.id);
+};
+
+const canManageAssignees = (user, ticket) => {
+  if (!user || !ticket) return false;
+  const role = getRole(user);
+  if (role === 'admin') return true;
+  if (role === 'handler') {
+    return getUserDepartmentId(user) > 0 && getUserDepartmentId(user) === getTicketDepartmentId(ticket);
+  }
+  return false;
+};
+
+const toIsoDate = (value) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return '';
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 10);
+};
+
+const normalizeDateRange = (query = {}) => {
+  const todayDate = new Date();
+  const defaultTo = toIsoDate(todayDate);
+  const defaultFromDate = new Date(todayDate);
+  defaultFromDate.setDate(defaultFromDate.getDate() - 6);
+  const defaultFrom = toIsoDate(defaultFromDate);
+
+  const dateFrom = String(query.date_from || defaultFrom);
+  const dateTo = String(query.date_to || defaultTo);
+
+  const fromDate = new Date(`${dateFrom}T00:00:00.000Z`);
+  const toDate = new Date(`${dateTo}T23:59:59.999Z`);
+
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+    return null;
+  }
+  if (fromDate.getTime() > toDate.getTime()) {
+    return null;
+  }
+
+  return {
+    dateFrom,
+    dateTo,
+    fromIso: fromDate.toISOString(),
+    toIso: toDate.toISOString(),
+  };
+};
+
+const buildDashboardTicketFilters = (user, query = {}) => {
+  const filters = {};
+
+  const range = normalizeDateRange(query);
+  if (!range) return { error: 'Khoảng thời gian không hợp lệ' };
+  filters.createdAt = {
+    $gte: range.fromIso,
+    $lte: range.toIso,
+  };
+
+  if (query.store_id !== undefined && query.store_id !== null && query.store_id !== '') {
+    const storeId = Number(query.store_id);
+    if (!Number.isInteger(storeId) || storeId <= 0) {
+      return { error: 'store_id không hợp lệ' };
+    }
+    filters.store_id = storeId;
+  }
+
+  if (query.department_id !== undefined && query.department_id !== null && query.department_id !== '') {
+    const departmentId = Number(query.department_id);
+    if (!Number.isInteger(departmentId) || departmentId <= 0) {
+      return { error: 'department_id không hợp lệ' };
+    }
+    filters.responsible_department = { id: departmentId };
+  }
+
+  if (user.role === 'store') {
+    const scopedOrFilters = [{ requester: { id: user.id } }, { requester_id: user.id }];
+    const scopedStoreIds = getUserStoreIds(user);
+    if (scopedStoreIds.length) {
+      scopedOrFilters.push({ store_id: { $in: scopedStoreIds } });
+    }
+
+    return {
+      filters: {
+        $and: [
+          filters,
+          {
+            $or: scopedOrFilters,
+          },
+        ],
+      },
+      range,
+    };
+  }
+
+  if (user.role === 'handler') {
+    const departmentId = getUserDepartmentId(user);
+    const visibilityOr = departmentId > 0
+      ? [
+        { responsible_department: { id: departmentId } },
+        { assignees: { id: user.id } },
+      ]
+      : [{ assignees: { id: user.id } }];
+
+    return {
+      filters: {
+        $and: [
+          filters,
+          {
+            $or: visibilityOr,
+          },
+        ],
+      },
+      range,
+    };
+  }
+
+  return { filters, range };
+};
+
+const normalizeDashboardStatus = (status) => {
+  const value = String(status || '').toLowerCase();
+  if (value === 'assigned') return 'in_progress';
+  return value;
+};
+
+const formatActivityTime = (value) => {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '--';
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const createSystemTicketLog = async (strapi, { ticketId, senderId, message }) => {
+  if (!ticketId || !senderId || !message) return;
+
+  try {
+    await strapi.entityService.create('api::ticket-log.ticket-log', {
+      data: {
+        message: String(message).trim(),
+        attachments: [],
+        sender_type: 'system',
+        ticket: Number(ticketId),
+        sender: Number(senderId),
+      },
+    });
+  } catch (error) {
+    strapi.log.warn('Create system ticket log failed', {
+      ticketId,
+      senderId,
+      message,
+      error: error?.message || error,
+    });
+  }
+};
+
+const notifyTicketAudience = async (
+  strapi,
+  { ticketId, actorId, title, message, type = 'info', excludeUserIds = [], meta = null }
+) => {
+  try {
+    const audience = await loadTicketAudience(strapi, ticketId);
+    if (!audience?.ticket || !Array.isArray(audience?.recipientIds) || !audience.recipientIds.length) {
+      return;
+    }
+
+    await createNotifications(strapi, {
+      recipientIds: audience.recipientIds,
+      title,
+      message,
+      type,
+      ticketId: Number(ticketId),
+      actorId: Number(actorId) || null,
+      excludeUserIds,
+      meta,
+    });
+  } catch (error) {
+    strapi.log.warn('Notify ticket audience failed', {
+      ticketId,
+      actorId,
+      error: error?.message || error,
+    });
+  }
+};
+
 module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
+  async dashboardOverview(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const scoped = buildDashboardTicketFilters(user, ctx.query || {});
+    if (scoped?.error) {
+      return errorResponse(ctx, 400, scoped.error);
+    }
+
+    const topStoresLimit = Math.min(Math.max(Number(ctx.query?.top_stores_limit) || 5, 1), 20);
+    const activityLimit = Math.min(Math.max(Number(ctx.query?.activity_limit) || 8, 1), 30);
+
+    const ticketFilters = scoped.filters || {};
+
+    const tickets = await strapi.entityService.findMany('api::ticket.ticket', {
+      filters: ticketFilters,
+      fields: ['id', 'ticket_code', 'status', 'store_id', 'end_date', 'createdAt'],
+      populate: {
+        store: {
+          fields: ['id', 'storeId', 'code', 'shortAddress', 'address'],
+        },
+      },
+      sort: { createdAt: 'desc' },
+      limit: 5000,
+    });
+
+    const normalizedTickets = Array.isArray(tickets) ? tickets : [];
+    const now = new Date();
+    const soonThreshold = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+
+    let inProgressCount = 0;
+    let resolvedCount = 0;
+    let overdueSoonCount = 0;
+
+    const statusCounter = {
+      new: 0,
+      in_progress: 0,
+      resolved: 0,
+      rejected: 0,
+    };
+
+    const storesMap = new Map();
+
+    normalizedTickets.forEach((ticket) => {
+      const normalizedStatus = normalizeDashboardStatus(ticket?.status);
+      if (normalizedStatus === 'in_progress') inProgressCount += 1;
+      if (normalizedStatus === 'resolved') resolvedCount += 1;
+
+      if (Object.prototype.hasOwnProperty.call(statusCounter, normalizedStatus)) {
+        statusCounter[normalizedStatus] += 1;
+      }
+
+      const endDateRaw = ticket?.end_date;
+      if (endDateRaw) {
+        const endDate = new Date(endDateRaw);
+        if (
+          !Number.isNaN(endDate.getTime()) &&
+          endDate.getTime() >= now.getTime() &&
+          endDate.getTime() <= soonThreshold.getTime() &&
+          normalizedStatus !== 'resolved' &&
+          normalizedStatus !== 'closed' &&
+          normalizedStatus !== 'rejected'
+        ) {
+          overdueSoonCount += 1;
+        }
+      }
+
+      const storeId = Number(ticket?.store_id || 0);
+      if (!Number.isInteger(storeId) || storeId <= 0) return;
+
+      const existed = storesMap.get(storeId) || {
+        store_id: storeId,
+        count: 0,
+        name: '',
+      };
+      existed.count += 1;
+      existed.name =
+        existed.name ||
+        ticket?.store?.shortAddress ||
+        ticket?.store?.address ||
+        ticket?.store?.code ||
+        `Store #${storeId}`;
+      storesMap.set(storeId, existed);
+    });
+
+    const topStores = Array.from(storesMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, topStoresLimit);
+
+    const activityFilters = {
+      createdAt: {
+        $gte: scoped.range.fromIso,
+        $lte: scoped.range.toIso,
+      },
+      ticket: ticketFilters,
+    };
+
+    const recentLogs = await strapi.entityService.findMany('api::ticket-log.ticket-log', {
+      filters: activityFilters,
+      fields: ['id', 'message', 'createdAt', 'sender_type'],
+      sort: { createdAt: 'desc' },
+      limit: activityLimit,
+      populate: {
+        sender: { fields: ['id', 'name'] },
+        ticket: { fields: ['id', 'ticket_code'] },
+      },
+    });
+
+    const activityFeed = (Array.isArray(recentLogs) ? recentLogs : []).map((item) => {
+      const senderName = item?.sender?.name || (item?.sender_type === 'handler' ? 'Bộ phận xử lý' : 'Cửa hàng');
+      const ticketCode = item?.ticket?.ticket_code || `#${item?.ticket?.id || '--'}`;
+      const plainMessage = String(item?.message || '').replace(/\s+/g, ' ').trim();
+      const shortMessage = plainMessage.length > 120 ? `${plainMessage.slice(0, 120)}...` : plainMessage;
+      const isSystemLog = String(item?.sender_type || '').toLowerCase() === 'system';
+
+      return {
+        at: item?.createdAt || null,
+        time: formatActivityTime(item?.createdAt),
+        content: isSystemLog
+          ? (shortMessage || `Ticket ${ticketCode} có cập nhật mới`)
+          : `${senderName} phản hồi ticket ${ticketCode}: ${shortMessage || '(không có nội dung)'}`,
+      };
+    });
+
+    return successResponse('Lấy dữ liệu dashboard thành công', {
+      filters: {
+        date_from: scoped.range.dateFrom,
+        date_to: scoped.range.dateTo,
+      },
+      summary: {
+        total_ticket: normalizedTickets.length,
+        in_progress: inProgressCount,
+        resolved: resolvedCount,
+        overdue: overdueSoonCount,
+      },
+      status: [
+        { key: 'new', label: 'Mới tạo', value: statusCounter.new },
+        { key: 'in_progress', label: 'Đang xử lý', value: statusCounter.in_progress },
+        { key: 'resolved', label: 'Đã xử lý', value: statusCounter.resolved },
+        { key: 'rejected', label: 'Từ chối', value: statusCounter.rejected },
+      ],
+      top_stores: topStores,
+      activity_feed: activityFeed,
+    });
+  },
+
+  async uploadAttachments(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const files = extractUploadFiles(ctx.request.files);
+    if (!files.length) {
+      return errorResponse(ctx, 400, 'Không tìm thấy file upload');
+    }
+
+    const hasInvalidFileType = files.some((file) => {
+      const mimeType = String(file?.type || file?.mimetype || '');
+      return !mimeType.startsWith('image/');
+    });
+    if (hasInvalidFileType) {
+      return errorResponse(ctx, 400, 'Chỉ chấp nhận file hình ảnh');
+    }
+
+    try {
+      const uploadedFiles = await strapi.plugin('upload').service('upload').upload({
+        data: {},
+        files,
+      });
+
+      const normalized = (uploadedFiles || []).map((file) => ({
+        id: file.id,
+        name: file.name,
+        url: file.url,
+        mime: file.mime,
+        size: file.size,
+        ext: file.ext,
+        formats: file.formats || null,
+      }));
+
+      return successResponse('Tải ảnh lên thành công', { files: normalized });
+    } catch (error) {
+      strapi.log.error('Upload attachments failed', error);
+      return errorResponse(ctx, 500, 'Tải ảnh lên thất bại');
+    }
+  },
+
   async createTicket(ctx) {
     const payload = ctx.request.body || {};
 
@@ -71,13 +595,66 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       return errorResponse(ctx, 400, 'Bộ phận xử lý không tồn tại hoặc đã bị vô hiệu hóa');
     }
 
+    let initialHandler = null;
+    if (payload.handler_id !== undefined && payload.handler_id !== null && payload.handler_id !== '') {
+      const handlerId = Number(payload.handler_id);
+      if (!Number.isInteger(handlerId) || handlerId <= 0) {
+        return errorResponse(ctx, 400, 'handler_id không hợp lệ');
+      }
+
+      initialHandler = await strapi.entityService.findOne('api::user-info.user-info', handlerId, {
+        fields: ['id', 'role'],
+        populate: {
+          department: {
+            fields: ['id'],
+          },
+        },
+      });
+
+      if (!initialHandler || !initialHandler.id) {
+        return errorResponse(ctx, 400, 'handler không tồn tại');
+      }
+
+      const handlerRole = getRole(initialHandler);
+      if (handlerRole !== 'handler' && handlerRole !== 'admin') {
+        return errorResponse(ctx, 400, 'Người được gán phải có vai trò handler hoặc admin');
+      }
+
+      if (handlerRole !== 'admin') {
+        const handlerDepartmentId = Number(initialHandler?.department?.id || 0);
+        if (handlerDepartmentId <= 0 || handlerDepartmentId !== responsibleDepartment.id) {
+          return errorResponse(ctx, 400, 'Handler không thuộc bộ phận xử lý của ticket');
+        }
+      }
+    }
+
     const requester = ctx.state.userDetail;
     if (!requester || !requester.id) {
       return errorResponse(ctx, 401, 'Không xác định được người tạo phiếu');
     }
+    if (!isAdmin(requester)) {
+      const requesterStoreIds = getUserStoreIds(requester);
+      if (requesterStoreIds.length && !requesterStoreIds.includes(storeId)) {
+        return errorResponse(ctx, 403, 'Bạn không có quyền tạo phiếu cho cửa hàng này');
+      }
+    }
+
+    const attachmentFileIds = normalizeAttachmentFileIds(payload.attachment_file_ids);
+    if (payload.attachment_file_ids !== undefined && attachmentFileIds === null) {
+      return errorResponse(ctx, 400, 'attachment_file_ids phải là mảng số nguyên dương');
+    }
 
     try {
       const ticketCode = await generateTicketCode(strapi);
+      const linkedStore = await strapi.entityService.findMany('api::store.store', {
+        filters: {
+          storeId: String(storeId),
+        },
+        fields: ['id', 'storeId'],
+        publicationState: 'preview',
+        limit: 1,
+      });
+      const linkedStoreId = linkedStore?.[0]?.id || null;
 
       const createdTicket = await strapi.entityService.create('api::ticket.ticket', {
         data: {
@@ -85,26 +662,41 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
           title: String(payload.title).trim(),
           description: String(payload.description).trim(),
           status: 'new',
+          requester: requester.id,
           requester_id: requester.id,
           store_id: storeId,
-          handler_id: payload.handler_id ? Number(payload.handler_id) : null,
+          store: linkedStoreId,
+          handler: initialHandler?.id || null,
+          handler_id: initialHandler?.id || null,
+          assignees: initialHandler?.id ? [Number(initialHandler.id)] : [],
           responsible_department: responsibleDepartment.id,
           ticket_category_id: payload.ticket_category_id ? Number(payload.ticket_category_id) : null,
           type: payload.type ? String(payload.type).trim() : null,
           start_date: new Date().toISOString(),
           end_date: payload.end_date || null,
           attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
+          attachments_media: attachmentFileIds || [],
         },
-        populate: {
-          responsible_department: {
-            fields: ['id', 'name', 'code'],
-          },
-        },
+        populate: ticketPopulate,
       });
 
-      return successResponse('Tạo phiếu thành công', {
-        ticket: createdTicket,
+      const hydratedTicket = await hydrateTicketUsers(strapi, createdTicket);
+      await createSystemTicketLog(strapi, {
+        ticketId: createdTicket.id,
+        senderId: requester.id,
+        message: `${requester.name || 'Cửa hàng'} đã tạo ticket ${createdTicket.ticket_code || `#${createdTicket.id}`}`,
       });
+      await notifyTicketAudience(strapi, {
+        ticketId: createdTicket.id,
+        actorId: requester.id,
+        title: `Ticket mới ${createdTicket.ticket_code || `#${createdTicket.id}`}`,
+        message: `${requester.name || 'Cửa hàng'} vừa tạo yêu cầu mới: ${createdTicket.title || 'Không có tiêu đề'}`,
+        type: 'info',
+        excludeUserIds: [requester.id],
+        meta: { event: 'ticket_created' },
+      });
+
+      return successResponse('Tạo phiếu thành công', { ticket: hydratedTicket });
     } catch (error) {
       strapi.log.error('Create ticket failed', error);
       return errorResponse(ctx, 500, 'Tạo phiếu thất bại');
@@ -122,7 +714,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     const pageSize = Math.min(Math.max(Number(query.pageSize) || 10, 1), 100);
     const start = (page - 1) * pageSize;
 
-    const filters = {};
+    let filters = {};
 
     if (query.status) {
       const statuses = String(query.status)
@@ -130,10 +722,17 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
         .map((item) => item.trim())
         .filter(Boolean);
 
-      if (statuses.length === 1) {
-        filters.status = statuses[0];
-      } else if (statuses.length > 1) {
-        filters.status = { $in: statuses };
+      // Backward compatibility: old records may still be "assigned"
+      const normalizedStatuses = [
+        ...new Set(
+          statuses.flatMap((item) => (item === 'in_progress' ? ['in_progress', 'assigned'] : [item]))
+        ),
+      ];
+
+      if (normalizedStatuses.length === 1) {
+        filters.status = normalizedStatuses[0];
+      } else if (normalizedStatuses.length > 1) {
+        filters.status = { $in: normalizedStatuses };
       }
     }
 
@@ -153,7 +752,40 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     if (user.role === 'store') {
-      filters.requester_id = user.id;
+      const scopedOrFilters = [
+        { requester: { id: user.id } },
+        { requester_id: user.id },
+      ];
+      const scopedStoreIds = getUserStoreIds(user);
+      if (scopedStoreIds.length) {
+        scopedOrFilters.push({ store_id: { $in: scopedStoreIds } });
+      }
+
+      filters = {
+        $and: [
+          filters,
+          {
+            $or: scopedOrFilters,
+          },
+        ],
+      };
+    } else if (user.role === 'handler') {
+      const departmentId = getUserDepartmentId(user);
+      const visibilityOr = departmentId > 0
+        ? [
+          { responsible_department: { id: departmentId } },
+          { assignees: { id: user.id } },
+        ]
+        : [{ assignees: { id: user.id } }];
+
+      filters = {
+        $and: [
+          filters,
+          {
+            $or: visibilityOr,
+          },
+        ],
+      };
     }
 
     const [tickets, total] = await Promise.all([
@@ -162,25 +794,582 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
         sort: { createdAt: 'desc' },
         start,
         limit: pageSize,
-        populate: {
-          responsible_department: {
-            fields: ['id', 'name', 'code'],
-          },
-        },
+        populate: ticketPopulate,
       }),
       strapi.db.query('api::ticket.ticket').count({
         where: filters,
       }),
     ]);
 
+    const hydratedTickets = await hydrateTicketUsers(strapi, tickets);
+
     return successResponse('Lấy danh sách phiếu thành công', {
-      tickets,
+      tickets: hydratedTickets,
       pagination: {
         page,
         pageSize,
         total,
         pageCount: Math.ceil(total / pageSize),
       },
+    });
+  },
+
+  async getTicketById(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      populate: ticketPopulate,
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canViewTicket(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền xem phiếu này');
+    }
+
+    const hydratedTicket = await hydrateTicketUsers(strapi, ticket);
+
+    return successResponse('Lấy thông tin phiếu thành công', { ticket: hydratedTicket });
+  },
+
+  async updateTicket(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'status', 'handler_id'],
+      populate: {
+        requester: { fields: ['id'] },
+        handler: { fields: ['id'] },
+        assignees: { fields: ['id'] },
+        responsible_department: { fields: ['id'] },
+      },
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canManageTicket(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền chỉnh sửa phiếu này');
+    }
+
+    const isAcceptedByDepartment = ticket.status !== 'new' || getHandlerId(ticket) > 0;
+    if (isAcceptedByDepartment) {
+      return errorResponse(ctx, 400, 'Phiếu đã được bộ phận phụ trách tiếp nhận, không thể chỉnh sửa');
+    }
+
+    const payload = ctx.request.body || {};
+    const updateData = {};
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'title')) {
+      const title = String(payload.title || '').trim();
+      if (!title) {
+        return errorResponse(ctx, 400, 'Tiêu đề không được để trống');
+      }
+      updateData.title = title;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'description')) {
+      const description = String(payload.description || '').trim();
+      if (!description) {
+        return errorResponse(ctx, 400, 'Nội dung không được để trống');
+      }
+      updateData.description = description;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'responsible_department_id')) {
+      const responsibleDepartmentId = Number(payload.responsible_department_id);
+      if (!Number.isInteger(responsibleDepartmentId) || responsibleDepartmentId <= 0) {
+        return errorResponse(ctx, 400, 'responsible_department_id không hợp lệ');
+      }
+
+      const responsibleDepartment = await strapi.entityService.findOne(
+        'api::department.department',
+        responsibleDepartmentId,
+        {
+          fields: ['id', 'is_active'],
+        }
+      );
+
+      if (!responsibleDepartment || responsibleDepartment.is_active === false) {
+        return errorResponse(ctx, 400, 'Bộ phận xử lý không tồn tại hoặc đã bị vô hiệu hóa');
+      }
+
+      updateData.responsible_department = responsibleDepartment.id;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'type')) {
+      const type = payload.type ? String(payload.type).trim() : '';
+      updateData.type = type || null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'ticket_category_id')) {
+      if (payload.ticket_category_id === null || payload.ticket_category_id === '') {
+        updateData.ticket_category_id = null;
+      } else {
+        const ticketCategoryId = Number(payload.ticket_category_id);
+        if (!Number.isInteger(ticketCategoryId) || ticketCategoryId <= 0) {
+          return errorResponse(ctx, 400, 'ticket_category_id không hợp lệ');
+        }
+        updateData.ticket_category_id = ticketCategoryId;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'end_date')) {
+      if (!payload.end_date) {
+        updateData.end_date = null;
+      } else {
+        const endDate = new Date(payload.end_date);
+        if (Number.isNaN(endDate.getTime())) {
+          return errorResponse(ctx, 400, 'end_date không hợp lệ');
+        }
+        updateData.end_date = endDate.toISOString();
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'attachments')) {
+      if (!Array.isArray(payload.attachments)) {
+        return errorResponse(ctx, 400, 'attachments phải là mảng');
+      }
+      updateData.attachments = payload.attachments;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'attachment_file_ids')) {
+      const attachmentFileIds = normalizeAttachmentFileIds(payload.attachment_file_ids);
+      if (attachmentFileIds === null) {
+        return errorResponse(ctx, 400, 'attachment_file_ids phải là mảng số nguyên dương');
+      }
+      updateData.attachments_media = attachmentFileIds;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'assignee_ids')) {
+      const assigneeIds = normalizeAssigneeIds(payload.assignee_ids);
+      if (assigneeIds === null) {
+        return errorResponse(ctx, 400, 'assignee_ids phải là mảng số nguyên dương');
+      }
+
+      if (assigneeIds.length > 0) {
+        const users = await strapi.entityService.findMany('api::user-info.user-info', {
+          filters: { id: { $in: assigneeIds } },
+          fields: ['id', 'role'],
+          populate: {
+            department: { fields: ['id'] },
+          },
+          limit: assigneeIds.length,
+        });
+
+        if (!Array.isArray(users) || users.length !== assigneeIds.length) {
+          return errorResponse(ctx, 400, 'Có người xử lý không tồn tại');
+        }
+
+        const ticketDepartmentId = getTicketDepartmentId(ticket);
+        const invalidAssignee = users.find((member) => {
+          const memberRole = getRole(member);
+          if (memberRole !== 'handler' && memberRole !== 'admin') return true;
+          if (memberRole === 'admin') return false;
+          const memberDepartmentId = Number(member?.department?.id || 0);
+          return memberDepartmentId <= 0 || memberDepartmentId !== ticketDepartmentId;
+        });
+
+        if (invalidAssignee) {
+          return errorResponse(ctx, 400, 'Danh sách người xử lý chứa người không thuộc bộ phận phụ trách');
+        }
+      }
+
+      updateData.assignees = assigneeIds;
+      updateData.handler_id = assigneeIds[0] || null;
+      updateData.handler = assigneeIds[0] || null;
+      if (!assigneeIds.length && ticket.status === 'assigned') {
+        updateData.status = 'new';
+      }
+      if (!assigneeIds.length && ticket.status === 'in_progress') {
+        updateData.status = 'new';
+      }
+      if (assigneeIds.length && (ticket.status === 'new' || ticket.status === 'assigned')) {
+        updateData.status = 'in_progress';
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return errorResponse(ctx, 400, 'Không có dữ liệu hợp lệ để cập nhật');
+    }
+
+    try {
+      const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
+        data: updateData,
+        populate: ticketPopulate,
+      });
+      await notifyTicketAudience(strapi, {
+        ticketId: updatedTicket.id,
+        actorId: user.id,
+        title: `Ticket cập nhật ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+        message: `${user.name || 'Người dùng'} đã cập nhật thông tin ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+        type: 'info',
+        excludeUserIds: [user.id],
+        meta: {
+          event: 'ticket_updated',
+          changed_fields: Object.keys(updateData),
+        },
+      });
+
+      const hydratedTicket = await hydrateTicketUsers(strapi, updatedTicket);
+      return successResponse('Cập nhật phiếu thành công', { ticket: hydratedTicket });
+    } catch (error) {
+      strapi.log.error('Update ticket failed', error);
+      return errorResponse(ctx, 500, 'Cập nhật phiếu thất bại');
+    }
+  },
+
+  async listAssignees(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'store_id'],
+      populate: {
+        requester: { fields: ['id'] },
+        assignees: { fields: ['id', 'name', 'email', 'role'] },
+        responsible_department: { fields: ['id'] },
+      },
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canViewTicket(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền xem danh sách xử lý của phiếu này');
+    }
+
+    return successResponse('Lấy danh sách người xử lý thành công', {
+      assignees: Array.isArray(ticket.assignees) ? ticket.assignees : [],
+    });
+  },
+
+  async assignMe(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const role = getRole(user);
+    if (role !== 'handler' && role !== 'admin') {
+      return errorResponse(ctx, 403, 'Chỉ handler hoặc admin mới có thể nhận xử lý phiếu');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'store_id', 'status'],
+      populate: {
+        requester: { fields: ['id'] },
+        assignees: { fields: ['id'] },
+        responsible_department: { fields: ['id'] },
+      },
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canViewTicket(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền nhận xử lý phiếu này');
+    }
+
+    if (role === 'handler') {
+      const handlerDepartmentId = getUserDepartmentId(user);
+      const ticketDepartmentId = getTicketDepartmentId(ticket);
+      if (handlerDepartmentId <= 0 || ticketDepartmentId <= 0 || handlerDepartmentId !== ticketDepartmentId) {
+        return errorResponse(ctx, 403, 'Bạn không thuộc bộ phận phụ trách của phiếu này');
+      }
+    }
+
+    const currentAssigneeIds = getTicketAssigneeIds(ticket);
+    if (currentAssigneeIds.includes(Number(user.id))) {
+      const refreshed = await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
+        populate: ticketPopulate,
+      });
+      return successResponse('Bạn đã có trong danh sách xử lý', {
+        ticket: refreshed,
+      });
+    }
+
+    const nextAssigneeIds = [...currentAssigneeIds, Number(user.id)];
+    const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
+      data: {
+        assignees: nextAssigneeIds,
+        status: ticket.status === 'new' || ticket.status === 'assigned' ? 'in_progress' : ticket.status,
+        handler_id: nextAssigneeIds[0] || null,
+        handler: nextAssigneeIds[0] || null,
+      },
+      populate: ticketPopulate,
+    });
+    await createSystemTicketLog(strapi, {
+      ticketId: updatedTicket.id,
+      senderId: user.id,
+      message: `${user.name || 'Handler'} đã nhận xử lý ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+    });
+    await notifyTicketAudience(strapi, {
+      ticketId: updatedTicket.id,
+      actorId: user.id,
+      title: `Ticket đang xử lý ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      message: `${user.name || 'Handler'} đã nhận xử lý ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      type: 'info',
+      excludeUserIds: [user.id],
+      meta: { event: 'ticket_assigned_me' },
+    });
+
+    return successResponse('Nhận xử lý phiếu thành công', {
+      ticket: updatedTicket,
+    });
+  },
+
+  async unassignUser(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const targetUserId = Number(ctx.params.userId);
+    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+      return errorResponse(ctx, 400, 'userId không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'store_id', 'status'],
+      populate: {
+        requester: { fields: ['id'] },
+        assignees: { fields: ['id'] },
+        responsible_department: { fields: ['id'] },
+      },
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canManageAssignees(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền cập nhật danh sách xử lý');
+    }
+
+    if (!isAdmin(user) && Number(user.id) !== targetUserId) {
+      return errorResponse(ctx, 403, 'Bạn chỉ có thể rời khỏi phiếu do chính bạn nhận');
+    }
+
+    const currentAssigneeIds = getTicketAssigneeIds(ticket);
+    if (!currentAssigneeIds.includes(targetUserId)) {
+      const refreshed = await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
+        populate: ticketPopulate,
+      });
+      return successResponse('Người dùng không có trong danh sách xử lý', {
+        ticket: refreshed,
+      });
+    }
+
+    const nextAssigneeIds = currentAssigneeIds.filter((id) => id !== targetUserId);
+
+    const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
+      data: {
+        assignees: nextAssigneeIds,
+        status: !nextAssigneeIds.length && (ticket.status === 'assigned' || ticket.status === 'in_progress')
+          ? 'new'
+          : ticket.status,
+        handler_id: nextAssigneeIds[0] || null,
+        handler: nextAssigneeIds[0] || null,
+      },
+      populate: ticketPopulate,
+    });
+    await createSystemTicketLog(strapi, {
+      ticketId: updatedTicket.id,
+      senderId: user.id,
+      message: `${user.name || 'Handler'} đã rời khỏi ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+    });
+    await notifyTicketAudience(strapi, {
+      ticketId: updatedTicket.id,
+      actorId: user.id,
+      title: `Ticket thay đổi người xử lý ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      message: `${user.name || 'Handler'} đã cập nhật danh sách người xử lý của ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      type: 'warning',
+      excludeUserIds: [user.id],
+      meta: { event: 'ticket_unassigned' },
+    });
+
+    return successResponse('Cập nhật danh sách xử lý thành công', {
+      ticket: updatedTicket,
+    });
+  },
+
+  async resolveTicket(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const role = getRole(user);
+    if (role !== 'handler' && role !== 'admin') {
+      return errorResponse(ctx, 403, 'Chỉ handler hoặc admin mới có thể chuyển trạng thái hoàn tất');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'store_id', 'status'],
+      populate: {
+        requester: { fields: ['id'] },
+        assignees: { fields: ['id'] },
+      },
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canViewTicket(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền cập nhật phiếu này');
+    }
+
+    if (ticket.status === 'resolved') {
+      const refreshed = await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
+        populate: ticketPopulate,
+      });
+      return successResponse('Phiếu đã ở trạng thái đã xử lý', {
+        ticket: refreshed,
+      });
+    }
+
+    if (ticket.status !== 'in_progress') {
+      return errorResponse(ctx, 400, 'Chỉ có thể đánh dấu hoàn tất khi phiếu đang xử lý');
+    }
+
+    const currentAssigneeIds = getTicketAssigneeIds(ticket);
+    if (!isAdmin(user) && !currentAssigneeIds.includes(Number(user.id))) {
+      return errorResponse(ctx, 403, 'Chỉ người đang xử lý mới có thể hoàn tất phiếu');
+    }
+
+    const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
+      data: {
+        status: 'resolved',
+      },
+      populate: ticketPopulate,
+    });
+    await createSystemTicketLog(strapi, {
+      ticketId: updatedTicket.id,
+      senderId: user.id,
+      message: `${user.name || 'Handler'} đã đánh dấu ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`} là đã xử lý`,
+    });
+    await notifyTicketAudience(strapi, {
+      ticketId: updatedTicket.id,
+      actorId: user.id,
+      title: `Ticket đã xử lý ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      message: `${user.name || 'Handler'} đã hoàn tất ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      type: 'success',
+      excludeUserIds: [user.id],
+      meta: { event: 'ticket_resolved' },
+    });
+
+    return successResponse('Đã chuyển phiếu sang trạng thái đã xử lý', {
+      ticket: updatedTicket,
+    });
+  },
+
+  async reopenTicket(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const role = getRole(user);
+    if (role !== 'store' && role !== 'admin') {
+      return errorResponse(ctx, 403, 'Chỉ cửa hàng hoặc admin mới có thể mở lại phiếu');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'store_id', 'status'],
+      populate: {
+        requester: { fields: ['id'] },
+        assignees: { fields: ['id'] },
+      },
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canViewTicket(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền mở lại phiếu này');
+    }
+
+    if (ticket.status !== 'resolved') {
+      return errorResponse(ctx, 400, 'Chỉ có thể mở lại phiếu đã xử lý');
+    }
+
+    const assigneeIds = getTicketAssigneeIds(ticket);
+    const nextStatus = assigneeIds.length ? 'in_progress' : 'new';
+
+    const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
+      data: {
+        status: nextStatus,
+      },
+      populate: ticketPopulate,
+    });
+    await createSystemTicketLog(strapi, {
+      ticketId: updatedTicket.id,
+      senderId: user.id,
+      message: `${user.name || 'Cửa hàng'} đã mở lại ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+    });
+    await notifyTicketAudience(strapi, {
+      ticketId: updatedTicket.id,
+      actorId: user.id,
+      title: `Ticket mở lại ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      message: `${user.name || 'Cửa hàng'} đã mở lại ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      type: 'warning',
+      excludeUserIds: [user.id],
+      meta: { event: 'ticket_reopened' },
+    });
+
+    return successResponse('Mở lại phiếu thành công', {
+      ticket: updatedTicket,
     });
   },
 
@@ -197,17 +1386,21 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
       fields: ['id', 'requester_id', 'status', 'handler_id'],
+      populate: {
+        requester: { fields: ['id'] },
+        handler: { fields: ['id'] },
+      },
     });
 
     if (!ticket) {
       return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
     }
 
-    if (ticket.requester_id !== user.id) {
+    if (!canManageTicket(user, ticket)) {
       return errorResponse(ctx, 403, 'Bạn không có quyền xóa phiếu này');
     }
 
-    const isAcceptedByDepartment = ticket.status !== 'new' || Number(ticket.handler_id) > 0;
+    const isAcceptedByDepartment = ticket.status !== 'new' || getHandlerId(ticket) > 0;
     if (isAcceptedByDepartment) {
       return errorResponse(ctx, 400, 'Phiếu đã được bộ phận phụ trách tiếp nhận, không thể xóa');
     }

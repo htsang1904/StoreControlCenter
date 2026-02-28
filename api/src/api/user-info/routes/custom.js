@@ -34,5 +34,14 @@ module.exports = {
                 policies: ["global::app-auth"],
             },
         },
+        {
+            method: "POST",
+            path: "/user-info/sync-stores",
+            handler: "user-info.syncStores",
+            config: {
+                auth: false,
+                policies: ["global::app-auth"],
+            },
+        },
     ]
 }

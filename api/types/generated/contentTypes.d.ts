@@ -398,12 +398,73 @@ export interface ApiDepartmentDepartment extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    users: Attribute.Relation<
+      'api::department.department',
+      'oneToMany',
+      'api::user-info.user-info'
+    >;
+  };
+}
+
+export interface ApiNotificationNotification extends Schema.CollectionType {
+  collectionName: 'notifications';
+  info: {
+    description: '';
+    displayName: 'Notification';
+    pluralName: 'notifications';
+    singularName: 'notification';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    actor: Attribute.Relation<
+      'api::notification.notification',
+      'manyToOne',
+      'api::user-info.user-info'
+    >;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::notification.notification',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    is_read: Attribute.Boolean &
+      Attribute.Required &
+      Attribute.DefaultTo<false>;
+    message: Attribute.Text & Attribute.Required;
+    meta: Attribute.JSON;
+    read_at: Attribute.DateTime;
+    recipient: Attribute.Relation<
+      'api::notification.notification',
+      'manyToOne',
+      'api::user-info.user-info'
+    > &
+      Attribute.Required;
+    ticket: Attribute.Relation<
+      'api::notification.notification',
+      'manyToOne',
+      'api::ticket.ticket'
+    >;
+    title: Attribute.String & Attribute.Required;
+    type: Attribute.Enumeration<['info', 'success', 'warning', 'error']> &
+      Attribute.Required &
+      Attribute.DefaultTo<'info'>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::notification.notification',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
   };
 }
 
 export interface ApiStoreStore extends Schema.CollectionType {
   collectionName: 'stores';
   info: {
+    description: '';
     displayName: 'Store';
     pluralName: 'stores';
     singularName: 'store';
@@ -413,6 +474,7 @@ export interface ApiStoreStore extends Schema.CollectionType {
   };
   attributes: {
     address: Attribute.String;
+    brandId: Attribute.String;
     code: Attribute.String;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
@@ -423,6 +485,7 @@ export interface ApiStoreStore extends Schema.CollectionType {
       Attribute.Private;
     publishedAt: Attribute.DateTime;
     shortAddress: Attribute.String;
+    storeId: Attribute.String;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
       'api::store.store',
@@ -489,7 +552,13 @@ export interface ApiTicketTicket extends Schema.CollectionType {
     draftAndPublish: false;
   };
   attributes: {
+    assignees: Attribute.Relation<
+      'api::ticket.ticket',
+      'manyToMany',
+      'api::user-info.user-info'
+    >;
     attachments: Attribute.JSON;
+    attachments_media: Attribute.Media<'images', true>;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::ticket.ticket',
@@ -499,7 +568,22 @@ export interface ApiTicketTicket extends Schema.CollectionType {
       Attribute.Private;
     description: Attribute.Text & Attribute.Required;
     end_date: Attribute.DateTime;
+    handler: Attribute.Relation<
+      'api::ticket.ticket',
+      'manyToOne',
+      'api::user-info.user-info'
+    >;
     handler_id: Attribute.Integer;
+    notifications: Attribute.Relation<
+      'api::ticket.ticket',
+      'oneToMany',
+      'api::notification.notification'
+    >;
+    requester: Attribute.Relation<
+      'api::ticket.ticket',
+      'manyToOne',
+      'api::user-info.user-info'
+    >;
     requester_id: Attribute.Integer & Attribute.Required;
     responsible_department: Attribute.Relation<
       'api::ticket.ticket',
@@ -513,6 +597,11 @@ export interface ApiTicketTicket extends Schema.CollectionType {
     > &
       Attribute.Required &
       Attribute.DefaultTo<'new'>;
+    store: Attribute.Relation<
+      'api::ticket.ticket',
+      'manyToOne',
+      'api::store.store'
+    >;
     store_id: Attribute.Integer & Attribute.Required;
     ticket_category_id: Attribute.Integer;
     ticket_code: Attribute.String & Attribute.Required & Attribute.Unique;
@@ -545,6 +634,11 @@ export interface ApiUserInfoUserInfo extends Schema.CollectionType {
     draftAndPublish: false;
   };
   attributes: {
+    assigned_tickets: Attribute.Relation<
+      'api::user-info.user-info',
+      'manyToMany',
+      'api::ticket.ticket'
+    >;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::user-info.user-info',
@@ -552,14 +646,29 @@ export interface ApiUserInfoUserInfo extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    department: Attribute.Relation<
+      'api::user-info.user-info',
+      'manyToOne',
+      'api::department.department'
+    >;
     email: Attribute.String;
     is_active: Attribute.Boolean;
     name: Attribute.String;
+    notifications: Attribute.Relation<
+      'api::user-info.user-info',
+      'oneToMany',
+      'api::notification.notification'
+    >;
     refresh_token_expires_at: Attribute.DateTime;
     refresh_token_hash: Attribute.String;
     role: Attribute.Enumeration<['store', 'handler', 'qc', 'admin']> &
       Attribute.Required &
       Attribute.DefaultTo<'store'>;
+    stores: Attribute.Relation<
+      'api::user-info.user-info',
+      'oneToMany',
+      'api::store.store'
+    >;
     suite_token: Attribute.Text;
     token_version: Attribute.Integer & Attribute.DefaultTo<0>;
     updatedAt: Attribute.DateTime;
@@ -1009,6 +1118,7 @@ declare module '@strapi/types' {
       'admin::transfer-token-permission': AdminTransferTokenPermission;
       'admin::user': AdminUser;
       'api::department.department': ApiDepartmentDepartment;
+      'api::notification.notification': ApiNotificationNotification;
       'api::store.store': ApiStoreStore;
       'api::ticket-log.ticket-log': ApiTicketLogTicketLog;
       'api::ticket.ticket': ApiTicketTicket;

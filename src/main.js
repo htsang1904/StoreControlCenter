@@ -1,10 +1,14 @@
 import './assets/main.css'
 import 'dropzone/dist/dropzone-min.js';
+import 'preline/dist/index.js';
+import 'vanilla-calendar-pro/styles/index.css';
 import $ from 'jquery';
 import _ from 'lodash';
+import * as VanillaCalendarPro from 'vanilla-calendar-pro';
 import HSFileUpload from '@preline/file-upload';
 window.Dropzone.autoDiscover = false;
 window.HSFileUpload = HSFileUpload;
+window.VanillaCalendarPro = VanillaCalendarPro;
 window._ = _;
 window.$ = $;
 window.jQuery = $;
@@ -32,4 +36,3 @@ const app = createApp(App)
 app.directive('loading',loading)
 app.use(router)
 app.mount('#app')
-import('preline/dist/index.js');

@@ -1,6 +1,7 @@
 import { reactive } from 'vue'
 import router from '@/router'
-import { loginBySuite, login, getMe, logout as logoutApi } from '@/services/auth_service'
+import { loginBySuite, login, getMe, logout as logoutApi, syncStores as syncStoresApi } from '@/services/auth_service'
+import { useToast } from '@/plugins/toast'
 const state = reactive({
   token: localStorage.getItem('token') || null,
   refreshToken: localStorage.getItem('refreshToken') || null,
@@ -8,7 +9,34 @@ const state = reactive({
   initialized: false,
 })
 
+const normalizeStores = (user) => {
+    if (!user || typeof user !== 'object') return []
+
+    if (Array.isArray(user.stores)) return user.stores
+    if (Array.isArray(user.store_list)) return user.store_list
+    if (Array.isArray(user.list_store)) return user.list_store
+
+    return []
+}
+
+const resolveUserProfile = (payload) => {
+    const user =
+        payload?.data?.user ||
+        payload?.userDetail ||
+        payload?.user ||
+        payload?.data ||
+        null
+
+    if (!user || typeof user !== 'object') return null
+
+    return {
+        ...user,
+        stores: normalizeStores(user),
+    }
+}
+
 export function useApp() {
+    const toast = useToast()
     const userLogin = async (payload) => {
         try {
             const suiteResult = await loginBySuite(payload)
@@ -34,7 +62,7 @@ export function useApp() {
             // Do not block navigation if profile fetch has transient issues.
             try {
                 const meResult = await getMe()
-                const user = meResult?.data?.user || meResult?.userDetail || meResult?.data
+                const user = resolveUserProfile(meResult)
                 if (user) {
                     state.userInfo = user
                 }
@@ -67,6 +95,16 @@ export function useApp() {
         localStorage.removeItem('token')
         localStorage.removeItem('refreshToken')
         router.push(`/login`)
+        toast.info('Bạn đã đăng xuất')
+    }
+
+    const syncUserStores = async () => {
+        const result = await syncStoresApi()
+        const user = resolveUserProfile(result)
+        if (result?.success && user) {
+            state.userInfo = user
+        }
+        return result
     }
 
     const initializeAuth = async () => {
@@ -77,7 +115,7 @@ export function useApp() {
 
         try {
             const result = await getMe()
-            const user = result?.data?.user || result?.userDetail
+            const user = resolveUserProfile(result)
             if (!result?.success || !user) {
                 throw new Error('Không thể lấy thông tin người dùng')
             }
@@ -99,6 +137,7 @@ export function useApp() {
         state,
         userLogin,
         userLogout,
+        syncUserStores,
         logout: userLogout,
         initializeAuth,
         router,

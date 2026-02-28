@@ -36,9 +36,37 @@
     },
     "role": {
       "type": "enumeration",
-      "enum": ["store", "handler", "qc", "admin"],
+      "enum": [
+        "store",
+        "handler",
+        "qc",
+        "admin"
+      ],
       "default": "store",
       "required": true
+    },
+    "stores": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::store.store"
+    },
+    "department": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::department.department",
+      "inversedBy": "users"
+    },
+    "assigned_tickets": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::ticket.ticket",
+      "mappedBy": "assignees"
+    },
+    "notifications": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::notification.notification",
+      "mappedBy": "recipient"
     }
   }
 }

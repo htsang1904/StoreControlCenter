@@ -14,6 +14,9 @@ export const getMe = () => {
 export const logout = () => {
   return http.post('/api/user-info/logout')
 }
+export const syncStores = () => {
+  return http.post('/api/user-info/sync-stores')
+}
 export const refreshToken = (payload) => {
   return http.post('/api/user-info/refresh', payload)
 }

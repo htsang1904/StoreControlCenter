@@ -4,7 +4,8 @@
   "info": {
     "singularName": "store",
     "pluralName": "stores",
-    "displayName": "Store"
+    "displayName": "Store",
+    "description": ""
   },
   "options": {
     "draftAndPublish": true
@@ -18,6 +19,12 @@
       "type": "string"
     },
     "shortAddress": {
+      "type": "string"
+    },
+    "storeId": {
+      "type": "string"
+    },
+    "brandId": {
       "type": "string"
     }
   }

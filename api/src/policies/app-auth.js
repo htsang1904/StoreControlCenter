@@ -33,6 +33,14 @@ module.exports = async (policyContext, _config, { strapi }) => {
 
   const user = await strapi.entityService.findOne('api::user-info.user-info', decoded.sub, {
     fields: ['id', 'name', 'email', 'is_active', 'role', 'token_version'],
+    populate: {
+      stores: {
+        fields: ['id', 'storeId'],
+      },
+      department: {
+        fields: ['id', 'name', 'code'],
+      },
+    },
   });
 
   if (!user) {
@@ -50,6 +58,12 @@ module.exports = async (policyContext, _config, { strapi }) => {
   policyContext.state.userDetail = {
     ...user,
     role: user.role || 'store',
+    department_id: Number(user?.department?.id || 0) || null,
+    store_ids: Array.isArray(user?.stores)
+      ? user.stores
+        .map((store) => Number(store?.storeId))
+        .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
+      : [],
   };
   return true;
 };

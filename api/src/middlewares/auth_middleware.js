@@ -27,6 +27,11 @@ module.exports = (_config, { strapi }) => {
 
     const user = await strapi.entityService.findOne('api::user-info.user-info', decoded.sub, {
       fields: ['id', 'name', 'email', 'is_active', 'role', 'token_version'],
+      populate: {
+        stores: {
+          fields: ['id', 'storeId'],
+        },
+      },
     });
 
     if (!user || user.is_active === false) {
@@ -40,6 +45,11 @@ module.exports = (_config, { strapi }) => {
     ctx.state.userDetail = {
       ...user,
       role: user.role || 'store',
+      store_ids: Array.isArray(user?.stores)
+        ? user.stores
+          .map((store) => Number(store?.storeId))
+          .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
+        : [],
     };
     await next();
   };

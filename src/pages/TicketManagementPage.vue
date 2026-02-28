@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { deleteTicket as deleteTicketApi, listTickets } from '@/services/ticket_service'
+import { deleteTicket as deleteTicketApi, listTickets, reopenTicket } from '@/services/ticket_service'
 import { useApp } from '@/plugins/app'
 
 const router = useRouter()
@@ -9,6 +9,7 @@ const { state } = useApp()
 
 const loading = ref(false)
 const deletingId = ref(null)
+const reopeningId = ref(null)
 const errorMessage = ref('')
 const tickets = ref([])
 const searchInput = ref('')
@@ -30,10 +31,13 @@ const canDeleteTicket = computed(() => {
   const role = String(state.userInfo?.role || '').toLowerCase()
   return role === 'store' || role === 'admin'
 })
+const canEditTicket = computed(() => {
+  const role = String(state.userInfo?.role || '').toLowerCase()
+  return role === 'store' || role === 'admin'
+})
 
 const statusOptions = [
   { value: 'new', label: 'Mới tạo' },
-  { value: 'assigned', label: 'Đã phân công' },
   { value: 'in_progress', label: 'Đang xử lý' },
   { value: 'resolved', label: 'Đã xử lý' },
   { value: 'closed', label: 'Đã đóng' },
@@ -50,28 +54,61 @@ function goToAddTicket() {
   router.push('/ticket/add-ticket')
 }
 
+function goToEditTicket(id) {
+  router.push(`/ticket/${id}/edit`)
+}
+
 function normalizeStatus(status) {
+  const normalized = String(status || '').toLowerCase() === 'assigned' ? 'in_progress' : String(status || '').toLowerCase()
   const map = {
     new: 'Mới tạo',
-    assigned: 'Đã phân công',
     in_progress: 'Đang xử lý',
     resolved: 'Đã xử lý',
     closed: 'Đã đóng',
     rejected: 'Từ chối',
   }
-  return map[status] || status || 'Chưa xác định'
+  return map[normalized] || status || 'Chưa xác định'
 }
 
 function statusClass(status) {
+  const normalized = String(status || '').toLowerCase() === 'assigned' ? 'in_progress' : String(status || '').toLowerCase()
   const map = {
     new: 'bg-slate-100 text-slate-700',
-    assigned: 'bg-cyan-100 text-cyan-700',
     in_progress: 'bg-amber-100 text-amber-700',
     resolved: 'bg-emerald-100 text-emerald-700',
     closed: 'bg-blue-100 text-blue-700',
     rejected: 'bg-red-100 text-red-700',
   }
-  return map[status] || 'bg-slate-100 text-slate-700'
+  return map[normalized] || 'bg-slate-100 text-slate-700'
+}
+
+function isEditableTicket(ticket) {
+  if (!ticket) return false
+  return ticket.status === 'new' && Number(ticket.handler?.id || ticket.handler_id || 0) <= 0
+}
+
+function canReopenTicket(ticket) {
+  if (!ticket) return false
+  const role = String(state.userInfo?.role || '').toLowerCase()
+  return (role === 'store' || role === 'admin') && String(ticket.status || '').toLowerCase() === 'resolved'
+}
+
+function requesterDisplay(ticket) {
+  if (!ticket) return '--'
+  return ticket.requester?.name || `#${ticket.requester_id || '--'}`
+}
+
+function storeDisplay(ticket) {
+  if (!ticket) return '--'
+  return (
+    ticket.store?.name ||
+    ticket.store?.shortAddress ||
+    ticket.store?.address ||
+    ticket.store?.code ||
+    ticket.store_name ||
+    ticket.store_id ||
+    '--'
+  )
 }
 
 function formatDateTime(value) {
@@ -97,11 +134,6 @@ async function fetchTickets() {
       pageSize: pagination.pageSize,
       q: filters.q,
       status: filters.statuses.join(','),
-    }
-
-    const storeId = Number(state.userInfo?.store_id)
-    if (Number.isInteger(storeId) && storeId > 0) {
-      params.store_id = storeId
     }
 
     const result = await listTickets(params)
@@ -176,6 +208,25 @@ async function handleDeleteTicket(ticket) {
     errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể xoá yêu cầu.'
   } finally {
     deletingId.value = null
+  }
+}
+
+async function handleReopenTicket(ticket) {
+  if (!ticket?.id || reopeningId.value || !canReopenTicket(ticket)) return
+
+  const confirmed = window.confirm(`Bạn muốn mở lại yêu cầu ${ticket.ticket_code || `#${ticket.id}`}?`)
+  if (!confirmed) return
+
+  reopeningId.value = ticket.id
+  errorMessage.value = ''
+
+  try {
+    await reopenTicket(ticket.id)
+    await fetchTickets()
+  } catch (err) {
+    errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể mở lại yêu cầu.'
+  } finally {
+    reopeningId.value = null
   }
 }
 
@@ -289,7 +340,7 @@ onMounted(async () => {
                     <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Bộ phận</th>
                     <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Trạng thái</th>
                     <th class="px-3 sm:px-4 py-2.5 text-start text-xs font-semibold uppercase text-gray-700">Cập nhật</th>
-                    <th v-if="canDeleteTicket" class="px-3 sm:px-4 py-2.5 text-end text-xs font-semibold uppercase text-gray-700">Tác vụ</th>
+                    <th v-if="canEditTicket || canDeleteTicket" class="px-3 sm:px-4 py-2.5 text-end text-xs font-semibold uppercase text-gray-700">Tác vụ</th>
                   </tr>
                 </thead>
 
@@ -302,8 +353,8 @@ onMounted(async () => {
                   >
                     <td class="px-3 sm:px-4 py-2 text-sm font-medium text-blue-600">{{ ticket.ticket_code || `#${ticket.id}` }}</td>
                     <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">{{ ticket.title || '--' }}</td>
-                    <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">#{{ ticket.requester_id || '--' }}</td>
-                    <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">{{ ticket.store_id || '--' }}</td>
+                    <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">{{ requesterDisplay(ticket) }}</td>
+                    <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">{{ storeDisplay(ticket) }}</td>
                     <td class="px-3 sm:px-4 py-2 text-sm text-gray-700">{{ ticket.responsible_department?.name || '--' }}</td>
                     <td class="px-3 sm:px-4 py-2">
                       <span class="inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="statusClass(ticket.status)">
@@ -311,7 +362,7 @@ onMounted(async () => {
                       </span>
                     </td>
                     <td class="px-3 sm:px-4 py-2 text-sm text-gray-600">{{ formatDateTime(ticket.updatedAt || ticket.createdAt) }}</td>
-                    <td v-if="canDeleteTicket" class="px-3 sm:px-4 py-2 text-end">
+                    <td v-if="canEditTicket || canDeleteTicket" class="px-3 sm:px-4 py-2 text-end">
                       <div class="hs-dropdown relative inline-flex [--placement:bottom-right]">
                         <button
                           type="button"
@@ -328,6 +379,24 @@ onMounted(async () => {
                         </button>
                         <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-32 z-20 bg-white shadow-md rounded-lg mt-2 border border-gray-200">
                           <button
+                            v-if="canEditTicket && isEditableTicket(ticket)"
+                            type="button"
+                            class="cursor-pointer w-full px-3 py-2 text-sm text-left text-blue-600 hover:bg-blue-50"
+                            @click.stop="goToEditTicket(ticket.id)"
+                          >
+                            Chỉnh sửa
+                          </button>
+                          <button
+                            v-if="canReopenTicket(ticket)"
+                            type="button"
+                            class="cursor-pointer w-full px-3 py-2 text-sm text-left text-orange-600 hover:bg-orange-50 disabled:opacity-50"
+                            :disabled="reopeningId === ticket.id"
+                            @click.stop="handleReopenTicket(ticket)"
+                          >
+                            {{ reopeningId === ticket.id ? 'Đang mở lại...' : 'Gửi lại yêu cầu' }}
+                          </button>
+                          <button
+                            v-if="canDeleteTicket"
                             type="button"
                             class="cursor-pointer w-full px-3 py-2 text-sm text-left text-red-600 hover:bg-red-50 disabled:opacity-50"
                             :disabled="deletingId === ticket.id"
@@ -343,7 +412,7 @@ onMounted(async () => {
 
                 <tbody v-else>
                   <tr>
-                    <td :colspan="canDeleteTicket ? 8 : 7" class="py-10">
+                    <td :colspan="canEditTicket || canDeleteTicket ? 8 : 7" class="py-10">
                       <div class="flex flex-col items-center justify-center text-gray-500">
                         <p class="text-sm">Không có dữ liệu</p>
                       </div>
@@ -360,8 +429,26 @@ onMounted(async () => {
                 class="cursor-pointer rounded-xl border border-gray-200 bg-white p-3.5 hover:bg-gray-50"
                 @click="goToTicketDetail(ticket.id)"
               >
-                <div v-if="canDeleteTicket" class="flex justify-end">
+                <div v-if="canEditTicket || canDeleteTicket" class="flex justify-end gap-2">
                   <button
+                    v-if="canEditTicket && isEditableTicket(ticket)"
+                    type="button"
+                    class="cursor-pointer text-xs font-semibold text-blue-600 hover:text-blue-700"
+                    @click.stop="goToEditTicket(ticket.id)"
+                  >
+                    Sửa
+                  </button>
+                  <button
+                    v-if="canReopenTicket(ticket)"
+                    type="button"
+                    class="cursor-pointer text-xs font-semibold text-orange-600 hover:text-orange-700 disabled:opacity-50"
+                    :disabled="reopeningId === ticket.id"
+                    @click.stop="handleReopenTicket(ticket)"
+                  >
+                    {{ reopeningId === ticket.id ? 'Đang mở...' : 'Gửi lại' }}
+                  </button>
+                  <button
+                    v-if="canDeleteTicket"
                     type="button"
                     class="cursor-pointer text-xs font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
                     :disabled="deletingId === ticket.id"
@@ -379,11 +466,11 @@ onMounted(async () => {
                 <div class="mt-3 space-y-1.5 text-sm">
                   <div class="flex items-start justify-between gap-3">
                     <span class="shrink-0 text-slate-600">Người gửi:</span>
-                    <span class="min-w-0 text-right font-medium text-slate-700">#{{ ticket.requester_id || '--' }}</span>
+                    <span class="min-w-0 text-right font-medium text-slate-700">{{ requesterDisplay(ticket) }}</span>
                   </div>
                   <div class="flex items-start justify-between gap-3">
                     <span class="shrink-0 text-slate-600">Cửa hàng:</span>
-                    <span class="min-w-0 text-right font-medium text-slate-700">{{ ticket.store_id || '--' }}</span>
+                    <span class="min-w-0 text-right font-medium text-slate-700">{{ storeDisplay(ticket) }}</span>
                   </div>
                   <div class="flex items-start justify-between gap-3">
                     <span class="shrink-0 text-slate-600">Bộ phận:</span>

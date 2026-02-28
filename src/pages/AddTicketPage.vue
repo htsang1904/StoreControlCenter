@@ -1,43 +1,101 @@
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import FileUploadItem from '@/components/FileUploadItem.vue'
 import { useApp } from '@/plugins/app'
-import { createTicket, getActiveDepartments } from '@/services/ticket_service'
+import { useToast } from '@/plugins/toast'
+import { createTicket, getActiveDepartments, getTicketById, updateTicket } from '@/services/ticket_service'
 
+const route = useRoute()
 const router = useRouter()
 const { state } = useApp()
+const toast = useToast()
 
 const pageLoading = ref(true)
 const submitting = ref(false)
 const departments = ref([])
 const formError = ref('')
-const successMessage = ref('')
-
 const formData = reactive({
+  store_id: '',
   title: '',
   description: '',
   responsible_department_id: '',
   type: '',
+  attachments_media: [],
 })
 
 const errors = reactive({
+  store_id: '',
   title: '',
   description: '',
   responsible_department_id: '',
 })
 
-const storeId = computed(() => {
-  const value = Number(state.userInfo?.store_id || import.meta.env.VITE_DEFAULT_STORE_ID || 1)
-  return Number.isInteger(value) && value > 0 ? value : 0
-})
+function normalizeStoreOption(rawStore) {
+  const storeId = Number(
+    rawStore?.storeId ||
+    rawStore?.store_id ||
+    rawStore?.id ||
+    rawStore?.value
+  )
+  if (!Number.isInteger(storeId) || storeId <= 0) return null
 
-const storeName = computed(() => {
-  return state.userInfo?.store_name || import.meta.env.VITE_DEFAULT_STORE_NAME || 'Cửa hàng mặc định'
+  const label = String(
+    rawStore?.shortAddress ||
+    rawStore?.short_address ||
+    rawStore?.store_name ||
+    rawStore?.name ||
+    rawStore?.address ||
+    rawStore?.code ||
+    rawStore?.label ||
+    ''
+  ).trim()
+
+  return {
+    value: String(storeId),
+    label: label || `Cửa hàng ${storeId}`,
+  }
+}
+
+const availableStores = computed(() => {
+  const userStores = Array.isArray(state.userInfo?.stores)
+    ? state.userInfo.stores
+    : (Array.isArray(state.userInfo?.store_list)
+      ? state.userInfo.store_list
+      : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store : []))
+
+  const normalized = userStores
+    .map(normalizeStoreOption)
+    .filter(Boolean)
+
+  if (normalized.length > 0) {
+    return normalized
+  }
+
+  const fallbackId = Number(state.userInfo?.store_id || import.meta.env.VITE_DEFAULT_STORE_ID || 0)
+  if (Number.isInteger(fallbackId) && fallbackId > 0) {
+    return [
+      {
+        value: String(fallbackId),
+        label: state.userInfo?.store_name || import.meta.env.VITE_DEFAULT_STORE_NAME || `Cửa hàng ${fallbackId}`,
+      },
+    ]
+  }
+
+  return []
 })
 
 const requesterName = computed(() => state.userInfo?.name || '')
 const requesterEmail = computed(() => state.userInfo?.email || '')
+const editTicketId = computed(() => Number(route.params.id || 0))
+const isEditMode = computed(() => Number.isInteger(editTicketId.value) && editTicketId.value > 0)
+const pageTitle = computed(() => (isEditMode.value ? 'Chỉnh sửa yêu cầu' : 'Tạo yêu cầu'))
+const submitButtonText = computed(() => {
+  if (submitting.value) {
+    return isEditMode.value ? 'Đang lưu...' : 'Đang gửi...'
+  }
+  return isEditMode.value ? 'Lưu thay đổi' : 'Gửi yêu cầu'
+})
 
 const issueTypes = [
   { label: 'Sự cố hệ thống', value: 'system_issue' },
@@ -47,6 +105,7 @@ const issueTypes = [
 ]
 
 function clearErrors() {
+  errors.store_id = ''
   errors.title = ''
   errors.description = ''
   errors.responsible_department_id = ''
@@ -55,6 +114,10 @@ function clearErrors() {
 
 function validateForm() {
   clearErrors()
+
+  if (!formData.store_id) {
+    errors.store_id = 'Vui lòng chọn cửa hàng'
+  }
 
   if (!formData.title.trim()) {
     errors.title = 'Vui lòng nhập tiêu đề'
@@ -68,11 +131,7 @@ function validateForm() {
     errors.responsible_department_id = 'Vui lòng chọn bộ phận xử lý'
   }
 
-  if (!storeId.value) {
-    formError.value = 'Không xác định được cửa hàng để tạo yêu cầu.'
-  }
-
-  return !errors.title && !errors.description && !errors.responsible_department_id && !formError.value
+  return !errors.store_id && !errors.title && !errors.description && !errors.responsible_department_id && !formError.value
 }
 
 async function fetchDepartments() {
@@ -84,6 +143,41 @@ async function fetchDepartments() {
   }
 }
 
+async function fetchTicketForEdit() {
+  if (!isEditMode.value) return
+
+  const result = await getTicketById(editTicketId.value)
+  const ticket = result?.data?.ticket
+
+  if (!ticket?.id) {
+    throw new Error('Không tìm thấy ticket để chỉnh sửa.')
+  }
+
+  formData.title = ticket.title || ''
+  formData.description = ticket.description || ''
+  formData.store_id = ticket.store_id ? String(ticket.store_id) : ''
+  formData.responsible_department_id = ticket.responsible_department?.id ? String(ticket.responsible_department.id) : ''
+  formData.type = ticket.type || ''
+  formData.attachments_media = Array.isArray(ticket.attachments_media) ? ticket.attachments_media : []
+  await nextTick()
+  syncPrelineSelectValue('ticket-store', formData.store_id)
+  syncPrelineSelectValue('ticket-department', formData.responsible_department_id)
+  syncPrelineSelectValue('ticket-type', formData.type)
+}
+
+function syncPrelineSelectValue(elementId, value) {
+  const selectElement = document.getElementById(elementId)
+  if (!selectElement) return
+
+  const normalizedValue = value ? String(value) : ''
+  selectElement.value = normalizedValue
+
+  const hsSelect = window.HSSelect?.getInstance?.(selectElement, true)
+  if (hsSelect?.element?.setValue) {
+    hsSelect.element.setValue(normalizedValue)
+  }
+}
+
 async function submitTicket() {
   if (submitting.value || !validateForm()) {
     return
@@ -91,25 +185,33 @@ async function submitTicket() {
 
   submitting.value = true
   formError.value = ''
-  successMessage.value = ''
 
   try {
     const payload = {
       title: formData.title.trim(),
       description: formData.description.trim(),
-      store_id: storeId.value,
+      store_id: Number(formData.store_id),
       responsible_department_id: Number(formData.responsible_department_id),
       type: formData.type || null,
-      attachments: [],
+      attachment_file_ids: formData.attachments_media
+        .map((file) => Number(file?.id))
+        .filter((id) => Number.isInteger(id) && id > 0),
     }
 
-    const result = await createTicket(payload)
-    successMessage.value = result?.message || 'Tạo yêu cầu thành công'
-    setTimeout(() => {
-      router.push('/ticket')
-    }, 500)
+    const result = isEditMode.value
+      ? await updateTicket(editTicketId.value, payload)
+      : await createTicket(payload)
+
+    const successMsg = result?.message || (isEditMode.value ? 'Cập nhật yêu cầu thành công' : 'Tạo yêu cầu thành công')
+    toast.success(successMsg)
+    await new Promise((resolve) => setTimeout(resolve, 220))
+    await router.push('/ticket')
   } catch (err) {
-    formError.value = err?.response?.data?.message || err?.message || 'Không thể tạo yêu cầu. Vui lòng thử lại.'
+    const message = err?.response?.data?.message || err?.message || (isEditMode.value
+      ? 'Không thể cập nhật yêu cầu. Vui lòng thử lại.'
+      : 'Không thể tạo yêu cầu. Vui lòng thử lại.')
+    formError.value = message
+    toast.error(message)
   } finally {
     submitting.value = false
   }
@@ -123,16 +225,44 @@ onMounted(async () => {
   pageLoading.value = true
   try {
     await fetchDepartments()
+    await fetchTicketForEdit()
   } catch (err) {
-    formError.value = err?.response?.data?.message || err?.message || 'Không thể tải danh mục bộ phận.'
+    formError.value = err?.response?.data?.message || err?.message || 'Không thể tải dữ liệu ticket.'
   } finally {
     await nextTick()
     if (window.HSStaticMethods?.autoInit) {
       window.HSStaticMethods.autoInit()
     }
+    syncPrelineSelectValue('ticket-store', formData.store_id)
+    if (isEditMode.value) {
+      syncPrelineSelectValue('ticket-department', formData.responsible_department_id)
+      syncPrelineSelectValue('ticket-type', formData.type)
+    }
     pageLoading.value = false
   }
 })
+
+watch(
+  () => availableStores.value,
+  async (stores) => {
+    if (!Array.isArray(stores) || stores.length === 0) return
+
+    const current = String(formData.store_id || '')
+    const existsInOptions = stores.some((store) => store.value === current)
+    if (existsInOptions) {
+      await nextTick()
+      syncPrelineSelectValue('ticket-store', current)
+      return
+    }
+
+    const preferred = String(state.userInfo?.store_id || '')
+    const preferredExists = stores.some((store) => store.value === preferred)
+    formData.store_id = preferredExists ? preferred : stores[0].value
+    await nextTick()
+    syncPrelineSelectValue('ticket-store', formData.store_id)
+  },
+  { immediate: true, deep: true }
+)
 </script>
 
 <template>
@@ -141,21 +271,17 @@ onMounted(async () => {
       <button @click="goBack" type="button" class="cursor-pointer p-1 mr-2 inline-flex items-center rounded-lg bg-white/40 text-white shadow-2xs hover:bg-white/30 focus:outline-hidden focus:bg-white/30">
         <svg class="shrink-0 size-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
       </button>
-      Tạo yêu cầu
+      {{ pageTitle }}
     </div>
 
     <div class="max-w-full px-4 py-4 mx-auto">
-      <div class="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden" v-loading="pageLoading || submitting">
+      <div class="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden transition-all duration-200" :class="submitting ? 'shadow-md' : ''" v-loading="pageLoading">
         <form @submit.prevent="submitTicket">
           <div class="bg-white rounded-xl shadow-xs">
             <div class="p-4 sm:p-7">
               <div class="space-y-4 sm:space-y-6">
                 <div v-if="formError" class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                   {{ formError }}
-                </div>
-
-                <div v-if="successMessage" class="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-                  {{ successMessage }}
                 </div>
 
                 <h2 class="text-xl font-semibold text-gray-800 mt-1">Người tạo yêu cầu</h2>
@@ -173,8 +299,27 @@ onMounted(async () => {
                 </div>
 
                 <div class="space-y-2">
-                  <label for="store-name" class="inline-block text-sm font-medium text-gray-800">Cửa hàng</label>
-                  <input id="store-name" type="text" class="py-2.5 sm:py-3 px-4 block w-full border border-gray-200 rounded-lg sm:text-sm bg-slate-50 text-slate-700" :value="storeName" readonly />
+                  <label for="ticket-store" class="inline-block text-sm font-medium text-gray-800">Cửa hàng <span class="text-red-500">*</span></label>
+                  <select
+                    id="ticket-store"
+                    v-model="formData.store_id"
+                    class="hidden"
+                    data-hs-select='{
+                      "placeholder": "Chọn cửa hàng",
+                      "toggleTag": "<button type=\"button\" aria-expanded=\"false\"></button>",
+                      "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative py-2.5 sm:py-3 ps-4 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer bg-white border border-gray-200 rounded-lg text-start text-sm focus:outline-hidden",
+                      "dropdownClasses": "mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 bg-white border border-gray-200 rounded-lg overflow-hidden overflow-y-auto",
+                      "optionClasses": "py-2 px-4 w-full text-sm text-gray-800 cursor-pointer hover:bg-gray-100 rounded-lg focus:outline-hidden",
+                      "optionTemplate": "<div class=\"flex justify-between items-center w-full\"><span data-title></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-blue-600\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
+                      "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-gray-500\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
+                    }'
+                  >
+                    <option value="">Chọn cửa hàng</option>
+                    <option v-for="store in availableStores" :key="store.value" :value="store.value">
+                      {{ store.label }}
+                    </option>
+                  </select>
+                  <p v-if="errors.store_id" class="text-xs text-red-600">{{ errors.store_id }}</p>
                 </div>
 
                 <h2 class="text-xl font-semibold text-gray-800 mt-3">Chi tiết yêu cầu</h2>
@@ -256,7 +401,7 @@ onMounted(async () => {
 
                 <div class="space-y-2">
                   <label class="inline-block text-sm font-medium text-gray-800">Hình ảnh đính kèm</label>
-                  <FileUploadItem />
+                  <FileUploadItem v-model="formData.attachments_media" />
                 </div>
               </div>
 
@@ -271,11 +416,11 @@ onMounted(async () => {
                 </button>
                 <button
                   type="submit"
-                  class="py-3 px-4 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-hidden focus:bg-blue-700 disabled:opacity-50"
+                  class="py-3 px-4 inline-flex min-w-[148px] justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 focus:outline-hidden focus:bg-blue-700 disabled:opacity-50 transition-all duration-200"
                   :disabled="submitting || pageLoading"
                 >
                   <span v-if="submitting" class="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-                  <span>{{ submitting ? 'Đang gửi...' : 'Gửi yêu cầu' }}</span>
+                  <span>{{ submitButtonText }}</span>
                 </button>
               </div>
             </div>

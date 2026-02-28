@@ -1,12 +1,20 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApp } from '@/plugins/app'
+import { useToast } from '@/plugins/toast'
 
 const route = useRoute()
-const { state, logout } = useApp()
+const { state, logout, syncUserStores } = useApp()
+const toast = useToast()
+const syncingStores = ref(false)
 
 const tabs = [
+  {
+    label: 'Tổng quan',
+    icon: 'https://cdn.lordicon.com/lrzdmsmx.json',
+    path: '/dashboard',
+  },
   {
     label: 'Yêu cầu xử lý',
     icon: 'https://cdn.lordicon.com/rguyoaum.json',
@@ -36,6 +44,23 @@ const userInitials = computed(() => {
     .map(part => part[0]?.toUpperCase() || '')
     .join('')
 })
+
+const handleSyncStores = async () => {
+  if (syncingStores.value) return
+
+  syncingStores.value = true
+
+  try {
+    const result = await syncUserStores()
+    const syncedStores = Number(result?.data?.syncedStores || 0)
+    toast.success(`Đã đồng bộ ${syncedStores} cửa hàng`)
+  } catch (error) {
+    const message = error?.response?.data?.message || error?.message || 'Không thể đồng bộ cửa hàng'
+    toast.error(message)
+  } finally {
+    syncingStores.value = false
+  }
+}
 </script>
 
 <template>
@@ -101,7 +126,7 @@ const userInitials = computed(() => {
                 <lord-icon
                   :src="tab.icon"
                   trigger="hover"
-                  :colors="isTabActive(tab.path) ? 'primary:#ffffff' : 'primary:#1e293b'"
+                  :colors="isTabActive(tab.path) ? 'primary:#ffffff,secondary:#ffffff' : 'primary:#1e293b,secondary:#1e293b'"
                   target=".hover-target"
                 ></lord-icon>
               </span>
@@ -134,6 +159,18 @@ const userInitials = computed(() => {
 
             <div class="hs-dropdown-menu hs-dropdown-open:opacity-100 w-58 transition-[opacity,margin] duration opacity-0 hidden z-70 bg-white border border-slate-200 rounded-xl shadow-lg dark:bg-slate-900 dark:border-slate-700">
               <div class=" p-1.5">
+                <button
+                  type="button"
+                  class="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                  :disabled="syncingStores"
+                  @click="handleSyncStores"
+                >
+                  <span>{{ syncingStores ? 'Đang đồng bộ...' : 'Đồng bộ cửa hàng' }}</span>
+                  <svg v-if="syncingStores" class="animate-spin size-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+                  </svg>
+                </button>
                 <button type="button" class="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15" @click="logout">
                   <span>Đăng xuất</span>
                 </button>

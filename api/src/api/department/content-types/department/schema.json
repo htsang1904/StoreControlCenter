@@ -31,6 +31,12 @@
       "relation": "oneToMany",
       "target": "api::ticket.ticket",
       "mappedBy": "responsible_department"
+    },
+    "users": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::user-info.user-info",
+      "mappedBy": "department"
     }
   }
 }

@@ -1,8 +1,10 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useApp } from '@/plugins/app'
+import { useToast } from '@/plugins/toast'
 
 const { userLogin } = useApp()
+const toast = useToast()
 const loading = ref(false)
 const errorMessage = ref('')
 const rememberMe = ref(true)
@@ -17,8 +19,10 @@ async function submitData() {
   loading.value = true
   try {
     await userLogin(formData)
+    toast.success('Đăng nhập thành công')
   } catch (err) {
     errorMessage.value = err?.message || 'Đăng nhập thất bại'
+    toast.error(errorMessage.value)
   } finally {
     loading.value = false
   }

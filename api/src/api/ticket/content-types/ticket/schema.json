@@ -35,12 +35,33 @@
       "type": "integer",
       "required": true
     },
+    "requester": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::user-info.user-info"
+    },
     "handler_id": {
       "type": "integer"
+    },
+    "handler": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::user-info.user-info"
+    },
+    "assignees": {
+      "type": "relation",
+      "relation": "manyToMany",
+      "target": "api::user-info.user-info",
+      "inversedBy": "assigned_tickets"
     },
     "store_id": {
       "type": "integer",
       "required": true
+    },
+    "store": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::store.store"
     },
     "responsible_department": {
       "type": "relation",
@@ -64,10 +85,21 @@
     "attachments": {
       "type": "json"
     },
+    "attachments_media": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": ["images"]
+    },
     "ticket_logs": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::ticket-log.ticket-log",
+      "mappedBy": "ticket"
+    },
+    "notifications": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::notification.notification",
       "mappedBy": "ticket"
     }
   }

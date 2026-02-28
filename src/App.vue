@@ -1,15 +1,12 @@
 <script setup>
-import { onMounted } from 'vue'
-import { RouterView } from 'vue-router';
-onMounted(() => {
-  
-})
+import { RouterView } from 'vue-router'
+import ToastContainer from '@/components/ToastContainer.vue'
 </script>
 
 <template>
-  <RouterView/>
+  <RouterView />
+  <ToastContainer />
 </template>
 
 <style scoped>
-
 </style>
