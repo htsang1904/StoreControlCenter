@@ -34,6 +34,9 @@ const pageTitle = computed(() => {
   if (route.path.startsWith('/QC')) {
     return 'Báo cáo QC'
   }
+  if (route.path.startsWith('/tools')) {
+    return 'Công cụ hệ thống'
+  }
   return 'Yêu cầu hỗ trợ'
 })
 

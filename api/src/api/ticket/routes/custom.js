@@ -42,12 +42,6 @@ module.exports = {
         auth: false,
         policies: [
           'global::app-auth',
-          {
-            name: 'global::role-guard',
-            config: {
-              allow: ['store', 'handler', 'qc', 'admin'],
-            },
-          },
         ],
       },
     },

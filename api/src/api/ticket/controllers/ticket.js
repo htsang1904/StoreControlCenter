@@ -3,6 +3,9 @@
 const crypto = require('crypto');
 const { createCoreController } = require('@strapi/strapi').factories;
 const { createNotifications, loadTicketAudience } = require('../../../utils/notification');
+const MAX_UPLOAD_FILES_PER_REQUEST = 5;
+const MAX_UPLOAD_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const DASHBOARD_TICKET_BATCH_SIZE = 1000;
 
 const successResponse = (message, data = {}) => ({
   success: true,
@@ -96,6 +99,19 @@ const extractUploadFiles = (filesInput) => {
   return Object.values(filesInput)
     .flatMap((item) => (Array.isArray(item) ? item : [item]))
     .filter(Boolean);
+};
+
+const resolveLinkedStoreId = async (strapi, storeId) => {
+  const linkedStore = await strapi.entityService.findMany('api::store.store', {
+    filters: {
+      storeId: String(storeId),
+    },
+    fields: ['id', 'storeId'],
+    publicationState: 'preview',
+    limit: 1,
+  });
+
+  return linkedStore?.[0]?.id || null;
 };
 
 const hydrateTicketUsers = async (strapi, ticketsInput) => {
@@ -371,6 +387,40 @@ const notifyTicketAudience = async (
   }
 };
 
+const fetchDashboardTickets = async (strapi, filters) => {
+  const records = [];
+  let start = 0;
+
+  while (true) {
+    const batch = await strapi.entityService.findMany('api::ticket.ticket', {
+      filters,
+      fields: ['id', 'ticket_code', 'status', 'store_id', 'end_date', 'createdAt'],
+      populate: {
+        store: {
+          fields: ['id', 'storeId', 'code', 'shortAddress', 'address'],
+        },
+      },
+      sort: { createdAt: 'desc' },
+      start,
+      limit: DASHBOARD_TICKET_BATCH_SIZE,
+    });
+
+    const normalizedBatch = Array.isArray(batch) ? batch : [];
+    if (!normalizedBatch.length) {
+      break;
+    }
+
+    records.push(...normalizedBatch);
+    if (normalizedBatch.length < DASHBOARD_TICKET_BATCH_SIZE) {
+      break;
+    }
+
+    start += normalizedBatch.length;
+  }
+
+  return records;
+};
+
 module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
   async dashboardOverview(ctx) {
     const user = ctx.state.userDetail;
@@ -388,17 +438,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
 
     const ticketFilters = scoped.filters || {};
 
-    const tickets = await strapi.entityService.findMany('api::ticket.ticket', {
-      filters: ticketFilters,
-      fields: ['id', 'ticket_code', 'status', 'store_id', 'end_date', 'createdAt'],
-      populate: {
-        store: {
-          fields: ['id', 'storeId', 'code', 'shortAddress', 'address'],
-        },
-      },
-      sort: { createdAt: 'desc' },
-      limit: 5000,
-    });
+    const tickets = await fetchDashboardTickets(strapi, ticketFilters);
 
     const normalizedTickets = Array.isArray(tickets) ? tickets : [];
     const now = new Date();
@@ -530,6 +570,9 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     if (!files.length) {
       return errorResponse(ctx, 400, 'Không tìm thấy file upload');
     }
+    if (files.length > MAX_UPLOAD_FILES_PER_REQUEST) {
+      return errorResponse(ctx, 400, `Mỗi lần chỉ được tải tối đa ${MAX_UPLOAD_FILES_PER_REQUEST} ảnh`);
+    }
 
     const hasInvalidFileType = files.some((file) => {
       const mimeType = String(file?.type || file?.mimetype || '');
@@ -537,6 +580,14 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     });
     if (hasInvalidFileType) {
       return errorResponse(ctx, 400, 'Chỉ chấp nhận file hình ảnh');
+    }
+
+    const hasOversizedFile = files.some((file) => {
+      const fileSize = Number(file?.size || 0);
+      return Number.isFinite(fileSize) && fileSize > MAX_UPLOAD_FILE_SIZE_BYTES;
+    });
+    if (hasOversizedFile) {
+      return errorResponse(ctx, 400, 'Mỗi ảnh không được vượt quá 5MB');
     }
 
     try {
@@ -564,8 +615,10 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
 
   async createTicket(ctx) {
     const payload = ctx.request.body || {};
+    const normalizedTitle = String(payload.title || '').trim();
+    const normalizedDescription = String(payload.description || '').trim();
 
-    if (!payload.title || !payload.description || !payload.store_id || !payload.responsible_department_id) {
+    if (!normalizedTitle || !normalizedDescription || !payload.store_id || !payload.responsible_department_id) {
       return errorResponse(
         ctx,
         400,
@@ -632,9 +685,12 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     if (!requester || !requester.id) {
       return errorResponse(ctx, 401, 'Không xác định được người tạo phiếu');
     }
-    if (!isAdmin(requester)) {
+    if (getRole(requester) === 'store') {
       const requesterStoreIds = getUserStoreIds(requester);
-      if (requesterStoreIds.length && !requesterStoreIds.includes(storeId)) {
+      if (!requesterStoreIds.length) {
+        return errorResponse(ctx, 403, 'Tài khoản của bạn chưa được gán cửa hàng hợp lệ');
+      }
+      if (!requesterStoreIds.includes(storeId)) {
         return errorResponse(ctx, 403, 'Bạn không có quyền tạo phiếu cho cửa hàng này');
       }
     }
@@ -646,22 +702,14 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
 
     try {
       const ticketCode = await generateTicketCode(strapi);
-      const linkedStore = await strapi.entityService.findMany('api::store.store', {
-        filters: {
-          storeId: String(storeId),
-        },
-        fields: ['id', 'storeId'],
-        publicationState: 'preview',
-        limit: 1,
-      });
-      const linkedStoreId = linkedStore?.[0]?.id || null;
+      const linkedStoreId = await resolveLinkedStoreId(strapi, storeId);
 
       const createdTicket = await strapi.entityService.create('api::ticket.ticket', {
         data: {
           ticket_code: ticketCode,
-          title: String(payload.title).trim(),
-          description: String(payload.description).trim(),
-          status: 'new',
+          title: normalizedTitle,
+          description: normalizedDescription,
+          status: initialHandler?.id ? 'in_progress' : 'new',
           requester: requester.id,
           requester_id: requester.id,
           store_id: storeId,
@@ -895,6 +943,26 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       updateData.description = description;
     }
 
+    if (Object.prototype.hasOwnProperty.call(payload, 'store_id')) {
+      const storeId = Number(payload.store_id);
+      if (!Number.isInteger(storeId) || storeId <= 0) {
+        return errorResponse(ctx, 400, 'store_id không hợp lệ');
+      }
+
+      if (getRole(user) === 'store') {
+        const requesterStoreIds = getUserStoreIds(user);
+        if (!requesterStoreIds.length) {
+          return errorResponse(ctx, 403, 'Tài khoản của bạn chưa được gán cửa hàng hợp lệ');
+        }
+        if (!requesterStoreIds.includes(storeId)) {
+          return errorResponse(ctx, 403, 'Bạn không có quyền cập nhật phiếu cho cửa hàng này');
+        }
+      }
+
+      updateData.store_id = storeId;
+      updateData.store = await resolveLinkedStoreId(strapi, storeId);
+    }
+
     if (Object.prototype.hasOwnProperty.call(payload, 'responsible_department_id')) {
       const responsibleDepartmentId = Number(payload.responsible_department_id);
       if (!Number.isInteger(responsibleDepartmentId) || responsibleDepartmentId <= 0) {
@@ -1114,9 +1182,19 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
 
     const currentAssigneeIds = getTicketAssigneeIds(ticket);
     if (currentAssigneeIds.includes(Number(user.id))) {
-      const refreshed = await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
-        populate: ticketPopulate,
-      });
+      const hasLegacyStatus = ticket.status === 'new' || ticket.status === 'assigned';
+      const refreshed = hasLegacyStatus
+        ? await strapi.entityService.update('api::ticket.ticket', ticket.id, {
+          data: {
+            status: 'in_progress',
+            handler_id: currentAssigneeIds[0] || null,
+            handler: currentAssigneeIds[0] || null,
+          },
+          populate: ticketPopulate,
+        })
+        : await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
+          populate: ticketPopulate,
+        });
       return successResponse('Bạn đã có trong danh sách xử lý', {
         ticket: refreshed,
       });

@@ -52,6 +52,26 @@ const router = createRouter({
                     component: () => import('@/pages/QCManagementPage.vue'),
                     meta: { auth: true }
                 },
+                {
+                    path: 'QC/store/:storeId',
+                    name: 'QC Store Detail',
+                    component: () => import('@/pages/QCStoreDetailPage.vue'),
+                    meta: { auth: true },
+                    props: true
+                },
+                {
+                    path: 'QC/store/:storeId/create',
+                    name: 'QC Create Session',
+                    component: () => import('@/pages/QCCreateSessionPage.vue'),
+                    meta: { auth: true },
+                    props: true
+                },
+                {
+                    path: 'tools',
+                    name: 'Tools',
+                    component: () => import('@/pages/ToolsPage.vue'),
+                    meta: { auth: true, roles: ['admin'] }
+                },
             ]
         },
         {

@@ -1,0 +1,41 @@
+{
+  "kind": "collectionType",
+  "collectionName": "qc_drafts",
+  "info": {
+    "singularName": "qc-draft",
+    "pluralName": "qc-drafts",
+    "displayName": "QC Draft",
+    "description": "Draft payload for QC session editing"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "store": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::store.store",
+      "required": true
+    },
+    "auditor": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::user-info.user-info"
+    },
+    "template_id": {
+      "type": "string",
+      "required": true
+    },
+    "audited_at": {
+      "type": "datetime",
+      "required": true
+    },
+    "note": {
+      "type": "text"
+    },
+    "criteria_states": {
+      "type": "json"
+    }
+  }
+}

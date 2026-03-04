@@ -13,6 +13,8 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 const upload = ref(null)
 const dropzoneRef = ref(null)
+const MAX_UPLOAD_FILES = 5
+const MAX_UPLOAD_FILE_SIZE_BYTES = 5 * 1024 * 1024
 
 const getApiBaseUrl = () => String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 const toAbsoluteUrl = (url) => {
@@ -102,12 +104,35 @@ onMounted(async () => {
   dropzone.options.url = `${getApiBaseUrl()}/api/tickets/upload-attachments`
   dropzone.options.paramName = 'files'
   dropzone.options.acceptedFiles = 'image/*'
+  dropzone.options.maxFiles = MAX_UPLOAD_FILES
   dropzone.options.autoProcessQueue = false
+  dropzone.options.dictMaxFilesExceeded = `Chỉ được tải tối đa ${MAX_UPLOAD_FILES} ảnh`
 
   dropzone.on('addedfile', async (file) => {
     if (file?.__isMock) return
 
+    if (file.type && !file.type.startsWith('image/')) {
+      dropzone.emit('error', file, 'Chỉ cho phép tải lên file ảnh')
+      dropzone.removeFile(file)
+      return
+    }
+
+    const fileSize = Number(file?.size || 0)
+    if (Number.isFinite(fileSize) && fileSize > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      dropzone.emit('error', file, 'Mỗi ảnh không được vượt quá 5MB')
+      dropzone.removeFile(file)
+      return
+    }
+
     try {
+      const currentUploadedCount = normalizeModelFiles(props.modelValue).length
+      if (currentUploadedCount >= MAX_UPLOAD_FILES) {
+        const message = `Chỉ được tải tối đa ${MAX_UPLOAD_FILES} ảnh`
+        dropzone.emit('error', file, message)
+        dropzone.removeFile(file)
+        return
+      }
+
       const formData = new FormData()
       formData.append('files', file)
 
@@ -146,6 +171,10 @@ onMounted(async () => {
     removeModelFile(file)
   })
 
+  dropzone.on('maxfilesexceeded', (file) => {
+    dropzone.removeFile(file)
+  })
+
   syncModelToDropzone()
 })
 
@@ -159,7 +188,8 @@ watch(
 </script>
 <template>
 <div ref="upload" data-hs-file-upload='{
-    "url": "https://api.escuelajs.co/api/v1/files/upload",
+    "url": "/api/tickets/upload-attachments",
+    "acceptedFiles": "image/*",
     "extensions": {
         "default": {
         "class": "shrink-0 size-5"
@@ -244,13 +274,13 @@ watch(
 
         <div class="mt-4 flex flex-wrap justify-center text-sm/6 text-gray-600">
             <span class="pe-1 font-medium text-gray-800 dark:text-neutral-200">
-            Drop your file here or
+            Kéo thả ảnh vào đây hoặc
             </span>
-            <span class="bg-white font-semibold text-blue-600 hover:text-blue-700 rounded-lg decoration-2 hover:underline focus-within:outline-hidden focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-2 dark:bg-neutral-800 dark:text-blue-500 dark:hover:text-blue-600">browse</span>
+            <span class="bg-white font-semibold text-blue-600 hover:text-blue-700 rounded-lg decoration-2 hover:underline focus-within:outline-hidden focus-within:ring-2 focus-within:ring-blue-600 focus-within:ring-offset-2 dark:bg-neutral-800 dark:text-blue-500 dark:hover:text-blue-600">tải ảnh lên</span>
         </div>
 
         <p class="mt-1 text-xs text-gray-400 dark:text-neutral-400">
-            Pick a file up to 2MB.
+            Kích thước ảnh tối đa 5MB.
         </p>
         </div>
     </div>

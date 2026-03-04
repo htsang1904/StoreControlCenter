@@ -26,6 +26,9 @@
     },
     "brandId": {
       "type": "string"
+    },
+    "name": {
+      "type": "string"
     }
   }
 }

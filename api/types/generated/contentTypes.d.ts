@@ -461,6 +461,487 @@ export interface ApiNotificationNotification extends Schema.CollectionType {
   };
 }
 
+export interface ApiQcCriterionQcCriterion extends Schema.CollectionType {
+  collectionName: 'qc_criteria';
+  info: {
+    description: 'Reusable criterion catalog';
+    displayName: 'QC Criterion';
+    pluralName: 'qc-criteria';
+    singularName: 'qc-criterion';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    code: Attribute.String & Attribute.Required & Attribute.Unique;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::qc-criterion.qc-criterion',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    default_max_score: Attribute.Decimal & Attribute.DefaultTo<0>;
+    default_mode: Attribute.Enumeration<['pass_fail', 'point']> &
+      Attribute.Required &
+      Attribute.DefaultTo<'point'>;
+    default_weight: Attribute.Decimal & Attribute.DefaultTo<1>;
+    description: Attribute.Text;
+    form_criteria: Attribute.Relation<
+      'api::qc-criterion.qc-criterion',
+      'oneToMany',
+      'api::qc-form-criterion.qc-form-criterion'
+    >;
+    is_active: Attribute.Boolean & Attribute.DefaultTo<true>;
+    name: Attribute.String & Attribute.Required;
+    session_items: Attribute.Relation<
+      'api::qc-criterion.qc-criterion',
+      'oneToMany',
+      'api::qc-session-item.qc-session-item'
+    >;
+    store_rules: Attribute.Relation<
+      'api::qc-criterion.qc-criterion',
+      'oneToMany',
+      'api::qc-store-criterion-rule.qc-store-criterion-rule'
+    >;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::qc-criterion.qc-criterion',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiQcDraftQcDraft extends Schema.CollectionType {
+  collectionName: 'qc_drafts';
+  info: {
+    description: 'Draft payload for QC session editing';
+    displayName: 'QC Draft';
+    pluralName: 'qc-drafts';
+    singularName: 'qc-draft';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    audited_at: Attribute.DateTime & Attribute.Required;
+    auditor: Attribute.Relation<
+      'api::qc-draft.qc-draft',
+      'manyToOne',
+      'api::user-info.user-info'
+    >;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::qc-draft.qc-draft',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    criteria_states: Attribute.JSON;
+    note: Attribute.Text;
+    store: Attribute.Relation<
+      'api::qc-draft.qc-draft',
+      'manyToOne',
+      'api::store.store'
+    > &
+      Attribute.Required;
+    template_id: Attribute.String & Attribute.Required;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::qc-draft.qc-draft',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiQcFindingQcFinding extends Schema.CollectionType {
+  collectionName: 'qc_findings';
+  info: {
+    description: 'Corrective action item from failed criterion';
+    displayName: 'QC Finding';
+    pluralName: 'qc-findings';
+    singularName: 'qc-finding';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    assignee: Attribute.Relation<
+      'api::qc-finding.qc-finding',
+      'manyToOne',
+      'api::user-info.user-info'
+    >;
+    corrective_action: Attribute.Text;
+    corrective_note: Attribute.Text;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::qc-finding.qc-finding',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    criterion_name: Attribute.String;
+    due_date: Attribute.Date;
+    evidence: Attribute.JSON;
+    meta: Attribute.JSON;
+    resolved_at: Attribute.DateTime;
+    session: Attribute.Relation<
+      'api::qc-finding.qc-finding',
+      'manyToOne',
+      'api::qc-session.qc-session'
+    > &
+      Attribute.Required;
+    session_item: Attribute.Relation<
+      'api::qc-finding.qc-finding',
+      'manyToOne',
+      'api::qc-session-item.qc-session-item'
+    >;
+    severity: Attribute.Enumeration<['low', 'medium', 'high', 'critical']> &
+      Attribute.DefaultTo<'medium'>;
+    status: Attribute.Enumeration<
+      ['open', 'in_progress', 'resolved', 'verified', 'rejected']
+    > &
+      Attribute.DefaultTo<'open'>;
+    store: Attribute.Relation<
+      'api::qc-finding.qc-finding',
+      'manyToOne',
+      'api::store.store'
+    > &
+      Attribute.Required;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::qc-finding.qc-finding',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    verified_at: Attribute.DateTime;
+    verifier: Attribute.Relation<
+      'api::qc-finding.qc-finding',
+      'manyToOne',
+      'api::user-info.user-info'
+    >;
+  };
+}
+
+export interface ApiQcFormCriterionQcFormCriterion
+  extends Schema.CollectionType {
+  collectionName: 'qc_form_criteria';
+  info: {
+    description: 'Criterion config inside a form version';
+    displayName: 'QC Form Criterion';
+    pluralName: 'qc-form-criteria';
+    singularName: 'qc-form-criterion';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::qc-form-criterion.qc-form-criterion',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    criterion: Attribute.Relation<
+      'api::qc-form-criterion.qc-form-criterion',
+      'manyToOne',
+      'api::qc-criterion.qc-criterion'
+    > &
+      Attribute.Required;
+    form_version: Attribute.Relation<
+      'api::qc-form-criterion.qc-form-criterion',
+      'manyToOne',
+      'api::qc-form-version.qc-form-version'
+    > &
+      Attribute.Required;
+    frequency: Attribute.Enumeration<['per_audit', 'weekly_once']> &
+      Attribute.DefaultTo<'per_audit'>;
+    is_critical: Attribute.Boolean & Attribute.DefaultTo<false>;
+    max_score: Attribute.Decimal & Attribute.DefaultTo<0>;
+    mode: Attribute.Enumeration<['pass_fail', 'point']> & Attribute.Required;
+    required: Attribute.Boolean & Attribute.DefaultTo<true>;
+    section_name: Attribute.String;
+    sort_order: Attribute.Integer & Attribute.DefaultTo<0>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::qc-form-criterion.qc-form-criterion',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    weight: Attribute.Decimal & Attribute.DefaultTo<1>;
+  };
+}
+
+export interface ApiQcFormVersionQcFormVersion extends Schema.CollectionType {
+  collectionName: 'qc_form_versions';
+  info: {
+    description: 'Immutable version of a QC form';
+    displayName: 'QC Form Version';
+    pluralName: 'qc-form-versions';
+    singularName: 'qc-form-version';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::qc-form-version.qc-form-version',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    effective_from: Attribute.DateTime;
+    effective_to: Attribute.DateTime;
+    form: Attribute.Relation<
+      'api::qc-form-version.qc-form-version',
+      'manyToOne',
+      'api::qc-form.qc-form'
+    > &
+      Attribute.Required;
+    form_criteria: Attribute.Relation<
+      'api::qc-form-version.qc-form-version',
+      'oneToMany',
+      'api::qc-form-criterion.qc-form-criterion'
+    >;
+    pass_rule: Attribute.JSON;
+    sessions: Attribute.Relation<
+      'api::qc-form-version.qc-form-version',
+      'oneToMany',
+      'api::qc-session.qc-session'
+    >;
+    status: Attribute.Enumeration<['draft', 'published', 'archived']> &
+      Attribute.Required &
+      Attribute.DefaultTo<'draft'>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::qc-form-version.qc-form-version',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    version_no: Attribute.String & Attribute.Required;
+  };
+}
+
+export interface ApiQcFormQcForm extends Schema.CollectionType {
+  collectionName: 'qc_forms';
+  info: {
+    description: 'Master checklist form for QC';
+    displayName: 'QC Form';
+    pluralName: 'qc-forms';
+    singularName: 'qc-form';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    code: Attribute.String & Attribute.Required & Attribute.Unique;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::qc-form.qc-form',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    description: Attribute.Text;
+    is_active: Attribute.Boolean & Attribute.DefaultTo<true>;
+    name: Attribute.String & Attribute.Required;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::qc-form.qc-form',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    versions: Attribute.Relation<
+      'api::qc-form.qc-form',
+      'oneToMany',
+      'api::qc-form-version.qc-form-version'
+    >;
+  };
+}
+
+export interface ApiQcSessionItemQcSessionItem extends Schema.CollectionType {
+  collectionName: 'qc_session_items';
+  info: {
+    description: 'Result for each criterion in a QC session';
+    displayName: 'QC Session Item';
+    pluralName: 'qc-session-items';
+    singularName: 'qc-session-item';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    applicable: Attribute.Boolean & Attribute.DefaultTo<true>;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::qc-session-item.qc-session-item',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    criterion: Attribute.Relation<
+      'api::qc-session-item.qc-session-item',
+      'manyToOne',
+      'api::qc-criterion.qc-criterion'
+    >;
+    criterion_code: Attribute.String;
+    criterion_name: Attribute.String & Attribute.Required;
+    frequency_snapshot: Attribute.Enumeration<['per_audit', 'weekly_once']> &
+      Attribute.DefaultTo<'per_audit'>;
+    max_score_snapshot: Attribute.Decimal & Attribute.DefaultTo<0>;
+    mode_snapshot: Attribute.Enumeration<['pass_fail', 'point']> &
+      Attribute.Required;
+    note: Attribute.Text;
+    requires_fix: Attribute.Boolean & Attribute.DefaultTo<false>;
+    result: Attribute.Enumeration<
+      ['pending', 'pass', 'fail', 'na', 'skipped_weekly']
+    > &
+      Attribute.Required &
+      Attribute.DefaultTo<'pending'>;
+    score: Attribute.Decimal;
+    session: Attribute.Relation<
+      'api::qc-session-item.qc-session-item',
+      'manyToOne',
+      'api::qc-session.qc-session'
+    > &
+      Attribute.Required;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::qc-session-item.qc-session-item',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    weight_snapshot: Attribute.Decimal & Attribute.DefaultTo<1>;
+  };
+}
+
+export interface ApiQcSessionQcSession extends Schema.CollectionType {
+  collectionName: 'qc_sessions';
+  info: {
+    description: 'QC execution session at store level';
+    displayName: 'QC Session';
+    pluralName: 'qc-sessions';
+    singularName: 'qc-session';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    audited_at: Attribute.DateTime & Attribute.Required;
+    auditor: Attribute.Relation<
+      'api::qc-session.qc-session',
+      'manyToOne',
+      'api::user-info.user-info'
+    >;
+    code: Attribute.String & Attribute.Required & Attribute.Unique;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::qc-session.qc-session',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    findings: Attribute.Relation<
+      'api::qc-session.qc-session',
+      'oneToMany',
+      'api::qc-finding.qc-finding'
+    >;
+    form_version: Attribute.Relation<
+      'api::qc-session.qc-session',
+      'manyToOne',
+      'api::qc-form-version.qc-form-version'
+    > &
+      Attribute.Required;
+    items: Attribute.Relation<
+      'api::qc-session.qc-session',
+      'oneToMany',
+      'api::qc-session-item.qc-session-item'
+    >;
+    max_score: Attribute.Decimal & Attribute.DefaultTo<0>;
+    note: Attribute.Text;
+    result: Attribute.Enumeration<['pending', 'pass', 'fail']> &
+      Attribute.Required &
+      Attribute.DefaultTo<'pending'>;
+    status: Attribute.Enumeration<
+      ['draft', 'submitted', 'needs_fix', 'closed']
+    > &
+      Attribute.Required &
+      Attribute.DefaultTo<'draft'>;
+    store: Attribute.Relation<
+      'api::qc-session.qc-session',
+      'manyToOne',
+      'api::store.store'
+    > &
+      Attribute.Required;
+    submitted_at: Attribute.DateTime;
+    total_score: Attribute.Decimal & Attribute.DefaultTo<0>;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::qc-session.qc-session',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
+export interface ApiQcStoreCriterionRuleQcStoreCriterionRule
+  extends Schema.CollectionType {
+  collectionName: 'qc_store_criterion_rules';
+  info: {
+    description: 'Store-level applicability rule for criterion';
+    displayName: 'QC Store Criterion Rule';
+    pluralName: 'qc-store-criterion-rules';
+    singularName: 'qc-store-criterion-rule';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::qc-store-criterion-rule.qc-store-criterion-rule',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    criterion: Attribute.Relation<
+      'api::qc-store-criterion-rule.qc-store-criterion-rule',
+      'manyToOne',
+      'api::qc-criterion.qc-criterion'
+    > &
+      Attribute.Required;
+    effective_from: Attribute.Date;
+    effective_to: Attribute.Date;
+    is_applicable: Attribute.Boolean & Attribute.DefaultTo<true>;
+    note: Attribute.Text;
+    store: Attribute.Relation<
+      'api::qc-store-criterion-rule.qc-store-criterion-rule',
+      'manyToOne',
+      'api::store.store'
+    > &
+      Attribute.Required;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::qc-store-criterion-rule.qc-store-criterion-rule',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiStoreStore extends Schema.CollectionType {
   collectionName: 'stores';
   info: {
@@ -483,6 +964,7 @@ export interface ApiStoreStore extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
+    name: Attribute.String;
     publishedAt: Attribute.DateTime;
     shortAddress: Attribute.String;
     storeId: Attribute.String;
@@ -540,6 +1022,53 @@ export interface ApiTicketLogTicketLog extends Schema.CollectionType {
   };
 }
 
+export interface ApiTicketQcReviewTicketQcReview extends Schema.CollectionType {
+  collectionName: 'ticket_qc_reviews';
+  info: {
+    description: '';
+    displayName: 'TicketQCReview';
+    pluralName: 'ticket-qc-reviews';
+    singularName: 'ticket-qc-review';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    checklist: Attribute.JSON;
+    comment: Attribute.Text;
+    createdAt: Attribute.DateTime;
+    createdBy: Attribute.Relation<
+      'api::ticket-qc-review.ticket-qc-review',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+    decision: Attribute.Enumeration<['pass', 'fail']> & Attribute.Required;
+    meta: Attribute.JSON;
+    reviewer: Attribute.Relation<
+      'api::ticket-qc-review.ticket-qc-review',
+      'manyToOne',
+      'api::user-info.user-info'
+    > &
+      Attribute.Required;
+    store_id: Attribute.Integer & Attribute.Required;
+    ticket: Attribute.Relation<
+      'api::ticket-qc-review.ticket-qc-review',
+      'manyToOne',
+      'api::ticket.ticket'
+    > &
+      Attribute.Required;
+    ticket_type: Attribute.String;
+    updatedAt: Attribute.DateTime;
+    updatedBy: Attribute.Relation<
+      'api::ticket-qc-review.ticket-qc-review',
+      'oneToOne',
+      'admin::user'
+    > &
+      Attribute.Private;
+  };
+}
+
 export interface ApiTicketTicket extends Schema.CollectionType {
   collectionName: 'tickets';
   info: {
@@ -578,6 +1107,11 @@ export interface ApiTicketTicket extends Schema.CollectionType {
       'api::ticket.ticket',
       'oneToMany',
       'api::notification.notification'
+    >;
+    qc_reviews: Attribute.Relation<
+      'api::ticket.ticket',
+      'oneToMany',
+      'api::ticket-qc-review.ticket-qc-review'
     >;
     requester: Attribute.Relation<
       'api::ticket.ticket',
@@ -1119,8 +1653,18 @@ declare module '@strapi/types' {
       'admin::user': AdminUser;
       'api::department.department': ApiDepartmentDepartment;
       'api::notification.notification': ApiNotificationNotification;
+      'api::qc-criterion.qc-criterion': ApiQcCriterionQcCriterion;
+      'api::qc-draft.qc-draft': ApiQcDraftQcDraft;
+      'api::qc-finding.qc-finding': ApiQcFindingQcFinding;
+      'api::qc-form-criterion.qc-form-criterion': ApiQcFormCriterionQcFormCriterion;
+      'api::qc-form-version.qc-form-version': ApiQcFormVersionQcFormVersion;
+      'api::qc-form.qc-form': ApiQcFormQcForm;
+      'api::qc-session-item.qc-session-item': ApiQcSessionItemQcSessionItem;
+      'api::qc-session.qc-session': ApiQcSessionQcSession;
+      'api::qc-store-criterion-rule.qc-store-criterion-rule': ApiQcStoreCriterionRuleQcStoreCriterionRule;
       'api::store.store': ApiStoreStore;
       'api::ticket-log.ticket-log': ApiTicketLogTicketLog;
+      'api::ticket-qc-review.ticket-qc-review': ApiTicketQcReviewTicketQcReview;
       'api::ticket.ticket': ApiTicketTicket;
       'api::user-info.user-info': ApiUserInfoUserInfo;
       'plugin::content-releases.release': PluginContentReleasesRelease;

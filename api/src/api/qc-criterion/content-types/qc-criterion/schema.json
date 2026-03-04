@@ -1,0 +1,64 @@
+{
+  "kind": "collectionType",
+  "collectionName": "qc_criteria",
+  "info": {
+    "singularName": "qc-criterion",
+    "pluralName": "qc-criteria",
+    "displayName": "QC Criterion",
+    "description": "Reusable criterion catalog"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "code": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "default_mode": {
+      "type": "enumeration",
+      "enum": ["pass_fail", "point"],
+      "default": "point",
+      "required": true
+    },
+    "default_max_score": {
+      "type": "decimal",
+      "default": 0
+    },
+    "default_weight": {
+      "type": "decimal",
+      "default": 1
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "form_criteria": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::qc-form-criterion.qc-form-criterion",
+      "mappedBy": "criterion"
+    },
+    "store_rules": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::qc-store-criterion-rule.qc-store-criterion-rule",
+      "mappedBy": "criterion"
+    },
+    "session_items": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::qc-session-item.qc-session-item",
+      "mappedBy": "criterion"
+    }
+  }
+}

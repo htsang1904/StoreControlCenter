@@ -267,14 +267,14 @@ watch(
 
 <template>
   <div>
-    <div class="header max-w-full p-2.5 text-[18px] font-bold text-white mx-4 mt-6 box-border rounded-lg bg-linear-to-r from-blue-600 to-blue-500 flex items-center">
+    <div class="header mx-4 flex items-center">
       <button @click="goBack" type="button" class="cursor-pointer p-1 mr-2 inline-flex items-center rounded-lg bg-white/40 text-white shadow-2xs hover:bg-white/30 focus:outline-hidden focus:bg-white/30">
         <svg class="shrink-0 size-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
       </button>
       {{ pageTitle }}
     </div>
 
-    <div class="max-w-full px-4 py-4 mx-auto">
+    <div class="page-stack mx-4">
       <div class="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden transition-all duration-200" :class="submitting ? 'shadow-md' : ''" v-loading="pageLoading">
         <form @submit.prevent="submitTicket">
           <div class="bg-white rounded-xl shadow-xs">

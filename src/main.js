@@ -18,6 +18,7 @@ import App from './App.vue'
 import loading from '@/directives/loading'
 import { useApp } from '@/plugins/app'
 import router from './router';
+const { initializeAuth, state } = useApp()
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('token')
   if (to.meta) {
@@ -25,12 +26,19 @@ router.beforeEach((to, from, next) => {
           next('/login')
           return
       }
+
+      if (Array.isArray(to.meta.roles) && to.meta.roles.length > 0) {
+          const currentRole = String(state.userInfo?.role || '').toLowerCase()
+          if (!to.meta.roles.includes(currentRole)) {
+              next('/ticket')
+              return
+          }
+      }
   }
   next()
 })
 import { defineElement } from "@lordicon/element"
 defineElement()
-const { initializeAuth } = useApp()
 await initializeAuth()
 const app = createApp(App)
 app.directive('loading',loading)

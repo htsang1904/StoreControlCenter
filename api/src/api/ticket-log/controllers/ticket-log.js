@@ -60,10 +60,10 @@ const canViewTicket = (user, ticket) => {
 const canReplyOnTicket = (user, ticket) => {
   if (!user || !ticket) return false;
 
+  const isOpenStatus = ['new', 'assigned', 'in_progress'].includes(String(ticket?.status || '').toLowerCase());
   const role = getRole(user);
-  if (role === 'admin') return true;
+  if (role === 'admin') return isOpenStatus;
   if (role === 'handler') {
-    const isOpenStatus = ['new', 'assigned', 'in_progress'].includes(String(ticket?.status || '').toLowerCase());
     const isAssignee = getTicketAssigneeIds(ticket).includes(Number(user.id));
     return isOpenStatus && isAssignee;
   }
@@ -77,12 +77,13 @@ module.exports = createCoreController('api::ticket-log.ticket-log', ({ strapi })
   async createLog(ctx) {
     const payload = ctx.request.body || {};
     const user = ctx.state.userDetail;
+    const normalizedMessage = String(payload.message || '').trim();
 
     if (!user || !user.id) {
       return errorResponse(ctx, 401, 'Không xác định được người gửi');
     }
 
-    if (!payload.ticket_id || !payload.message) {
+    if (!payload.ticket_id || !normalizedMessage) {
       return errorResponse(ctx, 400, 'Thiếu thông tin bắt buộc: ticket_id, message');
     }
 
@@ -110,13 +111,11 @@ module.exports = createCoreController('api::ticket-log.ticket-log', ({ strapi })
       return errorResponse(ctx, 403, 'Bạn chưa có quyền phản hồi ticket này');
     }
 
-    const senderType = ['store', 'handler'].includes(payload.sender_type)
-      ? payload.sender_type
-      : 'store';
+    const senderType = getRole(user) === 'handler' || getRole(user) === 'admin' ? 'handler' : 'store';
 
     const createdLog = await strapi.entityService.create('api::ticket-log.ticket-log', {
       data: {
-        message: String(payload.message).trim(),
+        message: normalizedMessage,
         attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
         sender_type: senderType,
         ticket: ticket.id,

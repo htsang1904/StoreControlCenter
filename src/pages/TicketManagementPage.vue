@@ -1,8 +1,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { deleteTicket as deleteTicketApi, listTickets, reopenTicket } from '@/services/ticket_service'
+import { deleteTicket as deleteTicketApi, getDashboardOverview, listTickets, reopenTicket } from '@/services/ticket_service'
 import { useApp } from '@/plugins/app'
+import DateRangePicker from '@/components/DateRangePicker.vue'
+import ReportPeriodDropdown from '@/components/ReportPeriodDropdown.vue'
 
 const router = useRouter()
 const { state } = useApp()
@@ -13,6 +15,21 @@ const reopeningId = ref(null)
 const errorMessage = ref('')
 const tickets = ref([])
 const searchInput = ref('')
+const reportLoading = ref(false)
+const reportError = ref('')
+const reportDateFrom = ref(shiftDays(-6))
+const reportDateTo = ref(shiftDays(0))
+const reportData = ref({
+  summary: {
+    total_ticket: 0,
+    in_progress: 0,
+    resolved: 0,
+    overdue: 0,
+  },
+  status: [],
+  top_stores: [],
+  activity_feed: [],
+})
 
 const filters = reactive({
   q: '',
@@ -45,6 +62,101 @@ const statusOptions = [
 ]
 
 const selectedStatusCount = computed(() => filters.statuses.length)
+
+const reportSummaryCards = computed(() => [
+  {
+    key: 'total_ticket',
+    label: 'Tổng ticket',
+    value: Number(reportData.value?.summary?.total_ticket || 0),
+    tone: 'text-blue-600',
+    chip: 'bg-blue-50 text-blue-700',
+  },
+  {
+    key: 'in_progress',
+    label: 'Đang xử lý',
+    value: Number(reportData.value?.summary?.in_progress || 0),
+    tone: 'text-amber-600',
+    chip: 'bg-amber-50 text-amber-700',
+  },
+  {
+    key: 'resolved',
+    label: 'Đã xử lý',
+    value: Number(reportData.value?.summary?.resolved || 0),
+    tone: 'text-emerald-600',
+    chip: 'bg-emerald-50 text-emerald-700',
+  },
+  {
+    key: 'overdue',
+    label: 'Sắp quá hạn',
+    value: Number(reportData.value?.summary?.overdue || 0),
+    tone: 'text-rose-600',
+    chip: 'bg-rose-50 text-rose-700',
+  },
+])
+
+function toIsoDate(date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+
+function shiftDays(days) {
+  const base = new Date()
+  base.setDate(base.getDate() + days)
+  return toIsoDate(base)
+}
+
+function getPresetRange(key) {
+  const now = new Date()
+  const current = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  if (key === 'today') {
+    const day = toIsoDate(current)
+    return { from: day, to: day }
+  }
+
+  if (key === 'yesterday') {
+    const yesterday = new Date(current)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const day = toIsoDate(yesterday)
+    return { from: day, to: day }
+  }
+
+  if (key === 'this_month') {
+    return {
+      from: toIsoDate(new Date(current.getFullYear(), current.getMonth(), 1)),
+      to: toIsoDate(current),
+    }
+  }
+
+  if (key === 'last_month') {
+    return {
+      from: toIsoDate(new Date(current.getFullYear(), current.getMonth() - 1, 1)),
+      to: toIsoDate(new Date(current.getFullYear(), current.getMonth(), 0)),
+    }
+  }
+
+  return { from: reportDateFrom.value, to: reportDateTo.value }
+}
+
+function isPresetActive(key) {
+  const preset = getPresetRange(key)
+  return preset.from === reportDateFrom.value && preset.to === reportDateTo.value
+}
+
+const activePresetKey = computed(() => {
+  const keys = ['today', 'yesterday', 'this_month', 'last_month']
+  return keys.find((key) => isPresetActive(key)) || ''
+})
+
+async function applyPreset(key) {
+  const preset = getPresetRange(key)
+  reportDateFrom.value = preset.from
+  reportDateTo.value = preset.to
+  await fetchTicketReports()
+}
+
+async function handleReportRangeChange() {
+  await fetchTicketReports()
+}
 
 function goToTicketDetail(id) {
   router.push(`/ticket/${id}`)
@@ -164,6 +276,42 @@ async function fetchTickets() {
   }
 }
 
+async function fetchTicketReports() {
+  reportLoading.value = true
+  reportError.value = ''
+
+  try {
+    const result = await getDashboardOverview({
+      date_from: reportDateFrom.value,
+      date_to: reportDateTo.value,
+      top_stores_limit: 20,
+      activity_limit: 12,
+    })
+    const payload = result?.data || result || {}
+    reportData.value = {
+      summary: payload?.summary || {},
+      status: Array.isArray(payload?.status) ? payload.status : [],
+      top_stores: Array.isArray(payload?.top_stores) ? payload.top_stores : [],
+      activity_feed: Array.isArray(payload?.activity_feed) ? payload.activity_feed : [],
+    }
+  } catch (err) {
+    reportError.value = err?.response?.data?.message || err?.message || 'Không thể tải report yêu cầu xử lý.'
+    reportData.value = {
+      summary: {
+        total_ticket: 0,
+        in_progress: 0,
+        resolved: 0,
+        overdue: 0,
+      },
+      status: [],
+      top_stores: [],
+      activity_feed: [],
+    }
+  } finally {
+    reportLoading.value = false
+  }
+}
+
 async function applySearch() {
   filters.q = searchInput.value.trim()
   pagination.page = 1
@@ -231,17 +379,37 @@ async function handleReopenTicket(ticket) {
 }
 
 onMounted(async () => {
-  await fetchTickets()
+  await Promise.all([fetchTickets(), fetchTicketReports()])
 })
 </script>
 
 <template>
   <div>
-    <div class="header max-w-full flex items-center h-[52px] p-2.5 text-[18px] font-bold text-white mx-4 mt-6 box-border rounded-lg bg-linear-to-r from-blue-600 to-blue-500">
+    <div class="header mx-4 flex items-center">
       Danh sách yêu cầu hỗ trợ
     </div>
 
-    <div class="max-w-full mx-4 py-4 overflow-visible">
+    <div class="page-stack mx-4 overflow-visible">
+      <section class="rounded-xl border border-gray-200 bg-white p-3.5 shadow-2xs">
+        <div class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+          <DateRangePicker v-model:from="reportDateFrom" v-model:to="reportDateTo" :disabled="reportLoading" @change="handleReportRangeChange" />
+          <ReportPeriodDropdown :active-key="activePresetKey" :disabled="reportLoading" @select="applyPreset" />
+        </div>
+        <p v-if="reportError" class="mt-2 text-xs text-red-600">{{ reportError }}</p>
+      </section>
+
+      <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <article
+          v-for="card in reportSummaryCards"
+          :key="card.key"
+          class="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-2xs transition-transform duration-200 hover:-translate-y-0.5"
+        >
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ card.label }}</p>
+          <p class="mt-2 text-2xl font-bold" :class="card.tone">{{ card.value }}</p>
+          <span class="mt-2 inline-flex rounded-md px-2 py-1 text-xs font-semibold" :class="card.chip">Trong kỳ</span>
+        </article>
+      </section>
+
       <div class="flex flex-col">
         <div class="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden dark:bg-neutral-900 dark:border-neutral-700">
           <div class="px-4 sm:px-6 py-4 grid gap-3 md:flex md:justify-between md:items-center border-b border-gray-200 dark:border-neutral-700">

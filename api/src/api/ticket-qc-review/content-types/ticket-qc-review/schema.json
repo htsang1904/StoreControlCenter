@@ -1,0 +1,50 @@
+{
+  "kind": "collectionType",
+  "collectionName": "ticket_qc_reviews",
+  "info": {
+    "singularName": "ticket-qc-review",
+    "pluralName": "ticket-qc-reviews",
+    "displayName": "TicketQCReview",
+    "description": ""
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "decision": {
+      "type": "enumeration",
+      "enum": ["pass", "fail"],
+      "required": true
+    },
+    "comment": {
+      "type": "text"
+    },
+    "checklist": {
+      "type": "json"
+    },
+    "meta": {
+      "type": "json"
+    },
+    "store_id": {
+      "type": "integer",
+      "required": true
+    },
+    "ticket_type": {
+      "type": "string"
+    },
+    "ticket": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::ticket.ticket",
+      "inversedBy": "qc_reviews",
+      "required": true
+    },
+    "reviewer": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::user-info.user-info",
+      "required": true
+    }
+  }
+}

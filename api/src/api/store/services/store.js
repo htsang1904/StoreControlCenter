@@ -63,6 +63,7 @@ const normalizeStoreItem = (item) => {
   }
 
   const code = String(item?.code || item?.store_code || '').trim();
+  const name = String(item?.name || item?.store_name || item?.storeName || '').trim();
   const address = String(item?.address || '').trim();
   const shortAddress = String(item?.shortAddress || item?.short_address || '').trim();
   const brandId = String(item?.brandId || item?.brand_id || '').trim();
@@ -70,6 +71,7 @@ const normalizeStoreItem = (item) => {
   return {
     storeId,
     code: code || null,
+    name: name || null,
     address: address || null,
     shortAddress: shortAddress || null,
     brandId: brandId || null,
@@ -95,7 +97,7 @@ module.exports = createCoreService('api::store.store', ({ strapi }) => ({
       .filter(Boolean);
 
     const existingStores = await strapi.entityService.findMany('api::store.store', {
-      fields: ['id', 'storeId', 'code', 'address', 'shortAddress', 'brandId', 'publishedAt'],
+      fields: ['id', 'storeId', 'code', 'name', 'address', 'shortAddress', 'brandId', 'publishedAt'],
       start: 0,
       limit: 10000,
       publicationState: 'preview',
@@ -127,6 +129,7 @@ module.exports = createCoreService('api::store.store', ({ strapi }) => ({
 
       const hasChanged =
         (existed.code || null) !== (store.code || null) ||
+        (existed.name || null) !== (store.name || null) ||
         (existed.address || null) !== (store.address || null) ||
         (existed.shortAddress || null) !== (store.shortAddress || null) ||
         (existed.brandId || null) !== (store.brandId || null) ||

@@ -1,0 +1,63 @@
+{
+  "kind": "collectionType",
+  "collectionName": "qc_form_criteria",
+  "info": {
+    "singularName": "qc-form-criterion",
+    "pluralName": "qc-form-criteria",
+    "displayName": "QC Form Criterion",
+    "description": "Criterion config inside a form version"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "form_version": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::qc-form-version.qc-form-version",
+      "inversedBy": "form_criteria",
+      "required": true
+    },
+    "criterion": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::qc-criterion.qc-criterion",
+      "inversedBy": "form_criteria",
+      "required": true
+    },
+    "section_name": {
+      "type": "string"
+    },
+    "sort_order": {
+      "type": "integer",
+      "default": 0
+    },
+    "mode": {
+      "type": "enumeration",
+      "enum": ["pass_fail", "point"],
+      "required": true
+    },
+    "max_score": {
+      "type": "decimal",
+      "default": 0
+    },
+    "weight": {
+      "type": "decimal",
+      "default": 1
+    },
+    "is_critical": {
+      "type": "boolean",
+      "default": false
+    },
+    "frequency": {
+      "type": "enumeration",
+      "enum": ["per_audit", "weekly_once"],
+      "default": "per_audit"
+    },
+    "required": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

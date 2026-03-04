@@ -43,6 +43,8 @@ const replyError = ref('')
 const submittingReply = ref(false)
 const replyFiles = ref([])
 const replyFileInputRef = ref(null)
+const MAX_REPLY_FILES = 5
+const MAX_REPLY_FILE_SIZE_BYTES = 5 * 1024 * 1024
 const imagePreview = ref({
   open: false,
   src: '',
@@ -291,10 +293,30 @@ function addReplyFiles(event) {
   const files = Array.from(event?.target?.files || [])
   if (!files.length) return
 
+  replyError.value = ''
   const existing = [...replyFiles.value]
   const existsMap = new Set(existing.map((file) => `${file.name}-${file.size}-${file.lastModified}`))
+  let hasOverLimit = false
+  let hasInvalidType = false
+  let hasOversized = false
 
   files.forEach((file) => {
+    if (!(file.type || '').startsWith('image/')) {
+      hasInvalidType = true
+      return
+    }
+
+    const fileSize = Number(file.size || 0)
+    if (Number.isFinite(fileSize) && fileSize > MAX_REPLY_FILE_SIZE_BYTES) {
+      hasOversized = true
+      return
+    }
+
+    if (existing.length >= MAX_REPLY_FILES) {
+      hasOverLimit = true
+      return
+    }
+
     const key = `${file.name}-${file.size}-${file.lastModified}`
     if (!existsMap.has(key)) {
       existing.push(file)
@@ -303,6 +325,13 @@ function addReplyFiles(event) {
   })
 
   replyFiles.value = existing
+  if (hasInvalidType) {
+    replyError.value = 'Chỉ cho phép đính kèm file ảnh.'
+  } else if (hasOversized) {
+    replyError.value = 'Mỗi ảnh đính kèm không được vượt quá 5MB.'
+  } else if (hasOverLimit) {
+    replyError.value = `Chỉ được đính kèm tối đa ${MAX_REPLY_FILES} ảnh.`
+  }
   event.target.value = ''
 }
 
@@ -475,8 +504,16 @@ async function handleReopenTicket() {
 async function uploadReplyFiles() {
   if (!replyFiles.value.length) return []
 
+  if (replyFiles.value.length > MAX_REPLY_FILES) {
+    throw new Error(`Chỉ được đính kèm tối đa ${MAX_REPLY_FILES} ảnh.`)
+  }
+
   const formData = new FormData()
   replyFiles.value.forEach((file) => {
+    const fileSize = Number(file.size || 0)
+    if (Number.isFinite(fileSize) && fileSize > MAX_REPLY_FILE_SIZE_BYTES) {
+      throw new Error('Mỗi ảnh đính kèm không được vượt quá 5MB.')
+    }
     formData.append('files', file)
   })
 
@@ -512,7 +549,6 @@ async function submitReply() {
     const result = await createTicketLog({
       ticket_id: ticket.value.id,
       message,
-      sender_type: userRole.value === 'handler' || userRole.value === 'admin' ? 'handler' : 'store',
       attachments: uploadedAttachments,
     })
 
@@ -549,7 +585,7 @@ onMounted(async () => {
 
 <template>
   <div>
-    <div class="header max-w-full p-2.5 text-[16px] font-bold text-white mx-4 mt-6 box-border rounded-lg bg-linear-to-r from-blue-600 to-blue-500 flex items-center justify-between gap-3">
+    <div class="header mx-4 flex items-center justify-between gap-3">
       <div class="flex items-center min-w-0">
         <button
           type="button"
@@ -572,7 +608,7 @@ onMounted(async () => {
       </button>
     </div>
 
-    <div class="max-w-full px-4 py-4 mx-auto">
+    <div class="page-stack mx-4">
       <div class="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden" v-loading="loading">
         <div v-if="errorMessage" class="p-5 sm:p-6">
           <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -748,7 +784,7 @@ onMounted(async () => {
             </div>
 
             <div class="mt-3 rounded-lg bg-amber-50 px-3 py-2.5 text-amber-600 text-sm font-medium">
-              Vui lòng gửi kèm hình ảnh liên quan để người phụ trách nắm thông tin và xử lý nhanh hơn.
+              Vui lòng gửi kèm hình ảnh liên quan (tối đa 5 ảnh, mỗi ảnh tối đa 5MB) để người phụ trách nắm thông tin và xử lý nhanh hơn.
             </div>
 
             <div v-if="replyFiles.length" class="mt-3 flex flex-wrap gap-2">

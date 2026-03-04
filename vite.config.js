@@ -10,15 +10,20 @@ export default defineConfig({
     vue({
       template: {
         compilerOptions: {
-          isCustomElement: tag => tag === 'lord-icon'
-        }
-      }
+          isCustomElement: (tag) => tag === 'lord-icon',
+        },
+      },
     }),
-    tailwindcss()
+    tailwindcss(),
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
+  },
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    strictPort: true,
   },
 })

@@ -1,0 +1,38 @@
+{
+  "kind": "collectionType",
+  "collectionName": "qc_forms",
+  "info": {
+    "singularName": "qc-form",
+    "pluralName": "qc-forms",
+    "displayName": "QC Form",
+    "description": "Master checklist form for QC"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "code": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "name": {
+      "type": "string",
+      "required": true
+    },
+    "description": {
+      "type": "text"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    },
+    "versions": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::qc-form-version.qc-form-version",
+      "mappedBy": "form"
+    }
+  }
+}

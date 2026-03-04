@@ -1,5 +1,8 @@
 module.exports = ({ env }) => {
-  const corsOrigins = env('CORS_ORIGINS', 'http://localhost:5173,http://127.0.0.1:5173')
+  const corsOrigins = env(
+    'CORS_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174'
+  )
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
@@ -15,7 +18,9 @@ module.exports = ({ env }) => {
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
         headers: [
           'Content-Type',
+          'content-type',
           'Authorization',
+          'authorization',
           'Origin',
           'Accept',
           'X-Requested-With',

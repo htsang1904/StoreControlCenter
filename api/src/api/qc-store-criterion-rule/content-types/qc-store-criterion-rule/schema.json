@@ -1,0 +1,42 @@
+{
+  "kind": "collectionType",
+  "collectionName": "qc_store_criterion_rules",
+  "info": {
+    "singularName": "qc-store-criterion-rule",
+    "pluralName": "qc-store-criterion-rules",
+    "displayName": "QC Store Criterion Rule",
+    "description": "Store-level applicability rule for criterion"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "store": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::store.store",
+      "required": true
+    },
+    "criterion": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::qc-criterion.qc-criterion",
+      "inversedBy": "store_rules",
+      "required": true
+    },
+    "is_applicable": {
+      "type": "boolean",
+      "default": true
+    },
+    "effective_from": {
+      "type": "date"
+    },
+    "effective_to": {
+      "type": "date"
+    },
+    "note": {
+      "type": "text"
+    }
+  }
+}

@@ -9,7 +9,9 @@ const { state, logout, syncUserStores } = useApp()
 const toast = useToast()
 const syncingStores = ref(false)
 
-const tabs = [
+const isAdmin = computed(() => String(state.userInfo?.role || '').toLowerCase() === 'admin')
+
+const baseTabs = [
   {
     label: 'Tổng quan',
     icon: 'https://cdn.lordicon.com/lrzdmsmx.json',
@@ -26,6 +28,19 @@ const tabs = [
     path: '/QC',
   },
 ]
+
+const tabs = computed(() => {
+  if (!isAdmin.value) return baseTabs
+
+  return [
+    ...baseTabs,
+    {
+      label: 'Công cụ',
+      icon: 'https://cdn.lordicon.com/mudwpdhy.json',
+      path: '/tools',
+    },
+  ]
+})
 
 const selectedPath = computed(() => route.path)
 const isTabActive = (tabPath) => {

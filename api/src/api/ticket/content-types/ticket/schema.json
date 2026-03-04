@@ -101,6 +101,12 @@
       "relation": "oneToMany",
       "target": "api::notification.notification",
       "mappedBy": "ticket"
+    },
+    "qc_reviews": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::ticket-qc-review.ticket-qc-review",
+      "mappedBy": "ticket"
     }
   }
 }

@@ -1,5 +1,15 @@
 # vue-project
 
+## AI Agent Workflow
+
+Workflow chuẩn cho AI agent nằm ở `AGENTS.md`.
+
+Quick check trước khi agent báo cáo kết quả:
+
+```sh
+./scripts/agent-check.sh auto
+```
+
 This template should help get you started developing with Vue 3 in Vite.
 
 ## Recommended IDE Setup

@@ -1,0 +1,74 @@
+{
+  "kind": "collectionType",
+  "collectionName": "qc_session_items",
+  "info": {
+    "singularName": "qc-session-item",
+    "pluralName": "qc-session-items",
+    "displayName": "QC Session Item",
+    "description": "Result for each criterion in a QC session"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "session": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::qc-session.qc-session",
+      "inversedBy": "items",
+      "required": true
+    },
+    "criterion": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::qc-criterion.qc-criterion",
+      "inversedBy": "session_items"
+    },
+    "criterion_code": {
+      "type": "string"
+    },
+    "criterion_name": {
+      "type": "string",
+      "required": true
+    },
+    "mode_snapshot": {
+      "type": "enumeration",
+      "enum": ["pass_fail", "point"],
+      "required": true
+    },
+    "max_score_snapshot": {
+      "type": "decimal",
+      "default": 0
+    },
+    "weight_snapshot": {
+      "type": "decimal",
+      "default": 1
+    },
+    "frequency_snapshot": {
+      "type": "enumeration",
+      "enum": ["per_audit", "weekly_once"],
+      "default": "per_audit"
+    },
+    "result": {
+      "type": "enumeration",
+      "enum": ["pending", "pass", "fail", "na", "skipped_weekly"],
+      "default": "pending",
+      "required": true
+    },
+    "score": {
+      "type": "decimal"
+    },
+    "applicable": {
+      "type": "boolean",
+      "default": true
+    },
+    "requires_fix": {
+      "type": "boolean",
+      "default": false
+    },
+    "note": {
+      "type": "text"
+    }
+  }
+}

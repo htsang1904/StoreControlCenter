@@ -4,12 +4,10 @@ const jwt = require('jsonwebtoken');
 const { UnauthorizedError } = require('@strapi/utils').errors;
 
 module.exports = async (policyContext, _config, { strapi }) => {
-  const authHeader =
-    policyContext.request.headers.authorization ||
-    policyContext.request.headers['x-authorization'];
+  const authHeader = policyContext.request.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw new UnauthorizedError('Bạn chưa đăng nhập');
+    throw new UnauthorizedError('Thiếu header Authorization hoặc sai định dạng Bearer');
   }
 
   const token = authHeader.split(' ')[1];

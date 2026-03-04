@@ -9,7 +9,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "npm run check:syntax && npm run build",
+    "check:syntax": "node --check src/services/qc_service.js && node --check api/src/api/qc-session/controllers/qc-session.js && node --check api/src/api/qc-draft/controllers/qc-draft.js",
+    "recap": "bash ./scripts/project-recap.sh",
+    "recap:print": "bash ./scripts/project-recap.sh --stdout"
   },
   "dependencies": {
     "@lordicon/element": "^2.0.1",

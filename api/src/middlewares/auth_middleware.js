@@ -5,11 +5,10 @@ const SECRET_KEY = process.env.AUTH_SECRET_KEY;
 
 module.exports = (_config, { strapi }) => {
   return async (ctx, next) => {
-    const authHeader =
-      ctx.request.headers.authorization || ctx.request.headers['x-authorization'];
+    const authHeader = ctx.request.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedError('Bạn chưa đăng nhập');
+      throw new UnauthorizedError('Thiếu header Authorization hoặc sai định dạng Bearer');
     }
 
     const token = authHeader.split(' ')[1];

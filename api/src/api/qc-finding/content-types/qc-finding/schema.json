@@ -1,0 +1,78 @@
+{
+  "kind": "collectionType",
+  "collectionName": "qc_findings",
+  "info": {
+    "singularName": "qc-finding",
+    "pluralName": "qc-findings",
+    "displayName": "QC Finding",
+    "description": "Corrective action item from failed criterion"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "session": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::qc-session.qc-session",
+      "inversedBy": "findings",
+      "required": true
+    },
+    "session_item": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::qc-session-item.qc-session-item"
+    },
+    "store": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::store.store",
+      "required": true
+    },
+    "criterion_name": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "enumeration",
+      "enum": ["low", "medium", "high", "critical"],
+      "default": "medium"
+    },
+    "status": {
+      "type": "enumeration",
+      "enum": ["open", "in_progress", "resolved", "verified", "rejected"],
+      "default": "open"
+    },
+    "assignee": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::user-info.user-info"
+    },
+    "due_date": {
+      "type": "date"
+    },
+    "corrective_action": {
+      "type": "text"
+    },
+    "corrective_note": {
+      "type": "text"
+    },
+    "resolved_at": {
+      "type": "datetime"
+    },
+    "verified_at": {
+      "type": "datetime"
+    },
+    "verifier": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::user-info.user-info"
+    },
+    "evidence": {
+      "type": "json"
+    },
+    "meta": {
+      "type": "json"
+    }
+  }
+}
