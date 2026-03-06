@@ -61,19 +61,19 @@ const isRequester = computed(() => Number(ticket.value?.requester?.id || ticket.
 const isOpenTicketStatus = computed(() => ['new', 'assigned', 'in_progress'].includes(String(ticket.value?.status || '')))
 const isResolvedTicket = computed(() => String(ticket.value?.status || '') === 'resolved')
 const canReply = computed(() => {
-  if (!hasTicket.value || isResolvedTicket.value) return false
+  if (!hasTicket.value || !isOpenTicketStatus.value) return false
   if (userRole.value === 'admin') return true
   if (userRole.value === 'handler') {
     return isOpenTicketStatus.value && isCurrentUserAssignee.value
   }
   if (userRole.value === 'store') {
-    return isRequester.value
+    return isOpenTicketStatus.value && isRequester.value
   }
   return false
 })
 const replyBlockedReason = computed(() => {
   if (!hasTicket.value) return 'Không tìm thấy thông tin ticket.'
-  if (isResolvedTicket.value) return 'Ticket đã xử lý xong nên không thể gửi phản hồi.'
+  if (!isOpenTicketStatus.value) return 'Chỉ có thể phản hồi khi ticket đang mở.'
   if (userRole.value === 'handler' && !isCurrentUserAssignee.value) {
     return 'Bạn cần tiếp nhận ticket (Nhận xử lý ticket) trước khi gửi phản hồi.'
   }

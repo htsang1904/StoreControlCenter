@@ -6,6 +6,7 @@ import { useToast } from '@/plugins/toast'
 const { userLogin } = useApp()
 const toast = useToast()
 const loading = ref(false)
+const showPassword = ref(false)
 const errorMessage = ref('')
 const appVersion = computed(() => String(import.meta.env.VITE_APP_VERSION || 'v2.4.0'))
 
@@ -30,121 +31,127 @@ async function submitData() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#eef0f3] p-3 sm:p-5">
-    <div class="mx-auto flex min-h-[calc(100vh-1.5rem)] max-w-[1400px] flex-col rounded-2xl border border-slate-300 bg-[#f7f8fa] shadow-[0_12px_42px_rgba(15,23,42,0.08)] sm:min-h-[calc(100vh-2.5rem)]">
-      <header class="flex items-center justify-between border-b border-slate-200 px-6 py-5">
-        <div class="flex items-center gap-3">
-          <span class="inline-flex size-8 items-center justify-center rounded-md bg-blue-50 text-blue-600">
-            <svg class="size-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2 1.8 12 12 22l10.2-10L12 2Zm0 3.5 6.6 6.5H5.4L12 5.5Z" />
-            </svg>
-          </span>
-          <p class="text-[18px] font-semibold text-slate-900">Store Control Center</p>
-        </div>
-        <p class="text-[15px] font-semibold text-slate-500">{{ appVersion }}</p>
-      </header>
+  <div class="flex h-[100dvh] flex-col overflow-hidden bg-[#f6f7f8]">
+    <header class="z-50 flex w-full shrink-0 items-center justify-between border-b border-slate-200 bg-white/80 px-5 py-3.5 backdrop-blur-md md:px-6 md:py-4">
+      <div class="flex items-center gap-3">
+        <span class="text-[#136dec]">
+          <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 48">
+            <path fill="currentColor" fill-rule="evenodd" d="M47.2426 24L24 47.2426L0.757355 24L24 0.757355L47.2426 24ZM12.2426 21H35.7574L24 9.24264L12.2426 21Z" clip-rule="evenodd" />
+          </svg>
+        </span>
+        <h1 class="text-lg font-bold tracking-tight text-slate-900">Trung tâm Điều hành Cửa hàng</h1>
+      </div>
+      <span class="text-sm font-medium text-slate-500">{{ appVersion }}</span>
+    </header>
 
-      <main class="flex flex-1 items-start justify-center px-4 py-8 sm:py-10">
-        <section class="w-full max-w-[420px] rounded-2xl border border-slate-300 bg-white px-6 py-7 shadow-sm sm:px-7 sm:py-8">
-          <div class="mx-auto mb-5 inline-flex size-16 items-center justify-center rounded-2xl bg-blue-100/70 text-blue-600">
-            <svg class="size-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <main class="flex min-h-0 flex-1 items-center justify-center p-3 md:p-6">
+      <div class="w-full max-w-[440px] rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-8">
+        <div class="mb-6 text-center md:mb-8">
+          <div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#136dec]/10 text-[#136dec] md:mb-6 md:h-16 md:w-16">
+            <svg class="h-8 w-8 md:h-9 md:w-9" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 8.5 4.5 4h15L21 8.5" />
               <path d="M20 8.5v8.8A2.7 2.7 0 0 1 17.3 20H6.7A2.7 2.7 0 0 1 4 17.3V8.5" />
               <path d="M3 8.5h18" />
               <path d="M9 13h6" />
             </svg>
           </div>
-          <h1 class="text-center text-4xl font-bold text-slate-900">Đăng nhập</h1>
-          <p class="mt-2 text-center text-[15px] text-slate-500">Truy cập vào hệ thống quản trị cửa hàng của bạn</p>
+          <h2 class="mb-1.5 text-2xl font-bold text-slate-900">Đăng nhập</h2>
+          <p class="text-sm text-slate-500">Truy cập vào hệ thống quản trị cửa hàng của bạn</p>
+        </div>
 
-          <form class="mt-6 space-y-4" @submit.prevent="submitData">
-            <p v-if="errorMessage" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {{ errorMessage }}
-            </p>
+        <form class="space-y-4 md:space-y-5" @submit.prevent="submitData">
+          <p v-if="errorMessage" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+            {{ errorMessage }}
+          </p>
 
-            <div>
-              <label for="username" class="mb-1.5 block text-[15px] font-semibold text-slate-700">Tên đăng nhập</label>
+          <div class="space-y-2">
+            <label for="username" class="ml-1 block text-sm font-semibold text-slate-700">Tên đăng nhập</label>
+            <input
+              id="username"
+              v-model="formData.username"
+              type="text"
+              class="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3.5 text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#136dec] focus:ring-2 focus:ring-[#136dec]/20"
+              placeholder="Nhập tên đăng nhập của bạn"
+              autocomplete="username"
+            />
+          </div>
+
+          <div class="space-y-2">
+            <div class="ml-1 flex items-center justify-between">
+              <label for="password" class="text-sm font-semibold text-slate-700">Mật khẩu</label>
+              <a href="#" class="text-xs font-medium text-[#136dec] hover:underline">Quên mật khẩu?</a>
+            </div>
+            <div class="relative">
               <input
-                id="username"
-                v-model="formData.username"
-                type="text"
-                class="block w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3.5 text-[16px] text-slate-900 placeholder:text-slate-400"
-                placeholder="Nhập tên đăng nhập của bạn"
-                autocomplete="username"
+                id="password"
+                v-model="formData.password"
+                :type="showPassword ? 'text' : 'password'"
+                class="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3.5 pr-12 text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#136dec] focus:ring-2 focus:ring-[#136dec]/20"
+                placeholder="••••••••"
+                autocomplete="current-password"
               />
-            </div>
-
-            <div>
-              <div class="mb-1.5 flex items-center justify-between gap-2">
-                <label for="hs-toggle-password" class="text-[15px] font-semibold text-slate-700">Mật khẩu</label>
-                <a href="#" class="text-[14px] font-semibold text-blue-600 hover:text-blue-700">Quên mật khẩu?</a>
-              </div>
-              <div class="relative">
-                <input
-                  id="hs-toggle-password"
-                  v-model="formData.password"
-                  type="password"
-                  class="block w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3.5 pe-11 text-[16px] text-slate-900 placeholder:text-slate-400"
-                  placeholder="Nhập mật khẩu của bạn"
-                  autocomplete="current-password"
-                />
-                <button
-                  type="button"
-                  data-hs-toggle-password='{"target": "#hs-toggle-password"}'
-                  class="absolute inset-y-0 end-0 z-20 flex cursor-pointer items-center px-3 text-slate-400 transition-colors hover:text-blue-600"
-                  aria-label="Hiện hoặc ẩn mật khẩu"
-                >
-                  <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path class="hs-password-active:hidden" d="M9.88 9.88a3 3 0 1 0 4.24 4.24"></path>
-                    <path class="hs-password-active:hidden" d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"></path>
-                    <path class="hs-password-active:hidden" d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"></path>
-                    <line class="hs-password-active:hidden" x1="2" x2="22" y1="2" y2="22"></line>
-                    <path class="hidden hs-password-active:block" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
-                    <circle class="hidden hs-password-active:block" cx="12" cy="12" r="3"></circle>
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              class="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3.5 text-[19px] font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="loading"
-            >
-              <span v-if="loading" class="inline-block size-5 animate-spin rounded-full border-2 border-white border-t-transparent" role="status" aria-label="loading"></span>
-              <span v-else>Đăng nhập</span>
-              <svg v-if="!loading" class="size-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14" />
-                <path d="m13 6 6 6-6 6" />
-              </svg>
-            </button>
-          </form>
-
-          <div class="mt-7 border-t border-slate-200 pt-6 text-center">
-            <p class="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-400">Hỗ trợ kỹ thuật</p>
-            <div class="mt-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[16px] text-slate-600">
-              <a href="#" class="inline-flex items-center gap-2 hover:text-slate-800">
-                <svg class="size-5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4" />
-                  <path d="M12 17h.01" />
+              <button
+                type="button"
+                class="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600"
+                :aria-label="showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
+                @click="showPassword = !showPassword"
+              >
+                <svg v-if="showPassword" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
                 </svg>
-                Trung tâm trợ giúp
-              </a>
-              <a href="#" class="inline-flex items-center gap-2 hover:text-slate-800">
-                <svg class="size-5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                <svg v-else class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                  <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                  <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                  <line x1="2" y1="2" x2="22" y2="22" />
                 </svg>
-                Liên hệ
-              </a>
+              </button>
             </div>
           </div>
-        </section>
-      </main>
 
-      <footer class="pb-6 text-center text-[14px] text-slate-400">
-        © 2023 Store Control Center. Tất cả quyền được bảo lưu.
-      </footer>
-    </div>
+          <div class="pt-1">
+            <button
+              type="submit"
+              class="group flex w-full items-center justify-center gap-2 rounded-lg bg-[#136dec] py-3.5 font-bold text-white shadow-md shadow-[#136dec]/20 transition-all hover:bg-[#136dec]/90 disabled:cursor-not-allowed disabled:opacity-70"
+              :disabled="loading"
+            >
+              <span v-if="loading" class="inline-block size-5 animate-spin rounded-full border-2 border-white border-t-transparent" role="status" aria-label="Đang tải"></span>
+              <template v-else>
+                <span>Đăng nhập</span>
+                <svg class="h-4 w-4 transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 12h14" />
+                  <path d="m13 6 6 6-6 6" />
+                </svg>
+              </template>
+            </button>
+          </div>
+        </form>
+
+        <div class="mt-6 border-t border-slate-100 pt-5 text-center md:mt-8 md:pt-6">
+          <p class="mb-3 text-xs uppercase tracking-widest text-slate-400 md:mb-4">Hỗ trợ kỹ thuật</p>
+          <div class="flex justify-center gap-6">
+            <a href="#" class="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-[#136dec]">
+              <svg class="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4" />
+                <path d="M12 17h.01" />
+              </svg>
+              <span class="text-sm font-medium">Trung tâm trợ giúp</span>
+            </a>
+            <a href="#" class="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-[#136dec]">
+              <svg class="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span class="text-sm font-medium">Liên hệ</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="w-full shrink-0 py-3 text-center text-xs text-slate-400 md:py-4">
+      <p>© 2023 Trung tâm Điều hành Cửa hàng. Tất cả quyền được bảo lưu.</p>
+    </footer>
   </div>
 </template>

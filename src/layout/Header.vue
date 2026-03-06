@@ -1,44 +1,175 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from '@/plugins/toast'
 import { useApp } from '@/plugins/app'
+import DateRangePicker from '@/components/DateRangePicker.vue'
+import { useTicketHeaderBridge } from '@/composables/ticket_header_bridge'
 import {
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/services/notification_service'
+const props = defineProps({
+  desktopOpen: {
+    type: Boolean,
+    default: true,
+  },
+})
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const { state } = useApp()
+const ticketHeader = useTicketHeaderBridge()
 const notificationPanelRef = ref(null)
 const notificationOpen = ref(false)
 const notificationLoading = ref(false)
 const notifications = ref([])
 const unreadCount = ref(0)
 const markingAllRead = ref(false)
+const headerDateFrom = ref('')
+const headerDateTo = ref('')
 let pollingTimer = null
 
-const pageTitle = computed(() => {
-  if (/^\/ticket\/\d+\/edit$/.test(route.path)) {
-    return 'Chỉnh sửa yêu cầu'
-  }
-  if (route.path.startsWith('/ticket/add-ticket')) {
-    return 'Tạo yêu cầu mới'
-  }
-  if (route.path.startsWith('/ticket/')) {
-    return 'Chi tiết yêu cầu'
-  }
-  if (route.path.startsWith('/QC')) {
-    return 'Báo cáo QC'
-  }
-  if (route.path.startsWith('/tools')) {
-    return 'Công cụ hệ thống'
-  }
-  return 'Yêu cầu hỗ trợ'
+const isDashboard = computed(() => route.path.startsWith('/dashboard'))
+const isTicketListPage = computed(() => /^\/ticket\/?$/.test(route.path))
+const isQcManagementPage = computed(() => /^\/QC\/?$/.test(route.path))
+const activeRootTab = computed(() => {
+  if (isDashboard.value) return 'dashboard'
+  if (isTicketListPage.value) return 'ticket'
+  if (isQcManagementPage.value) return 'qc'
+  if (/^\/tools\/?$/.test(route.path)) return 'tools'
+  return ''
 })
+const showHeaderDateFilter = computed(() => ['dashboard', 'ticket', 'qc'].includes(activeRootTab.value))
+
+const headerSubtitles = {
+  dashboard: 'Theo dõi chỉ số vận hành ticket và chất lượng cửa hàng theo thời gian',
+  ticket: 'Quản lý và giải quyết các yêu cầu kỹ thuật từ hệ thống cửa hàng',
+  qc: 'Theo dõi chỉ số QC và trạng thái vận hành toàn quốc',
+  tools: 'Theo dõi và quản trị các công cụ vận hành hệ thống',
+}
+
+const pageTitle = computed(() => {
+  if (route.path.startsWith('/dashboard')) return 'Tổng quan Dashboard'
+  if (/^\/ticket\/\d+\/edit$/.test(route.path)) return 'Chỉnh sửa Ticket'
+  if (route.path.startsWith('/ticket/add-ticket')) return 'Tạo Ticket mới'
+  if (route.path.startsWith('/ticket/')) return 'Chi tiết Ticket'
+  if (route.path.startsWith('/ticket')) return 'Quản lý Ticket'
+  if (route.path.startsWith('/QC/store/') && route.path.endsWith('/create')) return 'Tạo phiên QC'
+  if (route.path.startsWith('/QC/store/')) return 'Chi tiết QC theo cửa hàng'
+  if (route.path.startsWith('/QC')) return 'Quản lý QC'
+  if (route.path.startsWith('/tools')) return 'Công cụ Admin'
+  return 'Store Control'
+})
+
+const visibleTitle = computed(() => {
+  if (isTicketListPage.value && ticketHeader.enabled) return ticketHeader.title
+  if (isQcManagementPage.value) return 'Quản lý Chất lượng Cửa hàng'
+  return pageTitle.value
+})
+
+const visibleSubtitle = computed(() => {
+  if (isTicketListPage.value && ticketHeader.enabled) return ticketHeader.subtitle
+  const tab = activeRootTab.value
+  if (tab && headerSubtitles[tab]) return headerSubtitles[tab]
+  return ''
+})
+
+function toIsoDate(date) {
+  const normalized = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return normalized.toISOString().slice(0, 10)
+}
+
+function shiftDays(days) {
+  const base = new Date()
+  base.setDate(base.getDate() + days)
+  return base
+}
+
+function isValidYmd(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false
+  const date = new Date(`${value}T00:00:00`)
+  return !Number.isNaN(date.getTime())
+}
+
+function getDefaultRange() {
+  return {
+    from: toIsoDate(shiftDays(-6)),
+    to: toIsoDate(new Date()),
+  }
+}
+
+function normalizeHeaderRange(query) {
+  const fallback = getDefaultRange()
+  const from = isValidYmd(query?.date_from) ? String(query.date_from) : fallback.from
+  const to = isValidYmd(query?.date_to) ? String(query.date_to) : fallback.to
+
+  if (from > to) return fallback
+  return { from, to }
+}
+
+function syncHeaderRangeFromRoute() {
+  if (!showHeaderDateFilter.value) {
+    headerDateFrom.value = ''
+    headerDateTo.value = ''
+    return
+  }
+  const range = normalizeHeaderRange(route.query || {})
+  headerDateFrom.value = range.from
+  headerDateTo.value = range.to
+}
+
+async function updateHeaderRange(from, to) {
+  if (!showHeaderDateFilter.value) return
+  if (!isValidYmd(from) || !isValidYmd(to) || from > to) return
+  if (String(route.query?.date_from || '') === from && String(route.query?.date_to || '') === to) return
+
+  await router.replace({
+    path: route.path,
+    query: {
+      ...route.query,
+      date_from: from,
+      date_to: to,
+    },
+  })
+}
+
+const todayRange = computed(() => {
+  const now = new Date()
+  const day = toIsoDate(new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+  return { from: day, to: day }
+})
+
+const last7Range = computed(() => ({
+  from: toIsoDate(shiftDays(-6)),
+  to: toIsoDate(new Date()),
+}))
+
+const thisMonthRange = computed(() => {
+  const now = new Date()
+  return {
+    from: toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1)),
+    to: toIsoDate(new Date(now.getFullYear(), now.getMonth(), now.getDate())),
+  }
+})
+
+function isActiveRange(range) {
+  return headerDateFrom.value === range.from && headerDateTo.value === range.to
+}
+
+function applyQuickRange(range) {
+  headerDateFrom.value = range.from
+  headerDateTo.value = range.to
+  updateHeaderRange(range.from, range.to)
+}
+
+function handleDateRangeChange(payload) {
+  const from = String(payload?.from || '')
+  const to = String(payload?.to || '')
+  updateHeaderRange(from, to)
+}
 
 const formatNotificationTime = (value) => {
   if (!value) return '--'
@@ -140,6 +271,14 @@ const handleMarkAllRead = async () => {
   }
 }
 
+watch(
+  () => [route.path, route.query.date_from, route.query.date_to],
+  () => {
+    syncHeaderRangeFromRoute()
+  },
+  { immediate: true }
+)
+
 onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   if (state?.token) {
@@ -160,85 +299,129 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <header class="fixed top-0 inset-x-0 md:ms-65 md:hs-overlay-minified:ms-16 transition-[margin] duration-300 ease-in-out z-50 px-3 sm:px-5 pt-3">
-    <nav class="glass-card flex h-14 items-center justify-between rounded-2xl px-3 sm:px-4">
-      <div class="flex min-w-0 items-center gap-2 sm:gap-3">
-        <button
-          type="button"
-          class="md:hidden flex justify-center items-center size-9 text-slate-500 rounded-lg hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-          aria-haspopup="dialog"
-          aria-expanded="true"
-          aria-controls="hs-pro-sidebar"
-          aria-label="Open sidebar"
-          data-hs-overlay="#hs-pro-sidebar"
-        >
-          <svg class="shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-            <path d="M15 3v18"></path>
-            <path d="m8 9 3 3-3 3"></path>
-          </svg>
-          <span class="sr-only">Open sidebar</span>
-        </button>
+  <header
+    class="stitch-shell fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white transition-[left] duration-300 ease-in-out"
+    :class="props.desktopOpen ? 'md:left-64' : 'md:left-20'"
+  >
+    <div class="px-3 py-3 sm:px-5 md:px-8">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex min-w-0 items-start gap-3">
+          <button
+            type="button"
+            class="mt-0.5 inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 md:hidden"
+            aria-haspopup="dialog"
+            aria-expanded="true"
+            aria-controls="hs-pro-sidebar"
+            aria-label="Open sidebar"
+            data-hs-overlay="#hs-pro-sidebar"
+          >
+            <span class="material-symbols-outlined text-[20px]">menu</span>
+          </button>
 
-        <div class="min-w-0">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Trung tâm điều phối cửa hàng</p>
-          <h1 class="font-heading truncate text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100">{{ pageTitle }}</h1>
+          <div class="min-w-0">
+            <h1 class="truncate text-base font-semibold text-slate-900 sm:text-lg">{{ visibleTitle }}</h1>
+            <p v-if="visibleSubtitle" class="mt-0.5 line-clamp-1 text-xs text-slate-500">{{ visibleSubtitle }}</p>
+          </div>
         </div>
-      </div>
 
-      <div ref="notificationPanelRef" class="relative flex items-center gap-2">
-        <button
-          type="button"
-          class="relative inline-flex size-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 cursor-pointer dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
-          aria-label="Thông báo"
-          @click="handleToggleNotification"
-        >
-          <span v-if="unreadCount > 0" class="absolute -end-1 -top-1 inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold text-white">
-            {{ unreadCount > 99 ? '99+' : unreadCount }}
-          </span>
-          <svg class="size-4.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10.268 21a2 2 0 0 0 3.464 0"></path>
-            <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .738-1.674C19.41 13.854 18 12.105 18 8.8V8a6 6 0 1 0-12 0v.8c0 3.305-1.41 5.054-2.738 6.526"></path>
-          </svg>
-        </button>
-
-        <div
-          v-if="notificationOpen"
-          class="absolute right-0 top-full mt-2 z-70 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900"
-        >
-          <div class="flex items-center justify-between border-b border-slate-100 px-3 py-2 dark:border-slate-800">
-            <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">Thông báo</p>
+        <div class="flex items-center gap-2 sm:gap-3">
+        <template v-if="showHeaderDateFilter">
+          <div class="hidden items-center rounded-lg bg-slate-100 p-1 sm:inline-flex">
             <button
               type="button"
-              class="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-              :disabled="markingAllRead || unreadCount === 0"
-              @click="handleMarkAllRead"
+              class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+              :class="isActiveRange(todayRange) ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+              @click="applyQuickRange(todayRange)"
             >
-              {{ markingAllRead ? 'Đang cập nhật...' : 'Đánh dấu đã đọc' }}
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+              :class="isActiveRange(last7Range) ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+              @click="applyQuickRange(last7Range)"
+            >
+              7 ngày qua
+            </button>
+            <button
+              type="button"
+              class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+              :class="isActiveRange(thisMonthRange) ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+              @click="applyQuickRange(thisMonthRange)"
+            >
+              Tháng này
             </button>
           </div>
 
-          <div class="max-h-96 overflow-y-auto p-1.5">
-            <p v-if="notificationLoading" class="px-2 py-3 text-xs text-slate-500">Đang tải thông báo...</p>
-            <p v-else-if="!notifications.length" class="px-2 py-3 text-xs text-slate-500">Hiện chưa có thông báo nào.</p>
-            <button
-              v-for="item in notifications"
-              :key="item.id"
-              type="button"
-              class="mb-1 w-full rounded-lg border px-2.5 py-2 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/70"
-              :class="item.is_read ? 'border-transparent' : 'border-blue-100 bg-blue-50/60 dark:border-blue-900/40 dark:bg-blue-900/20'"
-              @click="handleOpenNotification(item)"
-            >
-              <div class="flex items-start justify-between gap-2">
-                <p class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ item.title || 'Thông báo' }}</p>
-                <span v-if="!item.is_read" class="mt-1 inline-flex size-2 rounded-full bg-blue-500"></span>
-              </div>
-              <p class="mt-1 line-clamp-2 text-xs text-slate-600 dark:text-slate-300">{{ item.message }}</p>
-              <p class="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{{ formatNotificationTime(item.createdAt) }}</p>
-            </button>
+          <div class="hidden md:block">
+            <DateRangePicker
+              v-model:from="headerDateFrom"
+              v-model:to="headerDateTo"
+              @change="handleDateRangeChange"
+            />
+          </div>
+
+          <div class="hidden h-6 w-px bg-slate-200 md:block"></div>
+        </template>
+
+        <div ref="notificationPanelRef" class="relative">
+          <button
+            type="button"
+            class="relative inline-flex size-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100"
+            aria-label="Thông báo"
+            @click="handleToggleNotification"
+          >
+            <span v-if="unreadCount > 0" class="absolute right-1.5 top-1.5 inline-flex size-2.5 rounded-full border border-white bg-rose-500"></span>
+            <span class="material-symbols-outlined text-[20px]">notifications</span>
+          </button>
+
+          <div
+            v-if="notificationOpen"
+            class="absolute right-0 top-full mt-2 z-[70] w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-lg"
+          >
+            <div class="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+              <p class="text-sm font-semibold text-slate-800">Thông báo</p>
+              <button
+                type="button"
+                class="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                :disabled="markingAllRead || unreadCount === 0"
+                @click="handleMarkAllRead"
+              >
+                {{ markingAllRead ? 'Đang cập nhật...' : 'Đánh dấu đã đọc' }}
+              </button>
+            </div>
+
+            <div class="max-h-96 overflow-y-auto p-1.5">
+              <p v-if="notificationLoading" class="px-2 py-3 text-xs text-slate-500">Đang tải thông báo...</p>
+              <p v-else-if="!notifications.length" class="px-2 py-3 text-xs text-slate-500">Hiện chưa có thông báo nào.</p>
+              <button
+                v-for="item in notifications"
+                :key="item.id"
+                type="button"
+                class="mb-1 w-full rounded-lg border px-2.5 py-2 text-left transition-colors hover:bg-slate-50"
+                :class="item.is_read ? 'border-transparent' : 'border-blue-100 bg-blue-50/60'"
+                @click="handleOpenNotification(item)"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-sm font-semibold text-slate-800">{{ item.title || 'Thông báo' }}</p>
+                  <span v-if="!item.is_read" class="mt-1 inline-flex size-2 rounded-full bg-blue-500"></span>
+                </div>
+                <p class="mt-1 line-clamp-2 text-xs text-slate-600">{{ item.message }}</p>
+                <p class="mt-1 text-[11px] text-slate-400">{{ formatNotificationTime(item.createdAt) }}</p>
+              </button>
+            </div>
           </div>
         </div>
+
+        </div>
       </div>
-    </nav>
+
+    </div>
   </header>
 </template>
+
+<style scoped>
+.stitch-shell {
+  font-family: 'Inter', sans-serif;
+}
+</style>

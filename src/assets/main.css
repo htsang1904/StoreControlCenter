@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Montserrat:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Montserrat:wght@500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 @import 'tailwindcss';
 @import 'preline/variants.css';
 @custom-variant dark (&:where(.dark, .dark *));
@@ -40,10 +40,7 @@
 
 body {
   color: var(--text-primary);
-  background:
-    radial-gradient(circle at 10% 10%, rgba(59, 130, 246, 0.12), transparent 42%),
-    radial-gradient(circle at 88% 18%, rgba(14, 165, 233, 0.1), transparent 36%),
-    var(--app-bg);
+  background: var(--app-bg);
 }
 
 h1,
@@ -79,4 +76,13 @@ h6,
   border: 1px solid color-mix(in srgb, var(--stroke) 85%, transparent);
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(8px);
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+  line-height: 1;
 }

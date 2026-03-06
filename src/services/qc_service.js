@@ -1262,6 +1262,55 @@ export const getQcStoreOverviewApi = async (storeId, options = {}) => {
   }
 }
 
+const normalizeStoreOverviewStat = (item = {}) => ({
+  storeId: toNumber(item?.storeId || item?.store_id),
+  storeEntityId: toNumber(item?.storeEntityId || item?.store_entity_id || item?.storeId || item?.store_id),
+  storeNo: String(item?.storeNo || item?.store_no || ''),
+  storeCode: String(item?.storeCode || item?.store_code || ''),
+  storeName: String(item?.storeName || item?.store_name || ''),
+  address: String(item?.address || ''),
+  totalSessions: toNumber(item?.totalSessions),
+  passed: toNumber(item?.passed),
+  failed: toNumber(item?.failed),
+  avgScore: toNumber(item?.avgScore),
+  avgMaxScore: toNumber(item?.avgMaxScore),
+  avgScoreRate: toNumber(item?.scoreRate ?? item?.avgScoreRate),
+  passRate: toNumber(item?.passRate),
+  lastAuditAt: item?.lastAuditedAt || item?.last_audited_at || null,
+  lastAuditCode: item?.lastSessionCode || item?.last_session_code || '--',
+  lastAuditResult: item?.lastAuditResult || item?.last_audit_result || null,
+})
+
+const normalizeStoresOverviewResponse = (response = {}) => {
+  const payload = response?.data || {}
+  const summary = payload?.summary || {}
+
+  return {
+    success: response?.success !== false,
+    message: response?.message || '',
+    data: {
+      summary: {
+        totalSessions: toNumber(summary?.totalSessions),
+        passed: toNumber(summary?.passed),
+        failed: toNumber(summary?.failed),
+        avgScore: toNumber(summary?.avgScore),
+        avgMaxScore: toNumber(summary?.avgMaxScore),
+        avgScoreRate: toNumber(summary?.scoreRate ?? summary?.avgScoreRate),
+        passRate: toNumber(summary?.passRate),
+      },
+      storeStats: Array.isArray(payload?.storeStats)
+        ? payload.storeStats.map((item) => normalizeStoreOverviewStat(item))
+        : [],
+      pagination: payload?.pagination || {
+        page: 1,
+        pageSize: 0,
+        total: 0,
+        pageCount: 0,
+      },
+    },
+  }
+}
+
 export const getQcStoresOverviewApi = async (params = {}) => {
   const queryString = toQueryString({
     page: params.page ?? 1,
@@ -1280,7 +1329,8 @@ export const getQcStoresOverviewApi = async (params = {}) => {
     ? `/api/qc/stores/overview?${queryString}`
     : '/api/qc/stores/overview'
 
-  return http.get(endpoint)
+  const response = await http.get(endpoint)
+  return normalizeStoresOverviewResponse(response)
 }
 
 const normalizeDraftFromApi = (draft = {}) => normalizeDraft({

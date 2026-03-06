@@ -34,7 +34,10 @@ const getUserStoreIds = (user) => (
     ? user.store_ids
       .map((item) => Number(item))
       .filter((item) => Number.isInteger(item) && item > 0)
-    : []
+      : []
+);
+const isOpenTicketStatus = (ticket) => (
+  ['new', 'assigned', 'in_progress'].includes(String(ticket?.status || '').toLowerCase())
 );
 
 const canViewTicket = (user, ticket) => {
@@ -60,7 +63,7 @@ const canViewTicket = (user, ticket) => {
 const canReplyOnTicket = (user, ticket) => {
   if (!user || !ticket) return false;
 
-  const isOpenStatus = ['new', 'assigned', 'in_progress'].includes(String(ticket?.status || '').toLowerCase());
+  const isOpenStatus = isOpenTicketStatus(ticket);
   const role = getRole(user);
   if (role === 'admin') return isOpenStatus;
   if (role === 'handler') {
@@ -68,7 +71,7 @@ const canReplyOnTicket = (user, ticket) => {
     return isOpenStatus && isAssignee;
   }
   if (role === 'store') {
-    return getRequesterId(ticket) === Number(user.id);
+    return isOpenStatus && getRequesterId(ticket) === Number(user.id);
   }
   return false;
 };

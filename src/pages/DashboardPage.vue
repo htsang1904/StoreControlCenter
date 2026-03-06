@@ -1,17 +1,15 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useApp } from '@/plugins/app'
-import { getDashboardOverview } from '@/services/ticket_service'
+import { getDashboardOverview, listTickets } from '@/services/ticket_service'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
-import DateRangePicker from '@/components/DateRangePicker.vue'
-import ReportPeriodDropdown from '@/components/ReportPeriodDropdown.vue'
 
+const route = useRoute()
 const { state } = useApp()
 
 const loading = ref(false)
 const errorMessage = ref('')
-const dateFrom = ref(toIsoDate(shiftDays(-6)))
-const dateTo = ref(toIsoDate(new Date()))
 
 const ticketSummary = ref({
   total_ticket: 0,
@@ -19,19 +17,17 @@ const ticketSummary = ref({
   resolved: 0,
   overdue: 0,
 })
-const ticketStatus = ref([])
 const ticketTopStores = ref([])
-const ticketActivityFeed = ref([])
-
 const qcSummary = ref({
   totalSessions: 0,
   passed: 0,
   failed: 0,
   avgScore: 0,
   avgMaxScore: 0,
+  avgScoreRate: 0,
   passRate: 0,
 })
-const showAllStores = ref(false)
+const recentTickets = ref([])
 
 function shiftDays(days) {
   const base = new Date()
@@ -44,351 +40,333 @@ function toIsoDate(date) {
   return normalized.toISOString().slice(0, 10)
 }
 
-function getPresetRange(key) {
-  const now = new Date()
-  const current = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
-  if (key === 'today') {
-    const day = toIsoDate(current)
-    return { from: day, to: day }
-  }
-
-  if (key === 'yesterday') {
-    const yesterday = new Date(current)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const day = toIsoDate(yesterday)
-    return { from: day, to: day }
-  }
-
-  if (key === 'this_month') {
-    return {
-      from: toIsoDate(new Date(current.getFullYear(), current.getMonth(), 1)),
-      to: toIsoDate(current),
-    }
-  }
-
-  if (key === 'last_month') {
-    return {
-      from: toIsoDate(new Date(current.getFullYear(), current.getMonth() - 1, 1)),
-      to: toIsoDate(new Date(current.getFullYear(), current.getMonth(), 0)),
-    }
-  }
-
-  return { from: dateFrom.value, to: dateTo.value }
+function isValidYmd(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false
+  const date = new Date(`${value}T00:00:00`)
+  return !Number.isNaN(date.getTime())
 }
 
-function isPresetActive(key) {
-  const preset = getPresetRange(key)
-  return preset.from === dateFrom.value && preset.to === dateTo.value
+function getDefaultRange() {
+  return {
+    from: toIsoDate(shiftDays(-6)),
+    to: toIsoDate(new Date()),
+  }
 }
 
-const activePresetKey = computed(() => {
-  const keys = ['today', 'yesterday', 'this_month', 'last_month']
-  return keys.find((key) => isPresetActive(key)) || ''
+const dashboardRange = computed(() => {
+  const fallback = getDefaultRange()
+  const from = isValidYmd(route.query?.date_from) ? String(route.query.date_from) : fallback.from
+  const to = isValidYmd(route.query?.date_to) ? String(route.query.date_to) : fallback.to
+  if (from > to) return fallback
+  return { from, to }
 })
-
-async function applyPreset(key) {
-  const preset = getPresetRange(key)
-  dateFrom.value = preset.from
-  dateTo.value = preset.to
-  await loadDashboard()
-}
-
-async function handleRangeChange() {
-  await loadDashboard()
-}
 
 const stores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))
 
-const combinedCards = computed(() => [
+function normalizeStatus(status) {
+  const value = String(status || '').toLowerCase()
+  return value === 'assigned' ? 'in_progress' : value
+}
+
+function statusLabel(status) {
+  const map = {
+    new: 'Mới',
+    in_progress: 'Đang xử lý',
+    resolved: 'Đã xong',
+    closed: 'Đã đóng',
+    rejected: 'Từ chối',
+  }
+  return map[normalizeStatus(status)] || 'Khác'
+}
+
+function statusClass(status) {
+  const map = {
+    new: 'bg-slate-100 text-slate-700',
+    in_progress: 'bg-amber-100 text-amber-700',
+    resolved: 'bg-emerald-100 text-emerald-700',
+    closed: 'bg-blue-100 text-blue-700',
+    rejected: 'bg-rose-100 text-rose-700',
+  }
+  return map[normalizeStatus(status)] || 'bg-slate-100 text-slate-700'
+}
+
+function storeDisplay(ticket) {
+  return (
+    ticket?.store?.shortAddress ||
+    ticket?.store?.address ||
+    ticket?.store?.code ||
+    ticket?.store_name ||
+    (ticket?.store_id ? `Store #${ticket.store_id}` : '--')
+  )
+}
+
+function formatRelativeTime(value) {
+  if (!value) return '--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--'
+
+  const diffMs = Date.now() - date.getTime()
+  const diffMin = Math.max(Math.floor(diffMs / 60000), 0)
+
+  if (diffMin < 1) return 'Vừa xong'
+  if (diffMin < 60) return `${diffMin} phút trước`
+
+  const diffHour = Math.floor(diffMin / 60)
+  if (diffHour < 24) return `${diffHour} giờ trước`
+
+  const diffDay = Math.floor(diffHour / 24)
+  if (diffDay < 7) return `${diffDay} ngày trước`
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
+}
+
+const numberFormatter = new Intl.NumberFormat('vi-VN')
+
+const kpiCards = computed(() => [
   {
-    key: 'operations',
-    label: 'Tổng nghiệp vụ',
-    value: Number(ticketSummary.value.total_ticket || 0) + Number(qcSummary.value.totalSessions || 0),
-    hint: 'Ticket + phiên QC',
-    tone: 'text-blue-600',
+    key: 'total_ticket',
+    label: 'Tổng Ticket',
+    value: numberFormatter.format(Number(ticketSummary.value.total_ticket || 0)),
+    hint: 'So với bộ lọc hiện tại',
+    tone: 'text-blue-600 bg-blue-100',
   },
   {
-    key: 'ticket_active',
-    label: 'Ticket đang xử lý',
-    value: Number(ticketSummary.value.in_progress || 0),
-    hint: 'Luồng yêu cầu xử lý',
-    tone: 'text-amber-600',
+    key: 'in_progress',
+    label: 'Đang xử lý',
+    value: numberFormatter.format(Number(ticketSummary.value.in_progress || 0)),
+    hint: 'Đang chờ phản hồi',
+    tone: 'text-amber-600 bg-amber-100',
   },
   {
     key: 'qc_pass_rate',
-    label: 'QC pass rate',
+    label: 'Tỉ lệ QC đạt',
     value: `${Number(qcSummary.value.passRate || 0)}%`,
-    hint: 'Theo phiên QC đã chấm',
-    tone: 'text-emerald-600',
+    hint: 'Mục tiêu quý: 95%',
+    tone: 'text-emerald-600 bg-emerald-100',
   },
   {
-    key: 'risk',
-    label: 'Điểm cảnh báo',
-    value: Number(ticketSummary.value.overdue || 0) + Number(qcSummary.value.failed || 0),
-    hint: 'Quá hạn ticket + QC fail',
-    tone: 'text-rose-600',
+    key: 'overdue',
+    label: 'Cảnh báo quá hạn',
+    value: numberFormatter.format(Number(ticketSummary.value.overdue || 0)),
+    hint: 'Ticket gần đến hạn xử lý',
+    tone: 'text-violet-600 bg-violet-100',
   },
 ])
 
-const ticketCards = computed(() => [
-  {
-    label: 'Tổng ticket',
-    value: Number(ticketSummary.value.total_ticket || 0),
-    chip: 'bg-blue-50 text-blue-700',
-  },
-  {
-    label: 'Đang xử lý',
-    value: Number(ticketSummary.value.in_progress || 0),
-    chip: 'bg-amber-50 text-amber-700',
-  },
-  {
-    label: 'Đã xử lý',
-    value: Number(ticketSummary.value.resolved || 0),
-    chip: 'bg-emerald-50 text-emerald-700',
-  },
-  {
-    label: 'Sắp quá hạn',
-    value: Number(ticketSummary.value.overdue || 0),
-    chip: 'bg-rose-50 text-rose-700',
-  },
-])
+const topStoreStats = computed(() => {
+  const storesData = Array.isArray(ticketTopStores.value) ? ticketTopStores.value : []
+  const maxCount = storesData.reduce((max, item) => Math.max(max, Number(item?.count || 0)), 0)
 
-const ticketStatusData = computed(() => {
-  const statusColorMap = {
-    new: 'bg-slate-500',
-    in_progress: 'bg-amber-500',
-    resolved: 'bg-emerald-500',
-    rejected: 'bg-rose-500',
-  }
-
-  return (Array.isArray(ticketStatus.value) ? ticketStatus.value : []).map((item) => ({
-    ...item,
-    value: Number(item?.value || 0),
-    color: statusColorMap[item?.key] || 'bg-slate-400',
-  }))
+  return storesData.slice(0, 4).map((item) => {
+    const count = Number(item?.count || 0)
+    return {
+      name: item?.name || `Store #${item?.store_id || '--'}`,
+      count,
+      percent: maxCount > 0 ? Math.max(Math.round((count / maxCount) * 100), 6) : 0,
+    }
+  })
 })
-
-const ticketStatusTotal = computed(() => ticketStatusData.value.reduce((sum, item) => sum + item.value, 0))
-const ticketStatusWithPercent = computed(() =>
-  ticketStatusData.value.map((item) => ({
-    ...item,
-    percent: ticketStatusTotal.value > 0 ? Math.round((item.value / ticketStatusTotal.value) * 100) : 0,
-  }))
-)
-
-const displayedTopStores = computed(() => {
-  const source = Array.isArray(ticketTopStores.value) ? ticketTopStores.value : []
-  if (showAllStores.value) return source
-  return source.slice(0, 5)
-})
-
-const maxTopStoreCount = computed(() =>
-  (Array.isArray(ticketTopStores.value) ? ticketTopStores.value : []).reduce((max, store) => (store.count > max ? store.count : max), 1)
-)
-
-const qcCards = computed(() => [
-  {
-    label: 'Tổng phiên QC',
-    value: Number(qcSummary.value.totalSessions || 0),
-    chip: 'bg-blue-50 text-blue-700',
-  },
-  {
-    label: 'Phiên đạt',
-    value: Number(qcSummary.value.passed || 0),
-    chip: 'bg-emerald-50 text-emerald-700',
-  },
-  {
-    label: 'Phiên không đạt',
-    value: Number(qcSummary.value.failed || 0),
-    chip: 'bg-rose-50 text-rose-700',
-  },
-  {
-    label: 'Điểm trung bình',
-    value: `${Number(qcSummary.value.avgScore || 0)}/${Number(qcSummary.value.avgMaxScore || 0)}`,
-    chip: 'bg-amber-50 text-amber-700',
-  },
-])
 
 async function loadDashboard() {
   loading.value = true
   errorMessage.value = ''
 
-  try {
-    const ticketResult = await getDashboardOverview({
-      date_from: dateFrom.value,
-      date_to: dateTo.value,
-      top_stores_limit: 5,
-      activity_limit: 5,
-    })
+  const storeIds = stores.value
+    .map((store) => Number(store?.storeId || 0))
+    .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
 
-    const ticketPayload = ticketResult?.data || ticketResult || {}
+  const [ticketOverviewResult, qcOverviewResult, recentTicketsResult] = await Promise.allSettled([
+    getDashboardOverview({
+      date_from: dashboardRange.value.from,
+      date_to: dashboardRange.value.to,
+      top_stores_limit: 8,
+      activity_limit: 8,
+    }),
+    getQcStoresOverviewApi({
+      from: dashboardRange.value.from,
+      to: dashboardRange.value.to,
+      page: 1,
+      pageSize: 5000,
+      storeIds,
+    }),
+    listTickets({
+      page: 1,
+      pageSize: 6,
+    }),
+  ])
+
+  if (ticketOverviewResult.status === 'fulfilled') {
+    const ticketPayload = ticketOverviewResult.value?.data || ticketOverviewResult.value || {}
     ticketSummary.value = {
       total_ticket: Number(ticketPayload?.summary?.total_ticket || 0),
       in_progress: Number(ticketPayload?.summary?.in_progress || 0),
       resolved: Number(ticketPayload?.summary?.resolved || 0),
       overdue: Number(ticketPayload?.summary?.overdue || 0),
     }
-    ticketStatus.value = Array.isArray(ticketPayload?.status) ? ticketPayload.status : []
     ticketTopStores.value = Array.isArray(ticketPayload?.top_stores) ? ticketPayload.top_stores : []
-    ticketActivityFeed.value = Array.isArray(ticketPayload?.activity_feed) ? ticketPayload.activity_feed : []
-
-    const storeIds = stores.value
-      .map((store) => Number(store?.storeId || 0))
-      .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
-
-    try {
-      const qcResult = await getQcStoresOverviewApi({
-        from: dateFrom.value,
-        to: dateTo.value,
-        page: 1,
-        pageSize: 5000,
-        storeIds,
-      })
-      const remoteSummary = qcResult?.data?.summary || {}
-      qcSummary.value = {
-        totalSessions: Number(remoteSummary.totalSessions || 0),
-        passed: Number(remoteSummary.passed || 0),
-        failed: Number(remoteSummary.failed || 0),
-        avgScore: Number(remoteSummary.avgScore || 0),
-        avgMaxScore: Number(remoteSummary.avgMaxScore || 0),
-        passRate: Number(remoteSummary.passRate || 0),
-      }
-    } catch (error) {
-      qcSummary.value = {
-        totalSessions: 0,
-        passed: 0,
-        failed: 0,
-        avgScore: 0,
-        avgMaxScore: 0,
-        passRate: 0,
-      }
-      errorMessage.value = error?.response?.data?.message || error?.message || 'Không thể tải dữ liệu QC.'
+  } else {
+    ticketSummary.value = {
+      total_ticket: 0,
+      in_progress: 0,
+      resolved: 0,
+      overdue: 0,
     }
-  } catch (error) {
-    errorMessage.value = error?.response?.data?.message || error?.message || 'Không thể tải dữ liệu tổng quan.'
-  } finally {
-    loading.value = false
+    ticketTopStores.value = []
+    errorMessage.value = ticketOverviewResult.reason?.response?.data?.message || ticketOverviewResult.reason?.message || 'Không thể tải dữ liệu ticket.'
   }
+
+  if (qcOverviewResult.status === 'fulfilled') {
+    const remoteSummary = qcOverviewResult.value?.data?.summary || {}
+    qcSummary.value = {
+      totalSessions: Number(remoteSummary.totalSessions || 0),
+      passed: Number(remoteSummary.passed || 0),
+      failed: Number(remoteSummary.failed || 0),
+      avgScore: Number(remoteSummary.avgScore || 0),
+      avgMaxScore: Number(remoteSummary.avgMaxScore || 0),
+      avgScoreRate: Number(remoteSummary.avgScoreRate || 0),
+      passRate: Number(remoteSummary.passRate || 0),
+    }
+  } else {
+    qcSummary.value = {
+      totalSessions: 0,
+      passed: 0,
+      failed: 0,
+      avgScore: 0,
+      avgMaxScore: 0,
+      avgScoreRate: 0,
+      passRate: 0,
+    }
+    if (!errorMessage.value) {
+      errorMessage.value = qcOverviewResult.reason?.response?.data?.message || qcOverviewResult.reason?.message || 'Không thể tải dữ liệu QC.'
+    }
+  }
+
+  if (recentTicketsResult.status === 'fulfilled') {
+    const payload = recentTicketsResult.value?.data || recentTicketsResult.value || {}
+    recentTickets.value = Array.isArray(payload?.tickets) ? payload.tickets.slice(0, 6) : []
+  } else {
+    recentTickets.value = []
+    if (!errorMessage.value) {
+      errorMessage.value = recentTicketsResult.reason?.response?.data?.message || recentTicketsResult.reason?.message || 'Không thể tải danh sách ticket gần đây.'
+    }
+  }
+
+  loading.value = false
 }
 
 watch(
-  stores,
-  async () => {
-    await loadDashboard()
+  [
+    stores,
+    () => dashboardRange.value.from,
+    () => dashboardRange.value.to,
+  ],
+  () => {
+    loadDashboard()
   },
   { immediate: true }
 )
 </script>
 
 <template>
-  <div>
-    <div class="header mx-4 flex items-center">
-      Tổng quan vận hành (Ticket + QC)
-    </div>
+  <div class="space-y-4">
+    <p v-if="errorMessage" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+      {{ errorMessage }}
+    </p>
 
-    <div class="page-stack mx-4">
-      <section class="rounded-xl border border-gray-200 bg-white p-3.5 shadow-2xs">
-        <div class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
-          <DateRangePicker v-model:from="dateFrom" v-model:to="dateTo" :disabled="loading" @change="handleRangeChange" />
-          <ReportPeriodDropdown :active-key="activePresetKey" :disabled="loading" @select="applyPreset" />
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <article
+        v-for="card in kpiCards"
+        :key="card.key"
+        class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <span class="text-xs font-medium tracking-wider text-slate-500 uppercase">{{ card.label }}</span>
+          <div class="flex size-8 items-center justify-center rounded-lg" :class="card.tone">
+            <span class="material-symbols-outlined text-[18px]">
+              {{ card.key === 'total_ticket' ? 'list_alt' : card.key === 'in_progress' ? 'pending' : card.key === 'qc_pass_rate' ? 'check_circle' : 'timer' }}
+            </span>
+          </div>
         </div>
-        <p v-if="errorMessage" class="mt-2 text-xs text-red-600">{{ errorMessage }}</p>
-      </section>
 
-      <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <article v-for="card in combinedCards" :key="card.key" class="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-2xs">
-          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ card.label }}</p>
-          <p class="mt-2 text-2xl font-bold" :class="card.tone">{{ card.value }}</p>
-          <p class="mt-1 text-xs text-slate-500">{{ card.hint }}</p>
-        </article>
-      </section>
+        <div class="flex items-end gap-2">
+          <span class="text-3xl font-bold text-slate-900">{{ card.value }}</span>
+        </div>
+        <p class="mt-2 text-xs text-slate-400">{{ card.hint }}</p>
+      </article>
+    </section>
 
-      <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <article class="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs">
-          <h2 class="text-sm font-semibold text-slate-800">Snapshot luồng yêu cầu xử lý</h2>
-          <div class="mt-3 grid grid-cols-2 gap-3">
-            <div v-for="card in ticketCards" :key="card.label" class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-              <p class="text-xs text-slate-500">{{ card.label }}</p>
-              <p class="mt-1 text-lg font-bold text-slate-800">{{ card.value }}</p>
-              <span class="inline-flex rounded-md px-2 py-1 text-[11px] font-semibold" :class="card.chip">Ticket</span>
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h3 class="text-sm font-bold text-slate-800">Ticket gần đây</h3>
+          <router-link to="/ticket" class="text-sm font-medium text-blue-600 hover:underline">Xem tất cả</router-link>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-slate-500">
+                <th class="px-5 py-3 font-medium">Mã Ticket</th>
+                <th class="px-5 py-3 font-medium">Vấn đề</th>
+                <th class="px-5 py-3 font-medium">Cửa hàng</th>
+                <th class="px-5 py-3 font-medium">Trạng thái</th>
+                <th class="px-5 py-3 font-medium">Thời gian</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="ticket in recentTickets" :key="ticket.id" class="transition-colors hover:bg-slate-50">
+                <td class="px-5 py-4 font-medium text-blue-600">{{ ticket.ticket_code || `#${ticket.id}` }}</td>
+                <td class="px-5 py-4 text-slate-700">{{ ticket.title || 'Không có tiêu đề' }}</td>
+                <td class="px-5 py-4 text-slate-700">{{ storeDisplay(ticket) }}</td>
+                <td class="px-5 py-4">
+                  <span
+                    class="rounded-full px-2 py-1 text-[10px] font-bold tracking-wider uppercase"
+                    :class="statusClass(ticket.status)"
+                  >
+                    {{ statusLabel(ticket.status) }}
+                  </span>
+                </td>
+                <td class="px-5 py-4 text-slate-500">{{ formatRelativeTime(ticket.createdAt) }}</td>
+              </tr>
+              <tr v-if="!recentTickets.length && !loading">
+                <td colspan="5" class="px-5 py-5 text-center text-sm text-slate-500">
+                  Không có ticket nào trong giai đoạn hiện tại.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="mb-5 text-sm font-bold text-slate-800">Hiệu suất theo cửa hàng</h3>
+
+        <div class="space-y-5">
+          <div v-for="store in topStoreStats" :key="store.name">
+            <div class="mb-2 flex items-center justify-between text-sm">
+              <span class="font-medium text-slate-700">{{ store.name }}</span>
+              <span class="text-slate-500">{{ store.count }} ticket</span>
+            </div>
+            <div class="h-2 w-full rounded-full bg-slate-100">
+              <div class="h-2 rounded-full bg-blue-600 transition-all duration-500" :style="{ width: `${store.percent}%` }"></div>
             </div>
           </div>
-        </article>
+        </div>
 
-        <article class="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs">
-          <h2 class="text-sm font-semibold text-slate-800">Snapshot nghiệp vụ QC</h2>
-          <div class="mt-3 grid grid-cols-2 gap-3">
-            <div v-for="card in qcCards" :key="card.label" class="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-              <p class="text-xs text-slate-500">{{ card.label }}</p>
-              <p class="mt-1 text-lg font-bold text-slate-800">{{ card.value }}</p>
-              <span class="inline-flex rounded-md px-2 py-1 text-[11px] font-semibold" :class="card.chip">QC</span>
-            </div>
+        <div class="mt-6 rounded-lg bg-slate-50 p-4">
+          <div class="flex items-start gap-2.5 text-sm text-slate-600">
+            <span class="material-symbols-outlined mt-0.5 shrink-0 text-[18px] text-amber-500">info</span>
+            <p>
+              Tỉ lệ QC đạt hiện tại là <strong>{{ qcSummary.passRate }}%</strong>.
+              {{ qcSummary.passRate < 90 ? ' Cần theo dõi các cửa hàng có kết quả thấp.' : ' Kết quả đang ở mức tích cực.' }}
+            </p>
           </div>
-        </article>
-      </section>
-
-      <section class="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <article class="xl:col-span-6 rounded-xl border border-gray-200 bg-white p-4 shadow-2xs">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-slate-800">Tỷ trọng theo trạng thái ticket</h2>
-            <span class="text-xs text-slate-500">Tổng {{ ticketStatusTotal }} ticket</span>
-          </div>
-
-          <div class="mt-4 space-y-3">
-            <div v-for="item in ticketStatusWithPercent" :key="item.label">
-              <div class="mb-1 flex items-center justify-between text-xs text-slate-600">
-                <span>{{ item.label }}</span>
-                <span class="font-semibold">{{ item.value }} ({{ item.percent }}%)</span>
-              </div>
-              <div class="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                <div class="h-full rounded-full transition-all duration-500" :class="item.color" :style="{ width: `${item.percent}%` }"></div>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="xl:col-span-6 rounded-xl border border-gray-200 bg-white p-4 shadow-2xs">
-          <div class="flex items-center justify-between gap-2">
-            <h2 class="text-sm font-semibold text-slate-800">Top cửa hàng có nhiều ticket</h2>
-            <button
-              type="button"
-              class="text-xs font-semibold text-blue-600 hover:text-blue-700"
-              @click="showAllStores = !showAllStores"
-            >
-              {{ showAllStores ? 'Thu gọn' : 'Xem tất cả' }}
-            </button>
-          </div>
-          <div class="mt-4 space-y-3">
-            <div v-for="store in displayedTopStores" :key="`${store.store_id}-${store.name}`" class="grid grid-cols-[1fr_auto] items-center gap-3">
-              <div class="min-w-0">
-                <p class="truncate text-sm font-medium text-slate-700">{{ store.name }}</p>
-                <div class="mt-1 h-2 rounded-full bg-slate-100 overflow-hidden">
-                  <div
-                    class="h-full rounded-full bg-linear-to-r from-cyan-500 to-blue-500 transition-all duration-500"
-                    :style="{ width: `${Math.round((store.count / maxTopStoreCount) * 100)}%` }"
-                  ></div>
-                </div>
-              </div>
-              <span class="text-xs font-semibold rounded-md bg-blue-50 text-blue-700 px-2 py-1">{{ store.count }}</span>
-            </div>
-            <p v-if="!displayedTopStores.length && !loading" class="text-sm text-slate-500">Không có dữ liệu cửa hàng trong khoảng thời gian đã chọn.</p>
-          </div>
-        </article>
-      </section>
-
-      <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs">
-        <h2 class="text-sm font-semibold text-slate-800">Hoạt động gần nhất của ticket</h2>
-        <ul class="mt-3 divide-y divide-gray-100">
-          <li v-for="item in ticketActivityFeed" :key="`${item.at}-${item.content}`" class="py-2.5 flex items-start gap-3">
-            <span class="text-xs font-semibold text-blue-600 rounded-md bg-blue-50 px-2 py-1 shrink-0">{{ item.time }}</span>
-            <p class="text-sm text-slate-700">{{ item.content }}</p>
-          </li>
-          <li v-if="!ticketActivityFeed.length && !loading" class="py-2.5">
-            <p class="text-sm text-slate-500">Chưa có hoạt động nào trong khoảng thời gian đã chọn.</p>
-          </li>
-        </ul>
-      </section>
-    </div>
+        </div>
+      </article>
+    </section>
   </div>
 </template>

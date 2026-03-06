@@ -1,12 +1,4 @@
 module.exports = ({ env }) => {
-  const corsOrigins = env(
-    'CORS_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174'
-  )
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
   return [
     'strapi::logger',
     'strapi::errors',
@@ -14,7 +6,13 @@ module.exports = ({ env }) => {
     {
       name: 'strapi::cors',
       config: {
-        origin: corsOrigins,
+        origin: env(
+          'CORS_ORIGINS',
+          'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174'
+        )
+          .split(',')
+          .map((origin) => origin.trim())
+          .filter(Boolean),
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
         headers: [
           'Content-Type',

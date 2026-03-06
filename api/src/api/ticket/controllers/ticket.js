@@ -101,17 +101,17 @@ const extractUploadFiles = (filesInput) => {
     .filter(Boolean);
 };
 
-const resolveLinkedStoreId = async (strapi, storeId) => {
-  const linkedStore = await strapi.entityService.findMany('api::store.store', {
+const findStoreByBusinessId = async (strapi, storeId) => {
+  const stores = await strapi.entityService.findMany('api::store.store', {
     filters: {
       storeId: String(storeId),
     },
-    fields: ['id', 'storeId'],
+    fields: ['id', 'storeId', 'code', 'address', 'shortAddress'],
     publicationState: 'preview',
     limit: 1,
   });
 
-  return linkedStore?.[0]?.id || null;
+  return stores?.[0] || null;
 };
 
 const hydrateTicketUsers = async (strapi, ticketsInput) => {
@@ -218,6 +218,35 @@ const toIsoDate = (value) => {
   if (Number.isNaN(date.getTime())) return '';
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return offsetDate.toISOString().slice(0, 10);
+};
+
+const normalizeEndDateInput = (value) => {
+  if (value === undefined) {
+    return {
+      hasValue: false,
+      value: null,
+    };
+  }
+
+  if (!value) {
+    return {
+      hasValue: true,
+      value: null,
+    };
+  }
+
+  const endDate = new Date(value);
+  if (Number.isNaN(endDate.getTime())) {
+    return {
+      hasValue: true,
+      error: 'end_date không hợp lệ',
+    };
+  }
+
+  return {
+    hasValue: true,
+    value: endDate.toISOString(),
+  };
 };
 
 const normalizeDateRange = (query = {}) => {
@@ -387,8 +416,7 @@ const notifyTicketAudience = async (
   }
 };
 
-const fetchDashboardTickets = async (strapi, filters) => {
-  const records = [];
+const walkDashboardTickets = async (strapi, filters, onBatch) => {
   let start = 0;
 
   while (true) {
@@ -410,7 +438,7 @@ const fetchDashboardTickets = async (strapi, filters) => {
       break;
     }
 
-    records.push(...normalizedBatch);
+    await onBatch(normalizedBatch);
     if (normalizedBatch.length < DASHBOARD_TICKET_BATCH_SIZE) {
       break;
     }
@@ -418,7 +446,7 @@ const fetchDashboardTickets = async (strapi, filters) => {
     start += normalizedBatch.length;
   }
 
-  return records;
+  return null;
 };
 
 module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
@@ -438,12 +466,10 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
 
     const ticketFilters = scoped.filters || {};
 
-    const tickets = await fetchDashboardTickets(strapi, ticketFilters);
-
-    const normalizedTickets = Array.isArray(tickets) ? tickets : [];
     const now = new Date();
     const soonThreshold = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
 
+    let totalTicketCount = 0;
     let inProgressCount = 0;
     let resolvedCount = 0;
     let overdueSoonCount = 0;
@@ -457,46 +483,49 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
 
     const storesMap = new Map();
 
-    normalizedTickets.forEach((ticket) => {
-      const normalizedStatus = normalizeDashboardStatus(ticket?.status);
-      if (normalizedStatus === 'in_progress') inProgressCount += 1;
-      if (normalizedStatus === 'resolved') resolvedCount += 1;
+    await walkDashboardTickets(strapi, ticketFilters, async (tickets) => {
+      tickets.forEach((ticket) => {
+        totalTicketCount += 1;
+        const normalizedStatus = normalizeDashboardStatus(ticket?.status);
+        if (normalizedStatus === 'in_progress') inProgressCount += 1;
+        if (normalizedStatus === 'resolved') resolvedCount += 1;
 
-      if (Object.prototype.hasOwnProperty.call(statusCounter, normalizedStatus)) {
-        statusCounter[normalizedStatus] += 1;
-      }
-
-      const endDateRaw = ticket?.end_date;
-      if (endDateRaw) {
-        const endDate = new Date(endDateRaw);
-        if (
-          !Number.isNaN(endDate.getTime()) &&
-          endDate.getTime() >= now.getTime() &&
-          endDate.getTime() <= soonThreshold.getTime() &&
-          normalizedStatus !== 'resolved' &&
-          normalizedStatus !== 'closed' &&
-          normalizedStatus !== 'rejected'
-        ) {
-          overdueSoonCount += 1;
+        if (Object.prototype.hasOwnProperty.call(statusCounter, normalizedStatus)) {
+          statusCounter[normalizedStatus] += 1;
         }
-      }
 
-      const storeId = Number(ticket?.store_id || 0);
-      if (!Number.isInteger(storeId) || storeId <= 0) return;
+        const endDateRaw = ticket?.end_date;
+        if (endDateRaw) {
+          const endDate = new Date(endDateRaw);
+          if (
+            !Number.isNaN(endDate.getTime()) &&
+            endDate.getTime() >= now.getTime() &&
+            endDate.getTime() <= soonThreshold.getTime() &&
+            normalizedStatus !== 'resolved' &&
+            normalizedStatus !== 'closed' &&
+            normalizedStatus !== 'rejected'
+          ) {
+            overdueSoonCount += 1;
+          }
+        }
 
-      const existed = storesMap.get(storeId) || {
-        store_id: storeId,
-        count: 0,
-        name: '',
-      };
-      existed.count += 1;
-      existed.name =
-        existed.name ||
-        ticket?.store?.shortAddress ||
-        ticket?.store?.address ||
-        ticket?.store?.code ||
-        `Store #${storeId}`;
-      storesMap.set(storeId, existed);
+        const storeId = Number(ticket?.store_id || 0);
+        if (!Number.isInteger(storeId) || storeId <= 0) return;
+
+        const existed = storesMap.get(storeId) || {
+          store_id: storeId,
+          count: 0,
+          name: '',
+        };
+        existed.count += 1;
+        existed.name =
+          existed.name ||
+          ticket?.store?.shortAddress ||
+          ticket?.store?.address ||
+          ticket?.store?.code ||
+          `Store #${storeId}`;
+        storesMap.set(storeId, existed);
+      });
     });
 
     const topStores = Array.from(storesMap.values())
@@ -544,7 +573,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
         date_to: scoped.range.dateTo,
       },
       summary: {
-        total_ticket: normalizedTickets.length,
+        total_ticket: totalTicketCount,
         in_progress: inProgressCount,
         resolved: resolvedCount,
         overdue: overdueSoonCount,
@@ -631,6 +660,11 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       return errorResponse(ctx, 400, 'store_id không hợp lệ');
     }
 
+    const linkedStore = await findStoreByBusinessId(strapi, storeId);
+    if (!linkedStore?.id) {
+      return errorResponse(ctx, 400, 'Cửa hàng không tồn tại');
+    }
+
     const responsibleDepartmentId = Number(payload.responsible_department_id);
     if (!Number.isInteger(responsibleDepartmentId) || responsibleDepartmentId <= 0) {
       return errorResponse(ctx, 400, 'responsible_department_id không hợp lệ');
@@ -700,9 +734,13 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       return errorResponse(ctx, 400, 'attachment_file_ids phải là mảng số nguyên dương');
     }
 
+    const normalizedEndDate = normalizeEndDateInput(payload.end_date);
+    if (normalizedEndDate.error) {
+      return errorResponse(ctx, 400, normalizedEndDate.error);
+    }
+
     try {
       const ticketCode = await generateTicketCode(strapi);
-      const linkedStoreId = await resolveLinkedStoreId(strapi, storeId);
 
       const createdTicket = await strapi.entityService.create('api::ticket.ticket', {
         data: {
@@ -713,7 +751,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
           requester: requester.id,
           requester_id: requester.id,
           store_id: storeId,
-          store: linkedStoreId,
+          store: linkedStore.id,
           handler: initialHandler?.id || null,
           handler_id: initialHandler?.id || null,
           assignees: initialHandler?.id ? [Number(initialHandler.id)] : [],
@@ -721,7 +759,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
           ticket_category_id: payload.ticket_category_id ? Number(payload.ticket_category_id) : null,
           type: payload.type ? String(payload.type).trim() : null,
           start_date: new Date().toISOString(),
-          end_date: payload.end_date || null,
+          end_date: normalizedEndDate.hasValue ? normalizedEndDate.value : null,
           attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
           attachments_media: attachmentFileIds || [],
         },
@@ -949,6 +987,11 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
         return errorResponse(ctx, 400, 'store_id không hợp lệ');
       }
 
+      const linkedStore = await findStoreByBusinessId(strapi, storeId);
+      if (!linkedStore?.id) {
+        return errorResponse(ctx, 400, 'Cửa hàng không tồn tại');
+      }
+
       if (getRole(user) === 'store') {
         const requesterStoreIds = getUserStoreIds(user);
         if (!requesterStoreIds.length) {
@@ -960,7 +1003,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       }
 
       updateData.store_id = storeId;
-      updateData.store = await resolveLinkedStoreId(strapi, storeId);
+      updateData.store = linkedStore.id;
     }
 
     if (Object.prototype.hasOwnProperty.call(payload, 'responsible_department_id')) {
@@ -1002,15 +1045,11 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     if (Object.prototype.hasOwnProperty.call(payload, 'end_date')) {
-      if (!payload.end_date) {
-        updateData.end_date = null;
-      } else {
-        const endDate = new Date(payload.end_date);
-        if (Number.isNaN(endDate.getTime())) {
-          return errorResponse(ctx, 400, 'end_date không hợp lệ');
-        }
-        updateData.end_date = endDate.toISOString();
+      const normalizedEndDate = normalizeEndDateInput(payload.end_date);
+      if (normalizedEndDate.error) {
+        return errorResponse(ctx, 400, normalizedEndDate.error);
       }
+      updateData.end_date = normalizedEndDate.value;
     }
 
     if (Object.prototype.hasOwnProperty.call(payload, 'attachments')) {

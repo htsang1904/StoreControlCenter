@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
@@ -8,61 +8,99 @@ const route = useRoute()
 const { state, logout, syncUserStores } = useApp()
 const toast = useToast()
 const syncingStores = ref(false)
+const userMenuOpen = ref(false)
+const userMenuRef = ref(null)
+const props = defineProps({
+  desktopOpen: {
+    type: Boolean,
+    default: true,
+  },
+})
+const emit = defineEmits(['toggle-desktop-sidebar'])
 
 const isAdmin = computed(() => String(state.userInfo?.role || '').toLowerCase() === 'admin')
 
 const baseTabs = [
   {
-    label: 'Tổng quan',
-    icon: 'https://cdn.lordicon.com/lrzdmsmx.json',
+    key: 'dashboard',
+    label: 'Dashboard',
     path: '/dashboard',
   },
   {
-    label: 'Yêu cầu xử lý',
-    icon: 'https://cdn.lordicon.com/rguyoaum.json',
+    key: 'ticket',
+    label: 'Quản lý Ticket',
     path: '/ticket',
   },
   {
-    label: 'Báo cáo QC',
-    icon: 'https://cdn.lordicon.com/wwcdwkaf.json',
+    key: 'qc',
+    label: 'Quản lý QC',
     path: '/QC',
   },
 ]
 
 const tabs = computed(() => {
   if (!isAdmin.value) return baseTabs
-
   return [
     ...baseTabs,
     {
-      label: 'Công cụ',
-      icon: 'https://cdn.lordicon.com/mudwpdhy.json',
+      key: 'tools',
+      label: 'Công cụ Admin',
       path: '/tools',
     },
   ]
 })
 
 const selectedPath = computed(() => route.path)
+
 const isTabActive = (tabPath) => {
   if (!selectedPath.value) return false
   if (tabPath === '/') return selectedPath.value === '/'
   return selectedPath.value === tabPath || selectedPath.value.startsWith(`${tabPath}/`)
 }
+
 const userName = computed(() => state.userInfo?.name || 'Người dùng')
-const userContact = computed(() => state.userInfo?.phone || state.userInfo?.phoneNumber || state.userInfo?.email || '')
+const userRoleLabel = computed(() => {
+  const role = String(state.userInfo?.role || '').toLowerCase()
+  if (role === 'admin') return 'Quản trị viên'
+  if (role === 'handler') return 'Bộ phận xử lý'
+  if (role === 'qc') return 'Kiểm soát chất lượng'
+  if (role === 'store') return 'Cửa hàng'
+  return 'Tài khoản nội bộ'
+})
 const userInitials = computed(() => {
   const name = userName.value?.trim() || ''
   if (!name) return 'ND'
   return name
     .split(/\s+/)
     .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() || '')
+    .map((part) => part[0]?.toUpperCase() || '')
     .join('')
 })
+const userMonogram = computed(() => userInitials.value?.slice(0, 1) || 'S')
+
+const toggleUserMenu = () => {
+  userMenuOpen.value = !userMenuOpen.value
+}
+
+const closeUserMenu = () => {
+  userMenuOpen.value = false
+}
+
+const handleLogout = () => {
+  closeUserMenu()
+  logout()
+}
+
+const handleUserMenuOutside = (event) => {
+  if (!userMenuOpen.value) return
+  const root = userMenuRef.value
+  if (!root) return
+  if (root.contains(event.target)) return
+  closeUserMenu()
+}
 
 const handleSyncStores = async () => {
   if (syncingStores.value) return
-
   syncingStores.value = true
 
   try {
@@ -76,134 +114,147 @@ const handleSyncStores = async () => {
     syncingStores.value = false
   }
 }
+
+const handleSyncStoresFromMenu = async () => {
+  await handleSyncStores()
+  closeUserMenu()
+}
+
+watch(
+  () => props.desktopOpen,
+  (isOpen) => {
+    if (!isOpen) closeUserMenu()
+  }
+)
+
+onMounted(() => {
+  document.addEventListener('click', handleUserMenuOutside)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleUserMenuOutside)
+})
 </script>
 
 <template>
   <aside
     id="hs-pro-sidebar"
-    class="hs-overlay [--auto-close:md] hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform w-65 hs-overlay-minified:w-16 overflow-hidden hidden fixed inset-y-0 z-60 start-0 px-2 py-3 md:hs-overlay-minified:px-1.5 md:block md:translate-x-0 md:end-auto md:bottom-0"
+    class="stitch-shell hs-overlay [--auto-close:md] hs-overlay-open:block hs-overlay-open:translate-x-0 hs-overlay-open:opacity-100 hs-overlay-open:pointer-events-auto -translate-x-full opacity-0 pointer-events-none transition-all duration-300 transform hidden fixed inset-y-0 start-0 z-[60] w-64 bg-white border-r border-slate-200 md:block"
+    :class="props.desktopOpen ? 'md:w-64 md:translate-x-0 md:opacity-100 md:pointer-events-auto md:bg-white' : 'md:w-20 md:translate-x-0 md:opacity-100 md:pointer-events-auto md:bg-white'"
     role="dialog"
     tabindex="-1"
     aria-label="Sidebar"
   >
-    <div class="glass-card relative flex h-full max-h-full flex-col rounded-2xl">
-      <header class="px-3 py-3 flex items-center justify-between gap-2 border-b border-slate-200/70 dark:border-slate-700/70 md:hs-overlay-minified:px-1.5 md:hs-overlay-minified:justify-center">
-        <div class="min-w-0 flex-1 md:hs-overlay-minified:hidden">
-          <a class="inline-flex w-full items-center rounded-xl px-2 py-1.5 hover:bg-slate-100/80 dark:hover:bg-slate-800/80" href="#" aria-label="Guta">
-            <img class="h-5 w-auto max-w-[132px] object-contain" src="/src/assets/images/logo.png" alt="StoreControlCenter" />
-          </a>
+    <div class="flex h-full max-h-full flex-col">
+      <div
+        class="flex items-center gap-3 border-b border-slate-200 px-6 py-5"
+        :class="props.desktopOpen ? 'md:justify-start md:px-6 md:py-5' : 'md:justify-center md:px-2 md:py-6'"
+      >
+        <div
+          class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#136dec] text-white"
+          :class="props.desktopOpen ? 'md:flex' : 'md:hidden'"
+        >
+          <span class="material-symbols-outlined text-[20px]">storefront</span>
+        </div>
+        <div class="min-w-0" :class="props.desktopOpen ? 'md:block' : 'md:hidden'">
+          <p class="truncate text-sm font-bold tracking-tight text-slate-900">Store Control</p>
+          <p class="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Hệ thống nội bộ</p>
         </div>
 
         <button
           type="button"
-          class="hidden md:flex justify-center items-center size-9 text-slate-500 rounded-lg hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-          aria-haspopup="dialog"
-          aria-expanded="true"
-          aria-controls="hs-pro-sidebar"
-          aria-label="Minify navigation"
-          data-hs-overlay-minifier="#hs-pro-sidebar"
+          class="hidden size-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 md:inline-flex"
+          :class="props.desktopOpen ? 'ml-auto' : 'md:mx-auto md:border md:border-slate-200 md:bg-slate-50'"
+          :aria-label="props.desktopOpen ? 'Thu gọn sidebar' : 'Mở sidebar'"
+          @click="emit('toggle-desktop-sidebar')"
         >
-          <svg class="hs-overlay-minified:hidden shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-            <path d="M15 3v18"></path>
-            <path d="m10 15-3-3 3-3"></path>
-          </svg>
-          <svg class="hidden hs-overlay-minified:block shrink-0 size-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-            <path d="M15 3v18"></path>
-            <path d="m8 9 3 3-3 3"></path>
-          </svg>
+          <span class="material-symbols-outlined text-[20px]">
+            {{ props.desktopOpen ? 'left_panel_close' : 'left_panel_open' }}
+          </span>
         </button>
 
         <button
           type="button"
-          class="flex md:hidden justify-center items-center size-7 bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-full dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300"
+          class="ml-auto inline-flex size-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 md:hidden"
           data-hs-overlay="#hs-pro-sidebar"
-          aria-expanded="true"
-          aria-label="Close sidebar"
+          aria-label="Đóng sidebar"
         >
-          <svg class="shrink-0 size-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6 6 18" />
             <path d="m6 6 12 12" />
           </svg>
         </button>
-      </header>
-
-      <div class="p-2.5 md:hs-overlay-minified:px-1 md:hs-overlay-minified:py-2">
-        <ul class="space-y-1">
-          <li v-for="tab in tabs" :key="tab.path">
-            <router-link
-              :to="tab.path"
-              class="group hover-target relative flex w-full items-center gap-2 rounded-xl py-2 px-2.5 text-sm text-slate-700 transition-colors duration-200 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 md:hs-overlay-minified:size-10 md:hs-overlay-minified:mx-auto md:hs-overlay-minified:justify-center md:hs-overlay-minified:gap-0 md:hs-overlay-minified:px-0"
-              :class="{ active: isTabActive(tab.path) }"
-            >
-              <span class="nav-icon flex shrink-0 justify-center items-center size-6">
-                <lord-icon
-                  :src="tab.icon"
-                  trigger="hover"
-                  :colors="isTabActive(tab.path) ? 'primary:#ffffff,secondary:#ffffff' : 'primary:#1e293b,secondary:#1e293b'"
-                  target=".hover-target"
-                ></lord-icon>
-              </span>
-              <span class="truncate transition-opacity duration-300 md:hs-overlay-minified:hidden">{{ tab.label }}</span>
-            </router-link>
-          </li>
-        </ul>
       </div>
 
-      <div class="mt-auto p-2.5">
-        <div class="md:hs-overlay-minified:hidden">
-          <div class="hs-dropdown [--strategy:absolute] [--placement:top-left] relative inline-flex w-full">
-            <button
-              type="button"
-              class="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-left transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:bg-slate-800"
-            >
-              <div class="flex items-center gap-2.5">
-                <div class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
-                  {{ userInitials }}
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{{ userName }}</p>
-                  <p class="truncate text-xs text-slate-500 dark:text-slate-400">{{ userContact || 'Tài khoản nội bộ' }}</p>
-                </div>
-                <svg class="size-4 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="m6 9 6 6 6-6"></path>
-                </svg>
-              </div>
-            </button>
+      <nav class="flex-1" :class="props.desktopOpen ? 'space-y-1 px-4 py-4' : 'px-0 py-6 md:flex md:flex-col md:items-center md:gap-3'">
+        <router-link
+          v-for="tab in tabs"
+          :key="tab.path"
+          :to="tab.path"
+          class="flex items-center rounded-2xl text-sm font-medium transition-all duration-200"
+          :title="tab.label"
+          :class="[
+            props.desktopOpen ? 'gap-3 px-4 py-2.5 md:justify-start' : 'mx-auto h-12 w-12 justify-center rounded-xl',
+            props.desktopOpen
+              ? (isTabActive(tab.path) ? 'bg-[#136dec]/10 text-[#136dec]' : 'text-slate-600 hover:bg-slate-50')
+              : (isTabActive(tab.path) ? 'bg-[#136dec]/12 text-[#136dec]' : 'text-slate-700 hover:bg-slate-100'),
+          ]"
+        >
+          <span class="material-symbols-outlined" :class="props.desktopOpen ? 'text-[20px]' : 'text-[24px]'">
+            {{ tab.key === 'dashboard' ? 'dashboard' : tab.key === 'ticket' ? 'confirmation_number' : tab.key === 'qc' ? 'verified_user' : 'settings' }}
+          </span>
+          <span class="truncate" :class="props.desktopOpen ? 'md:inline' : 'md:hidden'">{{ tab.label }}</span>
+        </router-link>
+      </nav>
 
-            <div class="hs-dropdown-menu hs-dropdown-open:opacity-100 w-58 transition-[opacity,margin] duration opacity-0 hidden z-70 bg-white border border-slate-200 rounded-xl shadow-lg dark:bg-slate-900 dark:border-slate-700">
-              <div class=" p-1.5">
-                <button
-                  type="button"
-                  class="w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
-                  :disabled="syncingStores"
-                  @click="handleSyncStores"
-                >
-                  <span>{{ syncingStores ? 'Đang đồng bộ...' : 'Đồng bộ cửa hàng' }}</span>
-                  <svg v-if="syncingStores" class="animate-spin size-4 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
-                  </svg>
-                </button>
-                <button type="button" class="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/15" @click="logout">
-                  <span>Đăng xuất</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="hidden md:hs-overlay-minified:flex justify-center items-center">
+      <div class="border-t border-slate-200 p-4" :class="props.desktopOpen ? 'md:block' : 'md:hidden'">
+        <div ref="userMenuRef" class="relative">
           <button
             type="button"
-            class="inline-flex h-10 w-10 min-h-10 min-w-10 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-0 text-[13px] font-semibold leading-none text-blue-700 transition-colors hover:bg-slate-100"
-            :title="userName"
-            aria-label="Mở rộng thanh bên"
-            data-hs-overlay-minifier="#hs-pro-sidebar"
+            class="flex w-full items-center gap-3 rounded-lg p-2 transition-colors hover:bg-slate-50"
+            @click.stop="toggleUserMenu"
           >
-            {{ userInitials }}
+            <div class="inline-flex size-10 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
+              {{ userInitials }}
+            </div>
+            <div class="min-w-0 flex-1 text-left">
+              <p class="truncate text-sm font-semibold text-slate-900">{{ userName }}</p>
+              <p class="truncate text-xs text-slate-500">{{ userRoleLabel }}</p>
+            </div>
+            <span class="material-symbols-outlined text-[20px] text-slate-500 transition-transform duration-200" :class="userMenuOpen ? 'rotate-180' : ''">
+              expand_more
+            </span>
           </button>
+
+          <div
+            v-if="userMenuOpen"
+            class="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-slate-200 bg-white p-2 shadow-lg"
+            @click.stop
+          >
+            <button
+              type="button"
+              class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="syncingStores"
+              @click="handleSyncStoresFromMenu"
+            >
+              {{ syncingStores ? 'Đang đồng bộ...' : 'Đồng bộ cửa hàng' }}
+            </button>
+            <button
+              type="button"
+              class="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100"
+              @click="handleLogout"
+            >
+              Đăng xuất
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="hidden mt-auto border-t border-slate-200 px-2 py-4 md:justify-center" :class="props.desktopOpen ? 'md:hidden' : 'md:flex'">
+        <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-slate-100">
+          <div class="inline-flex size-9 items-center justify-center rounded-full bg-slate-200 text-xl font-semibold text-slate-700">
+            {{ userMonogram }}
+          </div>
         </div>
       </div>
     </div>
@@ -211,16 +262,7 @@ const handleSyncStores = async () => {
 </template>
 
 <style scoped>
-@custom-variant dark (&:where(.dark, .dark *));
-@reference "tailwindcss";
-
-.active {
-  @apply bg-blue-600 text-white shadow-sm hover:bg-blue-700 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500;
-}
-
-.nav-icon :deep(lord-icon) {
-  width: 22px;
-  height: 22px;
-  display: block;
+.stitch-shell {
+  font-family: 'Inter', sans-serif;
 }
 </style>
