@@ -45,10 +45,10 @@ const activeRootTab = computed(() => {
 const showHeaderDateFilter = computed(() => ['dashboard', 'ticket', 'qc'].includes(activeRootTab.value))
 
 const headerSubtitles = {
-  dashboard: 'Theo dõi chỉ số vận hành ticket và chất lượng cửa hàng theo thời gian',
-  ticket: 'Quản lý và giải quyết các yêu cầu kỹ thuật từ hệ thống cửa hàng',
-  qc: 'Theo dõi chỉ số QC và trạng thái vận hành toàn quốc',
-  tools: 'Theo dõi và quản trị các công cụ vận hành hệ thống',
+  dashboard: 'Theo dõi chỉ số vận hành ticket và chất lượng cửa hàng',
+  ticket: 'Quản lý và giải quyết các yêu cầu',
+  qc: 'Theo dõi chỉ số QC và trạng thái vận hành',
+  tools: 'Công cụ vận hành hệ thống',
 }
 
 const pageTitle = computed(() => {

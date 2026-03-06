@@ -108,3 +108,24 @@ và thêm vào User/Workspace Settings:
 
 - Không commit `dist/` hoặc file generated ngoài scope task.
 - Không tự ý đổi giá trị môi trường production.
+
+## 13) Ưu tiên Antigravity Kit trong `.agent`
+
+Trước khi bắt đầu mỗi task, AI agent phải kiểm tra bộ kit trong `.agent` và ưu tiên dùng nó như workflow mặc định của repo.
+
+Quy ước áp dụng:
+
+1. Đọc `.agent/ARCHITECTURE.md` để xác định cấu trúc kit hiện có.
+2. Nếu task khớp rõ với một workflow trong `.agent/workflows/*` hoặc một skill trong `.agent/skills/*`, ưu tiên dùng workflow/skill đó trước cách làm generic.
+3. Khi đã chọn workflow/skill trong `.agent`, phải thông báo ngắn cho user biết đang dùng file nào của kit.
+4. Chỉ đọc thêm đúng các file cần thiết trong `.agent`; không bulk-load toàn bộ kit nếu task không cần.
+5. Nếu `.agent` không có workflow/skill phù hợp, fallback về workflow chuẩn trong file `AGENTS.md` này.
+6. Nếu có xung đột giữa `.agent` và các invariant nghiệp vụ/bảo mật trong repo, ưu tiên invariant trong `AGENTS.md`.
+
+Ví dụ mapping ưu tiên:
+
+- Task debug/fix bug: ưu tiên `.agent/workflows/debug.md` hoặc `.agent/skills/systematic-debugging/SKILL.md`
+- Task plan/recap/khảo sát: ưu tiên `.agent/workflows/plan.md`, `.agent/workflows/status.md`, `.agent/skills/architecture/SKILL.md`
+- Task frontend/UI: ưu tiên `.agent/workflows/ui-ux-pro-max.md`, `.agent/skills/frontend-design/SKILL.md`, `.agent/skills/tailwind-patterns/SKILL.md`
+- Task backend/API: ưu tiên `.agent/skills/api-patterns/SKILL.md`, `.agent/skills/nodejs-best-practices/SKILL.md`
+- Task test/validate: ưu tiên `.agent/workflows/test.md`, `.agent/skills/testing-patterns/SKILL.md`, `.agent/skills/lint-and-validate/SKILL.md`
