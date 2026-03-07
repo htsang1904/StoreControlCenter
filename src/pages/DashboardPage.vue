@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
 import { useApp } from '@/plugins/app'
 import { getDashboardOverview, listTickets } from '@/services/ticket_service'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
@@ -29,36 +30,8 @@ const qcSummary = ref({
 })
 const recentTickets = ref([])
 
-function shiftDays(days) {
-  const base = new Date()
-  base.setDate(base.getDate() + days)
-  return base
-}
-
-function toIsoDate(date) {
-  const normalized = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-  return normalized.toISOString().slice(0, 10)
-}
-
-function isValidYmd(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false
-  const date = new Date(`${value}T00:00:00`)
-  return !Number.isNaN(date.getTime())
-}
-
-function getDefaultRange() {
-  return {
-    from: toIsoDate(shiftDays(-6)),
-    to: toIsoDate(new Date()),
-  }
-}
-
 const dashboardRange = computed(() => {
-  const fallback = getDefaultRange()
-  const from = isValidYmd(route.query?.date_from) ? String(route.query.date_from) : fallback.from
-  const to = isValidYmd(route.query?.date_to) ? String(route.query.date_to) : fallback.to
-  if (from > to) return fallback
-  return { from, to }
+  return normalizeDateRangeFromQuery(route.query || {}, getDefaultDateRange())
 })
 
 const stores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))

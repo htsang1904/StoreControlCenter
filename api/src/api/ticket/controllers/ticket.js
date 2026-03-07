@@ -3,6 +3,19 @@
 const crypto = require('crypto');
 const { createCoreController } = require('@strapi/strapi').factories;
 const { createNotifications, loadTicketAudience } = require('../../../utils/notification');
+const {
+  canManageAssignees,
+  canManageTicket,
+  canViewTicket,
+  getHandlerId,
+  getRequesterId,
+  getRole,
+  getTicketAssigneeIds,
+  getTicketDepartmentId,
+  getUserDepartmentId,
+  getUserStoreIds,
+  isAdmin,
+} = require('../../../utils/ticket-permissions');
 const MAX_UPLOAD_FILES_PER_REQUEST = 5;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const DASHBOARD_TICKET_BATCH_SIZE = 1000;
@@ -154,63 +167,6 @@ const hydrateTicketUsers = async (strapi, ticketsInput) => {
   });
 
   return Array.isArray(ticketsInput) ? hydrated : hydrated[0];
-};
-
-const getRole = (user) => String(user?.role || '').toLowerCase();
-const isAdmin = (user) => getRole(user) === 'admin';
-const getRequesterId = (ticket) => Number(ticket?.requester?.id || ticket?.requester_id || 0);
-const getHandlerId = (ticket) => Number(ticket?.handler?.id || ticket?.handler_id || 0);
-const getTicketAssigneeIds = (ticket) => (
-  Array.isArray(ticket?.assignees)
-    ? ticket.assignees
-      .map((item) => Number(item?.id || item))
-      .filter((item) => Number.isInteger(item) && item > 0)
-    : []
-);
-const getTicketStoreId = (ticket) => Number(ticket?.store_id || 0);
-const getTicketDepartmentId = (ticket) => Number(ticket?.responsible_department?.id || ticket?.responsible_department || 0);
-const getUserDepartmentId = (user) => Number(user?.department?.id || user?.department_id || 0);
-const getUserStoreIds = (user) => (
-  Array.isArray(user?.store_ids)
-    ? user.store_ids
-      .map((item) => Number(item))
-      .filter((item) => Number.isInteger(item) && item > 0)
-    : []
-);
-const canAccessTicketStore = (user, ticket) => {
-  const storeId = getTicketStoreId(ticket);
-  if (!Number.isInteger(storeId) || storeId <= 0) return false;
-  return getUserStoreIds(user).includes(storeId);
-};
-
-const canViewTicket = (user, ticket) => {
-  if (!user || !ticket) return false;
-  const role = getRole(user);
-  if (role === 'admin' || role === 'qc') return true;
-  if (role === 'handler') {
-    const handlerDepartmentId = getUserDepartmentId(user);
-    const ticketDepartmentId = getTicketDepartmentId(ticket);
-    const isAssignee = getTicketAssigneeIds(ticket).includes(Number(user.id));
-    if (isAssignee) return true;
-    return handlerDepartmentId > 0 && ticketDepartmentId > 0 && handlerDepartmentId === ticketDepartmentId;
-  }
-  return getRequesterId(ticket) === Number(user.id) || canAccessTicketStore(user, ticket);
-};
-
-const canManageTicket = (user, ticket) => {
-  if (!user || !ticket) return false;
-  if (isAdmin(user)) return true;
-  return getRequesterId(ticket) === Number(user.id);
-};
-
-const canManageAssignees = (user, ticket) => {
-  if (!user || !ticket) return false;
-  const role = getRole(user);
-  if (role === 'admin') return true;
-  if (role === 'handler') {
-    return getUserDepartmentId(user) > 0 && getUserDepartmentId(user) === getTicketDepartmentId(ticket);
-  }
-  return false;
 };
 
 const toIsoDate = (value) => {

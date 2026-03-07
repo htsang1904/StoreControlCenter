@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
 import { useApp } from '@/plugins/app'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
 
@@ -10,6 +11,7 @@ const { state } = useApp()
 
 const SEARCH_DEBOUNCE_MS = 300
 const PAGE_SIZE = 5
+const initialRange = getDefaultDateRange()
 
 const searchInput = ref('')
 const searchKeyword = ref('')
@@ -23,8 +25,8 @@ const sortDirections = ref({
 })
 
 const loading = ref(false)
-const dateFrom = ref(shiftDays(-6))
-const dateTo = ref(shiftDays(0))
+const dateFrom = ref(initialRange.from)
+const dateTo = ref(initialRange.to)
 const summary = ref({
   totalSessions: 0,
   passed: 0,
@@ -37,39 +39,8 @@ const summary = ref({
 const storeStats = ref([])
 const loadError = ref('')
 
-function toIsoDate(date) {
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-}
-
-function shiftDays(days) {
-  const base = new Date()
-  base.setDate(base.getDate() + days)
-  return toIsoDate(base)
-}
-
-function isValidYmd(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false
-  const date = new Date(`${value}T00:00:00`)
-  return !Number.isNaN(date.getTime())
-}
-
-function getDefaultRange() {
-  return {
-    from: shiftDays(-6),
-    to: shiftDays(0),
-  }
-}
-
-function normalizeRangeFromQuery(query) {
-  const fallback = getDefaultRange()
-  const from = isValidYmd(query?.date_from) ? String(query.date_from) : fallback.from
-  const to = isValidYmd(query?.date_to) ? String(query.date_to) : fallback.to
-  if (from > to) return fallback
-  return { from, to }
-}
-
 function syncRangeFromRoute() {
-  const range = normalizeRangeFromQuery(route.query || {})
+  const range = normalizeDateRangeFromQuery(route.query || {}, getDefaultDateRange())
   dateFrom.value = range.from
   dateTo.value = range.to
 }

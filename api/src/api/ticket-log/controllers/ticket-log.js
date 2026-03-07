@@ -2,6 +2,11 @@
 
 const { createCoreController } = require('@strapi/strapi').factories;
 const { createNotifications, loadTicketAudience } = require('../../../utils/notification');
+const {
+  canReplyOnTicket,
+  canViewTicket,
+  getRole,
+} = require('../../../utils/ticket-permissions');
 
 const successResponse = (message, data = {}) => ({
   success: true,
@@ -15,65 +20,6 @@ const errorResponse = (ctx, status, message) => {
     success: false,
     message,
   };
-};
-
-const getRole = (user) => String(user?.role || '').toLowerCase();
-const getRequesterId = (ticket) => Number(ticket?.requester?.id || ticket?.requester_id || 0);
-const getTicketStoreId = (ticket) => Number(ticket?.store_id || 0);
-const getTicketDepartmentId = (ticket) => Number(ticket?.responsible_department?.id || ticket?.responsible_department || 0);
-const getUserDepartmentId = (user) => Number(user?.department?.id || user?.department_id || 0);
-const getTicketAssigneeIds = (ticket) => (
-  Array.isArray(ticket?.assignees)
-    ? ticket.assignees
-      .map((item) => Number(item?.id || item))
-      .filter((item) => Number.isInteger(item) && item > 0)
-    : []
-);
-const getUserStoreIds = (user) => (
-  Array.isArray(user?.store_ids)
-    ? user.store_ids
-      .map((item) => Number(item))
-      .filter((item) => Number.isInteger(item) && item > 0)
-      : []
-);
-const isOpenTicketStatus = (ticket) => (
-  ['new', 'assigned', 'in_progress'].includes(String(ticket?.status || '').toLowerCase())
-);
-
-const canViewTicket = (user, ticket) => {
-  if (!user || !ticket) return false;
-
-  const role = getRole(user);
-  if (role === 'admin' || role === 'qc') return true;
-  if (role === 'handler') {
-    const handlerDepartmentId = getUserDepartmentId(user);
-    const ticketDepartmentId = getTicketDepartmentId(ticket);
-    const isAssignee = getTicketAssigneeIds(ticket).includes(Number(user.id));
-    if (isAssignee) return true;
-    return handlerDepartmentId > 0 && ticketDepartmentId > 0 && handlerDepartmentId === ticketDepartmentId;
-  }
-
-  if (getRequesterId(ticket) === Number(user.id)) return true;
-
-  const ticketStoreId = getTicketStoreId(ticket);
-  if (!Number.isInteger(ticketStoreId) || ticketStoreId <= 0) return false;
-  return getUserStoreIds(user).includes(ticketStoreId);
-};
-
-const canReplyOnTicket = (user, ticket) => {
-  if (!user || !ticket) return false;
-
-  const isOpenStatus = isOpenTicketStatus(ticket);
-  const role = getRole(user);
-  if (role === 'admin') return isOpenStatus;
-  if (role === 'handler') {
-    const isAssignee = getTicketAssigneeIds(ticket).includes(Number(user.id));
-    return isOpenStatus && isAssignee;
-  }
-  if (role === 'store') {
-    return isOpenStatus && getRequesterId(ticket) === Number(user.id);
-  }
-  return false;
 };
 
 module.exports = createCoreController('api::ticket-log.ticket-log', ({ strapi }) => ({
