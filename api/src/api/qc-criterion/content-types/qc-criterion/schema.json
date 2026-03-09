@@ -26,7 +26,10 @@
     },
     "default_mode": {
       "type": "enumeration",
-      "enum": ["pass_fail", "point"],
+      "enum": [
+        "pass_fail",
+        "point"
+      ],
       "default": "point",
       "required": true
     },
@@ -48,17 +51,30 @@
       "target": "api::qc-form-criterion.qc-form-criterion",
       "mappedBy": "criterion"
     },
-    "store_rules": {
-      "type": "relation",
-      "relation": "oneToMany",
-      "target": "api::qc-store-criterion-rule.qc-store-criterion-rule",
-      "mappedBy": "criterion"
-    },
     "session_items": {
       "type": "relation",
       "relation": "oneToMany",
       "target": "api::qc-session-item.qc-session-item",
       "mappedBy": "criterion"
+    },
+    "parent": {
+      "type": "relation",
+      "relation": "manyToOne",
+      "target": "api::qc-criterion.qc-criterion",
+      "inversedBy": "children"
+    },
+    "children": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "api::qc-criterion.qc-criterion",
+      "mappedBy": "parent"
+    },
+    "level": {
+      "type": "integer",
+      "default": 1
+    },
+    "ordering": {
+      "type": "string"
     }
   }
 }

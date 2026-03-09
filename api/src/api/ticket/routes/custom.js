@@ -114,6 +114,40 @@ module.exports = {
       },
     },
     {
+      method: 'GET',
+      path: '/tickets/:id/assignable-handlers',
+      handler: 'ticket.listAssignableHandlers',
+      config: {
+        auth: false,
+        policies: [
+          'global::app-auth',
+          {
+            name: 'global::role-guard',
+            config: {
+              allow: ['admin'],
+            },
+          },
+        ],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/tickets/:id/assignees',
+      handler: 'ticket.assignHandler',
+      config: {
+        auth: false,
+        policies: [
+          'global::app-auth',
+          {
+            name: 'global::role-guard',
+            config: {
+              allow: ['admin'],
+            },
+          },
+        ],
+      },
+    },
+    {
       method: 'POST',
       path: '/tickets/:id/assignees/me',
       handler: 'ticket.assignMe',
@@ -176,6 +210,23 @@ module.exports = {
             name: 'global::role-guard',
             config: {
               allow: ['store', 'admin'],
+            },
+          },
+        ],
+      },
+    },
+    {
+      method: 'POST',
+      path: '/tickets/:id/reject',
+      handler: 'ticket.rejectTicket',
+      config: {
+        auth: false,
+        policies: [
+          'global::app-auth',
+          {
+            name: 'global::role-guard',
+            config: {
+              allow: ['handler', 'admin'],
             },
           },
         ],

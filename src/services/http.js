@@ -93,11 +93,15 @@ const getClient = (baseURL = API_BASE_URL) => {
       const originalRequest = error.config || {}
       const status = error.response?.status
 
-      if (status !== 401 || originalRequest._retry || isAuthEndpoint(originalRequest.url || '')) {
+      if (status !== 401 || isAuthEndpoint(originalRequest.url || '')) {
         if (status === 401) {
           clearAuthStorage()
           redirectToLogin()
         }
+        return Promise.reject(error)
+      }
+
+      if (originalRequest._retry) {
         return Promise.reject(error)
       }
 

@@ -34,7 +34,10 @@
     },
     "mode_snapshot": {
       "type": "enumeration",
-      "enum": ["pass_fail", "point"],
+      "enum": [
+        "pass_fail",
+        "point"
+      ],
       "required": true
     },
     "max_score_snapshot": {
@@ -47,12 +50,21 @@
     },
     "frequency_snapshot": {
       "type": "enumeration",
-      "enum": ["per_audit", "weekly_once"],
+      "enum": [
+        "per_audit",
+        "weekly_once"
+      ],
       "default": "per_audit"
     },
     "result": {
       "type": "enumeration",
-      "enum": ["pending", "pass", "fail", "na", "skipped_weekly"],
+      "enum": [
+        "pending",
+        "pass",
+        "fail",
+        "na",
+        "skipped_weekly"
+      ],
       "default": "pending",
       "required": true
     },
@@ -69,6 +81,9 @@
     },
     "note": {
       "type": "text"
+    },
+    "attachments": {
+      "type": "json"
     }
   }
 }

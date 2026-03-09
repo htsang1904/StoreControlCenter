@@ -2,16 +2,19 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApp } from '@/plugins/app'
-import { QC_TEMPLATES } from '@/constants/qc_templates'
 import {
   createQcDraftSession,
+  createQcFinding,
   createQcSession,
   deleteQcDraftSession,
   getQcDraftSessionById,
+  getQcTemplateById,
   listQcSessionsApi,
+  listQcTemplates,
   qcHelpers,
   updateQcDraftSession,
 } from '@/services/qc_service'
+import QCCriterionTreeItem from '@/components/QCCriterionTreeItem.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,7 +35,8 @@ const draftSavedAt = ref('')
 const hydratingDraft = ref(false)
 const weeklyCheckedCriterionIds = ref(new Set())
 let weeklyCriteriaRequestId = 0
-const qcTemplates = QC_TEMPLATES
+const qcTemplates = ref([])
+const templateData = ref(null)
 
 const storeId = computed(() => Number(route.params.storeId || 0))
 const selectedStore = computed(() => {
@@ -52,29 +56,23 @@ function toLocalDateTimeInput(value) {
 }
 
 const form = reactive({
-  templateId: qcTemplates[0].id,
+  templateId: '',
   auditedAt: toLocalDateTimeInput(),
   note: '',
   criteriaStates: {},
 })
 
-const selectedTemplate = computed(() => qcTemplates.find((item) => item.id === form.templateId) || qcTemplates[0])
+const selectedTemplate = computed(() => {
+  if (templateData.value) return templateData.value
+  return { id: '', name: 'Đang tải...', version: '', passThreshold: 80, criteriaTree: [], flatCriteria: [] }
+})
 
 const flatCriteria = computed(() => {
-  return selectedTemplate.value.categories.flatMap((category, categoryIndex) =>
-    category.criteria.map((criterion, criterionIndex) => ({
-      ...criterion,
-      mode: criterion.mode === 'pass_fail' ? 'pass_fail' : 'point',
-      maxScore: Number(criterion.maxScore || (criterion.mode === 'pass_fail' ? 1 : 0)),
-      passScore: Number(criterion.passScore || criterion.maxScore || (criterion.mode === 'pass_fail' ? 1 : 0)),
-      critical: Boolean(criterion.critical),
-      frequency: criterion.frequency === 'weekly_once' ? 'weekly_once' : 'per_audit',
-      categoryId: category.id,
-      categoryName: category.name,
-      categoryIndex: categoryIndex + 1,
-      criterionIndex: criterionIndex + 1,
-    }))
-  )
+  const source = selectedTemplate.value.flatCriteria || []
+  return source.map((criterion, index) => ({
+    ...criterion,
+    criterionIndex: index + 1,
+  }))
 })
 
 const ensureCriterionState = (criterionId) => {
@@ -92,6 +90,82 @@ const ensureCriterionState = (criterionId) => {
 const getCriterionState = (criterionId) => (
   form.criteriaStates[criterionId] || { status: 'pending', score: null, note: '', attachments: [] }
 )
+
+const onCriterionUpdate = (id, updates) => {
+  const state = ensureCriterionState(id)
+  Object.assign(state, updates)
+  
+  // Custom logic for score-status sync if needed
+  if (updates.score !== undefined && updates.score !== null) {
+    state.status = 'pass'
+  }
+}
+
+const onAttachmentUpload = async (id, event) => {
+  const input = event?.target
+  const selectedFiles = Array.from(input?.files || [])
+  if (selectedFiles.length === 0) return
+
+  errorMessage.value = ''
+  const state = ensureCriterionState(id)
+  const availableSlots = MAX_ATTACHMENTS_PER_CRITERION - state.attachments.length
+
+  if (availableSlots <= 0) {
+    errorMessage.value = `Mỗi tiêu chí chỉ được đính kèm tối đa ${MAX_ATTACHMENTS_PER_CRITERION} ảnh.`
+    if (input) input.value = ''
+    return
+  }
+
+  const filesToProcess = selectedFiles.slice(0, availableSlots)
+  const nextAttachments = []
+  const issues = []
+
+  for (const file of filesToProcess) {
+    if (!String(file.type || '').startsWith('image/')) {
+      issues.push(`${file.name}: không phải định dạng ảnh`)
+      continue
+    }
+
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      issues.push(`${file.name}: vượt quá ${formatFileSize(MAX_ATTACHMENT_SIZE_BYTES)}`)
+      continue
+    }
+
+    try {
+      const previewUrl = await readFileAsDataUrl(file)
+      nextAttachments.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        previewUrl,
+        preview: previewUrl,
+        url: previewUrl,
+      })
+    } catch (error) {
+      issues.push(error?.message || `Không đọc được ảnh ${file.name}`)
+    }
+  }
+
+  if (nextAttachments.length > 0) {
+    state.attachments = [...state.attachments, ...nextAttachments]
+  }
+
+  if (selectedFiles.length > availableSlots) {
+    issues.push(`Chỉ thêm ${availableSlots}/${selectedFiles.length} ảnh do giới hạn tối đa`)
+  }
+
+  if (issues.length > 0) {
+    errorMessage.value = issues[0]
+  }
+
+  if (input) input.value = ''
+}
+
+const onAttachmentRemove = (id, index) => {
+  const state = ensureCriterionState(id)
+  state.attachments.splice(index, 1)
+}
 
 const getWeekStart = (dateString) => {
   const source = dateString ? new Date(dateString) : new Date()
@@ -204,15 +278,24 @@ const refreshWeeklyCriteriaStates = () => {
   })
 }
 
-const buildDraftCriteriaStates = ({ includeAttachments = false } = {}) => {
+const buildDraftCriteriaStates = ({ includeAttachments = true } = {}) => {
   return Object.entries(form.criteriaStates || {}).reduce((acc, [criterionId, state]) => {
     const attachments = Array.isArray(state?.attachments) ? state.attachments : []
     acc[String(criterionId)] = {
       status: String(state?.status || 'pending'),
       score: state?.score === null || state?.score === undefined || String(state?.score) === '' ? null : Number(state.score),
       note: String(state?.note || ''),
-      // Avoid resending heavy base64 previews on every autosave tick.
-      attachments: includeAttachments ? attachments.map((item) => ({ ...item })) : [],
+      attachments: includeAttachments
+        ? attachments.map((item, index) => ({
+          id: String(item?.id || `attachment-${index + 1}`),
+          name: String(item?.name || `image-${index + 1}`),
+          type: String(item?.type || 'image/*'),
+          size: Number(item?.size || 0),
+          previewUrl: String(item?.previewUrl || item?.preview || item?.url || '').trim(),
+          preview: String(item?.preview || item?.previewUrl || item?.url || '').trim(),
+          url: String(item?.url || item?.previewUrl || item?.preview || '').trim(),
+        })).filter((item) => item.previewUrl || item.preview || item.url)
+        : [],
     }
     return acc
   }, {})
@@ -250,7 +333,7 @@ const ensureActiveDraftSession = async () => {
   }
 }
 
-const persistDraftNow = async ({ includeAttachments = false } = {}) => {
+const persistDraftNow = async ({ includeAttachments = true } = {}) => {
   if (!activeDraftId.value || hydratingDraft.value) return
 
   let updated = null
@@ -369,11 +452,35 @@ const restoreDraftSession = async () => {
 
 initializeCriteriaStates()
 
-watch(
-  () => form.templateId,
-  () => {
+const loadTemplates = async () => {
+  try {
+    qcTemplates.value = await listQcTemplates()
+    if (!form.templateId && qcTemplates.value.length > 0) {
+      form.templateId = qcTemplates.value[0].id
+    }
+  } catch (error) {
+    console.error('Failed to load QC templates', error)
+  }
+}
+
+const loadTemplateData = async (templateId) => {
+  if (!templateId) return
+  try {
+    templateData.value = await getQcTemplateById(templateId)
     initializeCriteriaStates()
     refreshWeeklyCriteriaStates()
+  } catch (error) {
+    errorMessage.value = error?.message || 'Không tải được cấu trúc tiêu chí.'
+    console.error('Failed to load template data', error)
+  }
+}
+
+watch(
+  () => form.templateId,
+  async (newId) => {
+    if (newId) {
+      await loadTemplateData(newId)
+    }
     scheduleDraftAutosave()
   }
 )
@@ -429,6 +536,7 @@ onMounted(async () => {
   if (window.HSStaticMethods?.autoInit) {
     window.HSStaticMethods.autoInit()
   }
+  await loadTemplates()
   syncPrelineSelectValue(QC_TEMPLATE_SELECT_ID, form.templateId)
   await restoreDraftSession()
   await refreshWeeklyCheckedCriteria()
@@ -453,8 +561,6 @@ watch(
   }
 )
 
-const attachmentInputId = (criterionId) => `criterion-attachment-${criterionId}`
-
 const formatFileSize = (size = 0) => {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`
@@ -468,70 +574,6 @@ const readFileAsDataUrl = (file) => {
     reader.onerror = () => reject(new Error(`Không đọc được file ${file.name}`))
     reader.readAsDataURL(file)
   })
-}
-
-const onCriterionFileChange = async (criterionId, event) => {
-  const input = event?.target
-  const selectedFiles = Array.from(input?.files || [])
-  if (selectedFiles.length === 0) return
-
-  errorMessage.value = ''
-  const criterionState = ensureCriterionState(criterionId)
-  const availableSlots = MAX_ATTACHMENTS_PER_CRITERION - criterionState.attachments.length
-
-  if (availableSlots <= 0) {
-    errorMessage.value = `Mỗi tiêu chí chỉ được đính kèm tối đa ${MAX_ATTACHMENTS_PER_CRITERION} ảnh.`
-    if (input) input.value = ''
-    return
-  }
-
-  const filesToProcess = selectedFiles.slice(0, availableSlots)
-  const nextAttachments = []
-  const issues = []
-
-  for (const file of filesToProcess) {
-    if (!String(file.type || '').startsWith('image/')) {
-      issues.push(`${file.name}: không phải định dạng ảnh`)
-      continue
-    }
-
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      issues.push(`${file.name}: vượt quá ${formatFileSize(MAX_ATTACHMENT_SIZE_BYTES)}`)
-      continue
-    }
-
-    try {
-      const previewUrl = await readFileAsDataUrl(file)
-      nextAttachments.push({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        previewUrl,
-      })
-    } catch (error) {
-      issues.push(error?.message || `Không đọc được ảnh ${file.name}`)
-    }
-  }
-
-  if (nextAttachments.length > 0) {
-    criterionState.attachments = [...criterionState.attachments, ...nextAttachments]
-  }
-
-  if (selectedFiles.length > availableSlots) {
-    issues.push(`Chỉ thêm ${availableSlots}/${selectedFiles.length} ảnh do giới hạn tối đa`)
-  }
-
-  if (issues.length > 0) {
-    errorMessage.value = issues[0]
-  }
-
-  if (input) input.value = ''
-}
-
-const removeCriterionAttachment = (criterionId, attachmentId) => {
-  const criterionState = ensureCriterionState(criterionId)
-  criterionState.attachments = criterionState.attachments.filter((item) => item.id !== attachmentId)
 }
 
 const getCriterionResult = (criterion) => {
@@ -548,92 +590,27 @@ const getCriterionResult = (criterion) => {
   return score >= Number(criterion.passScore || criterion.maxScore || 0) ? 'pass' : 'fail'
 }
 
-const setPassFailResult = (criterion, status) => {
-  errorMessage.value = ''
-  const state = ensureCriterionState(criterion.id)
-  if (state.status === 'skipped_weekly') return
-
-  if (status === 'na') {
-    if (state.status === 'na') {
-      state.status = 'pending'
-      state.score = null
-      return
-    }
-    state.status = 'na'
-    state.score = null
-    return
-  }
-
-  state.status = status
-  state.score = status === 'pass' ? 1 : 0
-}
-
-const setPointScore = (criterion, value) => {
-  errorMessage.value = ''
-  const state = ensureCriterionState(criterion.id)
-  if (state.status === 'skipped_weekly') return
-
-  const max = Number(criterion.maxScore || 0)
-  if (value === '' || value === null || value === undefined) {
-    state.score = null
-    state.status = 'pending'
-    return
-  }
-
-  const next = Number(value)
-  if (!Number.isFinite(next)) {
-    state.score = null
-    state.status = 'pending'
-    return
-  }
-
-  state.score = Math.min(Math.max(next, 0), max)
-  state.status = 'pending'
-}
-
-const markPointNA = (criterion) => {
-  errorMessage.value = ''
-  const state = ensureCriterionState(criterion.id)
-  if (state.status === 'skipped_weekly') return
-  if (state.status === 'na') {
-    state.status = 'pending'
-    state.score = null
-    return
-  }
-  state.status = 'na'
-  state.score = null
-}
-
-const updateCriterionNote = (criterionId, value) => {
-  ensureCriterionState(criterionId).note = String(value || '')
-}
-
 const criteriaPayload = computed(() => {
   return flatCriteria.value.map((criterion) => {
     const state = getCriterionState(criterion.id)
-    const result = getCriterionResult(criterion)
-    const isPoint = criterion.mode === 'point'
+    let status = state.status
+    
+    if (criterion.mode === 'point' && state.score !== null && status === 'pass') {
+      status = state.score >= (criterion.passScore || criterion.maxScore) ? 'pass' : 'fail'
+    }
 
     return {
       id: criterion.id,
+      code: criterion.code,
       name: criterion.name,
-      category: criterion.categoryName,
       mode: criterion.mode,
-      status: result,
-      score: result === 'na' || result === 'skipped_weekly'
-        ? null
-        : (isPoint
-          ? (state.score === null || state.score === undefined || String(state.score) === '' ? null : Number(state.score))
-          : (result === 'pass' ? 1 : (result === 'fail' ? 0 : null))),
-      maxScore: isPoint ? Number(criterion.maxScore || 0) : 1,
-      passScore: isPoint ? Number(criterion.passScore || criterion.maxScore || 0) : 1,
-      critical: Boolean(criterion.critical),
-      applicable: result !== 'na',
-      frequency: criterion.frequency,
+      score: state.score,
+      maxScore: criterion.maxScore,
+      critical: Boolean(criterion.isCritical),
+      applicable: status !== 'na' && status !== 'skipped_weekly',
+      status: status,
       note: String(state.note || '').trim(),
-      attachments: Array.isArray(state.attachments)
-        ? state.attachments.map((attachment) => ({ ...attachment }))
-        : [],
+      attachments: state.attachments.map(a => ({ ...a }))
     }
   })
 })
@@ -648,46 +625,6 @@ const sessionEvaluation = computed(() => {
 const completedCriteria = computed(() => flatCriteria.value.length - sessionEvaluation.value.incompleteCount)
 const remainingCriteria = computed(() => sessionEvaluation.value.incompleteCount)
 const completionRate = computed(() => (flatCriteria.value.length > 0 ? Math.round((completedCriteria.value / flatCriteria.value.length) * 100) : 0))
-
-const categoryRows = computed(() => {
-  return selectedTemplate.value.categories.map((category, categoryIndex) => {
-    const criteria = category.criteria.map((criterion, criterionIndex) => {
-      const normalizedCriterion = {
-        ...criterion,
-        id: criterion.id,
-        mode: criterion.mode === 'pass_fail' ? 'pass_fail' : 'point',
-        maxScore: Number(criterion.maxScore || (criterion.mode === 'pass_fail' ? 1 : 0)),
-        passScore: Number(criterion.passScore || criterion.maxScore || (criterion.mode === 'pass_fail' ? 1 : 0)),
-        critical: Boolean(criterion.critical),
-        frequency: criterion.frequency === 'weekly_once' ? 'weekly_once' : 'per_audit',
-        categoryIndex: categoryIndex + 1,
-        criterionIndex: criterionIndex + 1,
-      }
-
-      const state = getCriterionState(criterion.id)
-      const result = getCriterionResult(normalizedCriterion)
-
-      return {
-        ...normalizedCriterion,
-        result,
-        score: state.score,
-        note: state.note,
-        attachments: state.attachments,
-      }
-    })
-
-    return {
-      ...category,
-      index: categoryIndex + 1,
-      criteria,
-      checked: criteria.filter((item) => item.result !== 'pending').length,
-      passed: criteria.filter((item) => item.result === 'pass').length,
-      failed: criteria.filter((item) => item.result === 'fail').length,
-      excluded: criteria.filter((item) => item.result === 'na' || item.result === 'skipped_weekly').length,
-      pending: criteria.filter((item) => item.result === 'pending').length,
-    }
-  })
-})
 
 const resultLabel = computed(() => {
   if (remainingCriteria.value > 0) return 'Chưa hoàn tất'
@@ -704,14 +641,13 @@ const resultBadgeClass = computed(() => {
   return sessionEvaluation.value.status === 'passed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
 })
 
-const reasonLabels = {
-  incomplete: 'Còn tiêu chí chưa chấm',
-  failed: 'Có tiêu chí không đạt',
-  critical: 'Có tiêu chí critical chưa đạt',
-  threshold: 'Chưa đạt ngưỡng điểm',
-}
-
 const resultReasons = computed(() => {
+  const reasonLabels = {
+    incomplete: 'Còn tiêu chí chưa chấm',
+    failed: 'Có tiêu chí không đạt',
+    critical: 'Có tiêu chí critical chưa đạt',
+    threshold: 'Chưa đạt ngưỡng điểm',
+  }
   return (sessionEvaluation.value.reasons || []).map((item) => reasonLabels[item] || item)
 })
 
@@ -720,21 +656,7 @@ const draftSavedLabel = computed(() => {
   return qcHelpers.toDateLabel(draftSavedAt.value)
 })
 
-const criterionBadgeClass = (status) => {
-  if (status === 'pass') return 'bg-emerald-100 text-emerald-700'
-  if (status === 'fail') return 'bg-rose-100 text-rose-700'
-  if (status === 'na') return 'bg-slate-200 text-slate-700'
-  if (status === 'skipped_weekly') return 'bg-violet-100 text-violet-700'
-  return 'bg-amber-100 text-amber-700'
-}
 
-const criterionBadgeLabel = (status) => {
-  if (status === 'pass') return 'Đạt'
-  if (status === 'fail') return 'Không đạt'
-  if (status === 'na') return 'N/A'
-  if (status === 'skipped_weekly') return 'Đã chấm tuần này'
-  return 'Chưa chọn'
-}
 
 const goBack = () => {
   router.push(`/QC/store/${storeId.value}`)
@@ -754,6 +676,7 @@ const submitSession = async () => {
   saving.value = true
   errorMessage.value = ''
   await persistDraftNow({ includeAttachments: true })
+  const hasCriterionAttachments = criteriaPayload.value.some((criterion) => Array.isArray(criterion.attachments) && criterion.attachments.length > 0)
 
   try {
     await createQcSession({
@@ -770,7 +693,8 @@ const submitSession = async () => {
       auditedAt: form.auditedAt ? new Date(form.auditedAt).toISOString() : new Date().toISOString(),
     })
 
-    if (activeDraftId.value) {
+    // Session item chưa có nơi persist evidence, nên chỉ xóa draft khi không còn attachment.
+    if (activeDraftId.value && !hasCriterionAttachments) {
       await deleteQcDraftSession(activeDraftId.value)
     }
 
@@ -788,6 +712,62 @@ onBeforeUnmount(() => {
   }
   void persistDraftNow({ includeAttachments: true })
 })
+
+/**
+ * Finding Creation Modal Logic
+ */
+const findingModalActive = ref(false)
+const findingSubmitting = ref(false)
+const selectedCriterionForFinding = ref(null)
+const findingForm = reactive({
+  severity: 'medium',
+  dueDate: '',
+  correctiveAction: '',
+})
+
+const openFindingModal = (criterionId) => {
+  const crit = flatCriteria.value.find(c => c.id === criterionId)
+  if (!crit) return
+  
+  selectedCriterionForFinding.value = crit
+  findingForm.severity = crit.isCritical ? 'high' : 'medium'
+  findingForm.correctiveAction = ''
+  
+  // Set default due_date (e.g., tomorrow)
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  findingForm.dueDate = tomorrow.toISOString().split('T')[0]
+  
+  findingModalActive.value = true
+}
+
+const submitFinding = async () => {
+  if (!selectedCriterionForFinding.value || !storeId.value) return
+  
+  findingSubmitting.value = true
+  try {
+    const criterionState = getCriterionState(selectedCriterionForFinding.value.id)
+    
+    await createQcFinding({
+      store: storeId.value,
+      session_id: activeDraftId.value || null, // Finding linked to draft or temporary session
+      criterion_name: selectedCriterionForFinding.value.name,
+      severity: findingForm.severity,
+      due_date: findingForm.dueDate,
+      corrective_action: findingForm.correctiveAction,
+      evidence: criterionState.attachments.map(a => ({ ...a })),
+      status: 'open'
+    })
+    
+    findingModalActive.value = false
+    selectedCriterionForFinding.value = null
+    // Suggest refreshing or showing success toast
+  } catch (error) {
+    errorMessage.value = error?.response?.data?.message || error?.message || 'Không thể tạo yêu cầu khắc phục.'
+  } finally {
+    findingSubmitting.value = false
+  }
+}
 </script>
 
 <template>
@@ -848,173 +828,17 @@ onBeforeUnmount(() => {
 
       <section class="grid gap-3 xl:grid-cols-12">
         <div class="xl:col-span-8 space-y-3">
-          <article
-            v-for="category in categoryRows"
-            :key="category.id"
-            class="rounded-xl border border-gray-200 bg-white p-3 shadow-2xs"
-          >
-            <div class="flex items-center justify-between gap-2">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-800">
-                  Hạng mục {{ String(category.index).padStart(2, '0') }} · {{ category.name }}
-                </h3>
-                <p class="text-xs text-slate-500">
-                  Đã đánh giá {{ category.checked }}/{{ category.criteria.length }} • Đạt {{ category.passed }} • Không đạt {{ category.failed }} • Loại trừ {{ category.excluded }}
-                </p>
-              </div>
-              <span class="inline-flex rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
-                {{ category.checked }}/{{ category.criteria.length }}
-              </span>
-            </div>
-
-            <div class="mt-2.5 space-y-2">
-              <div
-                v-for="criterion in category.criteria"
-                :key="criterion.id"
-                class="rounded-lg border border-slate-100 bg-slate-50 p-2.5"
-              >
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="inline-flex rounded-md bg-slate-200 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                    {{ String(category.index).padStart(2, '0') }}.{{ String(criterion.criterionIndex).padStart(2, '0') }}
-                  </span>
-                  <p class="text-sm font-semibold text-slate-800">{{ criterion.name }}</p>
-                  <span
-                    class="inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold"
-                    :class="criterionBadgeClass(criterion.result)"
-                  >
-                    {{ criterionBadgeLabel(criterion.result) }}
-                  </span>
-                  <span
-                    v-if="criterion.frequency === 'weekly_once'"
-                    class="inline-flex rounded-md bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700"
-                  >
-                    1 lần / tuần
-                  </span>
-                  <span
-                    v-if="criterion.mode === 'point'"
-                    class="inline-flex rounded-md bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
-                  >
-                    Điểm đạt ≥ {{ criterion.passScore }}/{{ criterion.maxScore }}
-                  </span>
-                  <span
-                    v-else
-                    class="inline-flex rounded-md bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
-                  >
-                    Đạt / Không đạt
-                  </span>
-                </div>
-
-                <div class="mt-2">
-                  <div v-if="criterion.mode === 'pass_fail'" class="flex flex-wrap items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      class="h-9 w-28 cursor-pointer rounded-lg border text-xs font-semibold transition-colors"
-                      :disabled="criterion.result === 'skipped_weekly'"
-                      :class="criterion.result === 'pass' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-gray-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50'"
-                      @click="setPassFailResult(criterion, 'pass')"
-                    >
-                      Đạt
-                    </button>
-                    <button
-                      type="button"
-                      class="h-9 w-28 cursor-pointer rounded-lg border text-xs font-semibold transition-colors"
-                      :disabled="criterion.result === 'skipped_weekly'"
-                      :class="criterion.result === 'fail' ? 'border-rose-600 bg-rose-600 text-white' : 'border-gray-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50'"
-                      @click="setPassFailResult(criterion, 'fail')"
-                    >
-                      Không đạt
-                    </button>
-                    <button
-                      type="button"
-                      class="h-9 w-24 cursor-pointer rounded-lg border text-xs font-semibold transition-colors"
-                      :disabled="criterion.result === 'skipped_weekly'"
-                      :class="criterion.result === 'na' ? 'border-slate-500 bg-slate-500 text-white' : 'border-gray-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50'"
-                      @click="setPassFailResult(criterion, 'na')"
-                    >
-                      {{ criterion.result === 'na' ? 'Bỏ N/A' : 'N/A' }}
-                    </button>
-                  </div>
-
-                  <div v-else class="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
-                    <input
-                      :value="criterion.score"
-                      type="number"
-                      min="0"
-                      :max="criterion.maxScore"
-                      class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:bg-slate-100"
-                      placeholder="Nhập điểm"
-                      :disabled="criterion.result === 'skipped_weekly'"
-                      @input="setPointScore(criterion, $event.target.value)"
-                    />
-                    <button
-                      type="button"
-                      class="h-9 w-24 cursor-pointer rounded-lg border text-xs font-semibold transition-colors"
-                      :disabled="criterion.result === 'skipped_weekly'"
-                      :class="criterion.result === 'na' ? 'border-slate-500 bg-slate-500 text-white' : 'border-gray-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50'"
-                      @click="markPointNA(criterion)"
-                    >
-                      {{ criterion.result === 'na' ? 'Bỏ N/A' : 'N/A' }}
-                    </button>
-                  </div>
-                </div>
-
-                <label class="mt-2 block text-sm text-slate-700">
-                  <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Nội dung / nhận xét</span>
-                  <textarea
-                    :value="criterion.note"
-                    rows="2"
-                    class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-slate-700"
-                    placeholder="Nhập nội dung kiểm tra hoặc mô tả tình trạng..."
-                    @input="updateCriterionNote(criterion.id, $event.target.value)"
-                  ></textarea>
-                </label>
-
-                <div class="mt-2">
-                  <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500" :for="attachmentInputId(criterion.id)">
-                    Ảnh minh chứng
-                  </label>
-                  <input
-                    :id="attachmentInputId(criterion.id)"
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    class="block w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-slate-600 file:me-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-2.5 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700"
-                    @change="onCriterionFileChange(criterion.id, $event)"
-                  />
-                  <p class="mt-1 text-[11px] text-slate-500">
-                    Tối đa {{ MAX_ATTACHMENTS_PER_CRITERION }} ảnh, mỗi ảnh không quá {{ formatFileSize(MAX_ATTACHMENT_SIZE_BYTES) }}.
-                  </p>
-
-                  <div v-if="criterion.attachments.length > 0" class="mt-2 grid gap-1.5 sm:grid-cols-3">
-                    <div
-                      v-for="attachment in criterion.attachments"
-                      :key="attachment.id"
-                      class="rounded-lg border border-slate-200 bg-white p-2"
-                    >
-                      <img
-                        :src="attachment.previewUrl"
-                        :alt="attachment.name"
-                        class="h-20 w-full rounded-md border border-slate-200 object-cover"
-                      >
-                      <div class="mt-1 flex items-start justify-between gap-2">
-                        <div class="min-w-0">
-                          <p class="truncate text-[11px] font-medium text-slate-700" :title="attachment.name">{{ attachment.name }}</p>
-                          <p class="text-[11px] text-slate-500">{{ formatFileSize(attachment.size) }}</p>
-                        </div>
-                        <button
-                          type="button"
-                          class="cursor-pointer rounded-md border border-rose-200 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50"
-                          @click="removeCriterionAttachment(criterion.id, attachment.id)"
-                        >
-                          Xoá
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </article>
+          <QCCriterionTreeItem
+            v-for="criterion in selectedTemplate.criteriaTree"
+            :key="criterion.id"
+            :criterion="criterion"
+            :criteria-states="form.criteriaStates"
+            :weekly-checked-ids="weeklyCheckedCriterionIds"
+            @update-state="onCriterionUpdate"
+            @upload-attachment="onAttachmentUpload"
+            @remove-attachment="onAttachmentRemove"
+            @open-finding-modal="openFindingModal"
+          />
         </div>
 
         <aside class="xl:col-span-4">
@@ -1084,6 +908,77 @@ onBeforeUnmount(() => {
           </section>
         </aside>
       </section>
+    </div>
+
+    <!-- Finding Creation Modal -->
+    <div
+      v-if="findingModalActive"
+      class="fixed inset-0 z-100 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+    >
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200">
+        <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h3 class="font-bold text-slate-800 flex items-center gap-2">
+            <svg class="size-5 text-rose-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Yêu cầu khắc phục lỗi
+          </h3>
+          <button @click="findingModalActive = false" class="text-slate-400 hover:text-slate-600">
+            <svg class="size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="p-5 space-y-4">
+          <div class="p-3 bg-rose-50 rounded-lg border border-rose-100">
+            <p class="text-xs text-rose-600 font-semibold uppercase">Tiêu chí vi phạm</p>
+            <p class="text-sm font-medium text-slate-900">{{ selectedCriterionForFinding?.name }}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-slate-500 uppercase">Mức độ nghiêm trọng</label>
+              <select v-model="findingForm.severity" class="w-full text-sm rounded-lg border-slate-200 focus:ring-blue-500">
+                <option value="low">Thấp</option>
+                <option value="medium">Trung bình</option>
+                <option value="high">Cao</option>
+                <option value="critical">Rất nghiêm trọng</option>
+              </select>
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-xs font-bold text-slate-500 uppercase">Hạn chót khắc phục</label>
+              <input v-model="findingForm.dueDate" type="date" class="w-full text-sm rounded-lg border-slate-200 focus:ring-blue-500" />
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-bold text-slate-500 uppercase">Yêu cầu hành động cụ thể</label>
+            <textarea
+              v-model="findingForm.correctiveAction"
+              rows="4"
+              class="w-full text-sm rounded-lg border-slate-200 focus:ring-blue-500"
+              placeholder="Ghi rõ cửa hàng cần làm gì để khắc phục lỗi này..."
+            ></textarea>
+          </div>
+
+          <div v-if="errorMessage" class="p-3 bg-rose-50 text-rose-600 text-xs rounded-lg border border-rose-100">
+            {{ errorMessage }}
+          </div>
+        </div>
+
+        <div class="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+          <button
+            @click="findingModalActive = false"
+            class="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-white bg-white/50 transition-colors"
+          >
+            Hủy bỏ
+          </button>
+          <button
+            @click="submitFinding"
+            :disabled="findingSubmitting || !findingForm.correctiveAction"
+            class="flex-1 py-2.5 rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md shadow-blue-200"
+          >
+            {{ findingSubmitting ? 'Đang lưu...' : 'Tạo yêu cầu' }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>

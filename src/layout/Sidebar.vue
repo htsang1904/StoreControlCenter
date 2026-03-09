@@ -15,8 +15,16 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  drawerMode: {
+    type: Boolean,
+    default: false,
+  },
+  drawerOpen: {
+    type: Boolean,
+    default: false,
+  },
 })
-const emit = defineEmits(['toggle-desktop-sidebar'])
+const emit = defineEmits(['toggle-desktop-sidebar', 'close-drawer'])
 
 const isAdmin = computed(() => String(state.userInfo?.role || '').toLowerCase() === 'admin')
 
@@ -38,16 +46,27 @@ const baseTabs = [
   },
 ]
 
-const tabs = computed(() => {
-  if (!isAdmin.value) return baseTabs
-  return [
-    ...baseTabs,
-    {
-      key: 'tools',
-      label: 'Công cụ Admin',
-      path: '/tools',
-    },
-  ]
+const adminTabs = [
+  {
+    key: 'tools',
+    label: 'Công cụ Admin',
+    path: '/tools',
+  },
+]
+
+const operationalTabs = computed(() => baseTabs)
+const privilegedTabs = computed(() => (isAdmin.value ? adminTabs : []))
+const isExpanded = computed(() => (props.drawerMode ? props.drawerOpen : props.desktopOpen))
+const sidebarClasses = computed(() => {
+  if (props.drawerMode) {
+    return props.drawerOpen
+      ? 'w-64 translate-x-0 opacity-100 pointer-events-auto shadow-xl'
+      : 'w-64 -translate-x-full opacity-0 pointer-events-none shadow-none'
+  }
+
+  return props.desktopOpen
+    ? 'hidden md:block md:w-64 md:translate-x-0 md:opacity-100 md:pointer-events-auto'
+    : 'hidden md:block md:w-20 md:translate-x-0 md:opacity-100 md:pointer-events-auto'
 })
 
 const selectedPath = computed(() => route.path)
@@ -56,6 +75,28 @@ const isTabActive = (tabPath) => {
   if (!selectedPath.value) return false
   if (tabPath === '/') return selectedPath.value === '/'
   return selectedPath.value === tabPath || selectedPath.value.startsWith(`${tabPath}/`)
+}
+
+const tabIcon = (tabKey) => {
+  if (tabKey === 'dashboard') return 'dashboard'
+  if (tabKey === 'ticket') return 'confirmation_number'
+  if (tabKey === 'qc') return 'verified_user'
+  if (tabKey === 'tools') return 'admin_panel_settings'
+  return 'settings'
+}
+
+const tabClasses = (tab) => {
+  const isActive = isTabActive(tab.path)
+
+  if (isExpanded.value) {
+    return isActive
+      ? 'gap-2.5 px-3 py-2 md:justify-start bg-[#136dec]/10 text-[#136dec]'
+      : 'gap-2.5 px-3 py-2 md:justify-start text-slate-600 hover:bg-slate-50'
+  }
+
+  return isActive
+    ? 'mx-auto h-10 w-10 justify-center rounded-xl bg-[#136dec]/12 text-[#136dec]'
+    : 'mx-auto h-10 w-10 justify-center rounded-xl text-slate-700 hover:bg-slate-100'
 }
 
 const userName = computed(() => state.userInfo?.name || 'Người dùng')
@@ -121,7 +162,7 @@ const handleSyncStoresFromMenu = async () => {
 }
 
 watch(
-  () => props.desktopOpen,
+  () => isExpanded.value,
   (isOpen) => {
     if (!isOpen) closeUserMenu()
   }
@@ -137,47 +178,56 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <button
+    v-if="props.drawerMode && props.drawerOpen"
+    type="button"
+    class="fixed inset-0 z-[55] bg-slate-900/20 backdrop-blur-[1px]"
+    aria-label="Đóng sidebar"
+    @click="emit('close-drawer')"
+  ></button>
+
   <aside
     id="hs-pro-sidebar"
-    class="stitch-shell hs-overlay [--auto-close:md] hs-overlay-open:block hs-overlay-open:translate-x-0 hs-overlay-open:opacity-100 hs-overlay-open:pointer-events-auto -translate-x-full opacity-0 pointer-events-none transition-all duration-300 transform hidden fixed inset-y-0 start-0 z-[60] w-64 bg-white border-r border-slate-200 md:block"
-    :class="props.desktopOpen ? 'md:w-64 md:translate-x-0 md:opacity-100 md:pointer-events-auto md:bg-white' : 'md:w-20 md:translate-x-0 md:opacity-100 md:pointer-events-auto md:bg-white'"
+    class="stitch-shell fixed inset-y-0 start-0 z-[60] bg-white border-r border-slate-200 transition-all duration-300 ease-in-out"
+    :class="sidebarClasses"
     role="dialog"
     tabindex="-1"
     aria-label="Sidebar"
   >
     <div class="flex h-full max-h-full flex-col">
       <div
-        class="flex items-center gap-3 border-b border-slate-200 px-6 py-5"
-        :class="props.desktopOpen ? 'md:justify-start md:px-6 md:py-5' : 'md:justify-center md:px-2 md:py-6'"
+        class="flex items-center gap-2.5 px-4 py-3.5"
+        :class="isExpanded ? 'md:justify-start md:px-4 md:py-3.5' : 'md:justify-center md:px-1.5 md:py-4'"
       >
         <div
-          class="flex h-10 w-10 items-center justify-center rounded-xl bg-[#136dec] text-white"
-          :class="props.desktopOpen ? 'md:flex' : 'md:hidden'"
+          class="flex h-9 w-9 items-center justify-center rounded-lg bg-[#136dec] text-white"
+          :class="isExpanded ? 'md:flex' : 'md:hidden'"
         >
-          <span class="material-symbols-outlined text-[20px]">storefront</span>
+          <span class="material-symbols-outlined text-[18px]">storefront</span>
         </div>
-        <div class="min-w-0" :class="props.desktopOpen ? 'md:block' : 'md:hidden'">
-          <p class="truncate text-sm font-bold tracking-tight text-slate-900">Store Control</p>
-          <p class="truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Hệ thống nội bộ</p>
+        <div class="min-w-0" :class="isExpanded ? 'md:block' : 'md:hidden'">
+          <p class="truncate text-sm font-bold tracking-tight text-slate-900">Quản trị cửa hàng</p>
         </div>
 
         <button
+          v-if="!props.drawerMode"
           type="button"
-          class="hidden size-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 md:inline-flex"
-          :class="props.desktopOpen ? 'ml-auto' : 'md:mx-auto md:border md:border-slate-200 md:bg-slate-50'"
-          :aria-label="props.desktopOpen ? 'Thu gọn sidebar' : 'Mở sidebar'"
+          class="hidden size-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 md:inline-flex"
+          :class="isExpanded ? 'ml-auto' : 'md:mx-auto md:border md:border-slate-200 md:bg-slate-50'"
+          :aria-label="isExpanded ? 'Thu gọn sidebar' : 'Mở sidebar'"
           @click="emit('toggle-desktop-sidebar')"
         >
-          <span class="material-symbols-outlined text-[20px]">
-            {{ props.desktopOpen ? 'left_panel_close' : 'left_panel_open' }}
+          <span class="material-symbols-outlined text-[18px]">
+            {{ isExpanded ? 'left_panel_close' : 'left_panel_open' }}
           </span>
         </button>
 
         <button
+          v-if="props.drawerMode"
           type="button"
-          class="ml-auto inline-flex size-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 md:hidden"
-          data-hs-overlay="#hs-pro-sidebar"
+          class="ml-auto inline-flex size-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
           aria-label="Đóng sidebar"
+          @click="emit('close-drawer')"
         >
           <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6 6 18" />
@@ -186,28 +236,64 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <nav class="flex-1" :class="props.desktopOpen ? 'space-y-1 px-4 py-4' : 'px-0 py-6 md:flex md:flex-col md:items-center md:gap-3'">
-        <router-link
-          v-for="tab in tabs"
-          :key="tab.path"
-          :to="tab.path"
-          class="flex items-center rounded-2xl text-sm font-medium transition-all duration-200"
-          :title="tab.label"
-          :class="[
-            props.desktopOpen ? 'gap-3 px-4 py-2.5 md:justify-start' : 'mx-auto h-12 w-12 justify-center rounded-xl',
-            props.desktopOpen
-              ? (isTabActive(tab.path) ? 'bg-[#136dec]/10 text-[#136dec]' : 'text-slate-600 hover:bg-slate-50')
-              : (isTabActive(tab.path) ? 'bg-[#136dec]/12 text-[#136dec]' : 'text-slate-700 hover:bg-slate-100'),
-          ]"
-        >
-          <span class="material-symbols-outlined" :class="props.desktopOpen ? 'text-[20px]' : 'text-[24px]'">
-            {{ tab.key === 'dashboard' ? 'dashboard' : tab.key === 'ticket' ? 'confirmation_number' : tab.key === 'qc' ? 'verified_user' : 'settings' }}
-          </span>
-          <span class="truncate" :class="props.desktopOpen ? 'md:inline' : 'md:hidden'">{{ tab.label }}</span>
-        </router-link>
+      <nav class="flex-1" :class="isExpanded ? 'space-y-4 px-3 py-3' : 'px-0 py-5 md:flex md:flex-col md:items-center md:gap-4'">
+        <div>
+          <p
+            v-if="isExpanded"
+            class="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400"
+          >
+            Vận hành
+          </p>
+          <div :class="isExpanded ? 'space-y-1' : 'space-y-3'">
+            <router-link
+              v-for="tab in operationalTabs"
+              :key="tab.path"
+              :to="tab.path"
+              class="flex items-center rounded-xl text-sm font-medium transition-all duration-200"
+              :title="tab.label"
+              :class="tabClasses(tab)"
+            >
+              <span class="material-symbols-outlined shrink-0" :class="isExpanded ? 'text-[18px]' : 'text-[20px]'">
+                {{ tabIcon(tab.key) }}
+              </span>
+              <span class="truncate" :class="isExpanded ? 'md:inline' : 'md:hidden'">{{ tab.label }}</span>
+            </router-link>
+          </div>
+        </div>
+
+        <div v-if="privilegedTabs.length" class="min-w-0">
+          <div
+            v-if="isExpanded"
+            class="mb-3 pt-3"
+          >
+            <p class="px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">
+              Quản trị hệ thống
+            </p>
+          </div>
+          <div
+            v-else
+            class="mx-auto h-px w-8 bg-slate-200"
+          ></div>
+
+          <div :class="isExpanded ? 'space-y-1' : 'mt-4 space-y-3'">
+            <router-link
+              v-for="tab in privilegedTabs"
+              :key="tab.path"
+              :to="tab.path"
+              class="flex items-center rounded-xl text-sm font-medium transition-all duration-200"
+              :title="tab.label"
+              :class="tabClasses(tab)"
+            >
+              <span class="material-symbols-outlined shrink-0" :class="isExpanded ? 'text-[18px]' : 'text-[20px]'">
+                {{ tabIcon(tab.key) }}
+              </span>
+              <span class="truncate" :class="isExpanded ? 'md:inline' : 'md:hidden'">{{ tab.label }}</span>
+            </router-link>
+          </div>
+        </div>
       </nav>
 
-      <div class="border-t border-slate-200 p-4" :class="props.desktopOpen ? 'md:block' : 'md:hidden'">
+      <div class="border-t border-slate-200 p-4" :class="isExpanded ? 'md:block' : 'md:hidden'">
         <div ref="userMenuRef" class="relative">
           <button
             type="button"
@@ -250,7 +336,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="hidden mt-auto border-t border-slate-200 px-2 py-4 md:justify-center" :class="props.desktopOpen ? 'md:hidden' : 'md:flex'">
+      <div class="hidden mt-auto border-t border-slate-200 px-2 py-4 md:justify-center" :class="isExpanded ? 'md:hidden' : 'md:flex'">
         <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-slate-100">
           <div class="inline-flex size-9 items-center justify-center rounded-full bg-slate-200 text-xl font-semibold text-slate-700">
             {{ userMonogram }}
@@ -263,6 +349,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .stitch-shell {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Montserrat', sans-serif;
 }
 </style>

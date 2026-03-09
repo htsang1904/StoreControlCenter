@@ -34,12 +34,18 @@ export const listTicketAssignees = (id) => {
   return http.get(`/api/tickets/${id}/assignees`)
 }
 
-export const claimTicket = (id) => {
-  return http.post(`/api/tickets/${id}/assignees/me`)
+export const listAssignableTicketHandlers = (id) => {
+  return http.get(`/api/tickets/${id}/assignable-handlers`)
 }
 
-export const unassignTicketUser = (ticketId, userId) => {
-  return http.delete(`/api/tickets/${ticketId}/assignees/${userId}`)
+export const assignTicketHandler = (id, handlerId) => {
+  return http.post(`/api/tickets/${id}/assignees`, {
+    handler_id: Number(handlerId),
+  })
+}
+
+export const claimTicket = (id) => {
+  return http.post(`/api/tickets/${id}/assignees/me`)
 }
 
 export const resolveTicket = (id) => {

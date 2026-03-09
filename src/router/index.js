@@ -72,6 +72,38 @@ const router = createRouter({
                     component: () => import('@/pages/ToolsPage.vue'),
                     meta: { auth: true, roles: ['admin'] }
                 },
+                {
+                    path: 'tools/store-sync',
+                    name: 'Admin Store Sync',
+                    component: () => import('@/pages/AdminStoreSyncPage.vue'),
+                    meta: { auth: true, roles: ['admin'] }
+                },
+                {
+                    path: 'tools/qc-forms',
+                    name: 'Admin QC Forms',
+                    component: () => import('@/pages/AdminQcFormsPage.vue'),
+                    meta: { auth: true, roles: ['admin'] }
+                },
+                {
+                    path: 'tools/qc-forms/create',
+                    name: 'Admin QC Form Create',
+                    component: () => import('@/pages/AdminQcFormEditorPage.vue'),
+                    meta: { auth: true, roles: ['admin'] }
+                },
+                {
+                    path: 'tools/qc-forms/:id',
+                    name: 'Admin QC Form Detail',
+                    component: () => import('@/pages/AdminQcFormDetailPage.vue'),
+                    meta: { auth: true, roles: ['admin'] },
+                    props: true
+                },
+                {
+                    path: 'tools/qc-forms/:id/edit',
+                    name: 'Admin QC Form Edit',
+                    component: () => import('@/pages/AdminQcFormEditorPage.vue'),
+                    meta: { auth: true, roles: ['admin'] },
+                    props: true
+                },
             ]
         },
         {

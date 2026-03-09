@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import FileUploadItem from '@/components/FileUploadItem.vue'
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
-import { createTicket, getActiveDepartments, getTicketById, updateTicket } from '@/services/ticket_service'
+import { createTicket, getActiveDepartments, getTicketById, updateTicket, uploadTicketAttachments } from '@/services/ticket_service'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,6 +90,11 @@ const requesterEmail = computed(() => state.userInfo?.email || '')
 const editTicketId = computed(() => Number(route.params.id || 0))
 const isEditMode = computed(() => Number.isInteger(editTicketId.value) && editTicketId.value > 0)
 const pageTitle = computed(() => (isEditMode.value ? 'Chỉnh sửa yêu cầu' : 'Tạo yêu cầu'))
+const pageDescription = computed(() => (
+  isEditMode.value
+    ? 'Cập nhật lại nội dung yêu cầu trước khi lưu thay đổi.'
+    : 'Điền thông tin cần thiết để gửi yêu cầu tới bộ phận phụ trách.'
+))
 const submitButtonText = computed(() => {
   if (submitting.value) {
     return isEditMode.value ? 'Đang lưu...' : 'Đang gửi...'
@@ -217,6 +222,11 @@ async function submitTicket() {
   }
 }
 
+const handleTicketUpload = async (formData) => {
+  const result = await uploadTicketAttachments(formData)
+  return result?.data?.files?.[0] || result?.files?.[0]
+}
+
 function goBack() {
   router.back()
 }
@@ -266,15 +276,26 @@ watch(
 </script>
 
 <template>
-  <div>
-    <div class="header mx-4 flex items-center">
-      <button @click="goBack" type="button" class="cursor-pointer p-1 mr-2 inline-flex items-center rounded-lg bg-white/40 text-white shadow-2xs hover:bg-white/30 focus:outline-hidden focus:bg-white/30">
-        <svg class="shrink-0 size-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+  <div class="page-stack mx-2 overflow-visible space-y-4 sm:mx-3 md:mx-0">
+    <div class="flex min-w-0 items-start gap-3">
+      <button
+        type="button"
+        class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+        aria-label="Quay lại danh sách ticket"
+        @click="goBack"
+      >
+        <span class="material-symbols-outlined text-[18px]">arrow_back</span>
       </button>
-      {{ pageTitle }}
+      <div class="min-w-0">
+        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          {{ isEditMode ? 'Cập nhật ticket' : 'Ticket mới' }}
+        </p>
+        <h1 class="mt-1 text-lg font-semibold text-slate-900 sm:text-xl">{{ pageTitle }}</h1>
+        <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
+      </div>
     </div>
 
-    <div class="page-stack mx-4">
+    <div>
       <div class="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden transition-all duration-200" :class="submitting ? 'shadow-md' : ''" v-loading="pageLoading">
         <form @submit.prevent="submitTicket">
           <div class="bg-white rounded-xl shadow-xs">
@@ -401,7 +422,7 @@ watch(
 
                 <div class="space-y-2">
                   <label class="inline-block text-sm font-medium text-gray-800">Hình ảnh đính kèm</label>
-                  <FileUploadItem v-model="formData.attachments_media" />
+                  <FileUploadItem v-model="formData.attachments_media" :upload-handler="handleTicketUpload" />
                 </div>
               </div>
 

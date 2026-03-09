@@ -1,20 +1,35 @@
 <script setup>
 import { nextTick, onMounted, ref, watch } from 'vue'
 import HSFileUpload from '@preline/file-upload'
-import { uploadTicketAttachments } from '@/services/ticket_service'
 
 const props = defineProps({
   modelValue: {
     type: Array,
     default: () => [],
   },
+  uploadHandler: {
+    type: Function,
+    required: true, // Should be a function returning a promise that resolves to { id, url, name, ... }
+  },
+  maxFiles: {
+    type: Number,
+    default: 5,
+  },
+  maxSizeMb: {
+    type: Number,
+    default: 5,
+  },
+  uploadUrl: {
+    type: String,
+    default: '/api/tickets/upload-attachments', // Default for BC
+  }
 })
 
 const emit = defineEmits(['update:modelValue'])
 const upload = ref(null)
 const dropzoneRef = ref(null)
-const MAX_UPLOAD_FILES = 5
-const MAX_UPLOAD_FILE_SIZE_BYTES = 5 * 1024 * 1024
+const MAX_UPLOAD_FILES = props.maxFiles
+const MAX_UPLOAD_FILE_SIZE_BYTES = props.maxSizeMb * 1024 * 1024
 
 const getApiBaseUrl = () => String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 const toAbsoluteUrl = (url) => {
@@ -136,8 +151,7 @@ onMounted(async () => {
       const formData = new FormData()
       formData.append('files', file)
 
-      const result = await uploadTicketAttachments(formData)
-      const uploadedFile = result?.data?.files?.[0] || result?.files?.[0]
+      const uploadedFile = await props.uploadHandler(formData)
       if (!uploadedFile?.id) {
         throw new Error('Upload không trả về file hợp lệ')
       }
@@ -147,7 +161,7 @@ onMounted(async () => {
 
       dropzone.emit('thumbnail', file, toAbsoluteUrl(uploadedFile.url))
       dropzone.emit('uploadprogress', file, 100)
-      dropzone.emit('success', file, result)
+      dropzone.emit('success', file, uploadedFile)
       dropzone.emit('complete', file)
 
       upsertModelFile({
@@ -280,7 +294,7 @@ watch(
         </div>
 
         <p class="mt-1 text-xs text-gray-400 dark:text-neutral-400">
-            Kích thước ảnh tối đa 5MB.
+            Kích thước ảnh tối đa {{ maxSizeMb }}MB.
         </p>
         </div>
     </div>

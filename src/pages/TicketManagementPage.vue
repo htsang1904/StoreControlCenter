@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import StatSummaryCard from '@/components/StatSummaryCard.vue'
 import { useTicketList } from '@/composables/useTicketList'
 import {
   avatarInitials,
@@ -9,6 +10,9 @@ import {
   handlerDisplay,
   normalizeTicketStatus,
   requesterDisplay,
+  ticketProcessingAlertHint,
+  ticketProcessingDurationClass,
+  ticketProcessingDurationLabel,
   ticketStatusClass,
   ticketStatusOptions,
   ticketSubline,
@@ -83,6 +87,18 @@ watch(
 <template>
   <div>
     <div class="page-stack mx-2 overflow-visible space-y-4 sm:mx-3 md:mx-0">
+      <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <StatSummaryCard
+          v-for="card in reportSummaryCards"
+          :key="card.key"
+          :label="card.label"
+          :value="card.value"
+          :meta="card.meta"
+          :meta-class="card.metaClass"
+          :icon="card.icon"
+          :icon-class="card.iconClass"
+        />
+      </section>
 
       <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 p-3">
@@ -91,7 +107,7 @@ watch(
               <button
                 id="ticket-status-filter"
                 type="button"
-                class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                class="relative inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 aria-haspopup="menu"
                 aria-expanded="false"
               >
@@ -101,7 +117,7 @@ watch(
                 </svg>
                 <span
                   v-if="selectedStatusCount > 0"
-                  class="inline-flex min-w-5 justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                  class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm"
                 >
                   {{ selectedStatusCount }}
                 </span>
@@ -150,10 +166,6 @@ watch(
                 class="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                 @click="goToAddTicket"
               >
-                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M5 12h14" />
-                  <path d="M12 5v14" />
-                </svg>
                 Tạo vé mới
               </button>
             </div>
@@ -175,7 +187,7 @@ watch(
                   <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Trạng thái</th>
                   <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Người xử lý</th>
                   <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Ngày tạo</th>
-                  <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-slate-500">Thao tác</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Thời gian xử lý</th>
                 </tr>
               </thead>
 
@@ -204,58 +216,16 @@ watch(
                       <span class="text-sm text-slate-600">{{ handlerDisplay(ticket) }}</span>
                     </div>
                   </td>
-                  <td class="px-4 py-3 text-sm text-slate-500">{{ formatShortDate(ticket.createdAt) }}</td>
-                  <td class="px-4 py-3 text-end">
-                    <div class="hs-dropdown relative inline-flex [--placement:bottom-right]">
-                      <button
-                        type="button"
-                        class="inline-flex size-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-blue-600"
-                        aria-haspopup="menu"
-                        aria-expanded="false"
-                        @click.stop
-                      >
-                        <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                          <circle cx="12" cy="5" r="1.8" />
-                          <circle cx="12" cy="12" r="1.8" />
-                          <circle cx="12" cy="19" r="1.8" />
-                        </svg>
-                      </button>
-                      <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-36 z-20 bg-white shadow-md rounded-lg mt-2 border border-slate-200">
-                        <button
-                          type="button"
-                          class="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                          @click.stop="goToTicketDetail(ticket.id)"
-                        >
-                          Xem chi tiết
-                        </button>
-                        <button
-                          v-if="canEditTicket && isEditableTicket(ticket)"
-                          type="button"
-                          class="w-full px-3 py-2 text-left text-sm text-blue-600 hover:bg-blue-50"
-                          @click.stop="goToEditTicket(ticket.id)"
-                        >
-                          Chỉnh sửa
-                        </button>
-                        <button
-                          v-if="canReopenTicket(ticket)"
-                          type="button"
-                          class="w-full px-3 py-2 text-left text-sm text-orange-600 hover:bg-orange-50 disabled:opacity-50"
-                          :disabled="reopeningId === ticket.id"
-                          @click.stop="handleReopenTicket(ticket)"
-                        >
-                          {{ reopeningId === ticket.id ? 'Đang mở lại...' : 'Gửi lại yêu cầu' }}
-                        </button>
-                        <button
-                          v-if="canDeleteTicket"
-                          type="button"
-                          class="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                          :disabled="deletingId === ticket.id"
-                          @click.stop="handleDeleteTicket(ticket)"
-                        >
-                          {{ deletingId === ticket.id ? 'Đang xoá...' : 'Xoá yêu cầu' }}
-                        </button>
-                      </div>
-                    </div>
+                  <td class="px-4 py-3">
+                    <p class="text-sm text-slate-500">{{ formatShortDate(ticket.createdAt) }}</p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <p class="text-sm font-semibold" :class="ticketProcessingDurationClass(ticket)">
+                      {{ ticketProcessingDurationLabel(ticket) }}
+                    </p>
+                    <p v-if="ticketProcessingAlertHint(ticket)" class="mt-1 text-[11px] font-medium text-rose-600">
+                      {{ ticketProcessingAlertHint(ticket) }}
+                    </p>
                   </td>
                 </tr>
               </tbody>
@@ -295,6 +265,13 @@ watch(
                 <p>Người gửi: <span class="font-medium text-slate-700">{{ requesterDisplay(ticket) }}</span></p>
                 <p>Ngày tạo: <span class="font-medium text-slate-700">{{ formatShortDate(ticket.createdAt) }}</span></p>
                 <p>Cập nhật: <span class="font-medium text-slate-700">{{ formatDateTime(ticket.updatedAt || ticket.createdAt) }}</span></p>
+                <p>
+                  Thời gian:
+                  <span class="font-medium" :class="ticketProcessingDurationClass(ticket)">{{ ticketProcessingDurationLabel(ticket) }}</span>
+                </p>
+                <p v-if="ticketProcessingAlertHint(ticket)" class="text-xs font-medium text-rose-600">
+                  {{ ticketProcessingAlertHint(ticket) }}
+                </p>
               </div>
 
               <div v-if="canEditTicket || canDeleteTicket || canReopenTicket(ticket)" class="mt-3 flex flex-wrap gap-2">
@@ -380,18 +357,6 @@ watch(
             </button>
           </div>
         </div>
-      </section>
-
-      <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <article
-          v-for="card in reportSummaryCards"
-          :key="card.key"
-          class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-        >
-          <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">{{ card.label }}</p>
-          <p class="mt-2 text-3xl font-bold text-slate-900">{{ card.value }}</p>
-          <p class="mt-2 text-xs font-medium" :class="card.hintClass">{{ card.hint }}</p>
-        </article>
       </section>
     </div>
   </div>

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
+import StatSummaryCard from '@/components/StatSummaryCard.vue'
 import { useApp } from '@/plugins/app'
 import { getDashboardOverview, listTickets } from '@/services/ticket_service'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
@@ -104,29 +105,37 @@ const kpiCards = computed(() => [
     key: 'total_ticket',
     label: 'Tổng Ticket',
     value: numberFormatter.format(Number(ticketSummary.value.total_ticket || 0)),
-    hint: 'So với bộ lọc hiện tại',
-    tone: 'text-blue-600 bg-blue-100',
+    meta: 'Theo bộ lọc thời gian',
+    metaClass: 'bg-slate-100 text-slate-600',
+    icon: 'list_alt',
+    iconClass: 'bg-blue-100 text-blue-600',
   },
   {
     key: 'in_progress',
     label: 'Đang xử lý',
     value: numberFormatter.format(Number(ticketSummary.value.in_progress || 0)),
-    hint: 'Đang chờ phản hồi',
-    tone: 'text-amber-600 bg-amber-100',
+    meta: 'Đang chờ phản hồi',
+    metaClass: 'bg-amber-50 text-amber-700',
+    icon: 'pending',
+    iconClass: 'bg-amber-100 text-amber-600',
   },
   {
     key: 'qc_pass_rate',
     label: 'Tỉ lệ QC đạt',
     value: `${Number(qcSummary.value.passRate || 0)}%`,
-    hint: 'Mục tiêu quý: 95%',
-    tone: 'text-emerald-600 bg-emerald-100',
+    meta: 'Mục tiêu quý: 95%',
+    metaClass: 'bg-emerald-50 text-emerald-700',
+    icon: 'check_circle',
+    iconClass: 'bg-emerald-100 text-emerald-600',
   },
   {
     key: 'overdue',
     label: 'Cảnh báo quá hạn',
     value: numberFormatter.format(Number(ticketSummary.value.overdue || 0)),
-    hint: 'Ticket gần đến hạn xử lý',
-    tone: 'text-violet-600 bg-violet-100',
+    meta: 'Ticket quá hạn hoặc sát hạn',
+    metaClass: 'bg-violet-50 text-violet-700',
+    icon: 'timer',
+    iconClass: 'bg-violet-100 text-violet-600',
   },
 ])
 
@@ -251,25 +260,16 @@ watch(
     </p>
 
     <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <article
+      <StatSummaryCard
         v-for="card in kpiCards"
         :key="card.key"
-        class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-      >
-        <div class="mb-3 flex items-center justify-between">
-          <span class="text-xs font-medium tracking-wider text-slate-500 uppercase">{{ card.label }}</span>
-          <div class="flex size-8 items-center justify-center rounded-lg" :class="card.tone">
-            <span class="material-symbols-outlined text-[18px]">
-              {{ card.key === 'total_ticket' ? 'list_alt' : card.key === 'in_progress' ? 'pending' : card.key === 'qc_pass_rate' ? 'check_circle' : 'timer' }}
-            </span>
-          </div>
-        </div>
-
-        <div class="flex items-end gap-2">
-          <span class="text-3xl font-bold text-slate-900">{{ card.value }}</span>
-        </div>
-        <p class="mt-2 text-xs text-slate-400">{{ card.hint }}</p>
-      </article>
+        :label="card.label"
+        :value="card.value"
+        :meta="card.meta"
+        :meta-class="card.metaClass"
+        :icon="card.icon"
+        :icon-class="card.iconClass"
+      />
     </section>
 
     <section class="grid grid-cols-1 gap-6 lg:grid-cols-3">

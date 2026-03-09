@@ -392,6 +392,7 @@ const normalizeCriteriaPayload = (criteria = [], passThreshold = 0) => {
       applicable,
       requires_fix: status === 'fail',
       note: safeString(criterion?.note),
+      attachments: Array.isArray(criterion?.attachments) ? criterion.attachments : [],
     };
   });
 
@@ -466,6 +467,7 @@ const createSessionWithItemsTx = async (strapi, { sessionData, items }) => {
               applicable: item.applicable !== false,
               requires_fix: Boolean(item.requires_fix),
               note: safeString(item.note),
+              attachments: item.attachments || [],
             },
             transacting: trx,
           });
@@ -832,6 +834,7 @@ module.exports = createCoreController('api::qc-session.qc-session', ({ strapi })
               'result',
               'score',
               'note',
+              'attachments',
             ],
           },
         },
@@ -977,6 +980,7 @@ module.exports = createCoreController('api::qc-session.qc-session', ({ strapi })
             'result',
             'score',
             'note',
+            'attachments',
           ],
         },
       },

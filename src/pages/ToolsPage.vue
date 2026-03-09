@@ -1,67 +1,78 @@
 <script setup>
-import { ref } from 'vue'
-import { syncStoresNow } from '@/services/admin_service'
-import { useToast } from '@/plugins/toast'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 
-const toast = useToast()
-const syncingStores = ref(false)
-const syncResult = ref(null)
+const router = useRouter()
 
-const handleSyncStoresNow = async () => {
-  if (syncingStores.value) return
+const toolCards = computed(() => [
+  {
+    key: 'qc_forms',
+    title: 'Quản lý biểu mẫu QC',
+    description: 'Tạo mới, theo dõi và quản trị các biểu mẫu kiểm tra chất lượng dùng cho toàn hệ thống.',
+    action: 'Mở quản lý biểu mẫu',
+    path: '/tools/qc-forms',
+    icon: 'fact_check',
+  },
+  {
+    key: 'store_sync',
+    title: 'Đồng bộ cửa hàng',
+    description: 'Kích hoạt đồng bộ danh mục cửa hàng từ nguồn chính và theo dõi kết quả chạy gần nhất.',
+    action: 'Mở công cụ đồng bộ',
+    path: '/tools/store-sync',
+    icon: 'sync_alt',
+  },
+])
 
-  syncingStores.value = true
-  try {
-    const result = await syncStoresNow()
-    const payload = result?.data || {}
-    syncResult.value = payload
-    toast.success(result?.message || 'Đồng bộ cửa hàng thành công')
-  } catch (error) {
-    const message = error?.response?.data?.message || error?.message || 'Không thể đồng bộ cửa hàng'
-    toast.error(message)
-  } finally {
-    syncingStores.value = false
-  }
+const openTool = (path) => {
+  if (!path) return
+  router.push(path)
 }
 </script>
 
 <template>
-  <div>
-    <div class="header mx-4 flex items-center">
-      Công cụ hệ thống
-    </div>
+  <div class="space-y-5">
+    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 shadow-sm">
+      <div class="max-w-3xl">
+        <p class="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">Admin Hub</p>
+        <h2 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">Chọn công cụ quản trị</h2>
+        <p class="mt-2 text-sm leading-6 text-slate-500">
+          Mỗi tính năng quản trị có một màn hình riêng để vận hành và theo dõi kết quả. Chọn đúng khu vực bạn cần thao tác để tránh làm việc trên một trang quá tải thông tin.
+        </p>
+      </div>
+    </section>
 
-    <div class="page-stack mx-4">
-      <section class="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 class="text-base font-semibold text-slate-800">Đồng bộ danh mục cửa hàng</h2>
-            <p class="mt-1 text-sm text-slate-500">
-              Gọi đồng bộ ngay từ nguồn chính về server.
-            </p>
+    <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <article
+        v-for="tool in toolCards"
+        :key="tool.key"
+        class="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-slate-300"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <div class="inline-flex size-11 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+              <span class="material-symbols-outlined text-[22px]">{{ tool.icon }}</span>
+            </div>
+            <h3 class="mt-4 text-lg font-semibold text-slate-900">{{ tool.title }}</h3>
+            <p class="mt-2 text-sm leading-6 text-slate-500">{{ tool.description }}</p>
           </div>
 
+          <span class="rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+            Admin
+          </span>
+        </div>
+
+        <div class="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
+          <p class="text-xs text-slate-400">Khu vực quản trị riêng</p>
           <button
             type="button"
-            class="cursor-pointer inline-flex items-center gap-x-2 rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="syncingStores"
-            @click="handleSyncStoresNow"
+            class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            @click="openTool(tool.path)"
           >
-            <span v-if="syncingStores" class="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
-            <span>{{ syncingStores ? 'Đang đồng bộ...' : 'Đồng bộ ngay' }}</span>
+            {{ tool.action }}
+            <span class="material-symbols-outlined text-[18px] transition-transform group-hover:translate-x-0.5">arrow_forward</span>
           </button>
         </div>
-
-        <div v-if="syncResult" class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p class="text-sm font-semibold text-slate-700">Kết quả lần chạy gần nhất</p>
-          <div class="mt-2 grid grid-cols-2 gap-2 text-sm text-slate-600 sm:grid-cols-4">
-            <p>Synced: <span class="font-semibold text-slate-800">{{ Number(syncResult.synced || 0) }}</span></p>
-            <p>Created: <span class="font-semibold text-slate-800">{{ Number(syncResult.created || 0) }}</span></p>
-            <p>Updated: <span class="font-semibold text-slate-800">{{ Number(syncResult.updated || 0) }}</span></p>
-            <p>Skipped: <span class="font-semibold text-slate-800">{{ Number(syncResult.skipped || 0) }}</span></p>
-          </div>
-        </div>
-      </section>
-    </div>
+      </article>
+    </section>
   </div>
 </template>

@@ -19,6 +19,8 @@ const {
 const MAX_UPLOAD_FILES_PER_REQUEST = 5;
 const MAX_UPLOAD_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 const DASHBOARD_TICKET_BATCH_SIZE = 1000;
+const UNCONFIRMED_TICKET_ALERT_MINUTES = 2 * 60;
+const CONFIRMED_TICKET_ALERT_MINUTES = 24 * 60;
 
 const successResponse = (message, data = {}) => ({
   success: true,
@@ -36,9 +38,15 @@ const errorResponse = (ctx, status, message) => {
 
 const generateTicketCode = async (strapi) => {
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const timePart = Date.now().toString(36).toUpperCase().slice(-6);
-    const randomPart = crypto.randomInt(36 ** 2).toString(36).toUpperCase().padStart(2, '0');
-    const ticketCode = `TK-${timePart}${randomPart}`;
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const MM = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const HH = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const suffix = crypto.randomInt(36 ** 2).toString(36).toUpperCase().padStart(2, '0');
+    const ticketCode = `TK${yy}${MM}${dd}-${HH}${mm}${ss}-${suffix}`;
 
     const existedTicket = await strapi.entityService.findMany('api::ticket.ticket', {
       filters: { ticket_code: ticketCode },
@@ -144,7 +152,7 @@ const hydrateTicketUsers = async (strapi, ticketsInput) => {
   });
 
   if (!missingUserIds.size) {
-    return ticketsInput;
+    return decorateTicketProcessingMetrics(ticketsInput);
   }
 
   const users = await strapi.entityService.findMany('api::user-info.user-info', {
@@ -166,7 +174,7 @@ const hydrateTicketUsers = async (strapi, ticketsInput) => {
     };
   });
 
-  return Array.isArray(ticketsInput) ? hydrated : hydrated[0];
+  return decorateTicketProcessingMetrics(Array.isArray(ticketsInput) ? hydrated : hydrated[0]);
 };
 
 const toIsoDate = (value) => {
@@ -310,6 +318,84 @@ const normalizeDashboardStatus = (status) => {
   return value;
 };
 
+const parseDateTime = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+};
+
+const formatProcessingDuration = (minutesInput) => {
+  const totalMinutes = Math.max(0, Math.floor(Number(minutesInput) || 0));
+  if (totalMinutes <= 0) return '0 phút';
+
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+
+  if (days > 0) parts.push(`${days} ngày`);
+  if (hours > 0) parts.push(`${hours} giờ`);
+  if (minutes > 0 && parts.length < 2) parts.push(`${minutes} phút`);
+
+  return parts.length ? parts.join(' ') : '0 phút';
+};
+
+const decorateTicketProcessingMetrics = (ticketsInput) => {
+  if (!ticketsInput) return ticketsInput;
+
+  const tickets = Array.isArray(ticketsInput) ? ticketsInput : [ticketsInput];
+
+  const decoratedTickets = tickets.map((ticket) => {
+    if (!ticket || typeof ticket !== 'object') return ticket;
+
+    const normalizedStatus = normalizeDashboardStatus(ticket?.status);
+    const processingStart = parseDateTime(ticket?.start_date) || parseDateTime(ticket?.createdAt);
+    const processingResolvedAt = parseDateTime(ticket?.resolved_at);
+
+    let processingEnd = null;
+    if (processingResolvedAt) {
+      processingEnd = processingResolvedAt;
+    } else if (!['resolved', 'closed', 'rejected'].includes(normalizedStatus)) {
+      processingEnd = new Date();
+    } else {
+      processingEnd = parseDateTime(ticket?.updatedAt);
+    }
+
+    let processingDurationMinutes = null;
+    if (processingStart && processingEnd && processingEnd.getTime() >= processingStart.getTime()) {
+      processingDurationMinutes = Math.floor((processingEnd.getTime() - processingStart.getTime()) / 60000);
+    }
+
+    const isConfirmed = normalizedStatus !== 'new';
+    const isTerminal = ['resolved', 'closed', 'rejected'].includes(normalizedStatus);
+    let processingAlertLevel = 'none';
+    let processingAlertReason = null;
+
+    if (!isTerminal && processingDurationMinutes !== null) {
+      if (!isConfirmed && processingDurationMinutes > UNCONFIRMED_TICKET_ALERT_MINUTES) {
+        processingAlertLevel = 'danger';
+        processingAlertReason = 'unconfirmed_over_2h';
+      } else if (isConfirmed && processingDurationMinutes > CONFIRMED_TICKET_ALERT_MINUTES) {
+        processingAlertLevel = 'danger';
+        processingAlertReason = 'confirmed_over_24h';
+      }
+    }
+
+    return {
+      ...ticket,
+      processing_is_confirmed: isConfirmed,
+      processing_alert_level: processingAlertLevel,
+      processing_alert_reason: processingAlertReason,
+      processing_duration_minutes: processingDurationMinutes,
+      processing_duration_label:
+        processingDurationMinutes === null ? null : formatProcessingDuration(processingDurationMinutes),
+    };
+  });
+
+  return Array.isArray(ticketsInput) ? decoratedTickets : decoratedTickets[0];
+};
+
 const formatActivityTime = (value) => {
   if (!value) return '--';
   const date = new Date(value);
@@ -370,6 +456,30 @@ const notifyTicketAudience = async (
       error: error?.message || error,
     });
   }
+};
+
+const listDepartmentHandlers = async (strapi, departmentId) => {
+  if (!Number.isInteger(Number(departmentId)) || Number(departmentId) <= 0) {
+    return [];
+  }
+
+  const handlers = await strapi.entityService.findMany('api::user-info.user-info', {
+    filters: {
+      role: 'handler',
+      is_active: true,
+      department: { id: Number(departmentId) },
+    },
+    fields: ['id', 'name', 'email', 'role', 'is_active'],
+    populate: {
+      department: {
+        fields: ['id', 'name', 'code'],
+      },
+    },
+    sort: { name: 'asc' },
+    limit: 200,
+  });
+
+  return Array.isArray(handlers) ? handlers : [];
 };
 
 const walkDashboardTickets = async (strapi, filters, onBatch) => {
@@ -697,6 +807,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
 
     try {
       const ticketCode = await generateTicketCode(strapi);
+      const nowIso = new Date().toISOString();
 
       const createdTicket = await strapi.entityService.create('api::ticket.ticket', {
         data: {
@@ -714,7 +825,9 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
           responsible_department: responsibleDepartment.id,
           ticket_category_id: payload.ticket_category_id ? Number(payload.ticket_category_id) : null,
           type: payload.type ? String(payload.type).trim() : null,
-          start_date: new Date().toISOString(),
+          start_date: nowIso,
+          processing_started_at: initialHandler?.id ? nowIso : null,
+          resolved_at: null,
           end_date: normalizedEndDate.hasValue ? normalizedEndDate.value : null,
           attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
           attachments_media: attachmentFileIds || [],
@@ -896,7 +1009,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'requester_id', 'status', 'handler_id'],
+      fields: ['id', 'requester_id', 'status', 'handler_id', 'processing_started_at', 'resolved_at'],
       populate: {
         requester: { fields: ['id'] },
         handler: { fields: ['id'] },
@@ -1071,6 +1184,16 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       }
     }
 
+    if (updateData.status === 'in_progress' && !ticket.processing_started_at) {
+      updateData.processing_started_at = new Date().toISOString();
+      updateData.resolved_at = null;
+    }
+
+    if (updateData.status === 'new' && Array.isArray(updateData.assignees) && !updateData.assignees.length) {
+      updateData.processing_started_at = null;
+      updateData.resolved_at = null;
+    }
+
     if (Object.keys(updateData).length === 0) {
       return errorResponse(ctx, 400, 'Không có dữ liệu hợp lệ để cập nhật');
     }
@@ -1099,6 +1222,155 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       strapi.log.error('Update ticket failed', error);
       return errorResponse(ctx, 500, 'Cập nhật phiếu thất bại');
     }
+  },
+
+  async listAssignableHandlers(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'store_id', 'status'],
+      populate: {
+        requester: { fields: ['id'] },
+        assignees: { fields: ['id'] },
+        responsible_department: { fields: ['id', 'name', 'code'] },
+      },
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canManageAssignees(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền phân công người xử lý');
+    }
+
+    const ticketDepartmentId = getTicketDepartmentId(ticket);
+    if (ticketDepartmentId <= 0) {
+      return successResponse('Lấy danh sách handler thành công', {
+        handlers: [],
+      });
+    }
+
+    const handlers = await listDepartmentHandlers(strapi, ticketDepartmentId);
+
+    return successResponse('Lấy danh sách handler thành công', {
+      handlers,
+      department: ticket.responsible_department || null,
+    });
+  },
+
+  async assignHandler(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'store_id', 'status', 'processing_started_at'],
+      populate: {
+        requester: { fields: ['id'] },
+        assignees: { fields: ['id'] },
+        responsible_department: { fields: ['id', 'name', 'code'] },
+      },
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canManageAssignees(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền phân công người xử lý');
+    }
+
+    const normalizedStatus = normalizeDashboardStatus(ticket.status);
+    if (!['new', 'in_progress'].includes(normalizedStatus)) {
+      return errorResponse(ctx, 400, 'Chỉ có thể phân công handler khi ticket đang mở');
+    }
+
+    const payload = ctx.request.body || {};
+    const handlerId = Number(payload.handler_id);
+    if (!Number.isInteger(handlerId) || handlerId <= 0) {
+      return errorResponse(ctx, 400, 'handler_id không hợp lệ');
+    }
+
+    const assignedHandler = await strapi.entityService.findOne('api::user-info.user-info', handlerId, {
+      fields: ['id', 'name', 'email', 'role', 'is_active'],
+      populate: {
+        department: {
+          fields: ['id', 'name', 'code'],
+        },
+      },
+    });
+
+    if (!assignedHandler?.id || getRole(assignedHandler) !== 'handler' || assignedHandler.is_active === false) {
+      return errorResponse(ctx, 400, 'Người được phân công phải là handler đang hoạt động');
+    }
+
+    const ticketDepartmentId = getTicketDepartmentId(ticket);
+    const handlerDepartmentId = Number(assignedHandler?.department?.id || 0);
+    if (ticketDepartmentId <= 0 || handlerDepartmentId <= 0 || ticketDepartmentId !== handlerDepartmentId) {
+      return errorResponse(ctx, 400, 'Handler không thuộc bộ phận phụ trách của ticket');
+    }
+
+    const currentAssigneeIds = getTicketAssigneeIds(ticket);
+    if (currentAssigneeIds.includes(handlerId)) {
+      const refreshed = await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
+        populate: ticketPopulate,
+      });
+      const hydratedTicket = await hydrateTicketUsers(strapi, refreshed);
+      return successResponse('Handler đã nằm trong danh sách xử lý', {
+        ticket: hydratedTicket,
+      });
+    }
+
+    const nextAssigneeIds = [...currentAssigneeIds, handlerId];
+    const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
+      data: {
+        assignees: nextAssigneeIds,
+        status: normalizedStatus === 'new' ? 'in_progress' : ticket.status,
+        handler_id: currentAssigneeIds[0] || handlerId,
+        handler: currentAssigneeIds[0] || handlerId,
+        processing_started_at: ticket.processing_started_at || new Date().toISOString(),
+        resolved_at: null,
+      },
+      populate: ticketPopulate,
+    });
+
+    await createSystemTicketLog(strapi, {
+      ticketId: updatedTicket.id,
+      senderId: user.id,
+      message: `${user.name || 'Admin'} đã phân công ${assignedHandler.name || 'handler'} xử lý ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+    });
+    await notifyTicketAudience(strapi, {
+      ticketId: updatedTicket.id,
+      actorId: user.id,
+      title: `Ticket được phân công ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      message: `${user.name || 'Admin'} đã phân công ${assignedHandler.name || 'handler'} vào ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      type: 'info',
+      excludeUserIds: [user.id],
+      meta: {
+        event: 'ticket_assigned_handler',
+        handler_id: handlerId,
+      },
+    });
+
+    const hydratedTicket = await hydrateTicketUsers(strapi, updatedTicket);
+    return successResponse('Phân công handler thành công', {
+      ticket: hydratedTicket,
+    });
   },
 
   async listAssignees(ctx) {
@@ -1151,7 +1423,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'requester_id', 'store_id', 'status'],
+      fields: ['id', 'requester_id', 'store_id', 'status', 'processing_started_at'],
       populate: {
         requester: { fields: ['id'] },
         assignees: { fields: ['id'] },
@@ -1184,25 +1456,34 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
             status: 'in_progress',
             handler_id: currentAssigneeIds[0] || null,
             handler: currentAssigneeIds[0] || null,
+            processing_started_at: ticket.processing_started_at || new Date().toISOString(),
+            resolved_at: null,
           },
           populate: ticketPopulate,
         })
         : await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
           populate: ticketPopulate,
         });
+      const hydratedTicket = await hydrateTicketUsers(strapi, refreshed);
       return successResponse('Bạn đã có trong danh sách xử lý', {
-        ticket: refreshed,
+        ticket: hydratedTicket,
       });
     }
 
     const nextAssigneeIds = [...currentAssigneeIds, Number(user.id)];
+    const assignData = {
+      assignees: nextAssigneeIds,
+      status: ticket.status === 'new' || ticket.status === 'assigned' ? 'in_progress' : ticket.status,
+      handler_id: nextAssigneeIds[0] || null,
+      handler: nextAssigneeIds[0] || null,
+    };
+    if (ticket.status === 'new' || ticket.status === 'assigned') {
+      assignData.processing_started_at = ticket.processing_started_at || new Date().toISOString();
+      assignData.resolved_at = null;
+    }
+
     const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
-      data: {
-        assignees: nextAssigneeIds,
-        status: ticket.status === 'new' || ticket.status === 'assigned' ? 'in_progress' : ticket.status,
-        handler_id: nextAssigneeIds[0] || null,
-        handler: nextAssigneeIds[0] || null,
-      },
+      data: assignData,
       populate: ticketPopulate,
     });
     await createSystemTicketLog(strapi, {
@@ -1219,9 +1500,10 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       excludeUserIds: [user.id],
       meta: { event: 'ticket_assigned_me' },
     });
+    const hydratedTicket = await hydrateTicketUsers(strapi, updatedTicket);
 
     return successResponse('Nhận xử lý phiếu thành công', {
-      ticket: updatedTicket,
+      ticket: hydratedTicket,
     });
   },
 
@@ -1231,78 +1513,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
     }
 
-    const ticketId = Number(ctx.params.id);
-    if (!Number.isInteger(ticketId) || ticketId <= 0) {
-      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
-    }
-
-    const targetUserId = Number(ctx.params.userId);
-    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
-      return errorResponse(ctx, 400, 'userId không hợp lệ');
-    }
-
-    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'requester_id', 'store_id', 'status'],
-      populate: {
-        requester: { fields: ['id'] },
-        assignees: { fields: ['id'] },
-        responsible_department: { fields: ['id'] },
-      },
-    });
-
-    if (!ticket) {
-      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
-    }
-
-    if (!canManageAssignees(user, ticket)) {
-      return errorResponse(ctx, 403, 'Bạn không có quyền cập nhật danh sách xử lý');
-    }
-
-    if (!isAdmin(user) && Number(user.id) !== targetUserId) {
-      return errorResponse(ctx, 403, 'Bạn chỉ có thể rời khỏi phiếu do chính bạn nhận');
-    }
-
-    const currentAssigneeIds = getTicketAssigneeIds(ticket);
-    if (!currentAssigneeIds.includes(targetUserId)) {
-      const refreshed = await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
-        populate: ticketPopulate,
-      });
-      return successResponse('Người dùng không có trong danh sách xử lý', {
-        ticket: refreshed,
-      });
-    }
-
-    const nextAssigneeIds = currentAssigneeIds.filter((id) => id !== targetUserId);
-
-    const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
-      data: {
-        assignees: nextAssigneeIds,
-        status: !nextAssigneeIds.length && (ticket.status === 'assigned' || ticket.status === 'in_progress')
-          ? 'new'
-          : ticket.status,
-        handler_id: nextAssigneeIds[0] || null,
-        handler: nextAssigneeIds[0] || null,
-      },
-      populate: ticketPopulate,
-    });
-    await createSystemTicketLog(strapi, {
-      ticketId: updatedTicket.id,
-      senderId: user.id,
-      message: `${user.name || 'Handler'} đã rời khỏi ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
-    });
-    await notifyTicketAudience(strapi, {
-      ticketId: updatedTicket.id,
-      actorId: user.id,
-      title: `Ticket thay đổi người xử lý ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
-      message: `${user.name || 'Handler'} đã cập nhật danh sách người xử lý của ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
-      type: 'warning',
-      excludeUserIds: [user.id],
-      meta: { event: 'ticket_unassigned' },
-    });
-
-    return successResponse('Cập nhật danh sách xử lý thành công', {
-      ticket: updatedTicket,
-    });
+    return errorResponse(ctx, 400, 'Không hỗ trợ rời khỏi ticket sau khi đã nhận xử lý');
   },
 
   async resolveTicket(ctx) {
@@ -1322,7 +1533,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'requester_id', 'store_id', 'status'],
+      fields: ['id', 'requester_id', 'store_id', 'status', 'processing_started_at', 'resolved_at'],
       populate: {
         requester: { fields: ['id'] },
         assignees: { fields: ['id'] },
@@ -1341,8 +1552,9 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       const refreshed = await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
         populate: ticketPopulate,
       });
+      const hydratedTicket = await hydrateTicketUsers(strapi, refreshed);
       return successResponse('Phiếu đã ở trạng thái đã xử lý', {
-        ticket: refreshed,
+        ticket: hydratedTicket,
       });
     }
 
@@ -1358,6 +1570,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
       data: {
         status: 'resolved',
+        resolved_at: new Date().toISOString(),
       },
       populate: ticketPopulate,
     });
@@ -1375,9 +1588,10 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       excludeUserIds: [user.id],
       meta: { event: 'ticket_resolved' },
     });
+    const hydratedTicket = await hydrateTicketUsers(strapi, updatedTicket);
 
     return successResponse('Đã chuyển phiếu sang trạng thái đã xử lý', {
-      ticket: updatedTicket,
+      ticket: hydratedTicket,
     });
   },
 
@@ -1419,10 +1633,13 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
 
     const assigneeIds = getTicketAssigneeIds(ticket);
     const nextStatus = assigneeIds.length ? 'in_progress' : 'new';
+    const nowIso = new Date().toISOString();
 
     const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
       data: {
         status: nextStatus,
+        processing_started_at: nextStatus === 'in_progress' ? nowIso : null,
+        resolved_at: null,
       },
       populate: ticketPopulate,
     });
@@ -1440,9 +1657,97 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       excludeUserIds: [user.id],
       meta: { event: 'ticket_reopened' },
     });
+    const hydratedTicket = await hydrateTicketUsers(strapi, updatedTicket);
 
     return successResponse('Mở lại phiếu thành công', {
-      ticket: updatedTicket,
+      ticket: hydratedTicket,
+    });
+  },
+
+  async rejectTicket(ctx) {
+    const user = ctx.state.userDetail;
+    if (!user || !user.id) {
+      return errorResponse(ctx, 401, 'Bạn chưa đăng nhập');
+    }
+
+    const role = getRole(user);
+    if (role !== 'handler' && role !== 'admin') {
+      return errorResponse(ctx, 403, 'Chỉ handler hoặc admin mới có thể từ chối phiếu');
+    }
+
+    const ticketId = Number(ctx.params.id);
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return errorResponse(ctx, 400, 'id ticket không hợp lệ');
+    }
+
+    const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
+      fields: ['id', 'requester_id', 'store_id', 'status'],
+      populate: {
+        requester: { fields: ['id'] },
+        assignees: { fields: ['id'] },
+        responsible_department: { fields: ['id'] },
+      },
+    });
+
+    if (!ticket) {
+      return errorResponse(ctx, 404, 'Không tìm thấy phiếu');
+    }
+
+    if (!canViewTicket(user, ticket)) {
+      return errorResponse(ctx, 403, 'Bạn không có quyền từ chối phiếu này');
+    }
+
+    if (ticket.status === 'rejected') {
+      const refreshed = await strapi.entityService.findOne('api::ticket.ticket', ticket.id, {
+        populate: ticketPopulate,
+      });
+      const hydratedTicket = await hydrateTicketUsers(strapi, refreshed);
+      return successResponse('Phiếu đã ở trạng thái từ chối', { ticket: hydratedTicket });
+    }
+
+    if (ticket.status !== 'new' && ticket.status !== 'in_progress') {
+      return errorResponse(ctx, 400, 'Chỉ có thể từ chối phiếu ở trạng thái mới hoặc đang xử lý');
+    }
+
+    if (role === 'handler') {
+      const handlerDepartmentId = getUserDepartmentId(user);
+      const ticketDepartmentId = getTicketDepartmentId(ticket);
+      if (handlerDepartmentId <= 0 || ticketDepartmentId <= 0 || handlerDepartmentId !== ticketDepartmentId) {
+        return errorResponse(ctx, 403, 'Bạn không thuộc bộ phận phụ trách của phiếu này');
+      }
+    }
+
+    const payload = ctx.request.body || {};
+    const reason = String(payload.reason || '').trim();
+
+    const updatedTicket = await strapi.entityService.update('api::ticket.ticket', ticket.id, {
+      data: {
+        status: 'rejected',
+      },
+      populate: ticketPopulate,
+    });
+    await createSystemTicketLog(strapi, {
+      ticketId: updatedTicket.id,
+      senderId: user.id,
+      message: reason
+        ? `${user.name || 'Handler'} đã từ chối ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}: ${reason}`
+        : `${user.name || 'Handler'} đã từ chối ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+    });
+    await notifyTicketAudience(strapi, {
+      ticketId: updatedTicket.id,
+      actorId: user.id,
+      title: `Ticket bị từ chối ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      message: reason
+        ? `${user.name || 'Handler'} đã từ chối ticket: ${reason}`
+        : `${user.name || 'Handler'} đã từ chối ticket ${updatedTicket.ticket_code || `#${updatedTicket.id}`}`,
+      type: 'warning',
+      excludeUserIds: [user.id],
+      meta: { event: 'ticket_rejected' },
+    });
+    const hydratedTicket = await hydrateTicketUsers(strapi, updatedTicket);
+
+    return successResponse('Từ chối phiếu thành công', {
+      ticket: hydratedTicket,
     });
   },
 
@@ -1479,14 +1784,9 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     try {
-      const logs = await strapi.entityService.findMany('api::ticket-log.ticket-log', {
-        filters: { ticket: { id: ticket.id } },
-        fields: ['id'],
+      await strapi.db.query('api::ticket-log.ticket-log').deleteMany({
+        where: { ticket: { id: ticket.id } },
       });
-
-      await Promise.all(
-        logs.map((log) => strapi.entityService.delete('api::ticket-log.ticket-log', log.id))
-      );
 
       await strapi.entityService.delete('api::ticket.ticket', ticket.id);
 

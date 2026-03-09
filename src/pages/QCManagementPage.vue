@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
+import StatSummaryCard from '@/components/StatSummaryCard.vue'
 import { useApp } from '@/plugins/app'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
 
@@ -17,9 +18,11 @@ const searchInput = ref('')
 const searchKeyword = ref('')
 const searchDebounce = ref(null)
 const currentPage = ref(1)
+const numberFormatter = new Intl.NumberFormat('vi-VN')
 
 const sortDirections = ref({
   totalSessions: null,
+  passed: null,
   avgScoreRate: null,
   failed: null,
 })
@@ -110,6 +113,42 @@ function formatRelativeTime(value) {
   return `${Math.floor(hours / 24)} ngày trước`
 }
 
+function formatDateTime(value) {
+  if (!value) return '--'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '--'
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date)
+}
+
+function normalizeLastAuditResult(result) {
+  const normalized = String(result || '').trim().toLowerCase()
+  if (normalized === 'pass' || normalized === 'passed') {
+    return {
+      label: 'Đạt',
+      class: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
+    }
+  }
+
+  if (normalized === 'fail' || normalized === 'failed') {
+    return {
+      label: 'Không đạt',
+      class: 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200',
+    }
+  }
+
+  return {
+    label: 'Chưa chốt',
+    class: 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200',
+  }
+}
+
 function formatCsvCell(value) {
   const text = String(value ?? '').replace(/"/g, '""')
   return `"${text}"`
@@ -128,7 +167,7 @@ const stores = computed(() => {
   }))
 })
 
-const sortableFields = ['totalSessions', 'avgScoreRate', 'failed']
+const sortableFields = ['totalSessions', 'passed', 'failed', 'avgScoreRate']
 const sortCycle = [null, 'desc', 'asc']
 
 const toggleSort = (field) => {
@@ -170,6 +209,10 @@ const normalizedStores = computed(() => {
 
     const region = normalizeRegionLabel(merged.shortAddress || merged.address)
     const health = normalizeHealth(merged)
+    const lastAuditResultMeta = normalizeLastAuditResult(merged.lastAuditResult)
+    const totalSessions = Number(merged.totalSessions || 0)
+    const failed = Number(merged.failed || 0)
+    const passed = Number(merged.passed || 0)
 
     return {
       ...merged,
@@ -177,8 +220,14 @@ const normalizedStores = computed(() => {
       healthLabel: health.label,
       healthBadgeClass: health.badgeClass,
       scoreBadgeClass: health.scoreClass,
-      scoreDisplay: !merged.lastAuditAt ? '--' : Number(merged.avgScoreRate || 0).toFixed(1),
+      scoreDisplay: !merged.lastAuditAt ? '--' : Number(merged.avgScore || 0).toFixed(1),
+      totalSessionsLabel: numberFormatter.format(totalSessions),
+      passedLabel: numberFormatter.format(passed),
+      failedLabel: numberFormatter.format(failed),
+      latestAuditLabel: formatDateTime(merged.lastAuditAt),
       lastUpdatedLabel: formatRelativeTime(merged.lastAuditAt),
+      lastAuditResultLabel: lastAuditResultMeta.label,
+      lastAuditResultClass: lastAuditResultMeta.class,
     }
   })
 })
@@ -280,33 +329,37 @@ const summaryCards = computed(() => [
     key: 'total_stores',
     label: 'Tổng số cửa hàng',
     value: new Intl.NumberFormat('vi-VN').format(normalizedStores.value.length),
-    trend: `~${completedRate.value.toFixed(1)}%`,
-    trendClass: 'text-emerald-600',
-    accent: '',
+    meta: `Hoàn thành: ${completedRate.value.toFixed(1)}%`,
+    metaClass: 'bg-slate-100 text-slate-600',
+    icon: 'storefront',
+    iconClass: 'bg-blue-100 text-blue-600',
   },
   {
     key: 'avg_score',
     label: 'QC Score TB',
     value: avgQcScore.value.toFixed(2),
-    trend: `~${Number(summary.value.avgScore || 0).toFixed(1)}`,
-    trendClass: 'text-emerald-600',
-    accent: '',
+    meta: `Toàn kỳ: ${Number(summary.value.avgScore || 0).toFixed(1)} điểm`,
+    metaClass: 'bg-emerald-50 text-emerald-700',
+    icon: 'monitoring',
+    iconClass: 'bg-emerald-100 text-emerald-600',
   },
   {
     key: 'need_review',
     label: 'Cần kiểm tra lại',
     value: new Intl.NumberFormat('vi-VN').format(needReviewCount.value),
-    trend: `~${summary.value.failed}`,
-    trendClass: 'text-rose-500',
-    accent: '',
+    meta: `${summary.value.failed} phiên lỗi`,
+    metaClass: 'bg-rose-50 text-rose-700',
+    icon: 'warning',
+    iconClass: 'bg-rose-100 text-rose-600',
   },
   {
     key: 'completed',
     label: 'Đã hoàn thành QC',
     value: `${completedRate.value.toFixed(1)}%`,
-    trend: `~${Number(summary.value.passRate || 0).toFixed(1)}%`,
-    trendClass: 'text-emerald-600',
-    accent: '',
+    meta: `Toàn kỳ: ${Number(summary.value.passRate || 0).toFixed(1)}%`,
+    metaClass: 'bg-amber-50 text-amber-700',
+    icon: 'task_alt',
+    iconClass: 'bg-amber-100 text-amber-600',
   },
 ])
 
@@ -354,12 +407,6 @@ function exportReport() {
   anchor.click()
   document.body.removeChild(anchor)
   window.URL.revokeObjectURL(url)
-}
-
-function goToCreateBatch() {
-  const target = filteredStores.value[0] || normalizedStores.value[0]
-  if (!target?.id) return
-  router.push(`/QC/store/${target.id}/create`)
 }
 
 async function loadOverview() {
@@ -437,6 +484,7 @@ watch(
   () => [
     searchKeyword.value,
     sortDirections.value.totalSessions,
+    sortDirections.value.passed,
     sortDirections.value.avgScoreRate,
     sortDirections.value.failed,
   ],
@@ -457,16 +505,29 @@ onBeforeUnmount(() => {
 <template>
   <div>
     <div class="page-stack mx-2 overflow-visible space-y-4 sm:mx-3 md:mx-0">
+      <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <StatSummaryCard
+          v-for="card in summaryCards"
+          :key="card.key"
+          :label="card.label"
+          :value="card.value"
+          :meta="card.meta"
+          :meta-class="card.metaClass"
+          :icon="card.icon"
+          :icon-class="card.iconClass"
+        />
+      </section>
+
       <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 p-3">
           <div class="flex flex-wrap items-center gap-2">
-            <div class="ml-auto flex w-full flex-wrap items-center gap-2 lg:w-auto">
+            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <div class="relative min-w-[220px] flex-1 lg:w-[320px] lg:flex-none">
                 <input
                   v-model="searchInput"
                   type="text"
                   class="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100"
-                  placeholder="Tìm theo mã CH, tên cửa hàng hoặc người phụ trách"
+                  placeholder="Tìm kiếm ..."
                 />
                 <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <svg class="size-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
@@ -477,41 +538,25 @@ onBeforeUnmount(() => {
 
               <button
                 type="button"
-                class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-slate-600 transition-colors hover:bg-slate-50"
+                class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
                 @click="handleRefresh"
               >
-                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M20 11a8 8 0 1 0 2.3 5.7" />
-                  <path d="M20 4v7h-7" />
-                </svg>
-              </button>
-
-              <button
-                type="button"
-                class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                @click="exportReport"
-              >
-                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 3v12" />
-                  <path d="m7 10 5 5 5-5" />
-                  <path d="M5 21h14" />
-                </svg>
-                Xuất báo cáo
-              </button>
-
-              <button
-                type="button"
-                class="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                :disabled="normalizedStores.length <= 0"
-                @click="goToCreateBatch"
-              >
-                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
-                </svg>
-                Tạo đợt QC
+                Tải lại
               </button>
             </div>
+
+            <button
+              type="button"
+              class="ml-auto inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              @click="exportReport"
+            >
+              <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 3v12" />
+                <path d="m7 10 5 5 5-5" />
+                <path d="M5 21h14" />
+              </svg>
+              Xuất báo cáo
+            </button>
           </div>
         </div>
 
@@ -521,16 +566,34 @@ onBeforeUnmount(() => {
 
         <div v-loading="loading">
           <div class="hidden overflow-x-auto lg:block">
-            <table class="min-w-[1020px] w-full border-collapse text-left">
+            <table class="min-w-[840px] w-full border-collapse text-left">
               <thead>
                 <tr class="bg-slate-50">
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Mã cửa hàng</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Tên cửa hàng</th>
-                  <th class="px-4 py-3 text-center text-[11px] font-bold uppercase tracking-wide text-slate-500">QC Score</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Khu vực</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Trạng thái</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Cập nhật cuối</th>
-                  <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-slate-500">Thao tác</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Cửa hàng</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500" @click="toggleSort('totalSessions')">
+                      Tổng phiên
+                      <span :class="sortIndicatorClass('totalSessions')">{{ sortIndicator('totalSessions') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500" @click="toggleSort('passed')">
+                      Phiên đạt
+                      <span :class="sortIndicatorClass('passed')">{{ sortIndicator('passed') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500" @click="toggleSort('failed')">
+                      Phiên lỗi
+                      <span :class="sortIndicatorClass('failed')">{{ sortIndicator('failed') }}</span>
+                    </button>
+                  </th>
+                  <th class="w-[104px] px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500" @click="toggleSort('avgScoreRate')">
+                      Điểm TB
+                      <span :class="sortIndicatorClass('avgScoreRate')">{{ sortIndicator('avgScoreRate') }}</span>
+                    </button>
+                  </th>
                 </tr>
               </thead>
 
@@ -541,45 +604,40 @@ onBeforeUnmount(() => {
                   class="cursor-pointer transition-colors hover:bg-slate-50/70"
                   @click="openStoreDetail(store.id)"
                 >
-                  <td class="px-4 py-3 text-sm font-bold text-slate-900">{{ store.code || store.storeId || '--' }}</td>
                   <td class="px-4 py-3">
-                    <p class="text-sm font-medium text-slate-900">{{ store.name }}</p>
-                    <p class="text-xs text-slate-500">Phụ trách: {{ store.managerName }}</p>
+                    <div class="min-w-0">
+                      <p class="text-sm font-semibold text-slate-900">{{ store.name }}</p>
+                      <p class="text-xs text-slate-500">
+                        {{ store.code || store.storeId || '--' }} • {{ store.region }} • Phụ trách: {{ store.managerName }}
+                      </p>
+                    </div>
                   </td>
-                  <td class="px-4 py-3 text-center">
-                    <span
-                      class="inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold"
-                      :class="store.scoreBadgeClass"
-                    >
-                      {{ store.scoreDisplay }}
+                  <td class="px-4 py-3">
+                    <p class="text-sm font-semibold text-slate-900">{{ store.totalSessionsLabel }} phiên</p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      {{ store.passedLabel }} phiên
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-sm text-slate-600">{{ store.region }}</td>
                   <td class="px-4 py-3">
-                    <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="store.healthBadgeClass">
-                      <span class="mr-1.5 text-[10px]">•</span>{{ store.healthLabel }}
+                    <span class="inline-flex items-center rounded-md bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
+                      {{ store.failedLabel }} phiên
                     </span>
                   </td>
-                  <td class="px-4 py-3 text-sm italic text-slate-500">{{ store.lastUpdatedLabel }}</td>
-                  <td class="px-4 py-3 text-end">
-                    <button
-                      type="button"
-                      class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100"
-                      @click.stop="openStoreDetail(store.id)"
-                    >
-                      <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-                        <circle cx="12" cy="5" r="1.8" />
-                        <circle cx="12" cy="12" r="1.8" />
-                        <circle cx="12" cy="19" r="1.8" />
-                      </svg>
-                    </button>
+                  <td class="w-[104px] px-3 py-3">
+                    <div class="flex justify-center">
+                      <span class="inline-flex h-8 min-w-[56px] items-center justify-center rounded-lg px-2 text-xs font-semibold" :class="store.scoreBadgeClass">
+                        {{ store.scoreDisplay }}
+                      </span>
+                    </div>
                   </td>
                 </tr>
               </tbody>
 
               <tbody v-else>
                 <tr>
-                  <td colspan="7" class="py-10">
+                  <td colspan="5" class="py-10">
                     <div class="flex flex-col items-center justify-center text-slate-500">
                       <p class="text-sm">Không có cửa hàng phù hợp với bộ lọc tìm kiếm.</p>
                     </div>
@@ -598,29 +656,34 @@ onBeforeUnmount(() => {
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="text-sm font-bold text-slate-900">{{ store.code || store.storeId || '--' }}</p>
-                  <p class="mt-1 text-sm font-semibold text-slate-800">{{ store.name }}</p>
-                  <p class="text-xs text-slate-500">Phụ trách: {{ store.managerName }}</p>
+                  <p class="text-sm font-semibold text-slate-800">{{ store.name }}</p>
+                  <p class="text-xs text-slate-500">
+                    {{ store.code || store.storeId || '--' }} • {{ store.region }} • Phụ trách: {{ store.managerName }}
+                  </p>
                 </div>
-                <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold" :class="store.scoreBadgeClass">
+                <span class="inline-flex h-11 min-w-14 shrink-0 items-center justify-center rounded-full px-3 text-xs font-bold" :class="store.scoreBadgeClass">
                   {{ store.scoreDisplay }}
                 </span>
               </div>
 
-              <div class="mt-3 space-y-1.5 text-sm text-slate-600">
-                <p>Khu vực: <span class="font-medium text-slate-700">{{ store.region }}</span></p>
-                <p>Trạng thái: <span class="font-medium text-slate-700">{{ store.healthLabel }}</span></p>
-                <p>Cập nhật: <span class="font-medium text-slate-700">{{ store.lastUpdatedLabel }}</span></p>
+              <div class="mt-3 grid grid-cols-3 gap-2 text-sm">
+                <div class="rounded-lg bg-slate-50 px-3 py-2">
+                  <p class="text-[11px] uppercase tracking-wide text-slate-500">Tổng phiên</p>
+                  <p class="mt-1 font-semibold text-slate-800">{{ store.totalSessionsLabel }} phiên</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-3 py-2">
+                  <p class="text-[11px] uppercase tracking-wide text-slate-500">Phiên đạt</p>
+                  <p class="mt-1 font-semibold text-emerald-700">{{ store.passedLabel }} phiên</p>
+                </div>
+                <div class="rounded-lg bg-slate-50 px-3 py-2">
+                  <p class="text-[11px] uppercase tracking-wide text-slate-500">Phiên lỗi</p>
+                  <p class="mt-1 font-semibold text-rose-700">{{ store.failedLabel }} phiên</p>
+                </div>
               </div>
 
-              <div class="mt-3">
-                <button
-                  type="button"
-                  class="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700"
-                  @click.stop="openStoreDetail(store.id)"
-                >
-                  Xem chi tiết
-                </button>
+              <div class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                <p class="text-[11px] uppercase tracking-wide text-slate-500">Điểm TB</p>
+                <p class="mt-1 font-semibold text-slate-800">{{ store.scoreDisplay }}</p>
               </div>
             </div>
 
@@ -676,19 +739,6 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-      </section>
-
-      <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <article
-          v-for="card in summaryCards"
-          :key="card.key"
-          class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
-          :class="card.accent"
-        >
-          <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">{{ card.label }}</p>
-          <p class="mt-2 text-3xl font-bold text-slate-900">{{ card.value }}</p>
-          <p class="mt-2 text-xs font-medium" :class="card.trendClass">{{ card.trend }}</p>
-        </article>
       </section>
     </div>
   </div>

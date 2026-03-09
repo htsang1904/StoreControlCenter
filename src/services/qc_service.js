@@ -1,131 +1,8 @@
 import getClient from './http'
 
-const STORAGE_KEY = 'qc_sessions_v2'
-const LEGACY_STORAGE_KEY = 'qc_sessions_v1'
-const DRAFT_STORAGE_KEY = 'qc_session_drafts_v1'
 const DEFAULT_PASS_THRESHOLD = 40
+const INTERNAL_DEFAULT_TEMPLATE = { id: 'default', name: 'QC Form', version: '1.0' }
 const http = getClient()
-
-const DEFAULT_TEMPLATE = {
-  id: 'default',
-  name: 'QC Tổng quát',
-  version: 'v1.0',
-  passThreshold: DEFAULT_PASS_THRESHOLD,
-}
-
-const MOCK_AUDITORS = [
-  { id: 101, name: 'Nguyen Minh Quan' },
-  { id: 102, name: 'Tran Thu Ha' },
-  { id: 103, name: 'Le Bao Chau' },
-]
-
-const MOCK_TEMPLATE_LIBRARY = {
-  ticket_standard: {
-    id: 'ticket_standard',
-    name: 'QC Ticket chuẩn',
-    version: 'v1.0',
-    passThreshold: 36,
-    categories: [
-      {
-        id: 'ops',
-        name: 'Vận hành quầy',
-        criteria: [
-          { id: 'ops-1', name: 'Quầy sạch, không vật cản', maxScore: 10, critical: true },
-          { id: 'ops-2', name: 'Nhân sự đúng vị trí', maxScore: 8, critical: false },
-          { id: 'ops-3', name: 'Checklist mở ca đầy đủ', maxScore: 7, critical: false },
-        ],
-      },
-      {
-        id: 'service',
-        name: 'Dịch vụ khách hàng',
-        criteria: [
-          { id: 'svc-1', name: 'Chào hỏi đúng quy trình', maxScore: 8, critical: false },
-          { id: 'svc-2', name: 'Tư vấn đúng thông tin', maxScore: 9, critical: true },
-          { id: 'svc-3', name: 'Xử lý khiếu nại tại quầy', maxScore: 8, critical: true },
-        ],
-      },
-    ],
-  },
-  food_safety: {
-    id: 'food_safety',
-    name: 'QC An toàn vệ sinh',
-    version: 'v2.1',
-    passThreshold: 42,
-    categories: [
-      {
-        id: 'hygiene',
-        name: 'Vệ sinh khu vực',
-        criteria: [
-          { id: 'hyg-1', name: 'Sàn và bề mặt không bẩn', maxScore: 10, critical: true },
-          { id: 'hyg-2', name: 'Dụng cụ vệ sinh đúng nơi', maxScore: 7, critical: false },
-          { id: 'hyg-3', name: 'Thùng rác đúng quy chuẩn', maxScore: 8, critical: true },
-        ],
-      },
-      {
-        id: 'storage',
-        name: 'Bảo quản hàng',
-        criteria: [
-          { id: 'sto-1', name: 'Nhiệt độ tủ bảo quản đạt chuẩn', maxScore: 10, critical: true },
-          { id: 'sto-2', name: 'Hàng hóa theo FIFO', maxScore: 8, critical: false },
-          { id: 'sto-3', name: 'Tem nhãn và hạn dùng rõ ràng', maxScore: 8, critical: true },
-        ],
-      },
-    ],
-  },
-  visual_merch: {
-    id: 'visual_merch',
-    name: 'QC Trưng bày hàng hóa',
-    version: 'v1.3',
-    passThreshold: 34,
-    categories: [
-      {
-        id: 'display',
-        name: 'Trưng bày chính',
-        criteria: [
-          { id: 'dis-1', name: 'Bố cục theo planogram', maxScore: 10, critical: true },
-          { id: 'dis-2', name: 'Mặt hàng chủ lực đủ số lượng', maxScore: 8, critical: false },
-          { id: 'dis-3', name: 'Giá kệ sạch và đồng bộ', maxScore: 7, critical: false },
-        ],
-      },
-      {
-        id: 'branding',
-        name: 'Nhận diện thương hiệu',
-        criteria: [
-          { id: 'bra-1', name: 'POSM đúng chuẩn chiến dịch', maxScore: 7, critical: false },
-          { id: 'bra-2', name: 'Biển hiệu đúng guideline', maxScore: 9, critical: true },
-          { id: 'bra-3', name: 'Không có vật phẩm sai quy chuẩn', maxScore: 8, critical: true },
-        ],
-      },
-    ],
-  },
-}
-
-const MOCK_SCENARIOS = [
-  {
-    templateId: 'ticket_standard',
-    mode: 'perfect',
-    dayOffset: -20,
-    note: 'Ca sáng vận hành đúng checklist.',
-  },
-  {
-    templateId: 'food_safety',
-    mode: 'critical_fail',
-    dayOffset: -13,
-    note: 'Khu vực kho lạnh chưa đạt tiêu chuẩn.',
-  },
-  {
-    templateId: 'visual_merch',
-    mode: 'threshold_fail',
-    dayOffset: -7,
-    note: 'Trưng bày chưa đồng bộ chiến dịch hiện tại.',
-  },
-  {
-    templateId: 'ticket_standard',
-    mode: 'borderline_pass',
-    dayOffset: -2,
-    note: 'Đạt ngưỡng tối thiểu, cần theo dõi thêm.',
-  },
-]
 
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value)
@@ -167,8 +44,10 @@ const normalizeCriterionAttachments = (attachments = []) => {
       type: String(item?.type || 'image/*'),
       size: Math.max(toNumber(item?.size), 0),
       previewUrl: String(item?.previewUrl || item?.url || item?.dataUrl || '').trim(),
+      preview: String(item?.preview || item?.previewUrl || item?.url || item?.dataUrl || '').trim(),
+      url: String(item?.url || item?.previewUrl || item?.dataUrl || '').trim(),
     }))
-    .filter((item) => item.previewUrl)
+    .filter((item) => item.previewUrl || item.preview || item.url)
 }
 
 const canUseStorage = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
@@ -205,23 +84,6 @@ const buildSessionCode = (date, seq) => {
   return `QC-${year}${month}-${String(seq).padStart(4, '0')}`
 }
 
-const flattenTemplateCriteria = (template = DEFAULT_TEMPLATE) => {
-  const categories = Array.isArray(template.categories) ? template.categories : []
-  return categories.flatMap((category) => {
-    const criteria = Array.isArray(category.criteria) ? category.criteria : []
-    return criteria.map((criterion) => ({
-      id: criterion.id,
-      name: criterion.name,
-      category: category.name,
-      mode: normalizeCriterionMode(criterion.mode) || 'point',
-      maxScore: toNumber(criterion.maxScore),
-      passScore: toNumber(criterion.passScore ?? criterion.maxScore),
-      critical: Boolean(criterion.critical),
-      applicable: criterion.applicable !== false,
-      frequency: normalizeCriterionFrequency(criterion.frequency || criterion.ruleType),
-    }))
-  })
-}
 
 const normalizeCriteria = (criteria = []) => {
   const source = Array.isArray(criteria) ? criteria : []
@@ -300,9 +162,9 @@ const normalizeTemplate = (payload = {}) => {
   )
 
   return {
-    id: String(payload?.templateId || template?.id || DEFAULT_TEMPLATE.id),
-    name: String(payload?.templateName || template?.name || DEFAULT_TEMPLATE.name),
-    version: String(payload?.templateVersion || template?.version || DEFAULT_TEMPLATE.version),
+    id: String(payload?.templateId || template?.id || INTERNAL_DEFAULT_TEMPLATE.id),
+    name: String(payload?.templateName || template?.name || INTERNAL_DEFAULT_TEMPLATE.name),
+    version: String(payload?.templateVersion || template?.version || INTERNAL_DEFAULT_TEMPLATE.version),
     passThreshold,
   }
 }
@@ -391,134 +253,30 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
   }
 }
 
-const normalizeSession = (session = {}, fallbackIndex = 0) => {
-  const template = normalizeTemplate(session)
-  const criteria = normalizeCriteria(session.criteria)
-  const evaluation = evaluateSession({
-    criteria,
-    passThreshold: template.passThreshold,
-  })
 
-  const createdAt = parseDate(session.createdAt || session.auditedAt).toISOString()
-  const auditedAt = parseDate(session.auditedAt || session.createdAt || createdAt).toISOString()
-
+const normalizeFinding = (finding = {}) => {
   return {
-    id: String(session.id || `${Date.parse(createdAt)}-${fallbackIndex + 1}`),
-    code: String(session.code || buildSessionCode(createdAt, fallbackIndex + 1)),
-    storeId: toNumber(session.storeId || session.store_id),
-    storeName: String(session.storeName || session.store_name || ''),
-    auditorId: session.auditorId ?? session.auditor_id ?? null,
-    auditorName: String(session.auditorName || session.auditor_name || ''),
-    template,
-    templateId: template.id,
-    templateName: template.name,
-    templateVersion: template.version,
-    templatePassThreshold: template.passThreshold,
-    criteria,
-    totalScore: evaluation.totalScore,
-    maxScore: evaluation.maxScore,
-    result: evaluation.status,
-    evaluationMode: evaluation.evaluationMode,
-    passCount: evaluation.passedCount,
-    failCount: evaluation.failedCount,
-    failedCriticalCount: evaluation.criticalFailedCount,
-    incompleteCriteria: evaluation.incompleteCount,
-    decisionReasons: evaluation.reasons,
-    note: String(session.note || '').trim(),
-    auditedAt,
-    createdAt,
-    updatedAt: parseDate(session.updatedAt || createdAt).toISOString(),
+    id: String(finding.id || ''),
+    findingCode: finding.findingCode || finding.finding_code || '',
+    sessionId: finding.session?.id || finding.session_id || null,
+    sessionItemId: finding.session_item?.id || finding.session_item_id || null,
+    storeId: finding.store?.id || finding.store_id || null,
+    criterionName: finding.criterionName || finding.criterion_name || '',
+    severity: finding.severity || 'medium',
+    status: finding.status || 'open',
+    assignee: finding.assignee || null,
+    dueDate: finding.due_date || null,
+    correctiveAction: finding.correctiveAction || finding.corrective_action || '',
+    correctiveNote: finding.correctiveNote || finding.corrective_note || '',
+    resolvedAt: finding.resolved_at || null,
+    verifiedAt: finding.verified_at || null,
+    verifier: finding.verifier || null,
+    evidence: Array.isArray(finding.evidence) ? finding.evidence : [],
+    createdAt: finding.createdAt || null,
+    updatedAt: finding.updatedAt || null,
   }
 }
 
-const normalizeSessionList = (sessions = []) => {
-  const source = Array.isArray(sessions) ? sessions : []
-  return source
-    .map((item, index) => normalizeSession(item, index))
-    .sort((a, b) => parseDate(a.createdAt).getTime() - parseDate(b.createdAt).getTime())
-}
-
-const readStoredSessions = () => {
-  if (!canUseStorage()) return []
-
-  const currentRaw = window.localStorage.getItem(STORAGE_KEY)
-  if (currentRaw) {
-    return normalizeSessionList(safeParseList(currentRaw))
-  }
-
-  const legacyRaw = window.localStorage.getItem(LEGACY_STORAGE_KEY)
-  if (!legacyRaw) return []
-
-  const migrated = normalizeSessionList(safeParseList(legacyRaw))
-  if (migrated.length > 0) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated))
-  }
-
-  return migrated
-}
-
-const writeStoredSessions = (sessions = []) => {
-  if (!canUseStorage()) return
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeSessionList(sessions)))
-}
-
-const normalizeDraftCriteriaStates = (criteriaStates = {}) => {
-  const source = criteriaStates && typeof criteriaStates === 'object' ? criteriaStates : {}
-  const entries = Object.entries(source)
-
-  return entries.reduce((acc, [criterionId, state]) => {
-    const normalizedStatus = normalizeCriterionStatus(state?.status)
-    const nextStatus = normalizedStatus || 'pending'
-    const scoreRaw = state?.score
-    const hasScore = scoreRaw !== null && scoreRaw !== undefined && String(scoreRaw) !== ''
-    const score = hasScore ? toNumber(scoreRaw, null) : null
-
-    acc[String(criterionId)] = {
-      status: nextStatus,
-      score: Number.isFinite(score) ? score : null,
-      note: String(state?.note || ''),
-      attachments: normalizeCriterionAttachments(state?.attachments),
-    }
-    return acc
-  }, {})
-}
-
-const normalizeDraft = (draft = {}, fallbackIndex = 0) => {
-  const now = new Date().toISOString()
-  const createdAt = parseDate(draft?.createdAt || now).toISOString()
-  const updatedAt = parseDate(draft?.updatedAt || createdAt).toISOString()
-
-  return {
-    id: String(draft?.id || `draft-${Date.now()}-${fallbackIndex + 1}`),
-    storeId: toNumber(draft?.storeId || draft?.store_id),
-    storeName: String(draft?.storeName || draft?.store_name || ''),
-    templateId: String(draft?.templateId || draft?.template_id || ''),
-    auditedAt: String(draft?.auditedAt || '').trim(),
-    note: String(draft?.note || ''),
-    criteriaStates: normalizeDraftCriteriaStates(draft?.criteriaStates),
-    createdAt,
-    updatedAt,
-  }
-}
-
-const normalizeDraftList = (drafts = []) => {
-  const source = Array.isArray(drafts) ? drafts : []
-  return source
-    .map((item, index) => normalizeDraft(item, index))
-    .sort((a, b) => parseDate(b.updatedAt).getTime() - parseDate(a.updatedAt).getTime())
-}
-
-const readStoredDrafts = () => {
-  if (!canUseStorage()) return []
-  const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY)
-  if (!raw) return []
-  return normalizeDraftList(safeParseList(raw))
-}
-
-const writeStoredDrafts = (drafts = []) => {
-  if (!canUseStorage()) return
-  window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(normalizeDraftList(drafts)))
-}
 
 const resolveStoreName = (store) => {
   return (
@@ -530,316 +288,7 @@ const resolveStoreName = (store) => {
   )
 }
 
-const resolveStorePool = (stores = [], fallbackStoreId = 0) => {
-  const poolMap = new Map()
 
-  const source = Array.isArray(stores) ? stores : []
-  source.forEach((store) => {
-    const id = toNumber(store?.id || store?.storeId || store?.store_id)
-    if (!id || poolMap.has(id)) return
-
-    poolMap.set(id, {
-      id,
-      name: resolveStoreName(store),
-    })
-  })
-
-  if (fallbackStoreId > 0 && !poolMap.has(fallbackStoreId)) {
-    poolMap.set(fallbackStoreId, {
-      id: fallbackStoreId,
-      name: `Cửa hàng #${fallbackStoreId}`,
-    })
-  }
-
-  if (poolMap.size === 0) {
-    return [
-      { id: 1, name: 'Cửa hàng #1' },
-      { id: 2, name: 'Cửa hàng #2' },
-      { id: 3, name: 'Cửa hàng #3' },
-    ]
-  }
-
-  return Array.from(poolMap.values())
-}
-
-const lowerTotalToThresholdFail = (criteria = [], threshold = DEFAULT_PASS_THRESHOLD) => {
-  const next = criteria.map((item) => ({ ...item }))
-
-  while (true) {
-    const evaluation = evaluateSession({ criteria: next, passThreshold: threshold })
-    if (evaluation.totalScore < threshold) break
-
-    const candidate = next.find((item) => !item.critical && toNumber(item.score) > 0)
-    if (!candidate) break
-    candidate.score = Math.max(toNumber(candidate.score) - 1, 0)
-  }
-
-  return next
-}
-
-const buildMockCriteria = (template, mode) => {
-  const base = flattenTemplateCriteria(template).map((criterion) => ({
-    ...criterion,
-    score: criterion.maxScore,
-  }))
-
-  if (mode === 'threshold_fail') {
-    const lowered = base.map((item) => ({
-      ...item,
-      score: item.critical ? item.maxScore : Math.max(item.maxScore - 3, 0),
-    }))
-    return lowerTotalToThresholdFail(lowered, template.passThreshold)
-  }
-
-  if (mode === 'critical_fail') {
-    const target = base.find((item) => item.critical)
-    if (target) {
-      target.score = Math.max(target.maxScore - 2, 0)
-    }
-    return base
-  }
-
-  if (mode === 'borderline_pass') {
-    const adjusted = base.map((item, index) => {
-      if (item.critical) return { ...item, score: item.maxScore }
-      if (index % 2 === 0) return { ...item, score: Math.max(item.maxScore - 1, 0) }
-      return item
-    })
-
-    let evaluation = evaluateSession({ criteria: adjusted, passThreshold: template.passThreshold })
-    if (evaluation.status !== 'passed') {
-      const nonCritical = adjusted.filter((item) => !item.critical)
-      nonCritical.forEach((item) => {
-        if (evaluation.status === 'passed') return
-        item.score = item.maxScore
-        evaluation = evaluateSession({ criteria: adjusted, passThreshold: template.passThreshold })
-      })
-    }
-
-    return adjusted
-  }
-
-  return base
-}
-
-const buildMockSessions = (stores = []) => {
-  const now = new Date()
-  const selectedStores = (Array.isArray(stores) ? stores : []).slice(0, 8)
-  const records = []
-  let seq = 1
-
-  selectedStores.forEach((store, storeIndex) => {
-    MOCK_SCENARIOS.forEach((scenario, scenarioIndex) => {
-      const template = MOCK_TEMPLATE_LIBRARY[scenario.templateId] || DEFAULT_TEMPLATE
-      const auditor = MOCK_AUDITORS[(storeIndex + scenarioIndex) % MOCK_AUDITORS.length]
-      const auditedAtDate = new Date(now)
-      auditedAtDate.setDate(now.getDate() + scenario.dayOffset - storeIndex)
-      auditedAtDate.setHours(9 + scenarioIndex * 2, 15, 0, 0)
-
-      records.push(
-        normalizeSession(
-          {
-            id: `mock-${store.id}-${seq}`,
-            code: buildSessionCode(auditedAtDate, seq),
-            storeId: store.id,
-            storeName: store.name,
-            auditorId: auditor.id,
-            auditorName: auditor.name,
-            templateId: template.id,
-            templateName: template.name,
-            templateVersion: template.version,
-            templatePassThreshold: template.passThreshold,
-            criteria: buildMockCriteria(template, scenario.mode),
-            note: scenario.note,
-            auditedAt: auditedAtDate.toISOString(),
-            createdAt: auditedAtDate.toISOString(),
-            updatedAt: auditedAtDate.toISOString(),
-          },
-          seq
-        )
-      )
-
-      seq += 1
-    })
-  })
-
-  return normalizeSessionList(records)
-}
-
-const ensureSeedData = ({ stores = [], storeId = 0 } = {}) => {
-  const existing = readStoredSessions()
-  if (existing.length > 0) return existing
-
-  const storePool = resolveStorePool(stores, toNumber(storeId))
-  const seeded = buildMockSessions(storePool)
-  writeStoredSessions(seeded)
-  return seeded
-}
-
-const normalizeStatusFilter = (status = '') => {
-  const value = String(status || '').trim().toLowerCase()
-  if (value === 'pass') return 'passed'
-  if (value === 'fail') return 'failed'
-  return value
-}
-
-const parseBoundaryTime = (value, mode) => {
-  if (!value) return null
-  const normalized = String(value).trim()
-  if (!normalized) return null
-
-  const date = mode === 'to'
-    ? new Date(`${normalized}T23:59:59.999`)
-    : new Date(`${normalized}T00:00:00.000`)
-
-  if (Number.isNaN(date.getTime())) return null
-  return date.getTime()
-}
-
-const querySessionsCore = ({
-  storeId,
-  q = '',
-  status = '',
-  from = '',
-  to = '',
-  templateId = '',
-  stores = [],
-} = {}) => {
-  const source = ensureSeedData({ stores, storeId })
-  const keyword = String(q || '').trim().toLowerCase()
-  const normalizedStatus = normalizeStatusFilter(status)
-  const normalizedTemplateId = String(templateId || '').trim()
-  const fromTime = parseBoundaryTime(from, 'from')
-  const toTime = parseBoundaryTime(to, 'to')
-
-  return source
-    .filter((session) => {
-      if (storeId && Number(session.storeId) !== Number(storeId)) return false
-      if (normalizedStatus && session.result !== normalizedStatus) return false
-      if (normalizedTemplateId && session.templateId !== normalizedTemplateId) return false
-
-      const targetTime = parseDate(session.auditedAt || session.createdAt).getTime()
-      if (fromTime && targetTime < fromTime) return false
-      if (toTime && targetTime > toTime) return false
-
-      if (keyword) {
-        const haystack = `${session.code || ''} ${session.auditorName || ''} ${session.note || ''} ${session.storeName || ''} ${session.templateName || ''}`.toLowerCase()
-        if (!haystack.includes(keyword)) return false
-      }
-
-      return true
-    })
-    .sort((a, b) => parseDate(b.auditedAt || b.createdAt).getTime() - parseDate(a.auditedAt || a.createdAt).getTime())
-}
-
-const toOverviewSummary = (sessions = []) => {
-  const totalSessions = sessions.length
-  const passed = sessions.filter((item) => item.result === 'passed').length
-  const failed = sessions.filter((item) => item.result === 'failed').length
-  const totalScore = sessions.reduce((sum, item) => sum + toNumber(item.totalScore), 0)
-  const totalMaxScore = sessions.reduce((sum, item) => sum + toNumber(item.maxScore), 0)
-  const avgScore = totalSessions > 0
-    ? Math.round((totalScore / totalSessions) * 10) / 10
-    : 0
-  const avgMaxScore = totalSessions > 0
-    ? Math.round((totalMaxScore / totalSessions) * 10) / 10
-    : 0
-  const avgScoreRate = totalMaxScore > 0
-    ? Math.round((totalScore / totalMaxScore) * 1000) / 10
-    : 0
-
-  return {
-    totalSessions,
-    passed,
-    failed,
-    avgScore,
-    avgMaxScore,
-    avgScoreRate,
-    passRate: totalSessions > 0 ? Math.round((passed / totalSessions) * 100) : 0,
-  }
-}
-
-const toStoreStats = (stores = [], sessions = []) => {
-  const source = Array.isArray(stores) ? stores : []
-  return source.map((store) => {
-    const storeId = toNumber(store?.id || store?.storeId || store?.store_id)
-    const ownSessions = sessions.filter((item) => Number(item.storeId) === storeId)
-    const summary = toOverviewSummary(ownSessions)
-    const lastAudit = ownSessions[0] || null
-
-    return {
-      storeId,
-      totalSessions: summary.totalSessions,
-      passed: summary.passed,
-      failed: summary.failed,
-      avgScore: summary.avgScore,
-      avgMaxScore: summary.avgMaxScore,
-      avgScoreRate: summary.avgScoreRate,
-      passRate: summary.passRate,
-      lastAuditAt: lastAudit?.createdAt || null,
-      lastAuditCode: lastAudit?.code || null,
-      lastAuditResult: lastAudit?.result || null,
-    }
-  })
-}
-
-const getNextSequence = (sessions = []) => {
-  const maxSeq = sessions.reduce((max, session) => {
-    const matched = String(session?.code || '').match(/-(\d+)$/)
-    if (!matched) return max
-    return Math.max(max, toNumber(matched[1]))
-  }, 0)
-
-  return maxSeq + 1
-}
-
-const createSessionCore = (payload = {}) => {
-  const storeId = toNumber(payload.storeId || payload.store_id)
-  if (!Number.isInteger(storeId) || storeId <= 0) {
-    throw new Error('storeId không hợp lệ')
-  }
-
-  const template = normalizeTemplate(payload)
-  const criteria = normalizeCriteria(payload.criteria)
-  const evaluation = evaluateSession({ criteria, passThreshold: template.passThreshold })
-
-  if (evaluation.incompleteCount > 0) {
-    throw new Error('Phiếu QC còn tiêu chí chưa chấm')
-  }
-
-  const source = ensureSeedData({ storeId })
-  const now = new Date()
-  const sequence = getNextSequence(source)
-
-  const createdSession = normalizeSession(
-    {
-      id: `${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
-      code: buildSessionCode(now, sequence),
-      storeId,
-      storeName: String(payload.storeName || payload.store_name || ''),
-      auditorId: payload.auditorId ?? payload.auditor_id ?? null,
-      auditorName: String(payload.auditorName || payload.auditor_name || ''),
-      template,
-      criteria,
-      note: String(payload.note || '').trim(),
-      auditedAt: payload.auditedAt || now.toISOString(),
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    },
-    source.length
-  )
-
-  source.push(createdSession)
-  writeStoredSessions(source)
-
-  return createdSession
-}
-
-const apiSuccess = (message, data = {}) => ({
-  success: true,
-  message,
-  data,
-})
 
 const toQueryString = (params = {}) => {
   const searchParams = new URLSearchParams()
@@ -891,7 +340,7 @@ const normalizeCriteriaFromApi = (items = []) => {
       applicable: status !== 'na',
       frequency: normalizeCriterionFrequency(item?.frequency_snapshot || item?.frequency),
       note: String(item?.note || ''),
-      attachments: [],
+      attachments: normalizeCriterionAttachments(item?.attachments),
     }
   })
 }
@@ -944,14 +393,14 @@ const normalizeSessionFromApi = (session = {}, fallbackIndex = 0) => {
     auditorId: session?.auditor?.id ?? session?.auditorId ?? null,
     auditorName: String(session?.auditor?.name || session?.auditorName || session?.auditor?.email || ''),
     template: {
-      id: String(form?.code || session?.templateId || DEFAULT_TEMPLATE.id),
-      name: String(form?.name || session?.templateName || DEFAULT_TEMPLATE.name),
-      version: String(formVersion?.version_no || session?.templateVersion || DEFAULT_TEMPLATE.version),
+      id: String(form?.code || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
+      name: String(form?.name || session?.templateName || INTERNAL_DEFAULT_TEMPLATE.name),
+      version: String(formVersion?.version_no || session?.templateVersion || INTERNAL_DEFAULT_TEMPLATE.version),
       passThreshold: templatePassThreshold > 0 ? templatePassThreshold : DEFAULT_PASS_THRESHOLD,
     },
-    templateId: String(form?.code || session?.templateId || DEFAULT_TEMPLATE.id),
-    templateName: String(form?.name || session?.templateName || DEFAULT_TEMPLATE.name),
-    templateVersion: String(formVersion?.version_no || session?.templateVersion || DEFAULT_TEMPLATE.version),
+    templateId: String(form?.code || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
+    templateName: String(form?.name || session?.templateName || INTERNAL_DEFAULT_TEMPLATE.name),
+    templateVersion: String(formVersion?.version_no || session?.templateVersion || INTERNAL_DEFAULT_TEMPLATE.version),
     templatePassThreshold: templatePassThreshold > 0 ? templatePassThreshold : DEFAULT_PASS_THRESHOLD,
     criteria,
     totalScore,
@@ -967,6 +416,43 @@ const normalizeSessionFromApi = (session = {}, fallbackIndex = 0) => {
     auditedAt,
     createdAt,
     updatedAt: parseDate(session?.updatedAt || createdAt).toISOString(),
+  }
+}
+
+const normalizeDraftCriteriaStates = (value = {}) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return Object.entries(value).reduce((acc, [criterionId, state]) => {
+    acc[String(criterionId)] = {
+      status: normalizeCriterionStatus(state?.status) || 'pending',
+      score: state?.score === null || state?.score === undefined || String(state?.score) === ''
+        ? null
+        : toNumber(state.score),
+      note: String(state?.note || ''),
+      attachments: normalizeCriterionAttachments(state?.attachments),
+    }
+    return acc
+  }, {})
+}
+
+const normalizeDraft = (draft = {}) => {
+  const storeId = toNumber(draft?.storeId || draft?.store_id)
+  const auditedAtRaw = draft?.auditedAt || draft?.audited_at
+
+  return {
+    id: String(draft?.id || ''),
+    storeId,
+    storeNo: String(draft?.storeNo || draft?.store_no || ''),
+    storeCode: String(draft?.storeCode || draft?.store_code || ''),
+    storeName: String(draft?.storeName || draft?.store_name || (storeId > 0 ? `Cửa hàng #${storeId}` : '')),
+    templateId: String(draft?.templateId || draft?.template_id || ''),
+    auditedAt: auditedAtRaw ? parseDate(auditedAtRaw).toISOString() : null,
+    note: String(draft?.note || ''),
+    criteriaStates: normalizeDraftCriteriaStates(draft?.criteriaStates || draft?.criteria_states),
+    createdAt: draft?.createdAt ? parseDate(draft.createdAt).toISOString() : null,
+    updatedAt: draft?.updatedAt ? parseDate(draft.updatedAt).toISOString() : null,
   }
 }
 
@@ -1003,104 +489,9 @@ const normalizeOverviewPayloadFromApi = (payload = {}) => {
   }
 }
 
-const qcRepository = {
-  async list(params = {}) {
-    const rows = querySessionsCore(params)
-    const page = Math.max(toNumber(params.page, 1), 1)
-    const pageSize = Math.min(Math.max(toNumber(params.pageSize, rows.length || 10), 1), 100)
-    const start = (page - 1) * pageSize
-    const paged = rows.slice(start, start + pageSize)
 
-    return apiSuccess('Lấy danh sách phiên QC thành công', {
-      sessions: paged,
-      pagination: {
-        page,
-        pageSize,
-        total: rows.length,
-        pageCount: Math.ceil(rows.length / pageSize),
-      },
-    })
-  },
 
-  async overview(params = {}) {
-    const stores = Array.isArray(params.stores) ? params.stores : []
-    const rows = querySessionsCore({
-      stores,
-      from: params.from,
-      to: params.to,
-    })
 
-    return apiSuccess('Lấy tổng quan QC thành công', {
-      summary: toOverviewSummary(rows),
-      storeStats: toStoreStats(stores, rows),
-    })
-  },
-
-  async storeOverview(params = {}) {
-    const storeId = toNumber(params.storeId || params.store_id)
-    const summarySource = querySessionsCore({ storeId })
-    const listSource = querySessionsCore({
-      storeId,
-      q: params.q,
-      status: params.status,
-      from: params.from,
-      to: params.to,
-      templateId: params.templateId,
-    })
-
-    const page = Math.max(toNumber(params.page, 1), 1)
-    const pageSize = Math.min(Math.max(toNumber(params.pageSize, listSource.length || 10), 1), 100)
-    const start = (page - 1) * pageSize
-    const paged = listSource.slice(start, start + pageSize)
-
-    return apiSuccess('Lấy chi tiết QC cửa hàng thành công', {
-      summary: toOverviewSummary(summarySource),
-      sessions: paged,
-      pagination: {
-        page,
-        pageSize,
-        total: listSource.length,
-        pageCount: Math.ceil(listSource.length / pageSize),
-      },
-    })
-  },
-
-  async create(payload = {}) {
-    const session = createSessionCore(payload)
-    return apiSuccess('Tạo phiên QC thành công', { session })
-  },
-
-  async seedMockData(params = {}) {
-    if (canUseStorage()) {
-      window.localStorage.removeItem(STORAGE_KEY)
-      if (params.clearLegacy) {
-        window.localStorage.removeItem(LEGACY_STORAGE_KEY)
-      }
-    }
-
-    const seeded = ensureSeedData({
-      stores: Array.isArray(params.stores) ? params.stores : [],
-      storeId: toNumber(params.storeId),
-    })
-
-    return apiSuccess('Đã seed dữ liệu QC mock', {
-      total: seeded.length,
-      sessions: seeded,
-    })
-  },
-}
-
-const qcCriteriaTemplate = () => {
-  const template = MOCK_TEMPLATE_LIBRARY.ticket_standard || DEFAULT_TEMPLATE
-  return flattenTemplateCriteria(template).map((item) => ({
-    ...item,
-    score: item.maxScore,
-  }))
-}
-
-const listQcSessions = ({ storeId, q = '', status = '', from = '', to = '', templateId = '' } = {}) => {
-  return querySessionsCore({ storeId, q, status, from, to, templateId })
-}
 
 export const createQcSession = async (payload = {}) => {
   const requestBody = {
@@ -1116,7 +507,7 @@ export const createQcSession = async (payload = {}) => {
     criteria: Array.isArray(payload.criteria)
       ? payload.criteria.map((criterion = {}) => ({
         ...criterion,
-        attachments: [],
+        attachments: normalizeCriterionAttachments(criterion?.attachments),
       }))
       : [],
   }
@@ -1134,31 +525,6 @@ export const createQcSession = async (payload = {}) => {
   return normalizeSessionFromApi(session)
 }
 
-const getQcOverview = (stores = [], options = {}) => {
-  const sessions = querySessionsCore({
-    stores,
-    from: options?.from || '',
-    to: options?.to || '',
-  })
-
-  return {
-    summary: toOverviewSummary(sessions),
-    storeStats: toStoreStats(stores, sessions),
-  }
-}
-
-const getQcStoreOverview = (storeId, options = {}) => {
-  const sessions = querySessionsCore({
-    storeId,
-    from: options?.from || '',
-    to: options?.to || '',
-  })
-
-  return {
-    summary: toOverviewSummary(sessions),
-    sessions,
-  }
-}
 
 export const listQcSessionsApi = async ({
   storeId,
@@ -1311,6 +677,77 @@ const normalizeStoresOverviewResponse = (response = {}) => {
   }
 }
 
+/**
+ * Templates (Data-Driven from Backend)
+ */
+
+export const listQcTemplates = async () => {
+  const response = await http.get('/api/qc/forms')
+  const forms = Array.isArray(response?.data?.items) ? response.data.items : []
+
+  return forms.map((form) => ({
+    id: String(form.id),
+    code: String(form.code || ''),
+    name: String(form.name || ''),
+    description: String(form.description || ''),
+    activeVersionId: form.activeVersionId || null,
+  }))
+}
+
+export const getQcTemplateById = async (formId) => {
+  const response = await http.get(`/api/qc/forms/${formId}`)
+  const formData = response?.data?.item
+  if (!formData) return null
+
+  const flattened = Array.isArray(formData.criteria)
+    ? formData.criteria.map((criterion) => ({
+      id: criterion.id,
+      code: criterion.code,
+      name: criterion.name,
+      description: criterion.description,
+      level: criterion.level,
+      ordering: criterion.ordering,
+      parentId: criterion.parentId || null,
+      mode: criterion.mode,
+      maxScore: toNumber(criterion.maxScore),
+      weight: toNumber(criterion.weight),
+      sortOrder: criterion.sortOrder,
+      isCritical: criterion.isCritical,
+      frequency: criterion.frequency,
+      required: criterion.required,
+    }))
+    : []
+
+  // Build Hierarchy
+  const buildTree = (items) => {
+    const map = new Map()
+    const roots = []
+
+    items.forEach(item => {
+      map.set(item.id, { ...item, children: [] })
+    })
+
+    items.forEach(item => {
+      if (item.parentId && map.has(item.parentId)) {
+        map.get(item.parentId).children.push(map.get(item.id))
+      } else {
+        roots.push(map.get(item.id))
+      }
+    })
+
+    return roots.sort((a, b) => a.sortOrder - b.sortOrder)
+  }
+
+  return {
+    id: String(formData.id),
+    name: String(formData.name || ''),
+    version: String(formData.version || ''),
+    passThreshold: toNumber(formData.passThreshold, 80),
+    criteriaTree: buildTree(flattened),
+    flatCriteria: flattened // Kept for legacy compatibility in some parts
+  }
+}
+
 export const getQcStoresOverviewApi = async (params = {}) => {
   const queryString = toQueryString({
     page: params.page ?? 1,
@@ -1386,7 +823,7 @@ export const listQcDraftSessions = async ({ storeId, page = 1, pageSize = 100, w
     currentPage += 1
   }
 
-  const drafts = normalizeDraftList(allRows.map((item) => normalizeDraftFromApi(item)))
+  const drafts = allRows.map((item) => normalizeDraftFromApi(item))
   if (!withPagination) return drafts
 
   return {
@@ -1458,77 +895,33 @@ export const deleteQcDraftSession = async (draftId) => {
   return Boolean(response?.success)
 }
 
-// Legacy local draft helpers kept for migration/debug only.
-const listQcDraftSessionsLocal = ({ storeId } = {}) => {
-  const source = readStoredDrafts()
-  if (!storeId) return source
-  return source.filter((item) => Number(item.storeId) === Number(storeId))
+/**
+ * Findings (Manual/Corrective Actions)
+ */
+
+export const createQcFinding = async (payload = {}) => {
+  const response = await http.post('/api/qc/findings', payload)
+  const created = response?.data?.item
+  return created ? normalizeFinding(created) : null
 }
 
-const getQcDraftSessionByIdLocal = (draftId) => {
-  if (!draftId) return null
-  const targetId = String(draftId)
-  const source = readStoredDrafts()
-  return source.find((item) => String(item.id) === targetId) || null
-}
-
-const createQcDraftSessionLocal = (payload = {}) => {
-  const storeId = toNumber(payload.storeId || payload.store_id)
-  if (!Number.isInteger(storeId) || storeId <= 0) {
-    throw new Error('storeId không hợp lệ')
+export const listQcFindings = async (params = {}) => {
+  const query = {
+    populate: '*',
+    sort: 'createdAt:desc',
+    ...params
   }
-
-  const now = new Date().toISOString()
-  const source = readStoredDrafts()
-  const created = normalizeDraft({
-    id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    storeId,
-    storeName: String(payload.storeName || payload.store_name || ''),
-    templateId: String(payload.templateId || payload.template_id || ''),
-    auditedAt: String(payload.auditedAt || ''),
-    note: String(payload.note || ''),
-    criteriaStates: payload.criteriaStates || {},
-    createdAt: now,
-    updatedAt: now,
-  })
-
-  source.unshift(created)
-  writeStoredDrafts(source)
-  return created
+  const queryString = toQueryString(query)
+  const response = await http.get(`/api/qc/findings?${queryString}`)
+  const items = Array.isArray(response?.data?.items) ? response.data.items : []
+  return items.map(item => normalizeFinding(item))
 }
 
-const updateQcDraftSessionLocal = (draftId, payload = {}) => {
-  if (!draftId) return null
-
-  const targetId = String(draftId)
-  const source = readStoredDrafts()
-  const index = source.findIndex((item) => String(item.id) === targetId)
-  if (index < 0) return null
-
-  const current = source[index]
-  const next = normalizeDraft({
-    ...current,
-    ...payload,
-    criteriaStates: payload.criteriaStates ? normalizeDraftCriteriaStates(payload.criteriaStates) : current.criteriaStates,
-    updatedAt: new Date().toISOString(),
-  })
-
-  source[index] = next
-  writeStoredDrafts(source)
-  return next
-}
-
-const deleteQcDraftSessionLocal = (draftId) => {
-  if (!draftId) return false
-
-  const targetId = String(draftId)
-  const source = readStoredDrafts()
-  const next = source.filter((item) => String(item.id) !== targetId)
-
-  if (next.length === source.length) return false
-
-  writeStoredDrafts(next)
-  return true
+export const updateQcFinding = async (id, payload = {}) => {
+  if (!id) return null
+  const response = await http.put(`/api/qc/findings/${id}`, payload)
+  const updated = response?.data?.item
+  return updated ? normalizeFinding(updated) : null
 }
 
 export const qcHelpers = {

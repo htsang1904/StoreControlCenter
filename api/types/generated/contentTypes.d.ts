@@ -473,6 +473,11 @@ export interface ApiQcCriterionQcCriterion extends Schema.CollectionType {
     draftAndPublish: false;
   };
   attributes: {
+    children: Attribute.Relation<
+      'api::qc-criterion.qc-criterion',
+      'oneToMany',
+      'api::qc-criterion.qc-criterion'
+    >;
     code: Attribute.String & Attribute.Required & Attribute.Unique;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
@@ -493,16 +498,18 @@ export interface ApiQcCriterionQcCriterion extends Schema.CollectionType {
       'api::qc-form-criterion.qc-form-criterion'
     >;
     is_active: Attribute.Boolean & Attribute.DefaultTo<true>;
+    level: Attribute.Integer & Attribute.DefaultTo<1>;
     name: Attribute.String & Attribute.Required;
+    ordering: Attribute.String;
+    parent: Attribute.Relation<
+      'api::qc-criterion.qc-criterion',
+      'manyToOne',
+      'api::qc-criterion.qc-criterion'
+    >;
     session_items: Attribute.Relation<
       'api::qc-criterion.qc-criterion',
       'oneToMany',
       'api::qc-session-item.qc-session-item'
-    >;
-    store_rules: Attribute.Relation<
-      'api::qc-criterion.qc-criterion',
-      'oneToMany',
-      'api::qc-store-criterion-rule.qc-store-criterion-rule'
     >;
     updatedAt: Attribute.DateTime;
     updatedBy: Attribute.Relation<
@@ -587,6 +594,7 @@ export interface ApiQcFindingQcFinding extends Schema.CollectionType {
     criterion_name: Attribute.String;
     due_date: Attribute.Date;
     evidence: Attribute.JSON;
+    finding_code: Attribute.String & Attribute.Required & Attribute.Unique;
     meta: Attribute.JSON;
     resolved_at: Attribute.DateTime;
     session: Attribute.Relation<
@@ -782,6 +790,7 @@ export interface ApiQcSessionItemQcSessionItem extends Schema.CollectionType {
   };
   attributes: {
     applicable: Attribute.Boolean & Attribute.DefaultTo<true>;
+    attachments: Attribute.JSON;
     createdAt: Attribute.DateTime;
     createdBy: Attribute.Relation<
       'api::qc-session-item.qc-session-item',
@@ -896,52 +905,6 @@ export interface ApiQcSessionQcSession extends Schema.CollectionType {
   };
 }
 
-export interface ApiQcStoreCriterionRuleQcStoreCriterionRule
-  extends Schema.CollectionType {
-  collectionName: 'qc_store_criterion_rules';
-  info: {
-    description: 'Store-level applicability rule for criterion';
-    displayName: 'QC Store Criterion Rule';
-    pluralName: 'qc-store-criterion-rules';
-    singularName: 'qc-store-criterion-rule';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::qc-store-criterion-rule.qc-store-criterion-rule',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    criterion: Attribute.Relation<
-      'api::qc-store-criterion-rule.qc-store-criterion-rule',
-      'manyToOne',
-      'api::qc-criterion.qc-criterion'
-    > &
-      Attribute.Required;
-    effective_from: Attribute.Date;
-    effective_to: Attribute.Date;
-    is_applicable: Attribute.Boolean & Attribute.DefaultTo<true>;
-    note: Attribute.Text;
-    store: Attribute.Relation<
-      'api::qc-store-criterion-rule.qc-store-criterion-rule',
-      'manyToOne',
-      'api::store.store'
-    > &
-      Attribute.Required;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::qc-store-criterion-rule.qc-store-criterion-rule',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
 export interface ApiStoreStore extends Schema.CollectionType {
   collectionName: 'stores';
   info: {
@@ -1022,53 +985,6 @@ export interface ApiTicketLogTicketLog extends Schema.CollectionType {
   };
 }
 
-export interface ApiTicketQcReviewTicketQcReview extends Schema.CollectionType {
-  collectionName: 'ticket_qc_reviews';
-  info: {
-    description: '';
-    displayName: 'TicketQCReview';
-    pluralName: 'ticket-qc-reviews';
-    singularName: 'ticket-qc-review';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    checklist: Attribute.JSON;
-    comment: Attribute.Text;
-    createdAt: Attribute.DateTime;
-    createdBy: Attribute.Relation<
-      'api::ticket-qc-review.ticket-qc-review',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-    decision: Attribute.Enumeration<['pass', 'fail']> & Attribute.Required;
-    meta: Attribute.JSON;
-    reviewer: Attribute.Relation<
-      'api::ticket-qc-review.ticket-qc-review',
-      'manyToOne',
-      'api::user-info.user-info'
-    > &
-      Attribute.Required;
-    store_id: Attribute.Integer & Attribute.Required;
-    ticket: Attribute.Relation<
-      'api::ticket-qc-review.ticket-qc-review',
-      'manyToOne',
-      'api::ticket.ticket'
-    > &
-      Attribute.Required;
-    ticket_type: Attribute.String;
-    updatedAt: Attribute.DateTime;
-    updatedBy: Attribute.Relation<
-      'api::ticket-qc-review.ticket-qc-review',
-      'oneToOne',
-      'admin::user'
-    > &
-      Attribute.Private;
-  };
-}
-
 export interface ApiTicketTicket extends Schema.CollectionType {
   collectionName: 'tickets';
   info: {
@@ -1108,17 +1024,14 @@ export interface ApiTicketTicket extends Schema.CollectionType {
       'oneToMany',
       'api::notification.notification'
     >;
-    qc_reviews: Attribute.Relation<
-      'api::ticket.ticket',
-      'oneToMany',
-      'api::ticket-qc-review.ticket-qc-review'
-    >;
+    processing_started_at: Attribute.DateTime;
     requester: Attribute.Relation<
       'api::ticket.ticket',
       'manyToOne',
       'api::user-info.user-info'
     >;
     requester_id: Attribute.Integer & Attribute.Required;
+    resolved_at: Attribute.DateTime;
     responsible_department: Attribute.Relation<
       'api::ticket.ticket',
       'manyToOne',
@@ -1661,10 +1574,8 @@ declare module '@strapi/types' {
       'api::qc-form.qc-form': ApiQcFormQcForm;
       'api::qc-session-item.qc-session-item': ApiQcSessionItemQcSessionItem;
       'api::qc-session.qc-session': ApiQcSessionQcSession;
-      'api::qc-store-criterion-rule.qc-store-criterion-rule': ApiQcStoreCriterionRuleQcStoreCriterionRule;
       'api::store.store': ApiStoreStore;
       'api::ticket-log.ticket-log': ApiTicketLogTicketLog;
-      'api::ticket-qc-review.ticket-qc-review': ApiTicketQcReviewTicketQcReview;
       'api::ticket.ticket': ApiTicketTicket;
       'api::user-info.user-info': ApiUserInfoUserInfo;
       'plugin::content-releases.release': PluginContentReleasesRelease;

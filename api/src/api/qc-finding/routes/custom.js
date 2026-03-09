@@ -2,8 +2,8 @@ module.exports = {
   routes: [
     {
       method: 'GET',
-      path: '/qc/tickets',
-      handler: 'ticket-qc-review.listQCTickets',
+      path: '/qc/findings',
+      handler: 'qc-finding.listAppFindings',
       config: {
         auth: false,
         policies: [
@@ -11,7 +11,7 @@ module.exports = {
           {
             name: 'global::role-guard',
             config: {
-              allow: ['qc', 'admin'],
+              allow: ['store', 'qc', 'admin'],
             },
           },
         ],
@@ -19,8 +19,8 @@ module.exports = {
     },
     {
       method: 'POST',
-      path: '/qc/tickets/:id/review',
-      handler: 'ticket-qc-review.submitReview',
+      path: '/qc/findings',
+      handler: 'qc-finding.createAppFinding',
       config: {
         auth: false,
         policies: [
@@ -35,9 +35,9 @@ module.exports = {
       },
     },
     {
-      method: 'GET',
-      path: '/qc/tickets/:id/reviews',
-      handler: 'ticket-qc-review.listTicketReviews',
+      method: 'PUT',
+      path: '/qc/findings/:id',
+      handler: 'qc-finding.updateAppFinding',
       config: {
         auth: false,
         policies: [
@@ -45,7 +45,7 @@ module.exports = {
           {
             name: 'global::role-guard',
             config: {
-              allow: ['qc', 'admin'],
+              allow: ['store', 'qc', 'admin'],
             },
           },
         ],

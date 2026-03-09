@@ -12,6 +12,11 @@
   },
   "pluginOptions": {},
   "attributes": {
+    "finding_code": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
     "session": {
       "type": "relation",
       "relation": "manyToOne",
@@ -35,12 +40,23 @@
     },
     "severity": {
       "type": "enumeration",
-      "enum": ["low", "medium", "high", "critical"],
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
       "default": "medium"
     },
     "status": {
       "type": "enumeration",
-      "enum": ["open", "in_progress", "resolved", "verified", "rejected"],
+      "enum": [
+        "open",
+        "in_progress",
+        "resolved",
+        "verified",
+        "rejected"
+      ],
       "default": "open"
     },
     "assignee": {

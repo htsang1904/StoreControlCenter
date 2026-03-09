@@ -75,6 +75,22 @@ export function handlerDisplay(ticket) {
   )
 }
 
+export function ticketProcessingDurationLabel(ticket) {
+  if (ticket?.processing_duration_label) return ticket.processing_duration_label
+  return ticket?.start_date || ticket?.createdAt ? '0 phút' : '--'
+}
+
+export function ticketProcessingDurationClass(ticket) {
+  return ticket?.processing_alert_level === 'danger' ? 'text-rose-600' : 'text-slate-700'
+}
+
+export function ticketProcessingAlertHint(ticket) {
+  const reason = String(ticket?.processing_alert_reason || '')
+  if (reason === 'unconfirmed_over_2h') return 'Quá 2 giờ chưa xác nhận'
+  if (reason === 'confirmed_over_24h') return 'Quá 24 giờ chưa hoàn tất'
+  return ''
+}
+
 export function avatarInitials(name) {
   const value = String(name || '').trim()
   if (!value) return 'NA'

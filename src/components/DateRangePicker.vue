@@ -14,6 +14,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  placeholder: {
+    type: String,
+    default: 'Chọn ngày',
+  },
 })
 
 const emit = defineEmits(['update:from', 'update:to', 'change'])
@@ -30,7 +34,7 @@ const currentMonth = ref(new Date())
 const weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
 
 const buttonLabel = computed(() => {
-  if (!props.from || !props.to) return 'Chọn ngày'
+  if (!props.from || !props.to) return props.placeholder
   return `${formatDateLabel(props.from)} - ${formatDateLabel(props.to)}`
 })
 
@@ -242,15 +246,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="rootRef" class="relative w-full">
+  <div ref="rootRef" class="relative w-fit max-w-full">
     <button
       :id="pickerId"
       type="button"
-      class="w-full cursor-pointer inline-flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+      class="inline-flex h-9 max-w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
       :disabled="disabled"
       @click="togglePicker"
     >
-      <span class="truncate">{{ buttonLabel }}</span>
+      <span class="max-w-[170px] truncate sm:max-w-[220px]">{{ buttonLabel }}</span>
       <svg class="size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="m6 9 6 6 6-6" />
       </svg>
