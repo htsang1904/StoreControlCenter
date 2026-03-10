@@ -62,6 +62,18 @@ h6,
   scrollbar-width: none;
 }
 
+html.page-scroll-hidden,
+body.page-scroll-hidden {
+  scrollbar-gutter: stable;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html.page-scroll-hidden::-webkit-scrollbar,
+body.page-scroll-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;

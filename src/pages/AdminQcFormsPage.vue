@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listAdminQcForms } from '@/services/admin_service'
 
@@ -12,6 +12,7 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const totalForms = ref(0)
 const pageCount = ref(1)
+const activeActionMenuId = ref(null)
 
 const rangeStart = computed(() => {
   if (!qcForms.value.length) return 0
@@ -42,21 +43,10 @@ const visiblePageItems = computed(() => {
   return [1, 'start-ellipsis', page - 1, page, page + 1, 'end-ellipsis', total]
 })
 
-const formatRelativeTime = (value) => {
+const formatDisplayDate = (value) => {
   if (!value) return '--'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '--'
-
-  const diffMs = Date.now() - date.getTime()
-  const minutes = Math.floor(diffMs / 60000)
-  if (minutes < 1) return 'Vừa xong'
-  if (minutes < 60) return `${minutes} phút trước`
-
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} giờ trước`
-
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days} ngày trước`
 
   return new Intl.DateTimeFormat('vi-VN', {
     day: '2-digit',
@@ -65,14 +55,16 @@ const formatRelativeTime = (value) => {
   }).format(date)
 }
 
-const statusLabel = (status) => {
+const statusLabel = (status, hasLatestVersion = true) => {
+  if (!hasLatestVersion) return 'Chưa có version'
   const normalized = String(status || '').toLowerCase()
   if (normalized === 'published') return 'Đang phát hành'
   if (normalized === 'archived') return 'Lưu trữ'
   return 'Bản nháp'
 }
 
-const statusClass = (status) => {
+const statusClass = (status, hasLatestVersion = true) => {
+  if (!hasLatestVersion) return 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
   const normalized = String(status || '').toLowerCase()
   if (normalized === 'published') return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
   if (normalized === 'archived') return 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
@@ -108,22 +100,49 @@ const openCreatePage = () => {
 
 const openFormDetail = (formId) => {
   if (!formId) return
+  activeActionMenuId.value = null
   router.push(`/tools/qc-forms/${formId}`)
 }
 
 const openEditPage = (formId) => {
   if (!formId) return
+  activeActionMenuId.value = null
   router.push(`/tools/qc-forms/${formId}/edit`)
+}
+
+const toggleActionMenu = (formId) => {
+  if (!formId) return
+  activeActionMenuId.value = activeActionMenuId.value === formId ? null : formId
+}
+
+const closeActionMenu = () => {
+  activeActionMenuId.value = null
+}
+
+const handleDocumentClick = (event) => {
+  if (!(event.target instanceof Element)) {
+    closeActionMenu()
+    return
+  }
+
+  if (event.target.closest('[data-qc-form-action-menu]')) return
+  closeActionMenu()
 }
 
 const goToPage = async (page) => {
   if (loadingForms.value) return
   if (page < 1 || page > pageCount.value || page === currentPage.value) return
+  closeActionMenu()
   await loadQcForms(page)
 }
 
 onMounted(async () => {
+  document.addEventListener('click', handleDocumentClick)
   await loadQcForms()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
 })
 </script>
 
@@ -134,7 +153,7 @@ onMounted(async () => {
         <div class="max-w-3xl">
           <h2 class="text-xl font-semibold tracking-tight text-slate-900">Quản lý biểu mẫu QC</h2>
           <p class="mt-2 text-sm leading-6 text-slate-500">
-            Danh sách biểu mẫu hiện có của hệ thống. Chọn một biểu mẫu để xem chi tiết hoặc đi tới màn chỉnh sửa riêng.
+            Danh sách biểu mẫu hiện có của hệ thống.
           </p>
         </div>
 
@@ -186,29 +205,46 @@ onMounted(async () => {
                 <p class="text-sm font-medium text-slate-900">{{ form.name }}</p>
                 <p class="text-xs text-slate-500">{{ form.description || 'Không có mô tả' }}</p>
               </td>
-              <td class="px-4 py-3 text-sm text-slate-600">{{ form.latestVersionNo }}</td>
+              <td class="px-4 py-3 text-sm text-slate-600">{{ form.latestVersionNo || '--' }}</td>
               <td class="px-4 py-3">
-                <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.latestVersionStatus)">
-                  {{ statusLabel(form.latestVersionStatus) }}
+                <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.latestVersionStatus, form.hasLatestVersion)">
+                  {{ statusLabel(form.latestVersionStatus, form.hasLatestVersion) }}
                 </span>
               </td>
-              <td class="px-4 py-3 text-sm text-slate-500">{{ formatRelativeTime(form.updatedAt) }}</td>
+              <td class="px-4 py-3 text-sm text-slate-500">{{ formatDisplayDate(form.updatedAt) }}</td>
               <td class="px-4 py-3">
-                <div class="flex items-center justify-end gap-2">
+                <div class="relative flex items-center justify-end" data-qc-form-action-menu>
                   <button
                     type="button"
-                    class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                    @click.stop="openFormDetail(form.id)"
+                    class="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+                    aria-label="Mở menu thao tác"
+                    :aria-expanded="activeActionMenuId === form.id"
+                    @click.stop="toggleActionMenu(form.id)"
                   >
-                    Xem
+                    <span class="material-symbols-outlined text-[18px]">more_horiz</span>
                   </button>
-                  <button
-                    type="button"
-                    class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
-                    @click.stop="openEditPage(form.id)"
+
+                  <div
+                    v-if="activeActionMenuId === form.id"
+                    class="absolute right-0 top-full z-20 mt-2 min-w-36 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
                   >
-                    Chỉnh sửa
-                  </button>
+                    <button
+                      type="button"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                      @click.stop="openFormDetail(form.id)"
+                    >
+                      <span class="material-symbols-outlined text-[18px] text-slate-400">visibility</span>
+                      Xem
+                    </button>
+                    <button
+                      type="button"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-blue-700 transition-colors hover:bg-blue-50"
+                      @click.stop="openEditPage(form.id)"
+                    >
+                      <span class="material-symbols-outlined text-[18px] text-blue-500">edit</span>
+                      Chỉnh sửa
+                    </button>
+                  </div>
                 </div>
               </td>
             </tr>

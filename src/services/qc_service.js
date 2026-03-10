@@ -11,6 +11,28 @@ const toNumber = (value, fallback = 0) => {
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
+const normalizePassThreshold = (value, fallback = DEFAULT_PASS_THRESHOLD) => {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return clamp(toNumber(fallback, DEFAULT_PASS_THRESHOLD), 0, 100)
+  }
+
+  return clamp(toNumber(value, fallback), 0, 100)
+}
+
+const getRequiredScoreFromThreshold = ({ maxScore = 0, passThreshold = DEFAULT_PASS_THRESHOLD } = {}) => {
+  const normalizedMaxScore = Math.max(toNumber(maxScore), 0)
+  if (normalizedMaxScore <= 0) return 0
+
+  return (normalizedMaxScore * normalizePassThreshold(passThreshold)) / 100
+}
+
+const isBelowPassThreshold = ({ totalScore = 0, maxScore = 0, passThreshold = DEFAULT_PASS_THRESHOLD } = {}) => {
+  const normalizedMaxScore = Math.max(toNumber(maxScore), 0)
+  if (normalizedMaxScore <= 0) return false
+
+  return toNumber(totalScore) < getRequiredScoreFromThreshold({ maxScore: normalizedMaxScore, passThreshold })
+}
+
 const normalizeCriterionStatus = (value) => {
   const normalized = String(value || '').trim().toLowerCase()
   if (normalized === 'pass' || normalized === 'passed') return 'pass'
@@ -151,14 +173,10 @@ const normalizeCriteria = (criteria = []) => {
 
 const normalizeTemplate = (payload = {}) => {
   const template = payload?.template || {}
-  const passThreshold = Math.max(
-    toNumber(
-      payload?.templatePassThreshold ??
-      template?.passThreshold ??
-      payload?.passThreshold ??
-      DEFAULT_PASS_THRESHOLD
-    ),
-    0
+  const passThreshold = normalizePassThreshold(
+    payload?.templatePassThreshold ??
+    template?.passThreshold ??
+    payload?.passThreshold
   )
 
   return {
@@ -171,7 +189,7 @@ const normalizeTemplate = (payload = {}) => {
 
 const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD }) => {
   const normalizedCriteria = normalizeCriteria(criteria)
-  const threshold = Math.max(toNumber(passThreshold, DEFAULT_PASS_THRESHOLD), 0)
+  const threshold = normalizePassThreshold(passThreshold)
 
   const metrics = normalizedCriteria.reduce(
     (acc, item) => {
@@ -240,7 +258,9 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
   if (metrics.incompleteCount > 0) reasons.push('incomplete')
   if (metrics.failedCount > 0) reasons.push('failed')
   if (metrics.criticalFailedCount > 0) reasons.push('critical')
-  if (metrics.maxScore > 0 && metrics.totalScore < threshold) reasons.push('threshold')
+  if (isBelowPassThreshold({ totalScore: metrics.totalScore, maxScore: metrics.maxScore, passThreshold: threshold })) {
+    reasons.push('threshold')
+  }
 
   const status = reasons.length === 0 ? 'passed' : 'failed'
 
@@ -349,7 +369,7 @@ const deriveSessionDecisionReasons = ({ criteria = [], totalScore = 0, maxScore 
   const reasons = []
   const hasPending = criteria.some((item) => item.status === 'pending')
   const hasFail = criteria.some((item) => item.status === 'fail')
-  const belowThreshold = passThreshold > 0 && maxScore > 0 && totalScore < passThreshold
+  const belowThreshold = isBelowPassThreshold({ totalScore, maxScore, passThreshold })
 
   if (hasPending || result === 'pending') reasons.push('incomplete')
   if (hasFail || result === 'failed') reasons.push('failed')
@@ -366,9 +386,8 @@ const normalizeSessionFromApi = (session = {}, fallbackIndex = 0) => {
 
   const formVersion = session?.form_version || {}
   const form = formVersion?.form || {}
-  const templatePassThreshold = Math.max(
-    toNumber(formVersion?.pass_rule?.passThreshold ?? formVersion?.pass_rule?.pass_threshold),
-    0
+  const templatePassThreshold = normalizePassThreshold(
+    formVersion?.pass_rule?.passThreshold ?? formVersion?.pass_rule?.pass_threshold
   )
 
   const totalScore = toNumber(session?.total_score ?? session?.totalScore)
@@ -396,12 +415,12 @@ const normalizeSessionFromApi = (session = {}, fallbackIndex = 0) => {
       id: String(form?.code || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
       name: String(form?.name || session?.templateName || INTERNAL_DEFAULT_TEMPLATE.name),
       version: String(formVersion?.version_no || session?.templateVersion || INTERNAL_DEFAULT_TEMPLATE.version),
-      passThreshold: templatePassThreshold > 0 ? templatePassThreshold : DEFAULT_PASS_THRESHOLD,
+      passThreshold: templatePassThreshold,
     },
     templateId: String(form?.code || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
     templateName: String(form?.name || session?.templateName || INTERNAL_DEFAULT_TEMPLATE.name),
     templateVersion: String(formVersion?.version_no || session?.templateVersion || INTERNAL_DEFAULT_TEMPLATE.version),
-    templatePassThreshold: templatePassThreshold > 0 ? templatePassThreshold : DEFAULT_PASS_THRESHOLD,
+    templatePassThreshold: templatePassThreshold,
     criteria,
     totalScore,
     maxScore,
@@ -494,14 +513,10 @@ const normalizeOverviewPayloadFromApi = (payload = {}) => {
 
 
 export const createQcSession = async (payload = {}) => {
+  const formVersionId = toNumber(payload.formVersionId || payload.form_version_id)
   const requestBody = {
     storeId: toNumber(payload.storeId || payload.store_id),
-    auditorId: payload.auditorId ?? payload.auditor_id ?? null,
-    templateId: String(payload.templateId || payload.template_id || ''),
-    templateName: String(payload.templateName || payload.template_name || ''),
-    templateVersion: String(payload.templateVersion || payload.template_version || ''),
-    templatePassThreshold: toNumber(payload.templatePassThreshold ?? payload.template_pass_threshold),
-    allowTemplateAutocreate: payload.allowTemplateAutocreate ?? payload.allow_template_autocreate ?? true,
+    formVersionId,
     note: String(payload.note || ''),
     auditedAt: payload.auditedAt || payload.audited_at || new Date().toISOString(),
     criteria: Array.isArray(payload.criteria)
@@ -510,6 +525,10 @@ export const createQcSession = async (payload = {}) => {
         attachments: normalizeCriterionAttachments(criterion?.attachments),
       }))
       : [],
+  }
+
+  if (!Number.isInteger(formVersionId) || formVersionId <= 0) {
+    throw new Error('formVersionId không hợp lệ')
   }
 
   if (!Number.isInteger(requestBody.storeId) || requestBody.storeId <= 0) {
@@ -741,8 +760,9 @@ export const getQcTemplateById = async (formId) => {
   return {
     id: String(formData.id),
     name: String(formData.name || ''),
+    activeVersionId: toNumber(formData.activeVersionId) || null,
     version: String(formData.version || ''),
-    passThreshold: toNumber(formData.passThreshold, 80),
+    passThreshold: normalizePassThreshold(formData.passThreshold),
     criteriaTree: buildTree(flattened),
     flatCriteria: flattened // Kept for legacy compatibility in some parts
   }

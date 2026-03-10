@@ -167,6 +167,33 @@ const stores = computed(() => {
   }))
 })
 
+const mergedStoreSources = computed(() => {
+  const localRows = [...stores.value]
+  const seenStoreIds = new Set(
+    localRows
+      .map((store) => Number(store?.id || 0))
+      .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
+  )
+
+  storeStats.value.forEach((stat) => {
+    const entityId = Number(stat?.storeEntityId || stat?.storeId || 0)
+    if (!Number.isInteger(entityId) || entityId <= 0 || seenStoreIds.has(entityId)) return
+
+    seenStoreIds.add(entityId)
+    localRows.push({
+      id: entityId,
+      storeId: String(stat?.storeNo || ''),
+      code: stat?.storeCode || '',
+      name: stat?.storeName || stat?.storeCode || `Cửa hàng #${entityId}`,
+      address: stat?.address || '',
+      shortAddress: stat?.storeName || '',
+      managerName: 'Chưa gán',
+    })
+  })
+
+  return localRows
+})
+
 const sortableFields = ['totalSessions', 'passed', 'failed', 'avgScoreRate']
 const sortCycle = [null, 'desc', 'asc']
 
@@ -191,7 +218,7 @@ const normalizedStores = computed(() => {
     storeStats.value.map((item) => [Number(item.storeEntityId || item.storeId), item])
   )
 
-  return stores.value.map((store) => {
+  return mergedStoreSources.value.map((store) => {
     const stat = statsMap.get(store.id)
     const merged = {
       ...store,

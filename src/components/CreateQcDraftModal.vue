@@ -56,10 +56,6 @@ const normalizedTemplates = computed(() => (
     : []
 ))
 
-const selectedTemplate = computed(() => (
-  normalizedTemplates.value.find((item) => String(item?.id || '') === String(form.templateId || '')) || null
-))
-
 const canSubmit = computed(() => (
   !props.loading
   && Boolean(form.templateId)
@@ -157,7 +153,7 @@ watch(
         <p class="mt-1 text-sm font-semibold text-slate-900">{{ storeName || '--' }}</p>
       </div>
 
-      <section class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
+      <section>
         <label class="block text-sm text-slate-700">
           <span class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Biểu mẫu QC</span>
           <select
@@ -187,28 +183,9 @@ watch(
             Biểu mẫu được lấy trực tiếp từ danh sách form QC hiện hành.
           </p>
         </label>
-
-        <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-          <div class="flex items-start justify-between gap-2">
-            <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Biểu mẫu đã chọn</p>
-            <span
-              v-if="selectedTemplate?.code"
-              class="inline-flex shrink-0 items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
-            >
-              {{ selectedTemplate.code }}
-            </span>
-          </div>
-          <p class="mt-1 text-sm font-semibold text-slate-900">{{ selectedTemplate?.name || 'Chưa chọn biểu mẫu' }}</p>
-          <p class="mt-1 text-xs leading-5 text-slate-500">
-            {{ selectedTemplate?.description || 'Hãy chọn một biểu mẫu để bắt đầu tạo phiếu QC.' }}
-          </p>
-          <p v-if="selectedTemplate?.activeVersionId" class="mt-2 text-[11px] text-slate-500">
-            Version hoạt động #{{ selectedTemplate.activeVersionId }}
-          </p>
-        </div>
       </section>
 
-      <section class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
+      <section>
         <label class="block text-sm text-slate-700">
           <span class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Thời điểm kiểm tra</span>
           <input
@@ -217,14 +194,6 @@ watch(
             class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100"
           >
         </label>
-
-        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Trạng thái phiếu</p>
-          <p class="mt-1 text-sm font-semibold text-slate-900">Tạo dưới dạng nháp</p>
-          <p class="mt-1 text-xs leading-5 text-slate-500">
-            Sau khi tạo xong, hệ thống sẽ chuyển bạn sang màn hình chấm điểm để hoàn thiện phiếu.
-          </p>
-        </div>
       </section>
 
       <label class="block text-sm text-slate-700">

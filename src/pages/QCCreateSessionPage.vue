@@ -3,14 +3,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute, useRouter } from 'vue-router'
 import { useApp } from '@/plugins/app'
 import {
-  createQcDraftSession,
-  createQcFinding,
   createQcSession,
   deleteQcDraftSession,
   getQcDraftSessionById,
   getQcTemplateById,
-  listQcSessionsApi,
-  listQcTemplates,
   qcHelpers,
   updateQcDraftSession,
 } from '@/services/qc_service'
@@ -22,21 +18,23 @@ const { state } = useApp()
 
 const saving = ref(false)
 const errorMessage = ref('')
-const QC_TEMPLATE_SELECT_ID = 'qc-template-id'
 const MAX_ATTACHMENTS_PER_CRITERION = 3
 const MAX_ATTACHMENT_SIZE_BYTES = 2 * 1024 * 1024
-const WEEKLY_SKIP_NOTE = 'Tiêu chí đã được chấm trong tuần này.'
 const AUTOSAVE_DEBOUNCE_MS = 1200
+const CRITERION_FILTERS = [
+  { id: 'all', label: 'Tất cả' },
+  { id: 'pending', label: 'Chưa chấm' },
+  { id: 'fail', label: 'Không đạt' },
+]
 let autosaveTimer = null
 
 const draftId = computed(() => String(route.query.draftId || '').trim())
+const hasDraftContext = computed(() => Boolean(draftId.value))
 const activeDraftId = ref('')
-const draftSavedAt = ref('')
+const draftCreatedAt = ref('')
 const hydratingDraft = ref(false)
-const weeklyCheckedCriterionIds = ref(new Set())
-let weeklyCriteriaRequestId = 0
-const qcTemplates = ref([])
 const templateData = ref(null)
+const activeCriterionFilter = ref('all')
 
 const storeId = computed(() => Number(route.params.storeId || 0))
 const selectedStore = computed(() => {
@@ -64,16 +62,54 @@ const form = reactive({
 
 const selectedTemplate = computed(() => {
   if (templateData.value) return templateData.value
-  return { id: '', name: 'Đang tải...', version: '', passThreshold: 80, criteriaTree: [], flatCriteria: [] }
+  return {
+    id: '',
+    code: '',
+    name: hydratingDraft.value ? 'Đang tải biểu mẫu...' : '',
+    activeVersionId: null,
+    version: '',
+    passThreshold: qcHelpers.passThreshold,
+    criteriaTree: [],
+    flatCriteria: [],
+  }
 })
 
-const flatCriteria = computed(() => {
+const scorableCriteria = computed(() => {
   const source = selectedTemplate.value.flatCriteria || []
-  return source.map((criterion, index) => ({
+  const parentCriterionIds = new Set(
+    source
+      .map((criterion) => criterion.parentId)
+      .filter((parentId) => parentId !== null && parentId !== undefined && String(parentId) !== '')
+      .map((parentId) => String(parentId))
+  )
+
+  return source
+    .filter((criterion) => !parentCriterionIds.has(String(criterion.id)))
+    .map((criterion, index) => ({
     ...criterion,
     criterionIndex: index + 1,
-  }))
+    }))
 })
+
+const qcFormTitle = computed(() => selectedTemplate.value.name || 'Phiếu QC')
+
+const resolveCriterionStatus = (criterion, criterionState = {}) => {
+  const rawStatus = String(criterionState?.status || 'pending')
+  if (rawStatus === 'na') return 'na'
+
+  if (criterion?.mode === 'point') {
+    const rawScore = criterionState?.score
+    if (rawScore === null || rawScore === undefined || String(rawScore) === '') {
+      return rawStatus === 'fail' || rawStatus === 'pass' ? rawStatus : 'pending'
+    }
+
+    const score = Number(rawScore)
+    if (!Number.isFinite(score)) return 'pending'
+    return score >= Number(criterion?.passScore ?? criterion?.maxScore ?? 0) ? 'pass' : 'fail'
+  }
+
+  return rawStatus === 'pass' || rawStatus === 'fail' ? rawStatus : 'pending'
+}
 
 const ensureCriterionState = (criterionId) => {
   if (!form.criteriaStates[criterionId]) {
@@ -94,11 +130,6 @@ const getCriterionState = (criterionId) => (
 const onCriterionUpdate = (id, updates) => {
   const state = ensureCriterionState(id)
   Object.assign(state, updates)
-  
-  // Custom logic for score-status sync if needed
-  if (updates.score !== undefined && updates.score !== null) {
-    state.status = 'pass'
-  }
 }
 
 const onAttachmentUpload = async (id, event) => {
@@ -167,115 +198,17 @@ const onAttachmentRemove = (id, index) => {
   state.attachments.splice(index, 1)
 }
 
-const getWeekStart = (dateString) => {
-  const source = dateString ? new Date(dateString) : new Date()
-  const date = Number.isNaN(source.getTime()) ? new Date() : source
-  date.setHours(0, 0, 0, 0)
-  const day = date.getDay() || 7
-  date.setDate(date.getDate() - day + 1)
-  return date
-}
-
-const toIsoDate = (value) => {
-  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-const refreshWeeklyCheckedCriteria = async () => {
-  if (!storeId.value) {
-    weeklyCheckedCriterionIds.value = new Set()
-    return
-  }
-
-  const weekStart = getWeekStart(form.auditedAt)
-  const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekEnd.getDate() + 6)
-
-  const from = toIsoDate(weekStart)
-  const to = toIsoDate(weekEnd)
-  const requestId = ++weeklyCriteriaRequestId
-
-  try {
-    const payload = await listQcSessionsApi({
-      storeId: storeId.value,
-      from,
-      to,
-      pageSize: 200,
-      fetchAll: true,
-    })
-
-    if (requestId !== weeklyCriteriaRequestId) return
-
-    const checked = new Set()
-    const rows = Array.isArray(payload?.sessions) ? payload.sessions : []
-    rows.forEach((session) => {
-      const criteria = Array.isArray(session?.criteria) ? session.criteria : []
-      criteria.forEach((item) => {
-        const status = String(item?.status || '').toLowerCase()
-        const score = Number(item?.score)
-        if (status === 'pass' || status === 'fail' || Number.isFinite(score)) {
-          checked.add(String(item?.id || ''))
-        }
-      })
-    })
-
-    weeklyCheckedCriterionIds.value = checked
-  } catch (_error) {
-    if (requestId !== weeklyCriteriaRequestId) return
-    weeklyCheckedCriterionIds.value = new Set()
-  }
-}
-
-const hasWeeklyChecked = (criterionId) => {
-  return weeklyCheckedCriterionIds.value.has(String(criterionId))
-}
-
-const applyWeeklyAvailability = (criterion, state) => {
-  if (criterion.frequency !== 'weekly_once') return
-
-  if (hasWeeklyChecked(criterion.id)) {
-    state.status = 'skipped_weekly'
-    state.score = null
-    if (!state.note || state.note === WEEKLY_SKIP_NOTE) {
-      state.note = WEEKLY_SKIP_NOTE
-    }
-    return
-  }
-
-  if (state.status === 'skipped_weekly') {
-    state.status = 'pending'
-    if (state.note === WEEKLY_SKIP_NOTE) {
-      state.note = ''
-    }
-  }
-}
-
 const initializeCriteriaStates = () => {
   const nextStates = {}
-  flatCriteria.value.forEach((criterion) => {
-    const state = {
+  scorableCriteria.value.forEach((criterion) => {
+    nextStates[criterion.id] = {
       status: 'pending',
       score: null,
       note: '',
       attachments: [],
     }
-
-    applyWeeklyAvailability(criterion, state)
-
-    nextStates[criterion.id] = state
   })
   form.criteriaStates = nextStates
-}
-
-const refreshWeeklyCriteriaStates = () => {
-  flatCriteria.value.forEach((criterion) => {
-    const state = ensureCriterionState(criterion.id)
-    applyWeeklyAvailability(criterion, state)
-  })
 }
 
 const buildDraftCriteriaStates = ({ includeAttachments = true } = {}) => {
@@ -301,44 +234,11 @@ const buildDraftCriteriaStates = ({ includeAttachments = true } = {}) => {
   }, {})
 }
 
-const ensureActiveDraftSession = async () => {
-  if (activeDraftId.value || hydratingDraft.value || !storeId.value) {
-    return activeDraftId.value
-  }
-
-  try {
-    const created = await createQcDraftSession({
-      storeId: storeId.value,
-      storeName: storeTitle.value,
-      templateId: form.templateId,
-      auditedAt: form.auditedAt ? new Date(form.auditedAt).toISOString() : new Date().toISOString(),
-      note: form.note,
-      criteriaStates: buildDraftCriteriaStates(),
-    })
-
-    activeDraftId.value = created.id
-    draftSavedAt.value = created.updatedAt || created.createdAt || ''
-
-    if (!draftId.value) {
-      await router.replace({
-        path: `/QC/store/${storeId.value}/create`,
-        query: { draftId: created.id },
-      })
-    }
-
-    return created.id
-  } catch (error) {
-    errorMessage.value = error?.response?.data?.message || error?.message || 'Không thể tạo phiếu nháp.'
-    return ''
-  }
-}
-
 const persistDraftNow = async ({ includeAttachments = true } = {}) => {
   if (!activeDraftId.value || hydratingDraft.value) return
 
-  let updated = null
   try {
-    updated = await updateQcDraftSession(activeDraftId.value, {
+    await updateQcDraftSession(activeDraftId.value, {
       storeId: storeId.value,
       storeName: storeTitle.value,
       templateId: form.templateId,
@@ -349,18 +249,11 @@ const persistDraftNow = async ({ includeAttachments = true } = {}) => {
   } catch (_error) {
     return
   }
-
-  if (updated?.updatedAt) {
-    draftSavedAt.value = updated.updatedAt
-  }
 }
 
 const scheduleDraftAutosave = async () => {
   if (hydratingDraft.value) return
-  if (!activeDraftId.value) {
-    const draftSessionId = await ensureActiveDraftSession()
-    if (!draftSessionId) return
-  }
+  if (!activeDraftId.value) return
 
   if (autosaveTimer) {
     clearTimeout(autosaveTimer)
@@ -374,132 +267,113 @@ const scheduleDraftAutosave = async () => {
 const restoreDraftSession = async () => {
   if (!draftId.value) {
     activeDraftId.value = ''
-    draftSavedAt.value = ''
+    draftCreatedAt.value = ''
+    templateData.value = null
+    form.templateId = ''
+    form.criteriaStates = {}
+    errorMessage.value = 'Vui lòng khởi tạo phiếu nháp từ màn chi tiết cửa hàng trước khi chấm QC.'
     return
   }
 
-  let draft = null
   try {
-    draft = await getQcDraftSessionById(draftId.value)
-  } catch (error) {
-    activeDraftId.value = ''
-    errorMessage.value = error?.response?.data?.message || error?.message || 'Không tải được phiếu nháp.'
-    return
-  }
+    hydratingDraft.value = true
+    const draft = await getQcDraftSessionById(draftId.value)
 
-  if (!draft) {
-    activeDraftId.value = ''
-    errorMessage.value = 'Không tìm thấy phiếu nháp hoặc nháp đã bị xóa.'
-    return
-  }
-
-  if (Number(draft.storeId) !== Number(storeId.value)) {
-    activeDraftId.value = ''
-    errorMessage.value = 'Phiếu nháp không thuộc cửa hàng hiện tại.'
-    return
-  }
-
-  hydratingDraft.value = true
-  activeDraftId.value = draft.id
-
-  form.templateId = qcTemplates.some((item) => item.id === draft.templateId)
-    ? draft.templateId
-    : qcTemplates[0].id
-  form.auditedAt = toLocalDateTimeInput(draft.auditedAt || draft.updatedAt || draft.createdAt)
-  form.note = String(draft.note || '')
-
-  await nextTick()
-  initializeCriteriaStates()
-
-  const incomingStates = draft.criteriaStates && typeof draft.criteriaStates === 'object'
-    ? draft.criteriaStates
-    : {}
-  const nextStates = {}
-
-  flatCriteria.value.forEach((criterion) => {
-    const baseState = form.criteriaStates[criterion.id] || {
-      status: 'pending',
-      score: null,
-      note: '',
-      attachments: [],
-    }
-
-    const savedState = incomingStates[criterion.id]
-    if (!savedState) {
-      nextStates[criterion.id] = { ...baseState }
+    if (!draft) {
+      activeDraftId.value = ''
+      draftCreatedAt.value = ''
+      templateData.value = null
+      form.criteriaStates = {}
+      errorMessage.value = 'Không tìm thấy phiếu nháp hoặc nháp đã bị xóa.'
       return
     }
 
-    nextStates[criterion.id] = {
-      status: String(savedState.status || baseState.status || 'pending'),
-      score: savedState.score === null || savedState.score === undefined || String(savedState.score) === ''
-        ? null
-        : Number(savedState.score),
-      note: String(savedState.note ?? baseState.note ?? ''),
-      attachments: Array.isArray(savedState.attachments)
-        ? savedState.attachments.map((attachment) => ({ ...attachment }))
-        : [],
+    if (Number(draft.storeId) !== Number(storeId.value)) {
+      activeDraftId.value = ''
+      draftCreatedAt.value = ''
+      templateData.value = null
+      form.criteriaStates = {}
+      errorMessage.value = 'Phiếu nháp không thuộc cửa hàng hiện tại.'
+      return
     }
-  })
 
-  form.criteriaStates = nextStates
-  await refreshWeeklyCheckedCriteria()
-  refreshWeeklyCriteriaStates()
-  draftSavedAt.value = draft.updatedAt || ''
-  errorMessage.value = ''
-  hydratingDraft.value = false
+    const nextTemplateId = String(draft.templateId || '')
+    if (!nextTemplateId) {
+      activeDraftId.value = draft.id
+      draftCreatedAt.value = draft.createdAt || draft.updatedAt || ''
+      templateData.value = null
+      form.criteriaStates = {}
+      errorMessage.value = 'Phiếu nháp chưa có biểu mẫu QC hợp lệ.'
+      return
+    }
+
+    activeDraftId.value = draft.id
+    draftCreatedAt.value = draft.createdAt || draft.updatedAt || ''
+    form.templateId = nextTemplateId
+    form.auditedAt = toLocalDateTimeInput(draft.auditedAt || draft.updatedAt || draft.createdAt)
+    form.note = String(draft.note || '')
+
+    const template = await getQcTemplateById(nextTemplateId)
+    if (!template) {
+      templateData.value = null
+      form.criteriaStates = {}
+      errorMessage.value = 'Không tải được cấu trúc biểu mẫu QC cho phiếu nháp này.'
+      return
+    }
+
+    templateData.value = template
+    initializeCriteriaStates()
+
+    const incomingStates = draft.criteriaStates && typeof draft.criteriaStates === 'object'
+      ? draft.criteriaStates
+      : {}
+    const nextStates = {}
+
+    scorableCriteria.value.forEach((criterion) => {
+      const baseState = form.criteriaStates[criterion.id] || {
+        status: 'pending',
+        score: null,
+        note: '',
+        attachments: [],
+      }
+
+      const savedState = incomingStates[criterion.id]
+      if (!savedState) {
+        nextStates[criterion.id] = { ...baseState }
+        return
+      }
+
+      nextStates[criterion.id] = {
+        status: String(savedState.status || baseState.status || 'pending'),
+        score: savedState.score === null || savedState.score === undefined || String(savedState.score) === ''
+          ? null
+          : Number(savedState.score),
+        note: String(savedState.note ?? baseState.note ?? ''),
+        attachments: Array.isArray(savedState.attachments)
+          ? savedState.attachments.map((attachment) => ({ ...attachment }))
+          : [],
+      }
+    })
+
+    form.criteriaStates = nextStates
+    errorMessage.value = ''
+  } catch (error) {
+    activeDraftId.value = ''
+    draftCreatedAt.value = ''
+    templateData.value = null
+    form.criteriaStates = {}
+    errorMessage.value = error?.response?.data?.message || error?.message || 'Không tải được phiếu nháp.'
+  } finally {
+    hydratingDraft.value = false
+  }
 }
 
 initializeCriteriaStates()
 
-const loadTemplates = async () => {
-  try {
-    qcTemplates.value = await listQcTemplates()
-    if (!form.templateId && qcTemplates.value.length > 0) {
-      form.templateId = qcTemplates.value[0].id
-    }
-  } catch (error) {
-    console.error('Failed to load QC templates', error)
-  }
-}
-
-const loadTemplateData = async (templateId) => {
-  if (!templateId) return
-  try {
-    templateData.value = await getQcTemplateById(templateId)
-    initializeCriteriaStates()
-    refreshWeeklyCriteriaStates()
-  } catch (error) {
-    errorMessage.value = error?.message || 'Không tải được cấu trúc tiêu chí.'
-    console.error('Failed to load template data', error)
-  }
-}
-
-watch(
-  () => form.templateId,
-  async (newId) => {
-    if (newId) {
-      await loadTemplateData(newId)
-    }
-    scheduleDraftAutosave()
-  }
-)
-
 watch(
   () => storeId.value,
   async () => {
-    initializeCriteriaStates()
-    await refreshWeeklyCheckedCriteria()
-    refreshWeeklyCriteriaStates()
-  }
-)
-
-watch(
-  () => form.auditedAt,
-  async () => {
-    await refreshWeeklyCheckedCriteria()
-    refreshWeeklyCriteriaStates()
-    scheduleDraftAutosave()
+    await restoreDraftSession()
   }
 )
 
@@ -518,38 +392,13 @@ watch(
   { deep: true }
 )
 
-function syncPrelineSelectValue(elementId, value) {
-  const selectElement = document.getElementById(elementId)
-  if (!selectElement) return
-
-  const normalizedValue = value ? String(value) : ''
-  selectElement.value = normalizedValue
-
-  const hsSelect = window.HSSelect?.getInstance?.(selectElement, true)
-  if (hsSelect?.element?.setValue) {
-    hsSelect.element.setValue(normalizedValue)
-  }
-}
-
 onMounted(async () => {
-  await nextTick()
-  if (window.HSStaticMethods?.autoInit) {
-    window.HSStaticMethods.autoInit()
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.add('page-scroll-hidden')
+    document.body.classList.add('page-scroll-hidden')
   }
-  await loadTemplates()
-  syncPrelineSelectValue(QC_TEMPLATE_SELECT_ID, form.templateId)
   await restoreDraftSession()
-  await refreshWeeklyCheckedCriteria()
-  refreshWeeklyCriteriaStates()
 })
-
-watch(
-  () => form.templateId,
-  async (value) => {
-    await nextTick()
-    syncPrelineSelectValue(QC_TEMPLATE_SELECT_ID, value)
-  }
-)
 
 watch(
   () => draftId.value,
@@ -576,28 +425,10 @@ const readFileAsDataUrl = (file) => {
   })
 }
 
-const getCriterionResult = (criterion) => {
-  const state = getCriterionState(criterion.id)
-  if (state.status === 'na' || state.status === 'skipped_weekly') return state.status
-
-  if (criterion.mode === 'pass_fail') {
-    if (state.status === 'pass' || state.status === 'fail') return state.status
-    return 'pending'
-  }
-
-  if (state.score === null || state.score === undefined || String(state.score) === '') return 'pending'
-  const score = Math.max(0, Math.min(Number(state.score || 0), Number(criterion.maxScore || 0)))
-  return score >= Number(criterion.passScore || criterion.maxScore || 0) ? 'pass' : 'fail'
-}
-
 const criteriaPayload = computed(() => {
-  return flatCriteria.value.map((criterion) => {
+  return scorableCriteria.value.map((criterion) => {
     const state = getCriterionState(criterion.id)
-    let status = state.status
-    
-    if (criterion.mode === 'point' && state.score !== null && status === 'pass') {
-      status = state.score >= (criterion.passScore || criterion.maxScore) ? 'pass' : 'fail'
-    }
+    const status = resolveCriterionStatus(criterion, state)
 
     return {
       id: criterion.id,
@@ -607,7 +438,7 @@ const criteriaPayload = computed(() => {
       score: state.score,
       maxScore: criterion.maxScore,
       critical: Boolean(criterion.isCritical),
-      applicable: status !== 'na' && status !== 'skipped_weekly',
+      applicable: status !== 'na',
       status: status,
       note: String(state.note || '').trim(),
       attachments: state.attachments.map(a => ({ ...a }))
@@ -622,39 +453,126 @@ const sessionEvaluation = computed(() => {
   })
 })
 
-const completedCriteria = computed(() => flatCriteria.value.length - sessionEvaluation.value.incompleteCount)
+const completedCriteria = computed(() => scorableCriteria.value.length - sessionEvaluation.value.incompleteCount)
 const remainingCriteria = computed(() => sessionEvaluation.value.incompleteCount)
-const completionRate = computed(() => (flatCriteria.value.length > 0 ? Math.round((completedCriteria.value / flatCriteria.value.length) * 100) : 0))
+const completionRate = computed(() => (scorableCriteria.value.length > 0 ? Math.round((completedCriteria.value / scorableCriteria.value.length) * 100) : 0))
+const submitDisabled = computed(() => (
+  saving.value
+  || hydratingDraft.value
+  || !activeDraftId.value
+  || scorableCriteria.value.length === 0
+  || remainingCriteria.value > 0
+  || !selectedTemplate.value.activeVersionId
+))
 
-const resultLabel = computed(() => {
-  if (remainingCriteria.value > 0) return 'Chưa hoàn tất'
-  return sessionEvaluation.value.status === 'passed' ? 'Đạt chuẩn' : 'Không đạt'
+const draftStatusLabel = computed(() => (
+  activeDraftId.value ? 'Phiếu nháp' : 'Chưa tải nháp'
+))
+
+const draftCreatedLabel = computed(() => {
+  if (!draftCreatedAt.value) return 'Chưa có ngày tạo'
+  return `Tạo ngày ${qcHelpers.toDateLabel(draftCreatedAt.value)}`
 })
 
-const resultToneClass = computed(() => {
-  if (remainingCriteria.value > 0) return 'bg-amber-50'
-  return sessionEvaluation.value.status === 'passed' ? 'bg-emerald-50' : 'bg-rose-50'
-})
+const criterionSnapshots = computed(() => (
+  scorableCriteria.value.map((criterion) => {
+    const criterionState = getCriterionState(criterion.id)
+    const status = resolveCriterionStatus(criterion, criterionState)
+    return {
+      ...criterion,
+      status,
+      note: String(criterionState?.note || '').trim(),
+    }
+  })
+))
 
-const resultBadgeClass = computed(() => {
-  if (remainingCriteria.value > 0) return 'bg-amber-100 text-amber-700'
-  return sessionEvaluation.value.status === 'passed' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-})
+const criterionSnapshotMap = computed(() => (
+  new Map(criterionSnapshots.value.map((item) => [String(item.id), item]))
+))
 
-const resultReasons = computed(() => {
-  const reasonLabels = {
-    incomplete: 'Còn tiêu chí chưa chấm',
-    failed: 'Có tiêu chí không đạt',
-    critical: 'Có tiêu chí critical chưa đạt',
-    threshold: 'Chưa đạt ngưỡng điểm',
+const activeFilterMeta = computed(() => (
+  CRITERION_FILTERS.find((item) => item.id === activeCriterionFilter.value) || CRITERION_FILTERS[0]
+))
+
+const matchesCriterionFilter = (criterion) => {
+  const snapshot = criterionSnapshotMap.value.get(String(criterion?.id || ''))
+  if (!snapshot) return false
+
+  switch (activeCriterionFilter.value) {
+    case 'pending':
+      return snapshot.status === 'pending'
+    case 'fail':
+      return snapshot.status === 'fail'
+    case 'critical':
+      return snapshot.isCritical === true
+    case 'na':
+      return snapshot.status === 'na'
+    default:
+      return true
   }
-  return (sessionEvaluation.value.reasons || []).map((item) => reasonLabels[item] || item)
+}
+
+const filterCriteriaTree = (nodes = []) => (
+  nodes.reduce((acc, node) => {
+    const children = Array.isArray(node?.children) ? filterCriteriaTree(node.children) : []
+    const hasChildren = Array.isArray(node?.children) && node.children.length > 0
+
+    if (hasChildren) {
+      if (children.length > 0) {
+        acc.push({ ...node, children })
+      }
+      return acc
+    }
+
+    if (matchesCriterionFilter(node)) {
+      acc.push(node)
+    }
+
+    return acc
+  }, [])
+)
+
+const visibleCriteriaTree = computed(() => (
+  activeCriterionFilter.value === 'all'
+    ? selectedTemplate.value.criteriaTree
+    : filterCriteriaTree(selectedTemplate.value.criteriaTree)
+))
+
+const failedCriteria = computed(() => (
+  criterionSnapshots.value.filter((criterion) => criterion.status === 'fail')
+))
+
+const progressBarStyle = computed(() => ({
+  width: `${completionRate.value}%`,
+}))
+
+const filteredEmptyMessage = computed(() => {
+  if (activeCriterionFilter.value === 'all') {
+    return 'Chưa tải được tiêu chí cho phiếu nháp này.'
+  }
+
+  return `Không có tiêu chí nào thuộc nhóm "${activeFilterMeta.value.label}".`
 })
 
-const draftSavedLabel = computed(() => {
-  if (!draftSavedAt.value) return ''
-  return qcHelpers.toDateLabel(draftSavedAt.value)
-})
+const setCriterionFilter = (filterId) => {
+  activeCriterionFilter.value = filterId
+}
+
+const focusCriterion = async (criterionId) => {
+  if (!criterionId) return
+
+  await nextTick()
+  const element = document.getElementById(`criterion-${criterionId}`)
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+}
+
+const jumpToFirstFailed = async () => {
+  if (!failedCriteria.value.length) return
+  activeCriterionFilter.value = 'fail'
+  await focusCriterion(failedCriteria.value[0].id)
+}
 
 
 
@@ -663,7 +581,7 @@ const goBack = () => {
 }
 
 const submitSession = async () => {
-  if (!storeId.value || !selectedStore.value) {
+  if (!storeId.value) {
     errorMessage.value = 'Không xác định được cửa hàng để tạo phiếu QC.'
     return
   }
@@ -673,29 +591,30 @@ const submitSession = async () => {
     return
   }
 
+  if (!selectedTemplate.value.activeVersionId) {
+    errorMessage.value = 'Biểu mẫu QC chưa có phiên bản phát hành hợp lệ.'
+    return
+  }
+
   saving.value = true
   errorMessage.value = ''
   await persistDraftNow({ includeAttachments: true })
-  const hasCriterionAttachments = criteriaPayload.value.some((criterion) => Array.isArray(criterion.attachments) && criterion.attachments.length > 0)
 
   try {
     await createQcSession({
       storeId: storeId.value,
-      storeName: storeTitle.value,
-      auditorId: state.userInfo?.id || null,
-      auditorName: state.userInfo?.name || '',
-      templateId: selectedTemplate.value.id,
-      templateName: selectedTemplate.value.name,
-      templateVersion: selectedTemplate.value.version,
-      templatePassThreshold: selectedTemplate.value.passThreshold,
+      formVersionId: selectedTemplate.value.activeVersionId,
       criteria: criteriaPayload.value,
       note: form.note,
       auditedAt: form.auditedAt ? new Date(form.auditedAt).toISOString() : new Date().toISOString(),
     })
 
-    // Session item chưa có nơi persist evidence, nên chỉ xóa draft khi không còn attachment.
-    if (activeDraftId.value && !hasCriterionAttachments) {
-      await deleteQcDraftSession(activeDraftId.value)
+    if (activeDraftId.value) {
+      try {
+        await deleteQcDraftSession(activeDraftId.value)
+      } catch (_error) {
+        // Session da tao thanh cong; khong chan dieu huong neu xoa nhap that bai.
+      }
     }
 
     router.push(`/QC/store/${storeId.value}`)
@@ -707,275 +626,196 @@ const submitSession = async () => {
 }
 
 onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.remove('page-scroll-hidden')
+    document.body.classList.remove('page-scroll-hidden')
+  }
   if (autosaveTimer) {
     clearTimeout(autosaveTimer)
   }
   void persistDraftNow({ includeAttachments: true })
 })
-
-/**
- * Finding Creation Modal Logic
- */
-const findingModalActive = ref(false)
-const findingSubmitting = ref(false)
-const selectedCriterionForFinding = ref(null)
-const findingForm = reactive({
-  severity: 'medium',
-  dueDate: '',
-  correctiveAction: '',
-})
-
-const openFindingModal = (criterionId) => {
-  const crit = flatCriteria.value.find(c => c.id === criterionId)
-  if (!crit) return
-  
-  selectedCriterionForFinding.value = crit
-  findingForm.severity = crit.isCritical ? 'high' : 'medium'
-  findingForm.correctiveAction = ''
-  
-  // Set default due_date (e.g., tomorrow)
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  findingForm.dueDate = tomorrow.toISOString().split('T')[0]
-  
-  findingModalActive.value = true
-}
-
-const submitFinding = async () => {
-  if (!selectedCriterionForFinding.value || !storeId.value) return
-  
-  findingSubmitting.value = true
-  try {
-    const criterionState = getCriterionState(selectedCriterionForFinding.value.id)
-    
-    await createQcFinding({
-      store: storeId.value,
-      session_id: activeDraftId.value || null, // Finding linked to draft or temporary session
-      criterion_name: selectedCriterionForFinding.value.name,
-      severity: findingForm.severity,
-      due_date: findingForm.dueDate,
-      corrective_action: findingForm.correctiveAction,
-      evidence: criterionState.attachments.map(a => ({ ...a })),
-      status: 'open'
-    })
-    
-    findingModalActive.value = false
-    selectedCriterionForFinding.value = null
-    // Suggest refreshing or showing success toast
-  } catch (error) {
-    errorMessage.value = error?.response?.data?.message || error?.message || 'Không thể tạo yêu cầu khắc phục.'
-  } finally {
-    findingSubmitting.value = false
-  }
-}
 </script>
 
 <template>
   <div>
-    <div class="header max-w-full p-2.5 text-[18px] font-bold text-white mx-4 box-border rounded-lg bg-linear-to-r from-blue-600 to-blue-500 flex items-center">
-      <button @click="goBack" type="button" class="cursor-pointer p-1 mr-2 inline-flex items-center rounded-lg bg-white/40 text-white shadow-2xs hover:bg-white/30 focus:outline-hidden focus:bg-white/30">
-        <svg class="shrink-0 size-6 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-      </button>
-      Tạo phiếu QC tại cửa hàng
-    </div>
+    <div class="page-stack space-y-3 pb-24 xl:pb-0">
+      <div class="flex min-w-0 items-center gap-3">
+        <button
+          @click="goBack"
+          type="button"
+          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+          aria-label="Quay lại chi tiết QC cửa hàng"
+        >
+          <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+        </button>
 
-    <div class="page-stack compact mx-4">
-      <section class="rounded-xl border border-gray-200 bg-white p-3 shadow-2xs">
-        <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-start">
-          <div class="min-w-0 rounded-lg bg-slate-50 px-3 py-2.5">
-            <p class="text-xs text-slate-500">Cửa hàng được kiểm tra</p>
-            <h2 class="mt-0.5 truncate text-base font-semibold text-slate-800" :title="storeTitle">{{ storeTitle }}</h2>
-            <p v-if="activeDraftId" class="mt-1 text-xs text-blue-700">
-              Đang chỉnh phiếu nháp: {{ activeDraftId }}
-            </p>
-            <p v-if="draftSavedLabel" class="text-xs text-slate-500">Lưu gần nhất: {{ draftSavedLabel }}</p>
-          </div>
-
-          <div class="grid gap-2 sm:grid-cols-2">
-            <label class="text-sm text-slate-700">
-              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Loại biên bản QC</span>
-              <select
-                :id="QC_TEMPLATE_SELECT_ID"
-                v-model="form.templateId"
-                class="hidden"
-                data-hs-select='{
-                  "placeholder": "Chọn biên bản QC",
-                  "toggleTag": "<button type=\"button\" aria-expanded=\"false\"></button>",
-                  "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative py-2 px-3 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer bg-white border border-gray-200 rounded-lg text-start text-sm focus:outline-hidden",
-                  "dropdownClasses": "mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 bg-white border border-gray-200 rounded-lg overflow-hidden overflow-y-auto",
-                  "optionClasses": "py-2 px-4 w-full text-sm text-gray-800 cursor-pointer hover:bg-gray-100 rounded-lg focus:outline-hidden",
-                  "optionTemplate": "<div class=\"flex justify-between items-center w-full\"><span data-title></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-blue-600\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
-                  "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-gray-500\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
-                }'
-              >
-                <option v-for="template in qcTemplates" :key="template.id" :value="template.id">
-                  {{ template.name }} ({{ template.version }})
-                </option>
-              </select>
-            </label>
-
-            <label class="text-sm text-slate-700">
-              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Thời điểm kiểm tra</span>
-              <input
-                v-model="form.auditedAt"
-                type="datetime-local"
-                class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-slate-700"
-              />
-            </label>
-          </div>
+        <div class="min-w-0 flex-1">
+          <h1 class="truncate text-lg font-semibold text-slate-900 sm:text-xl" :title="storeTitle">
+            {{ storeTitle }}
+          </h1>
         </div>
-      </section>
+      </div>
 
-      <section class="grid gap-3 xl:grid-cols-12">
-        <div class="xl:col-span-8 space-y-3">
-          <QCCriterionTreeItem
-            v-for="criterion in selectedTemplate.criteriaTree"
-            :key="criterion.id"
-            :criterion="criterion"
-            :criteria-states="form.criteriaStates"
-            :weekly-checked-ids="weeklyCheckedCriterionIds"
-            @update-state="onCriterionUpdate"
-            @upload-attachment="onAttachmentUpload"
-            @remove-attachment="onAttachmentRemove"
-            @open-finding-modal="openFindingModal"
-          />
-        </div>
+      <p
+        v-if="errorMessage"
+        class="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600"
+      >
+        {{ errorMessage }}
+      </p>
 
-        <aside class="xl:col-span-4">
-          <section class="sticky top-16 rounded-xl border border-gray-200 bg-white p-3 shadow-2xs">
-            <h3 class="text-sm font-semibold text-slate-800">Tóm tắt phiếu QC</h3>
-            <p class="text-xs text-slate-500">Theo {{ selectedTemplate.name }} ({{ selectedTemplate.version }})</p>
-            <p v-if="activeDraftId" class="text-xs text-blue-700">Phiếu nháp đang chỉnh</p>
+      <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="space-y-4">
+          <section class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-4 py-3">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="min-w-0">
+                  <p class="truncate text-base font-semibold text-slate-900">{{ qcFormTitle }}</p>
+                  <div class="mt-1 flex flex-wrap items-center gap-2">
+                    <span
+                      class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
+                      :class="activeDraftId ? 'bg-blue-50 text-guta-blue' : 'bg-slate-100 text-slate-500'"
+                    >
+                      {{ draftStatusLabel }}
+                    </span>
+                    <span class="text-xs text-slate-500">{{ draftCreatedLabel }}</span>
+                  </div>
+                </div>
 
-            <div class="mt-3 space-y-2">
-              <div class="rounded-lg bg-slate-50 px-3 py-2">
-                <p class="text-xs text-slate-500">Tiêu chí đã đánh giá</p>
-                <p class="text-lg font-bold text-slate-800">{{ completedCriteria }}/{{ flatCriteria.length }}</p>
-                <p class="text-xs text-slate-500">Hoàn thành {{ completionRate }}%</p>
-                <p v-if="remainingCriteria > 0" class="text-xs font-semibold text-rose-600">Còn {{ remainingCriteria }} tiêu chí chưa đánh giá</p>
-              </div>
-              <div class="rounded-lg bg-slate-50 px-3 py-2">
-                <p class="text-xs text-slate-500">Kết quả theo tiêu chí</p>
-                <p class="text-sm font-semibold text-emerald-700">Đạt: {{ sessionEvaluation.passedCount }}</p>
-                <p class="text-sm font-semibold text-rose-700">Không đạt: {{ sessionEvaluation.failedCount }}</p>
-                <p class="text-sm font-semibold text-slate-700">Loại trừ: {{ sessionEvaluation.excludedCount }}</p>
-              </div>
-              <div class="rounded-lg bg-slate-50 px-3 py-2">
-                <p class="text-xs text-slate-500">Điểm tổng</p>
-                <p class="text-lg font-bold text-slate-800">{{ sessionEvaluation.totalScore }}/{{ sessionEvaluation.maxScore }}</p>
-                <p class="text-xs text-slate-500">Ngưỡng đạt: {{ selectedTemplate.passThreshold }}</p>
-              </div>
-              <div class="rounded-lg px-3 py-2" :class="resultToneClass">
-                <p class="text-xs text-slate-500">Kết quả tạm tính</p>
-                <span class="inline-flex rounded-md px-2 py-1 text-xs font-semibold" :class="resultBadgeClass">
-                  {{ resultLabel }}
-                </span>
-                <p v-if="resultReasons.length > 0" class="mt-1 text-xs text-slate-600">
-                  {{ resultReasons.join(' • ') }}
-                </p>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="filter in CRITERION_FILTERS"
+                    :key="filter.id"
+                    type="button"
+                    class="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition"
+                    :class="activeCriterionFilter === filter.id ? 'border-guta-blue bg-guta-blue text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'"
+                    @click="setCriterionFilter(filter.id)"
+                  >
+                    {{ filter.label }}
+                  </button>
+                </div>
               </div>
             </div>
 
-            <label class="mt-3 block text-sm text-slate-700">
-              <span class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú tổng</span>
-              <textarea
-                v-model="form.note"
-                rows="3"
-                class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-slate-700"
-                placeholder="Nhập ghi chú chung của phiên QC..."
-              ></textarea>
-            </label>
+            <div
+              v-if="!hasDraftContext || !activeDraftId || scorableCriteria.length === 0"
+              class="px-6 py-10 text-center"
+            >
+              <p class="text-sm font-semibold text-slate-700">
+                {{ hasDraftContext ? 'Chưa tải được tiêu chí cho phiếu nháp này.' : 'Chưa có phiếu nháp để tiếp tục.' }}
+              </p>
+            </div>
 
-            <p v-if="errorMessage" class="mt-3 text-xs text-rose-600">{{ errorMessage }}</p>
+            <div
+              v-else-if="visibleCriteriaTree.length === 0"
+              class="px-6 py-10 text-center"
+            >
+              <p class="text-sm font-semibold text-slate-700">{{ filteredEmptyMessage }}</p>
+            </div>
 
-            <div class="mt-3 flex justify-end gap-2">
+            <div v-else class="px-4 py-2 pb-4 sm:px-5">
+              <QCCriterionTreeItem
+                v-for="criterion in visibleCriteriaTree"
+                :key="criterion.id"
+                :criterion="criterion"
+                :criteria-states="form.criteriaStates"
+                :max-attachments="MAX_ATTACHMENTS_PER_CRITERION"
+                @update-state="onCriterionUpdate"
+                @upload-attachment="onAttachmentUpload"
+                @remove-attachment="onAttachmentRemove"
+              />
+            </div>
+          </section>
+        </div>
+
+        <aside>
+          <section class="sticky top-16 rounded-[24px] border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 px-4 py-3">
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-sm font-semibold text-slate-900">Tóm tắt</p>
+                <p class="text-[11px] font-medium text-slate-500">{{ completedCriteria }}/{{ scorableCriteria.length }} đã chấm</p>
+              </div>
+              <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div class="h-full rounded-full bg-guta-blue transition-all duration-300" :style="progressBarStyle"></div>
+              </div>
+              <div class="mt-2 flex items-center justify-between text-xs text-slate-500">
+                <span>{{ remainingCriteria }} mục còn lại</span>
+                <span>{{ completionRate }}%</span>
+              </div>
+            </div>
+
+            <div class="space-y-4 px-4 py-4">
+              <div class="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p class="text-lg font-semibold text-slate-900">{{ sessionEvaluation.passedCount }}</p>
+                  <p class="text-[11px] text-slate-500">Đạt</p>
+                </div>
+                <div>
+                  <p class="text-lg font-semibold text-slate-900">{{ sessionEvaluation.failedCount }}</p>
+                  <p class="text-[11px] text-slate-500">Lỗi</p>
+                </div>
+                <div>
+                  <p class="text-lg font-semibold text-slate-900">{{ sessionEvaluation.totalScore }}/{{ sessionEvaluation.maxScore }}</p>
+                  <p class="text-[11px] text-slate-500">Điểm</p>
+                </div>
+              </div>
+
               <button
+                v-if="failedCriteria.length > 0"
                 type="button"
-                class="cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                @click="goBack"
+                class="cursor-pointer w-full rounded-2xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                @click="jumpToFirstFailed"
               >
-                Huỷ
+                Xem {{ failedCriteria.length }} tiêu chí không đạt
               </button>
-              <button
-                type="button"
-                class="cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                :disabled="saving"
-                @click="submitSession"
-              >
-                {{ saving ? 'Đang lưu...' : 'Lưu phiếu QC' }}
-              </button>
+
+              <label class="block text-sm text-slate-700 border-t border-slate-200 pt-4">
+                <span class="mb-1.5 block text-xs font-medium text-slate-500">Ghi chú tổng</span>
+                <textarea
+                  v-model="form.note"
+                  rows="4"
+                  class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  placeholder="Ghi chú thêm"
+                ></textarea>
+              </label>
+
+              <div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
+                <button
+                  type="button"
+                  class="cursor-pointer rounded-2xl border border-gray-200 px-4 py-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                  @click="goBack"
+                >
+                  Huỷ
+                </button>
+                <button
+                  type="button"
+                  class="cursor-pointer rounded-2xl bg-guta-blue px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-guta-dark-blue disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="submitDisabled"
+                  @click="submitSession"
+                >
+                  {{ saving ? 'Đang lưu...' : 'Lưu phiếu QC' }}
+                </button>
+              </div>
             </div>
           </section>
         </aside>
       </section>
     </div>
 
-    <!-- Finding Creation Modal -->
-    <div
-      v-if="findingModalActive"
-      class="fixed inset-0 z-100 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
-    >
-      <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200">
-        <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 class="font-bold text-slate-800 flex items-center gap-2">
-            <svg class="size-5 text-rose-500" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            Yêu cầu khắc phục lỗi
-          </h3>
-          <button @click="findingModalActive = false" class="text-slate-400 hover:text-slate-600">
-            <svg class="size-5" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-
-        <div class="p-5 space-y-4">
-          <div class="p-3 bg-rose-50 rounded-lg border border-rose-100">
-            <p class="text-xs text-rose-600 font-semibold uppercase">Tiêu chí vi phạm</p>
-            <p class="text-sm font-medium text-slate-900">{{ selectedCriterionForFinding?.name }}</p>
+    <div class="fixed inset-x-4 bottom-4 z-20 lg:hidden">
+      <div class="rounded-[24px] border border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <p class="text-[11px] font-medium text-slate-500">Tiến độ</p>
+            <p class="mt-1 text-sm font-semibold text-slate-900">{{ completedCriteria }}/{{ scorableCriteria.length }} tiêu chí • {{ completionRate }}%</p>
           </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div class="space-y-1.5">
-              <label class="text-xs font-bold text-slate-500 uppercase">Mức độ nghiêm trọng</label>
-              <select v-model="findingForm.severity" class="w-full text-sm rounded-lg border-slate-200 focus:ring-blue-500">
-                <option value="low">Thấp</option>
-                <option value="medium">Trung bình</option>
-                <option value="high">Cao</option>
-                <option value="critical">Rất nghiêm trọng</option>
-              </select>
-            </div>
-            <div class="space-y-1.5">
-              <label class="text-xs font-bold text-slate-500 uppercase">Hạn chót khắc phục</label>
-              <input v-model="findingForm.dueDate" type="date" class="w-full text-sm rounded-lg border-slate-200 focus:ring-blue-500" />
-            </div>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-bold text-slate-500 uppercase">Yêu cầu hành động cụ thể</label>
-            <textarea
-              v-model="findingForm.correctiveAction"
-              rows="4"
-              class="w-full text-sm rounded-lg border-slate-200 focus:ring-blue-500"
-              placeholder="Ghi rõ cửa hàng cần làm gì để khắc phục lỗi này..."
-            ></textarea>
-          </div>
-
-          <div v-if="errorMessage" class="p-3 bg-rose-50 text-rose-600 text-xs rounded-lg border border-rose-100">
-            {{ errorMessage }}
-          </div>
-        </div>
-
-        <div class="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
           <button
-            @click="findingModalActive = false"
-            class="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-white bg-white/50 transition-colors"
+            type="button"
+            class="cursor-pointer rounded-2xl bg-guta-blue px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-guta-dark-blue disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="submitDisabled"
+            @click="submitSession"
           >
-            Hủy bỏ
-          </button>
-          <button
-            @click="submitFinding"
-            :disabled="findingSubmitting || !findingForm.correctiveAction"
-            class="flex-1 py-2.5 rounded-xl bg-blue-600 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md shadow-blue-200"
-          >
-            {{ findingSubmitting ? 'Đang lưu...' : 'Tạo yêu cầu' }}
+            {{ saving ? 'Đang lưu...' : 'Lưu phiếu QC' }}
           </button>
         </div>
       </div>

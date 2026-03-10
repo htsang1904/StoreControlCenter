@@ -64,6 +64,44 @@ const resolveStoreName = (store = {}) => (
   `Cửa hàng #${store.id || '--'}`
 );
 
+const STORE_FIELDS = ['id', 'storeId', 'code', 'shortAddress', 'address', 'name'];
+const DRAFT_SCAN_LIMIT = 10000;
+
+const draftPopulate = {
+  store: {
+    fields: STORE_FIELDS,
+  },
+};
+
+const buildDraftScopeKey = (draft = {}) => {
+  const storeId = toNumber(draft?.store?.id || draft?.store || draft?.storeId || draft?.store_id);
+  const templateId = String(draft?.template_id || draft?.templateId || '').trim();
+  if (!storeId || !templateId) {
+    return `draft:${draft?.id || ''}`;
+  }
+  return `${storeId}:${templateId}`;
+};
+
+const dedupeDraftRows = (rows = []) => {
+  const uniqueRows = [];
+  const seen = new Set();
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const key = buildDraftScopeKey(row);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueRows.push(row);
+  }
+
+  return uniqueRows;
+};
+
+const normalizeDraftIds = (rows = []) => Array.from(new Set(
+  (Array.isArray(rows) ? rows : [])
+    .map((item) => Number(item?.id))
+    .filter((item) => Number.isInteger(item) && item > 0)
+));
+
 const toDraftDto = (draft = {}) => ({
   id: String(draft.id || ''),
   storeId: toNumber(draft?.store?.id),
@@ -127,9 +165,7 @@ const ensureStoreAccess = async (strapi, { user, storeId, allowedStoreIds }) => 
 const ensureDraftAccess = async (strapi, { user, draftId, allowedStoreIds }) => {
   const draft = await strapi.entityService.findOne('api::qc-draft.qc-draft', draftId, {
     populate: {
-      store: {
-        fields: ['id', 'storeId', 'code', 'shortAddress', 'address', 'name'],
-      },
+      store: draftPopulate.store,
       auditor: {
         fields: ['id'],
       },
@@ -156,6 +192,25 @@ const ensureDraftAccess = async (strapi, { user, draftId, allowedStoreIds }) => 
   }
 
   return { ok: true, draft };
+};
+
+const findScopedDrafts = async (strapi, { userId, storeId, templateId, excludeDraftId = null, populate = false, limit = 100 }) => {
+  const filters = {
+    auditor: { id: Number(userId) },
+    store: { id: Number(storeId) },
+    template_id: String(templateId || '').trim(),
+  };
+
+  if (excludeDraftId !== null && excludeDraftId !== undefined) {
+    filters.id = { $ne: Number(excludeDraftId) };
+  }
+
+  return strapi.entityService.findMany('api::qc-draft.qc-draft', {
+    filters,
+    sort: { updatedAt: 'desc' },
+    ...(populate ? { populate: draftPopulate } : {}),
+    limit,
+  });
 };
 
 module.exports = createCoreController('api::qc-draft.qc-draft', ({ strapi }) => ({
@@ -209,23 +264,19 @@ module.exports = createCoreController('api::qc-draft.qc-draft', ({ strapi }) => 
       };
     }
 
-    const [rows, total] = await Promise.all([
-      strapi.entityService.findMany('api::qc-draft.qc-draft', {
-        filters,
-        sort: { updatedAt: 'desc' },
-        populate: {
-          store: {
-            fields: ['id', 'storeId', 'code', 'shortAddress', 'address', 'name'],
-          },
-        },
-        start,
-        limit: pageSize,
-      }),
-      strapi.db.query('api::qc-draft.qc-draft').count({ where: filters }),
-    ]);
+    const rows = await strapi.entityService.findMany('api::qc-draft.qc-draft', {
+      filters,
+      sort: { updatedAt: 'desc' },
+      populate: draftPopulate,
+      limit: DRAFT_SCAN_LIMIT,
+    });
+
+    const dedupedRows = dedupeDraftRows(rows);
+    const total = dedupedRows.length;
+    const pagedRows = dedupedRows.slice(start, start + pageSize);
 
     return successResponse('Lấy danh sách phiếu nháp thành công', {
-      drafts: (Array.isArray(rows) ? rows : []).map(toDraftDto),
+      drafts: pagedRows.map(toDraftDto),
       pagination: {
         page,
         pageSize,
@@ -285,6 +336,40 @@ module.exports = createCoreController('api::qc-draft.qc-draft', ({ strapi }) => 
       return errorResponse(ctx, access.status, access.message);
     }
 
+    const existingDrafts = await findScopedDrafts(strapi, {
+      userId: Number(user.id),
+      storeId: Number(access.store.id),
+      templateId,
+      populate: true,
+    });
+
+    const latestDraft = Array.isArray(existingDrafts) && existingDrafts.length > 0
+      ? existingDrafts[0]
+      : null;
+
+    if (latestDraft?.id) {
+      const updated = await strapi.entityService.update('api::qc-draft.qc-draft', Number(latestDraft.id), {
+        data: {
+          audited_at: auditedAt,
+          note: String(payload.note || '').trim(),
+          criteria_states: sanitizeCriteriaStates(payload.criteriaStates || payload.criteria_states),
+        },
+        populate: draftPopulate,
+      });
+
+      const staleDuplicateIds = normalizeDraftIds(existingDrafts)
+        .filter((item) => item !== Number(updated.id));
+
+      for (const duplicateId of staleDuplicateIds) {
+        await strapi.entityService.delete('api::qc-draft.qc-draft', duplicateId);
+      }
+
+      return successResponse('Tiếp tục phiếu nháp hiện có thành công', {
+        draft: toDraftDto(updated),
+        reused: true,
+      });
+    }
+
     const created = await strapi.entityService.create('api::qc-draft.qc-draft', {
       data: {
         store: Number(access.store.id),
@@ -294,15 +379,12 @@ module.exports = createCoreController('api::qc-draft.qc-draft', ({ strapi }) => 
         note: String(payload.note || '').trim(),
         criteria_states: sanitizeCriteriaStates(payload.criteriaStates || payload.criteria_states),
       },
-      populate: {
-        store: {
-          fields: ['id', 'storeId', 'code', 'shortAddress', 'address', 'name'],
-        },
-      },
+      populate: draftPopulate,
     });
 
     return successResponse('Tạo phiếu nháp thành công', {
       draft: toDraftDto(created),
+      reused: false,
     });
   },
 
@@ -325,6 +407,7 @@ module.exports = createCoreController('api::qc-draft.qc-draft', ({ strapi }) => 
       return errorResponse(ctx, access.status, access.message);
     }
 
+    const draftOwnerId = Number(access.draft?.auditor?.id || user.id);
     const data = {};
     if (payload.templateId !== undefined || payload.template_id !== undefined) {
       const templateId = String(payload.templateId || payload.template_id || '').trim();
@@ -362,14 +445,44 @@ module.exports = createCoreController('api::qc-draft.qc-draft', ({ strapi }) => 
       data.store = Number(storeAccess.store.id);
     }
 
+    const currentStoreId = Number(access.draft?.store?.id || 0);
+    const currentTemplateId = String(access.draft?.template_id || '').trim();
+    const nextStoreId = Number(data.store || currentStoreId || 0);
+    const nextTemplateId = String(data.template_id || currentTemplateId || '').trim();
+    if (nextStoreId > 0 && nextTemplateId) {
+      const duplicateDrafts = await findScopedDrafts(strapi, {
+        userId: draftOwnerId,
+        storeId: nextStoreId,
+        templateId: nextTemplateId,
+        excludeDraftId: draftId,
+        limit: 1,
+      });
+
+      const scopeChanged = nextStoreId !== currentStoreId || nextTemplateId !== currentTemplateId;
+      if (scopeChanged && Array.isArray(duplicateDrafts) && duplicateDrafts.length > 0) {
+        return errorResponse(ctx, 409, 'Đã tồn tại phiếu nháp khác cho cửa hàng và biểu mẫu này');
+      }
+    }
+
     const updated = await strapi.entityService.update('api::qc-draft.qc-draft', draftId, {
       data,
-      populate: {
-        store: {
-          fields: ['id', 'storeId', 'code', 'shortAddress', 'address', 'name'],
-        },
-      },
+      populate: draftPopulate,
     });
+
+    if (nextStoreId > 0 && nextTemplateId) {
+      const staleDuplicateDrafts = await findScopedDrafts(strapi, {
+        userId: draftOwnerId,
+        storeId: nextStoreId,
+        templateId: nextTemplateId,
+        excludeDraftId: draftId,
+        limit: DRAFT_SCAN_LIMIT,
+      });
+
+      const staleDuplicateIds = normalizeDraftIds(staleDuplicateDrafts);
+      for (const duplicateId of staleDuplicateIds) {
+        await strapi.entityService.delete('api::qc-draft.qc-draft', duplicateId);
+      }
+    }
 
     return successResponse('Cập nhật phiếu nháp thành công', {
       draft: toDraftDto(updated),
@@ -393,10 +506,26 @@ module.exports = createCoreController('api::qc-draft.qc-draft', ({ strapi }) => 
       return errorResponse(ctx, access.status, access.message);
     }
 
-    await strapi.entityService.delete('api::qc-draft.qc-draft', draftId);
+    const relatedDrafts = await findScopedDrafts(strapi, {
+      userId: Number(access.draft?.auditor?.id || user.id),
+      storeId: Number(access.draft?.store?.id || 0),
+      templateId: access.draft?.template_id,
+      limit: DRAFT_SCAN_LIMIT,
+    });
+
+    const relatedIds = normalizeDraftIds(relatedDrafts);
+
+    const draftIdsToDelete = relatedIds.length > 0
+      ? relatedIds
+      : [draftId];
+
+    for (const relatedId of draftIdsToDelete) {
+      await strapi.entityService.delete('api::qc-draft.qc-draft', relatedId);
+    }
 
     return successResponse('Xóa phiếu nháp thành công', {
       id: String(draftId),
+      deletedIds: draftIdsToDelete.map((item) => String(item)),
     });
   },
 }));

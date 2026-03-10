@@ -175,13 +175,26 @@ const parseThreshold = (value, fallback = 0) => {
   return parsed >= 0 ? parsed : fallback;
 };
 
-const toBoolean = (value, fallback = false) => {
-  if (value === undefined || value === null) return fallback;
-  if (typeof value === 'boolean') return value;
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
-  if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
-  return fallback;
+const normalizePassThreshold = (value, fallback = 40) => {
+  if (value === undefined || value === null || String(value).trim() === '') {
+    return clamp(parseThreshold(fallback, 40), 0, 100);
+  }
+
+  return clamp(parseThreshold(value, fallback), 0, 100);
+};
+
+const getRequiredScoreFromThreshold = ({ maxScore = 0, passThreshold = 40 } = {}) => {
+  const normalizedMaxScore = Math.max(toNumber(maxScore), 0);
+  if (normalizedMaxScore <= 0) return 0;
+
+  return (normalizedMaxScore * normalizePassThreshold(passThreshold, 40)) / 100;
+};
+
+const isBelowPassThreshold = ({ totalScore = 0, maxScore = 0, passThreshold = 40 } = {}) => {
+  const normalizedMaxScore = Math.max(toNumber(maxScore), 0);
+  if (normalizedMaxScore <= 0) return false;
+
+  return toNumber(totalScore) < getRequiredScoreFromThreshold({ maxScore: normalizedMaxScore, passThreshold });
 };
 
 const getAllowedStoreInternalIds = async (strapi, user) => {
@@ -231,86 +244,19 @@ const ensureStoreAccess = async (strapi, { user, storeId, allowedStoreIds }) => 
 };
 
 const resolveFormVersion = async (strapi, payload = {}) => {
-  const directId = Number(payload.formVersionId || payload.form_version_id || 0);
-  if (Number.isInteger(directId) && directId > 0) {
-    const direct = await strapi.entityService.findOne('api::qc-form-version.qc-form-version', directId, {
-      populate: {
-        form: { fields: ['id', 'code', 'name'] },
-      },
-    });
-    if (direct) return direct;
-  }
-
-  const templateCode = safeString(payload.templateId || payload.template_id, 'default');
-  const templateName = safeString(payload.templateName || payload.template_name, templateCode);
-  const templateVersion = safeString(payload.templateVersion || payload.template_version, 'v1.0');
-  const passThreshold = parseThreshold(payload.templatePassThreshold ?? payload.template_pass_threshold, 0);
-  const allowAutoCreate = toBoolean(
-    payload.allowTemplateAutocreate ??
-    payload.allow_template_autocreate,
-    false
-  );
-
-  const forms = await strapi.entityService.findMany('api::qc-form.qc-form', {
-    filters: { code: templateCode },
-    fields: ['id', 'code', 'name'],
-    limit: 1,
-  });
-
-  let form = Array.isArray(forms) && forms.length > 0 ? forms[0] : null;
-  if (!form && allowAutoCreate) {
-    form = await strapi.entityService.create('api::qc-form.qc-form', {
-      data: {
-        code: templateCode,
-        name: templateName,
-        description: `Auto-created from QC session payload (${templateCode})`,
-        is_active: true,
-      },
-    });
-  }
-
-  if (!form?.id) {
+  const formVersionId = Number(payload.formVersionId || payload.form_version_id || 0);
+  if (!Number.isInteger(formVersionId) || formVersionId <= 0) {
     return null;
   }
 
-  const versionFilters = {
-    form: { id: Number(form.id) },
-    ...(templateVersion ? { version_no: templateVersion } : {}),
-  };
-
-  const versions = await strapi.entityService.findMany('api::qc-form-version.qc-form-version', {
-    filters: versionFilters,
-    sort: { createdAt: 'desc' },
-    populate: {
-      form: { fields: ['id', 'code', 'name'] },
-    },
-    limit: 1,
-  });
-
-  if (Array.isArray(versions) && versions.length > 0) {
-    return versions[0];
-  }
-
-  if (!allowAutoCreate) {
-    return null;
-  }
-
-  return strapi.entityService.create('api::qc-form-version.qc-form-version', {
-    data: {
-      form: Number(form.id),
-      version_no: templateVersion,
-      status: 'published',
-      pass_rule: {
-        passThreshold,
-      },
-    },
+  return strapi.entityService.findOne('api::qc-form-version.qc-form-version', formVersionId, {
     populate: {
       form: { fields: ['id', 'code', 'name'] },
     },
   });
 };
 
-const normalizeCriteriaPayload = (criteria = [], passThreshold = 0) => {
+const normalizeCriteriaPayload = (criteria = []) => {
   const source = Array.isArray(criteria) ? criteria : [];
 
   const metrics = {
@@ -403,7 +349,7 @@ const normalizeCriteriaPayload = (criteria = [], passThreshold = 0) => {
 };
 
 const toSessionResult = ({ metrics, passThreshold }) => {
-  const normalizedThreshold = parseThreshold(passThreshold, 0);
+  const normalizedThreshold = normalizePassThreshold(passThreshold, 40);
   if (metrics.pendingCount > 0) {
     return {
       result: 'pending',
@@ -413,7 +359,11 @@ const toSessionResult = ({ metrics, passThreshold }) => {
     };
   }
 
-  const belowThreshold = metrics.maxScore > 0 && metrics.totalScore < normalizedThreshold;
+  const belowThreshold = isBelowPassThreshold({
+    totalScore: metrics.totalScore,
+    maxScore: metrics.maxScore,
+    passThreshold: normalizedThreshold,
+  });
   const hasFail = metrics.failedCount > 0;
   const result = hasFail || belowThreshold ? 'fail' : 'pass';
 
@@ -922,17 +872,12 @@ module.exports = createCoreController('api::qc-session.qc-session', ({ strapi })
 
     const formVersion = await resolveFormVersion(strapi, payload);
     if (!formVersion?.id) {
-      return errorResponse(ctx, 400, 'Không tìm thấy form version phù hợp. Cần truyền formVersionId hợp lệ hoặc bật allowTemplateAutocreate.');
+      return errorResponse(ctx, 400, 'formVersionId không hợp lệ hoặc không tồn tại');
     }
 
-    const passThreshold = parseThreshold(
-      formVersion?.pass_rule?.passThreshold ??
-      payload.templatePassThreshold ??
-      payload.template_pass_threshold,
-      0
-    );
+    const passThreshold = normalizePassThreshold(formVersion?.pass_rule?.passThreshold, 40);
 
-    const normalized = normalizeCriteriaPayload(criteria, passThreshold);
+    const normalized = normalizeCriteriaPayload(criteria);
     if (!normalized.items.length) {
       return errorResponse(ctx, 400, 'Phiếu QC chưa có tiêu chí hợp lệ');
     }
@@ -1005,6 +950,9 @@ module.exports = createCoreController('api::qc-session.qc-session', ({ strapi })
     const session = await strapi.entityService.findOne('api::qc-session.qc-session', sessionId, {
       populate: {
         items: true,
+        form_version: {
+          fields: ['id', 'pass_rule'],
+        },
       },
     });
 
@@ -1038,16 +986,22 @@ module.exports = createCoreController('api::qc-session.qc-session', ({ strapi })
       return acc;
     }, { totalScore: 0, maxScore: 0, failedCount: 0 });
 
-    const result = totals.failedCount > 0 ? 'fail' : 'pass';
-    const status = result === 'fail' ? 'needs_fix' : 'closed';
+    const passThreshold = normalizePassThreshold(session?.form_version?.pass_rule?.passThreshold, 40);
+    const decision = toSessionResult({
+      metrics: {
+        ...totals,
+        pendingCount: 0,
+      },
+      passThreshold,
+    });
 
     const updated = await strapi.entityService.update('api::qc-session.qc-session', sessionId, {
       data: {
-        status,
-        result,
+        status: decision.status,
+        result: decision.result,
         total_score: totals.totalScore,
         max_score: totals.maxScore,
-        submitted_at: new Date().toISOString(),
+        submitted_at: decision.submittedAt,
       },
       populate: {
         store: { fields: ['id', 'storeId', 'code', 'shortAddress', 'address'] },
@@ -1067,6 +1021,8 @@ module.exports = createCoreController('api::qc-session.qc-session', ({ strapi })
         failedCount: totals.failedCount,
         totalScore: totals.totalScore,
         maxScore: totals.maxScore,
+        passThreshold,
+        reasons: decision.reasons,
       },
     });
   },

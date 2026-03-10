@@ -113,7 +113,7 @@ onBeforeUnmount(() => {
       >
         <div
           v-if="$slots.header || title || description || showClose"
-          class="flex items-start gap-4 border-b border-slate-200 px-5 py-4 sm:px-6"
+          class="flex items-center gap-4 border-b border-slate-200 px-5 py-4 sm:px-6"
         >
           <slot name="header">
             <div class="min-w-0 flex-1">

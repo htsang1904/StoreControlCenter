@@ -68,7 +68,7 @@ const reasonLabels = {
   incomplete: 'Còn tiêu chí chưa chấm',
   failed: 'Có tiêu chí không đạt',
   critical: 'Có lỗi critical',
-  threshold: 'Chưa đạt ngưỡng điểm',
+  threshold: 'Chưa đạt ngưỡng % tổng điểm',
 }
 
 const selectedResultCount = computed(() => (filters.status ? 1 : 0))

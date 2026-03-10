@@ -28,22 +28,23 @@ const statusClass = (status) => {
   return 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200'
 }
 
-const criteriaGroups = computed(() => {
-  const criteria = Array.isArray(formDetail.value?.latestVersion?.criteria)
+const criteriaRows = computed(() => {
+  return Array.isArray(formDetail.value?.latestVersion?.criteria)
     ? formDetail.value.latestVersion.criteria
     : []
+})
 
-  const groups = new Map()
-  for (const criterion of criteria) {
-    const sectionName = String(criterion?.sectionName || 'Tổng quát')
-    if (!groups.has(sectionName)) groups.set(sectionName, [])
-    groups.get(sectionName).push(criterion)
+const latestVersionNote = computed(() => {
+  const status = String(formDetail.value?.latestVersion?.status || '').toLowerCase()
+  if (status === 'published') {
+    return 'Đây là version đang phát hành và được dùng cho runtime QC.'
   }
 
-  return Array.from(groups.entries()).map(([sectionName, items]) => ({
-    sectionName,
-    items,
-  }))
+  if (status === 'archived') {
+    return 'Version này đã được lưu trữ và không còn là bản làm việc hiện tại.'
+  }
+
+  return 'Đây là bản nháp đang mở để tiếp tục chỉnh sửa trước khi phát hành.'
 })
 
 const loadFormDetail = async () => {
@@ -147,6 +148,7 @@ onMounted(async () => {
             <p class="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">{{ formDetail.code }}</p>
             <h3 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{{ formDetail.name }}</h3>
             <p class="mt-3 text-sm leading-6 text-slate-500">{{ formDetail.description || 'Không có mô tả cho biểu mẫu này.' }}</p>
+            <p class="mt-3 text-sm leading-6 text-slate-500">{{ latestVersionNote }}</p>
           </div>
 
           <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(formDetail.latestVersion?.status)">
@@ -154,7 +156,7 @@ onMounted(async () => {
           </span>
         </div>
 
-        <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p class="text-xs uppercase tracking-wide text-slate-500">Version hiện tại</p>
             <p class="mt-2 text-lg font-semibold text-slate-900">{{ formDetail.latestVersion?.versionNo || '--' }}</p>
@@ -168,8 +170,12 @@ onMounted(async () => {
             <p class="mt-2 text-lg font-semibold text-slate-900">{{ formDetail.isActive ? 'Đang bật' : 'Đã tắt' }}</p>
           </div>
           <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Số tiêu chí</p>
-            <p class="mt-2 text-lg font-semibold text-slate-900">{{ formDetail.latestVersion?.criteria?.length || 0 }}</p>
+            <p class="text-xs uppercase tracking-wide text-slate-500">Tổng node</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900">{{ formDetail.latestVersion?.criteriaCount || 0 }}</p>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <p class="text-xs uppercase tracking-wide text-slate-500">Node chấm điểm</p>
+            <p class="mt-2 text-lg font-semibold text-slate-900">{{ formDetail.latestVersion?.leafCriteriaCount || 0 }}</p>
           </div>
         </div>
       </section>
@@ -177,42 +183,42 @@ onMounted(async () => {
       <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 px-5 py-4">
           <h3 class="text-base font-semibold text-slate-900">Cấu trúc biểu mẫu</h3>
-          <p class="mt-1 text-sm text-slate-500">Hiển thị theo từng nhóm tiêu chí để tiện xem như một bản preview nghiệp vụ.</p>
+          <p class="mt-1 text-sm text-slate-500">Preview theo đúng cây nhóm và tiêu chí sẽ xuất hiện trong màn chấm QC.</p>
         </div>
 
-        <div v-if="criteriaGroups.length" class="space-y-5 p-5">
-          <section
-            v-for="group in criteriaGroups"
-            :key="group.sectionName"
-            class="rounded-xl border border-slate-200"
+        <div v-if="criteriaRows.length" class="space-y-3 p-5">
+          <article
+            v-for="criterion in criteriaRows"
+            :key="criterion.id"
+            class="rounded-xl border border-slate-200 bg-slate-50/40 p-4"
+            :style="{ marginLeft: `${Math.max((criterion.level || 1) - 1, 0) * 18}px` }"
           >
-            <div class="border-b border-slate-200 bg-slate-50 px-4 py-3">
-              <h4 class="text-sm font-semibold text-slate-900">{{ group.sectionName }}</h4>
-            </div>
-
-            <div class="divide-y divide-slate-100">
-              <article
-                v-for="criterion in group.items"
-                :key="criterion.id"
-                class="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_220px]"
-              >
-                <div class="min-w-0">
-                  <p class="text-xs uppercase tracking-wide text-slate-500">{{ criterion.code }}</p>
-                  <p class="mt-1 text-sm font-semibold text-slate-900">{{ criterion.name }}</p>
-                  <p class="mt-2 text-sm leading-6 text-slate-500">{{ criterion.description || 'Không có mô tả' }}</p>
+            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]" :class="criterion.nodeType === 'group' ? 'bg-slate-200 text-slate-700' : 'bg-blue-50 text-blue-700'">
+                    {{ criterion.nodeType === 'group' ? 'Nhóm' : 'Tiêu chí' }}
+                  </span>
+                  <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    {{ criterion.ordering || '--' }}
+                  </span>
                 </div>
+                <p class="mt-2 text-sm font-semibold text-slate-900">{{ criterion.name }}</p>
+                <p class="mt-2 text-sm leading-6 text-slate-500">{{ criterion.description || 'Không có mô tả' }}</p>
+              </div>
 
-                <div class="grid gap-2 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-1">
-                  <p>Kiểu chấm: <span class="font-medium text-slate-900">{{ criterion.mode === 'pass_fail' ? 'Đạt / Không đạt' : 'Chấm điểm' }}</span></p>
-                  <p>Điểm tối đa: <span class="font-medium text-slate-900">{{ criterion.mode === 'pass_fail' ? 1 : criterion.maxScore }}</span></p>
-                  <p>Trọng số: <span class="font-medium text-slate-900">{{ criterion.weight }}</span></p>
-                  <p>Tần suất: <span class="font-medium text-slate-900">{{ criterion.frequency === 'weekly_once' ? 'Mỗi tuần một lần' : 'Mỗi lần kiểm' }}</span></p>
-                  <p>Trọng yếu: <span class="font-medium text-slate-900">{{ criterion.isCritical ? 'Có' : 'Không' }}</span></p>
-                  <p>Bắt buộc: <span class="font-medium text-slate-900">{{ criterion.required ? 'Có' : 'Không' }}</span></p>
-                </div>
-              </article>
+              <div class="grid gap-2 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-1">
+                <p>Section: <span class="font-medium text-slate-900">{{ criterion.sectionName || 'Tổng quát' }}</span></p>
+                <p>Cấp cây: <span class="font-medium text-slate-900">{{ criterion.level || 1 }}</span></p>
+                <p>Kiểu chấm: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? 'Node gom nhóm' : (criterion.mode === 'pass_fail' ? 'Đạt / Không đạt' : 'Chấm điểm') }}</span></p>
+                <p>Điểm tối đa: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : (criterion.mode === 'pass_fail' ? 1 : criterion.maxScore) }}</span></p>
+                <p>Trọng số: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : criterion.weight }}</span></p>
+                <p>Tần suất: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : (criterion.frequency === 'weekly_once' ? 'Mỗi tuần một lần' : 'Mỗi lần kiểm') }}</span></p>
+                <p>Trọng yếu: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : (criterion.isCritical ? 'Có' : 'Không') }}</span></p>
+                <p>Bắt buộc: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : (criterion.required ? 'Có' : 'Không') }}</span></p>
+              </div>
             </div>
-          </section>
+          </article>
         </div>
 
         <div v-else class="px-5 py-8 text-sm text-slate-500">
