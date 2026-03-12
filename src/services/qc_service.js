@@ -50,12 +50,6 @@ const normalizeCriterionMode = (value) => {
   return null
 }
 
-const normalizeCriterionFrequency = (value) => {
-  const normalized = String(value || '').trim().toLowerCase()
-  if (normalized === 'weekly_once' || normalized === 'weekly') return 'weekly_once'
-  return 'per_audit'
-}
-
 const normalizeCriterionAttachments = (attachments = []) => {
   const source = Array.isArray(attachments) ? attachments : []
 
@@ -162,9 +156,7 @@ const normalizeCriteria = (criteria = []) => {
       score,
       maxScore,
       passScore,
-      critical: Boolean(item?.critical),
       applicable: item?.applicable !== false,
-      frequency: normalizeCriterionFrequency(item?.frequency || item?.frequency_snapshot),
       note: String(item?.note || '').trim(),
       attachments: normalizeCriterionAttachments(item?.attachments),
     }
@@ -214,7 +206,6 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
           acc.totalScore += 1
         } else {
           acc.failedCount += 1
-          if (item.critical) acc.criticalFailedCount += 1
         }
 
         return acc
@@ -238,7 +229,6 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
         acc.passedCount += 1
       } else {
         acc.failedCount += 1
-        if (item.critical) acc.criticalFailedCount += 1
       }
 
       return acc
@@ -247,7 +237,6 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
       totalScore: 0,
       maxScore: 0,
       incompleteCount: 0,
-      criticalFailedCount: 0,
       passedCount: 0,
       failedCount: 0,
       excludedCount: 0,
@@ -257,7 +246,6 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
   const reasons = []
   if (metrics.incompleteCount > 0) reasons.push('incomplete')
   if (metrics.failedCount > 0) reasons.push('failed')
-  if (metrics.criticalFailedCount > 0) reasons.push('critical')
   if (isBelowPassThreshold({ totalScore: metrics.totalScore, maxScore: metrics.maxScore, passThreshold: threshold })) {
     reasons.push('threshold')
   }
@@ -356,9 +344,7 @@ const normalizeCriteriaFromApi = (items = []) => {
       score: hasScore ? toNumber(item.score) : null,
       maxScore,
       passScore: mode === 'pass_fail' ? 1 : maxScore,
-      critical: Boolean(item?.critical),
       applicable: status !== 'na',
-      frequency: normalizeCriterionFrequency(item?.frequency_snapshot || item?.frequency),
       note: String(item?.note || ''),
       attachments: normalizeCriterionAttachments(item?.attachments),
     }
@@ -428,7 +414,6 @@ const normalizeSessionFromApi = (session = {}, fallbackIndex = 0) => {
     evaluationMode: 'mixed',
     passCount,
     failCount,
-    failedCriticalCount: 0,
     incompleteCriteria,
     decisionReasons,
     note: String(session?.note || ''),
@@ -729,11 +714,7 @@ export const getQcTemplateById = async (formId) => {
       parentId: criterion.parentId || null,
       mode: criterion.mode,
       maxScore: toNumber(criterion.maxScore),
-      weight: toNumber(criterion.weight),
       sortOrder: criterion.sortOrder,
-      isCritical: criterion.isCritical,
-      frequency: criterion.frequency,
-      required: criterion.required,
     }))
     : []
 

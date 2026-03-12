@@ -288,11 +288,7 @@ Payload FE gửi:
           "name": "Chào khách trong 5 giây",
           "description": "Quan sát trực tiếp tại quầy",
           "mode": "point",
-          "maxScore": 10,
-          "weight": 1,
-          "frequency": "per_audit",
-          "isCritical": true,
-          "required": true
+          "maxScore": 10
         }
       ]
     }

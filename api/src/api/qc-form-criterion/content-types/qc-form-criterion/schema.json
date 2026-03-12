@@ -41,23 +41,6 @@
     "max_score": {
       "type": "decimal",
       "default": 0
-    },
-    "weight": {
-      "type": "decimal",
-      "default": 1
-    },
-    "is_critical": {
-      "type": "boolean",
-      "default": false
-    },
-    "frequency": {
-      "type": "enumeration",
-      "enum": ["per_audit", "weekly_once"],
-      "default": "per_audit"
-    },
-    "required": {
-      "type": "boolean",
-      "default": true
     }
   }
 }

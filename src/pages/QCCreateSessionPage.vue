@@ -437,7 +437,6 @@ const criteriaPayload = computed(() => {
       mode: criterion.mode,
       score: state.score,
       maxScore: criterion.maxScore,
-      critical: Boolean(criterion.isCritical),
       applicable: status !== 'na',
       status: status,
       note: String(state.note || '').trim(),
@@ -503,8 +502,6 @@ const matchesCriterionFilter = (criterion) => {
       return snapshot.status === 'pending'
     case 'fail':
       return snapshot.status === 'fail'
-    case 'critical':
-      return snapshot.isCritical === true
     case 'na':
       return snapshot.status === 'na'
     default:

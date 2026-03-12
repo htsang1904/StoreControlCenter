@@ -67,7 +67,6 @@ const draftForm = reactive({
 const reasonLabels = {
   incomplete: 'Còn tiêu chí chưa chấm',
   failed: 'Có tiêu chí không đạt',
-  critical: 'Có lỗi critical',
   threshold: 'Chưa đạt ngưỡng % tổng điểm',
 }
 
@@ -99,13 +98,11 @@ const filteredSummary = computed(() => {
   const failed = sessions.value.filter((item) => item.result === 'failed').length
   const totalScore = sessions.value.reduce((sum, item) => sum + Number(item.totalScore || 0), 0)
   const totalMaxScore = sessions.value.reduce((sum, item) => sum + Number(item.maxScore || 0), 0)
-  const criticalFailedSessions = sessions.value.filter((item) => Number(item.failedCriticalCount || 0) > 0).length
 
   return {
     totalSessions,
     passed,
     failed,
-    criticalFailedSessions,
     avgScore: totalSessions > 0 ? Math.round((totalScore / totalSessions) * 10) / 10 : 0,
     avgMaxScore: totalSessions > 0 ? Math.round((totalMaxScore / totalSessions) * 10) / 10 : 0,
     avgScoreRate: totalMaxScore > 0 ? Math.round((totalScore / totalMaxScore) * 1000) / 10 : 0,
@@ -136,7 +133,7 @@ const summaryCards = computed(() => [
     key: 'failed',
     label: 'Cần khắc phục',
     value: filteredSummary.value.failed,
-    meta: `${filteredSummary.value.criticalFailedSessions} phiên critical`,
+    meta: `Toàn kỳ: ${summary.value.failed}`,
     metaClass: 'bg-rose-50 text-rose-700',
     icon: 'warning',
     iconClass: 'bg-rose-100 text-rose-600',
@@ -256,7 +253,6 @@ const draftTableRows = computed(() => {
       auditedAt: draft.auditedAt || draft.updatedAt || draft.createdAt,
       createdAt: draft.createdAt,
       updatedAt: draft.updatedAt,
-      failedCriticalCount: 0,
       decisionReasons: [],
       criteria: [],
     }))

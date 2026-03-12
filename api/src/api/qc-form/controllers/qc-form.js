@@ -73,11 +73,6 @@ const normalizeMode = (value) => {
   return normalized === 'pass_fail' ? 'pass_fail' : 'point';
 };
 
-const normalizeFrequency = (value) => {
-  const normalized = safeString(value).toLowerCase();
-  return normalized === 'weekly_once' ? 'weekly_once' : 'per_audit';
-};
-
 const normalizeStatus = (value, fallback = 'published') => {
   const normalized = safeString(value).toLowerCase();
   if (normalized === 'draft' || normalized === 'published' || normalized === 'archived') return normalized;
@@ -178,10 +173,6 @@ const serializeVersionCriteria = (formCriteria = []) => {
         sectionName: safeString(item?.section_name, 'Tổng quát'),
         mode,
         maxScore: mode === 'pass_fail' ? 1 : Math.max(toNumber(item?.max_score, 0), 0),
-        weight: Math.max(toNumber(item?.weight, 1), 0),
-        frequency: normalizeFrequency(item?.frequency),
-        isCritical: item?.is_critical === true,
-        required: item?.required !== false,
         sortOrder: toNumber(item?.sort_order, 0),
         level: Math.max(toNumber(item?.criterion?.level, 1), 1),
         ordering: safeString(item?.criterion?.ordering),
@@ -218,7 +209,6 @@ const findLatestVersion = async (strapi, formId) => {
               'ordering',
               'default_mode',
               'default_max_score',
-              'default_weight',
               'is_active',
             ],
             populate: {
@@ -349,10 +339,6 @@ const normalizeFlatCriteriaInput = (ctx, formCode, versionNo, criteriaInput = []
       sectionName,
       mode,
       maxScore,
-      weight: Math.max(toNumber(item.weight, 1), 0),
-      frequency: normalizeFrequency(item.frequency),
-      isCritical: toBoolean(item.isCritical ?? item.is_critical, false),
-      required: toBoolean(item.required, true),
       sortOrder: index + 1,
       parentCode: null,
       level: 1,
@@ -435,10 +421,6 @@ const normalizeTreeCriteriaInput = (ctx, formCode, versionNo, criteriaInput = []
         sectionName: currentTopSection,
         mode,
         maxScore,
-        weight: nodeType === 'group' ? 0 : Math.max(toNumber(item.weight, 1), 0),
-        frequency: nodeType === 'group' ? 'per_audit' : normalizeFrequency(item.frequency),
-        isCritical: nodeType === 'group' ? false : toBoolean(item.isCritical ?? item.is_critical, false),
-        required: nodeType === 'group' ? false : toBoolean(item.required, true),
         sortOrder: sortCursor + 1,
         parentCode: parentContext?.code || null,
         level,
@@ -493,7 +475,7 @@ const ensureCriteriaCatalog = async (strapi, normalizedCriteria = []) => {
         $in: criterionCodes,
       },
     },
-    fields: ['id', 'code', 'name', 'description', 'default_mode', 'default_max_score', 'default_weight', 'is_active', 'level', 'ordering'],
+    fields: ['id', 'code', 'name', 'description', 'default_mode', 'default_max_score', 'is_active', 'level', 'ordering'],
     limit: Math.max(criterionCodes.length, 1),
   });
 
@@ -510,7 +492,6 @@ const ensureCriteriaCatalog = async (strapi, normalizedCriteria = []) => {
       description: item.description,
       default_mode: item.mode,
       default_max_score: item.maxScore,
-      default_weight: item.weight,
       is_active: true,
       level: item.level,
       ordering: item.ordering,
@@ -573,10 +554,6 @@ const syncVersionCriteria = async (strapi, versionId, normalizedCriteria = [], c
         sort_order: item.sortOrder,
         mode: item.mode,
         max_score: item.maxScore,
-        weight: item.weight,
-        is_critical: item.isCritical,
-        frequency: item.frequency,
-        required: item.required,
       },
     });
   }

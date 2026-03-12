@@ -17,6 +17,8 @@ const savingMode = ref('')
 const loadingForm = ref(false)
 const loadError = ref('')
 const activeStep = ref(1)
+const showMetadataValidation = ref(false)
+const showStructureValidation = ref(false)
 
 let nodeSeed = 0
 
@@ -73,10 +75,6 @@ const createCriterionNode = (overrides = {}) => {
     description: overrides.description || '',
     mode: overrides.mode || 'point',
     maxScore: overrides.maxScore ?? 10,
-    weight: overrides.weight ?? 1,
-    frequency: overrides.frequency || 'per_audit',
-    isCritical: overrides.isCritical === true,
-    required: overrides.required !== false,
     children: [],
   }
 }
@@ -95,10 +93,6 @@ const createGroupNode = (overrides = {}) => {
     description: overrides.description || '',
     mode: 'point',
     maxScore: 0,
-    weight: 0,
-    frequency: 'per_audit',
-    isCritical: false,
-    required: false,
     children,
   }
 }
@@ -160,6 +154,10 @@ const pageDescription = computed(() => (
 
 const saveDraftLabel = computed(() => (isSavingDraft.value ? 'Đang lưu nháp...' : 'Lưu nháp'))
 const publishLabel = computed(() => (isPublishing.value ? 'Đang phát hành...' : 'Phát hành'))
+const customInputClass = 'py-2.5 sm:py-3 px-4 block w-full border border-gray-200 rounded-lg bg-white text-slate-700 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:pointer-events-none disabled:bg-slate-100'
+const customTextareaClass = 'py-2 sm:py-2.5 px-3 block w-full border border-gray-200 rounded-lg bg-white text-slate-700 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:pointer-events-none disabled:bg-slate-100'
+const validationInputClass = 'border-rose-300 bg-rose-50/40 text-rose-900 placeholder:text-rose-300 focus:border-rose-500'
+const validationMessageClass = 'text-xs text-rose-600'
 
 const flattenCriteriaTreeForReview = (nodes = [], path = []) => {
   return nodes.flatMap((node, index) => {
@@ -177,10 +175,6 @@ const flattenCriteriaTreeForReview = (nodes = [], path = []) => {
       maxScore: node.nodeType === 'criterion'
         ? (String(node.mode || 'point') === 'pass_fail' ? 1 : Number(node.maxScore || 0))
         : 0,
-      weight: Number(node.weight || 0),
-      frequency: String(node.frequency || 'per_audit'),
-      isCritical: node.isCritical === true,
-      required: node.required !== false,
       childCount: Array.isArray(node.children) ? node.children.length : 0,
     }
 
@@ -218,33 +212,67 @@ const visibleReviewRows = computed(() => {
   }))
 })
 
+const getReviewCriterionSummary = (row) => (
+  row.mode === 'pass_fail'
+    ? 'Đạt / Không đạt'
+    : `${Number(row.maxScore || 0)} điểm`
+)
+
+const getReviewRowIndent = (depth) => `${Math.max(depth - 1, 0) * 14}px`
+
 const stepItems = computed(() => FORM_STEPS.map((step) => ({
   ...step,
   isActive: step.id === activeStep.value,
   isCompleted: step.id < activeStep.value,
 })))
 
-const getMetadataValidationError = () => {
+const getMetadataValidationErrors = () => {
+  const errors = {}
   const formCode = String(qcForm.code || '').trim().toUpperCase()
   const formName = String(qcForm.name || '').trim()
+  const formDescription = String(qcForm.description || '').trim()
+  const rawThreshold = qcForm.passThreshold
 
-  if (!formCode || !formName) return 'Mã biểu mẫu và tên biểu mẫu là bắt buộc'
-  if (!/^[A-Z0-9_-]+$/.test(formCode)) return 'Mã biểu mẫu chỉ được chứa chữ, số, dấu gạch dưới hoặc gạch ngang'
-
-  const threshold = Number(qcForm.passThreshold || 0)
-  if (threshold < 0 || threshold > 100) {
-    return 'Ngưỡng đạt phải nằm trong khoảng từ 0 đến 100'
+  if (!formCode) {
+    errors.code = 'Mã biểu mẫu là bắt buộc'
+  } else if (!/^[A-Z0-9_-]+$/.test(formCode)) {
+    errors.code = 'Mã biểu mẫu chỉ được chứa chữ, số, dấu gạch dưới hoặc gạch ngang'
   }
 
-  return ''
+  if (!formName) {
+    errors.name = 'Tên biểu mẫu là bắt buộc'
+  }
+
+  if (rawThreshold === '' || rawThreshold === null || rawThreshold === undefined) {
+    errors.passThreshold = 'Ngưỡng đạt là bắt buộc'
+  } else {
+    const threshold = Number(rawThreshold)
+    if (!Number.isFinite(threshold) || threshold < 0 || threshold > 100) {
+      errors.passThreshold = 'Ngưỡng đạt phải nằm trong khoảng từ 0 đến 100'
+    }
+  }
+
+  if (!formDescription) {
+    errors.description = 'Mô tả là bắt buộc'
+  }
+
+  return errors
 }
 
-const getStructureValidationError = () => validateTree(qcForm.criteriaTree, 'Biểu mẫu')
+const metadataValidationErrors = computed(() => getMetadataValidationErrors())
 
-const canSaveDraft = computed(() => !getMetadataValidationError() && !getStructureValidationError())
+const getMetadataValidationError = () => (
+  metadataValidationErrors.value.code
+  || metadataValidationErrors.value.name
+  || metadataValidationErrors.value.passThreshold
+  || metadataValidationErrors.value.description
+  || ''
+)
 
 const resetFormState = () => {
   activeStep.value = 1
+  showMetadataValidation.value = false
+  showStructureValidation.value = false
   expandedReviewGroupOrderings.value = new Set()
   qcForm.id = null
   qcForm.code = ''
@@ -259,6 +287,8 @@ const resetFormState = () => {
 
 const applyFormDetail = (item = {}) => {
   activeStep.value = 1
+  showMetadataValidation.value = false
+  showStructureValidation.value = false
   expandedReviewGroupOrderings.value = new Set()
   qcForm.id = Number(item?.id || 0) || null
   qcForm.code = String(item?.code || '')
@@ -348,17 +378,30 @@ const serializeCriteriaTree = (nodes = []) => (
       description: String(node.description || '').trim(),
       mode: String(node.mode || 'point'),
       maxScore: node.mode === 'pass_fail' ? 1 : Number(node.maxScore || 0),
-      weight: Number(node.weight || 1),
-      frequency: String(node.frequency || 'per_audit'),
-      isCritical: Boolean(node.isCritical),
-      required: Boolean(node.required),
     }
   })
 )
 
-const validateTree = (nodes = [], parentLabel = 'Mục gốc') => {
+const pushTreeValidationError = (bucket, messages, nodeId, field, message) => {
+  if (!bucket[nodeId]) {
+    bucket[nodeId] = {}
+  }
+
+  if (!bucket[nodeId][field]) {
+    bucket[nodeId][field] = message
+    messages.push(message)
+  }
+}
+
+const collectTreeValidation = (nodes = [], parentLabel = 'Mục gốc') => {
+  const nodeErrors = {}
+  const messages = []
+
   if (!nodes.length) {
-    return `${parentLabel} cần ít nhất một nhóm hoặc tiêu chí`
+    return {
+      nodeErrors,
+      messages: [`${parentLabel} cần ít nhất một nhóm hoặc tiêu chí`],
+    }
   }
 
   const siblingSegments = new Set()
@@ -371,38 +414,105 @@ const validateTree = (nodes = [], parentLabel = 'Mục gốc') => {
     const orderingLabel = node.nodeType === 'group' ? normalizeOrderingLabel(node.orderingLabel) : ''
 
     if (orderingLabel && !ORDERING_LABEL_PATTERN.test(orderingLabel)) {
-      return `Mã thứ tự của nhóm ở ${positionLabel} chỉ được chứa chữ và số`
+      pushTreeValidationError(
+        nodeErrors,
+        messages,
+        node.id,
+        'orderingLabel',
+        `Mã thứ tự của nhóm ở ${positionLabel} chỉ được chứa chữ và số`,
+      )
     }
 
     if (siblingSegments.has(positionSegment)) {
-      return `Mã thứ tự "${positionSegment}" đang bị trùng trong ${parentLabel}`
+      pushTreeValidationError(
+        nodeErrors,
+        messages,
+        node.id,
+        'orderingLabel',
+        `Mã thứ tự "${positionSegment}" đang bị trùng trong ${parentLabel}`,
+      )
+    } else {
+      siblingSegments.add(positionSegment)
     }
-    siblingSegments.add(positionSegment)
 
     if (!nodeName) {
-      return `${node.nodeType === 'group' ? 'Nhóm' : 'Tiêu chí'} ở ${positionLabel} cần có tên`
+      pushTreeValidationError(
+        nodeErrors,
+        messages,
+        node.id,
+        'name',
+        `${node.nodeType === 'group' ? 'Tên nhóm' : 'Tên tiêu chí'} ở ${positionLabel} là bắt buộc`,
+      )
     }
 
     if (node.nodeType === 'group') {
       if (!Array.isArray(node.children) || !node.children.length) {
-        return `Nhóm "${nodeName}" cần ít nhất một mục con`
+        pushTreeValidationError(
+          nodeErrors,
+          messages,
+          node.id,
+          'children',
+          `Nhóm "${nodeName || positionLabel}" cần ít nhất một mục con`,
+        )
+        continue
       }
 
-      const nestedError = validateTree(node.children, nodeName)
-      if (nestedError) return nestedError
+      const nestedValidation = collectTreeValidation(node.children, nodeName || positionLabel)
+      Object.entries(nestedValidation.nodeErrors).forEach(([childId, errors]) => {
+        nodeErrors[childId] = errors
+      })
+      messages.push(...nestedValidation.messages)
       continue
     }
 
-    if (String(node.mode || 'point') === 'point' && Number(node.maxScore || 0) <= 0) {
-      return `Tiêu chí "${nodeName}" cần điểm tối đa lớn hơn 0`
+    const mode = String(node.mode || '').trim()
+    if (!mode) {
+      pushTreeValidationError(
+        nodeErrors,
+        messages,
+        node.id,
+        'mode',
+        `Tiêu chí "${nodeName || positionLabel}" cần chọn kiểu chấm`,
+      )
+    }
+
+    if (mode === 'point') {
+      const maxScore = Number(node.maxScore)
+      if (!Number.isFinite(maxScore) || maxScore <= 0) {
+        pushTreeValidationError(
+          nodeErrors,
+          messages,
+          node.id,
+          'maxScore',
+          `Tiêu chí "${nodeName || positionLabel}" cần điểm tối đa lớn hơn 0`,
+        )
+      }
     }
   }
 
-  return ''
+  return {
+    nodeErrors,
+    messages,
+  }
 }
 
-const validateForm = () => {
-  return getMetadataValidationError() || getStructureValidationError()
+const criteriaValidation = computed(() => collectTreeValidation(qcForm.criteriaTree, 'Biểu mẫu'))
+const getStructureValidationError = () => criteriaValidation.value.messages[0] || ''
+const visibleCriteriaValidationMap = computed(() => (showStructureValidation.value ? criteriaValidation.value.nodeErrors : {}))
+
+const validateForm = () => getMetadataValidationError() || getStructureValidationError()
+
+const revealMetadataValidation = () => {
+  showMetadataValidation.value = true
+}
+
+const revealStructureValidation = () => {
+  showStructureValidation.value = true
+}
+
+const revealAllValidation = () => {
+  revealMetadataValidation()
+  revealStructureValidation()
 }
 
 const loadFormDetail = async () => {
@@ -433,6 +543,7 @@ const loadFormDetail = async () => {
 const submitForm = async (targetStatus) => {
   if (isSaving.value) return
 
+  revealAllValidation()
   const validationError = validateForm()
   if (validationError) {
     toast.error(validationError)
@@ -484,6 +595,7 @@ const goToPreviousStep = () => {
 
 const goToNextStep = () => {
   if (activeStep.value === 1) {
+    revealMetadataValidation()
     const metadataError = getMetadataValidationError()
     if (metadataError) {
       toast.error(metadataError)
@@ -492,6 +604,7 @@ const goToNextStep = () => {
   }
 
   if (activeStep.value === 2) {
+    revealStructureValidation()
     const structureError = getStructureValidationError()
     if (structureError) {
       toast.error(structureError)
@@ -509,6 +622,7 @@ const openStep = (targetStep) => {
   }
 
   if (targetStep === 2) {
+    revealMetadataValidation()
     const metadataError = getMetadataValidationError()
     if (metadataError) {
       toast.error(metadataError)
@@ -517,12 +631,14 @@ const openStep = (targetStep) => {
   }
 
   if (targetStep === 3) {
+    revealMetadataValidation()
     const metadataError = getMetadataValidationError()
     if (metadataError) {
       toast.error(metadataError)
       return
     }
 
+    revealStructureValidation()
     const structureError = getStructureValidationError()
     if (structureError) {
       toast.error(structureError)
@@ -572,7 +688,7 @@ onMounted(async () => {
         <button
           type="button"
           class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isSaving || !canSaveDraft"
+          :disabled="isSaving"
           @click="submitForm('draft')"
         >
           <span class="material-symbols-outlined text-[18px]" :class="isSavingDraft ? 'animate-spin' : ''">
@@ -616,7 +732,7 @@ onMounted(async () => {
         </ol>
 
         <div class="border-t border-slate-200 pt-6">
-          <section v-if="activeStep === 1" class="max-w-3xl space-y-6">
+          <section v-if="activeStep === 1" class="space-y-6">
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Bước 1</p>
               <h3 class="mt-2 text-lg font-semibold text-slate-900">Thiết lập biểu mẫu</h3>
@@ -632,9 +748,12 @@ onMounted(async () => {
                   v-model="qcForm.code"
                   type="text"
                   :disabled="isEditMode"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                  :class="[customInputClass, showMetadataValidation && metadataValidationErrors.code ? validationInputClass : '']"
                   placeholder="VD: QC_STORE_STANDARD"
                 />
+                <p v-if="showMetadataValidation && metadataValidationErrors.code" :class="validationMessageClass">
+                  {{ metadataValidationErrors.code }}
+                </p>
                 <p class="text-xs text-slate-400">
                   {{ isEditMode ? 'Mã biểu mẫu được khóa để giữ định danh ổn định cho các version đã có.' : 'Dùng chữ in hoa, số, gạch dưới hoặc gạch ngang.' }}
                 </p>
@@ -645,9 +764,12 @@ onMounted(async () => {
                 <input
                   v-model="qcForm.name"
                   type="text"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  :class="[customInputClass, showMetadataValidation && metadataValidationErrors.name ? validationInputClass : '']"
                   placeholder="VD: QC cửa hàng chuẩn"
                 />
+                <p v-if="showMetadataValidation && metadataValidationErrors.name" :class="validationMessageClass">
+                  {{ metadataValidationErrors.name }}
+                </p>
               </label>
 
               <label class="space-y-2 md:col-span-1">
@@ -658,8 +780,11 @@ onMounted(async () => {
                   min="0"
                   max="100"
                   step="1"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  :class="[customInputClass, 'no-spin', showMetadataValidation && metadataValidationErrors.passThreshold ? validationInputClass : '']"
                 />
+                <p v-if="showMetadataValidation && metadataValidationErrors.passThreshold" :class="validationMessageClass">
+                  {{ metadataValidationErrors.passThreshold }}
+                </p>
               </label>
 
               <label class="flex items-center gap-3 md:col-span-1 md:pt-8">
@@ -672,9 +797,12 @@ onMounted(async () => {
                 <textarea
                   v-model="qcForm.description"
                   rows="4"
-                  class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  :class="[customTextareaClass, showMetadataValidation && metadataValidationErrors.description ? validationInputClass : '']"
                   placeholder="Mô tả phạm vi áp dụng và mục tiêu của biểu mẫu"
                 />
+                <p v-if="showMetadataValidation && metadataValidationErrors.description" :class="validationMessageClass">
+                  {{ metadataValidationErrors.description }}
+                </p>
               </label>
             </div>
           </section>
@@ -683,9 +811,6 @@ onMounted(async () => {
             <div class="max-w-3xl">
               <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Bước 2</p>
               <h3 class="mt-2 text-lg font-semibold text-slate-900">Dựng cây tiêu chí</h3>
-              <p class="mt-2 text-sm leading-6 text-slate-500">
-                Tạo nhóm trước rồi thêm các tiêu chí chấm điểm bên trong. Chỉ node lá mới xuất hiện ở màn chấm QC.
-              </p>
             </div>
 
             <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
@@ -694,12 +819,21 @@ onMounted(async () => {
               </div>
 
               <div v-if="qcForm.criteriaTree.length" class="px-4 py-4 sm:px-5">
+                <p
+                  v-if="showStructureValidation && getStructureValidationError()"
+                  class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600"
+                >
+                  {{ getStructureValidationError() }}
+                </p>
+
                 <div class="space-y-4">
                   <AdminQcCriterionBuilderItem
                     v-for="(node, index) in qcForm.criteriaTree"
                     :key="node.id"
                     :node="node"
                     :depth="1"
+                    :display-ordering="getNodeOrderingSegment(node, index)"
+                    :validation-map="visibleCriteriaValidationMap"
                     :can-move-up="index > 0"
                     :can-move-down="index < qcForm.criteriaTree.length - 1"
                     @add-child-group="addChildNode($event, 'group')"
@@ -743,6 +877,12 @@ onMounted(async () => {
                 <p class="text-sm font-semibold text-slate-700">Cây tiêu chí đang trống.</p>
                 <p class="mt-1 text-sm text-slate-500">
                   Bắt đầu bằng một nhóm lớn, sau đó thêm các tiêu chí chấm điểm bên trong.
+                </p>
+                <p
+                  v-if="showStructureValidation && getStructureValidationError()"
+                  class="mx-auto mt-4 max-w-xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600"
+                >
+                  {{ getStructureValidationError() }}
                 </p>
 
                 <div class="mt-4 flex flex-wrap justify-center gap-2">
@@ -818,90 +958,67 @@ onMounted(async () => {
               </div>
 
               <div class="px-4 py-4 sm:px-5">
-                <div class="space-y-3">
+                <div class="space-y-2.5">
                   <article
                     v-for="row in visibleReviewRows"
                     :key="row.id"
-                    :class="row.nodeType === 'group' ? 'rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4' : 'rounded-2xl border border-slate-200 bg-white px-4 py-4'"
-                    :style="{ marginLeft: `${Math.max(row.depth - 1, 0) * 18}px` }"
+                    :class="row.nodeType === 'group' ? 'rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-3' : 'rounded-xl border border-slate-200 bg-white px-3.5 py-3'"
+                    :style="{ marginLeft: getReviewRowIndent(row.depth) }"
                   >
                     <template v-if="row.nodeType === 'group'">
                       <button
                         type="button"
-                        class="flex w-full cursor-pointer flex-wrap items-start gap-3 text-left"
+                        class="flex w-full cursor-pointer items-start gap-3 text-left"
                         :aria-expanded="String(isReviewGroupExpanded(row.ordering))"
                         @click="toggleReviewGroup(row.ordering)"
                       >
-                        <span class="inline-flex min-w-[52px] items-center justify-center rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                        <span class="inline-flex min-w-[54px] items-center justify-center rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
                           {{ row.ordering }}
                         </span>
 
-                        <div class="min-w-0 flex-1">
-                          <div class="flex flex-wrap items-center gap-2">
-                            <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                        <div class="min-w-0 flex-1 space-y-1.5">
+                          <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
                               Nhóm
+                            </span>
+                            <span class="inline-flex rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                              {{ row.childCount }} mục con
                             </span>
                           </div>
 
-                          <p class="mt-2 text-sm font-semibold text-slate-900">{{ row.name }}</p>
-                          <p v-if="row.description" class="mt-1 text-sm leading-6 text-slate-500">{{ row.description }}</p>
-                          <p class="mt-1 text-xs text-slate-500">
-                            {{ isReviewGroupExpanded(row.ordering) ? 'Thu gọn danh sách tiêu chí con' : 'Bấm để xem các tiêu chí con' }}
-                          </p>
+                          <p class="text-sm font-semibold text-slate-900">{{ row.name }}</p>
+                          <p v-if="row.description" class="text-xs leading-5 text-slate-500">{{ row.description }}</p>
                         </div>
 
-                        <div class="flex max-w-full flex-wrap justify-end gap-2">
-                          <span class="inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                            {{ row.childCount }} mục con
+                        <div class="ml-auto inline-flex items-center gap-1.5 self-center rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
+                          <span>
+                            {{ isReviewGroupExpanded(row.ordering) ? 'Thu gọn' : 'Mở rộng' }}
                           </span>
-                          <span class="inline-flex size-8 items-center justify-center rounded-full bg-white text-slate-500">
-                            <span class="material-symbols-outlined text-[18px]">
-                              {{ isReviewGroupExpanded(row.ordering) ? 'expand_less' : 'expand_more' }}
-                            </span>
+                          <span class="inline-flex size-5 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                            <span class="material-symbols-outlined text-[16px]">{{ isReviewGroupExpanded(row.ordering) ? 'expand_less' : 'expand_more' }}</span>
                           </span>
                         </div>
                       </button>
                     </template>
 
                     <template v-else>
-                      <div class="flex flex-wrap items-start gap-3">
-                        <span class="inline-flex min-w-[52px] items-center justify-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                      <div class="flex items-start gap-3">
+                        <span class="inline-flex min-w-[54px] items-center justify-center rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
                           {{ row.ordering }}
                         </span>
 
-                        <div class="min-w-0 flex-1">
-                          <div class="flex flex-wrap items-center gap-2">
-                            <span class="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
+                        <div class="min-w-0 flex-1 space-y-1.5">
+                          <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
                               Tiêu chí
                             </span>
-                            <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                              {{ row.mode === 'pass_fail' ? 'Đạt / Không đạt' : `Tối đa ${Number(row.maxScore || 0)} điểm` }}
+                            <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                              {{ getReviewCriterionSummary(row) }}
                             </span>
                           </div>
 
-                          <p class="mt-2 text-sm font-semibold text-slate-900">{{ row.name }}</p>
-                          <p v-if="row.description" class="mt-1 text-sm leading-6 text-slate-500">{{ row.description }}</p>
-                        </div>
-
-                        <div class="flex max-w-full flex-wrap justify-end gap-2">
-                          <span
-                            v-if="row.required"
-                            class="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700"
-                          >
-                            Bắt buộc
-                          </span>
-                          <span
-                            v-if="row.isCritical"
-                            class="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700"
-                          >
-                            Trọng yếu
-                          </span>
-                          <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                            Trọng số {{ row.weight }}
-                          </span>
-                          <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
-                            {{ row.frequency === 'weekly_once' ? 'Mỗi tuần một lần' : 'Mỗi lần kiểm' }}
-                          </span>
+                          <p class="text-sm font-semibold text-slate-900">{{ row.name }}</p>
+                          <p v-if="row.description" class="text-xs leading-5 text-slate-500">{{ row.description }}</p>
                         </div>
                       </div>
                     </template>
@@ -953,3 +1070,16 @@ onMounted(async () => {
     </section>
   </div>
 </template>
+
+<style scoped>
+.no-spin::-webkit-outer-spin-button,
+.no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spin[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+</style>

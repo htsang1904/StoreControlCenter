@@ -173,10 +173,7 @@ const sectionSummary = computed(() => {
 
     if (status !== 'pending') acc.completed += 1
     if (status === 'pass') acc.passed += 1
-    if (status === 'fail') {
-      acc.failed += 1
-      if (criterion.isCritical) acc.criticalFailed += 1
-    }
+    if (status === 'fail') acc.failed += 1
     if (status === 'na') acc.excluded += 1
 
     return acc
@@ -186,7 +183,6 @@ const sectionSummary = computed(() => {
     passed: 0,
     failed: 0,
     excluded: 0,
-    criticalFailed: 0,
   })
 })
 
@@ -265,12 +261,6 @@ const toggleDetails = () => {
               {{ criterion.ordering || `Nhóm ${level}` }}
             </span>
             <h3 :class="sectionTitleClass">{{ criterion.name }}</h3>
-            <span
-              v-if="sectionSummary && sectionSummary.criticalFailed > 0"
-              class="inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700"
-            >
-              Critical {{ sectionSummary.criticalFailed }}
-            </span>
           </div>
         </div>
 
@@ -327,12 +317,6 @@ const toggleDetails = () => {
           <div class="flex flex-wrap items-center gap-2">
             <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
               {{ criterion.ordering || criterion.code || 'Tiêu chí' }}
-            </span>
-            <span
-              v-if="criterion.isCritical"
-              class="inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-700"
-            >
-              Critical
             </span>
             <span class="text-[11px] text-slate-500">
               {{ metricLabel }}

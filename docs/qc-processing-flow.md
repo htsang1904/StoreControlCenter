@@ -9,8 +9,7 @@ Tài liệu này mô tả luồng xử lý QC sau khi tách domain QC khỏi Tic
 - Hỗ trợ:
   - nhiều biên bản QC khác nhau,
   - tiêu chí chấm `pass/fail` hoặc `point`,
-  - tiêu chí không áp dụng theo cửa hàng,
-  - tiêu chí chỉ chấm 1 lần/tuần.
+  - tiêu chí không áp dụng theo cửa hàng.
 
 ## 3) Vai trò
 - `QC Auditor`: tạo/đánh giá/submit phiên QC.
@@ -21,7 +20,7 @@ Tài liệu này mô tả luồng xử lý QC sau khi tách domain QC khỏi Tic
 - `qc_forms`: form gốc (master).
 - `qc_form_versions`: version immutable của form.
 - `qc_criteria`: thư viện tiêu chí dùng lại.
-- `qc_form_criteria`: cấu hình tiêu chí trong từng version (mode, score, weight, critical, weekly_once...).
+- `qc_form_criteria`: cấu hình tiêu chí trong từng version (mode, score...).
 - `qc_store_criterion_rules`: rule theo cửa hàng (`is_applicable`, hiệu lực thời gian).
 - `qc_sessions`: phiên QC tại cửa hàng.
 - `qc_session_items`: kết quả chấm từng tiêu chí (snapshot).
@@ -39,7 +38,6 @@ Tài liệu này mô tả luồng xử lý QC sau khi tách domain QC khỏi Tic
 - `pass`: đạt.
 - `fail`: không đạt.
 - `na`: không áp dụng với cửa hàng.
-- `skipped_weekly`: bỏ qua vì tiêu chí đã được chấm trong tuần.
 
 ### 5.3 Khắc phục (`qc_findings.status`)
 - `open` -> `in_progress` -> `resolved` -> `verified`
@@ -76,11 +74,9 @@ Kết quả: khi tạo phiên, hệ thống biết tiêu chí nào là `na`.
 ## Step C: Tạo phiên QC
 1. Auditor chọn cửa hàng + form version.
 2. Hệ thống tạo `qc_session` ở trạng thái `draft` (tạo trước để user chỉnh sửa trong phiên nháp).
-3. Hệ thống generate `qc_session_items` từ `qc_form_criteria` (snapshot mode/max_score/weight/frequency...).
+3. Hệ thống generate `qc_session_items` từ `qc_form_criteria` (snapshot mode/max_score...).
 4. Áp dụng rule store:
    - `is_applicable=false` -> item = `na`.
-5. Áp dụng `weekly_once`:
-   - nếu tiêu chí đã chấm trong tuần hiện tại -> item = `skipped_weekly`.
 
 Kết quả: phiên QC sẵn sàng để chấm, dữ liệu lịch sử không bị ảnh hưởng bởi thay đổi template sau này.
 
@@ -92,7 +88,7 @@ Kết quả: phiên QC sẵn sàng để chấm, dữ liệu lịch sử không 
 3. Dữ liệu được lưu theo cơ chế autosave khi session đang ở `draft`.
 
 ## Step E: Submit phiên
-1. Validate: không còn item `pending` (trừ `na/skipped_weekly`).
+1. Validate: không còn item `pending` (trừ `na`).
 2. Tính toán:
    - `total_score`, `max_score`.
    - `result` của session = `pass` hoặc `fail`.
@@ -114,14 +110,14 @@ Kết quả: phiên QC sẵn sàng để chấm, dữ liệu lịch sử không 
 4. Khi tất cả findings verified -> đóng phiên (`closed`) hoặc tạo session recheck mới theo policy.
 
 ## 7) Công thức chấm điểm (MVP)
-- Bỏ khỏi mẫu số: `na`, `skipped_weekly`.
+- Bỏ khỏi mẫu số: `na`.
 - `point`:
   - cộng `score` vào `total_score`,
   - cộng `max_score_snapshot` vào `max_score`.
 - `pass_fail`:
   - quy đổi `pass=1`, `fail=0` (hoặc rule khác trong `pass_rule`).
 - Session fail nếu:
-  - có bất kỳ item `fail` critical, hoặc
+  - có bất kỳ item `fail`, hoặc
   - không đạt rule pass trong `pass_rule`.
 
 ## 8) API mapping
@@ -145,7 +141,7 @@ Kết quả: phiên QC sẵn sàng để chấm, dữ liệu lịch sử không 
 ## 8.2 Nên bổ sung tiếp (để chạy trọn luồng)
 1. `POST /api/qc/sessions/init`
 - Input: `store_id`, `form_version_id`, `audited_at`.
-- Output: session + items snapshot đã apply rule `na/weekly_once`.
+- Output: session + items snapshot đã apply rule `na`.
 
 2. `POST /api/qc/sessions/:id/items/bulk-upsert`
 - Upsert kết quả chấm nhiều tiêu chí một lần.

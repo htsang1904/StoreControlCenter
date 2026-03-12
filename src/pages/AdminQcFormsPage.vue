@@ -149,7 +149,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="space-y-4">
     <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div class="flex flex-wrap items-start justify-between gap-4">
+      <div class="flex flex-wrap items-center justify-between gap-4">
         <div class="max-w-3xl">
           <h2 class="text-xl font-semibold tracking-tight text-slate-900">Quản lý biểu mẫu QC</h2>
           <p class="mt-2 text-sm leading-6 text-slate-500">

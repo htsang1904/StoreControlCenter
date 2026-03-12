@@ -212,10 +212,6 @@ onMounted(async () => {
                 <p>Cấp cây: <span class="font-medium text-slate-900">{{ criterion.level || 1 }}</span></p>
                 <p>Kiểu chấm: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? 'Node gom nhóm' : (criterion.mode === 'pass_fail' ? 'Đạt / Không đạt' : 'Chấm điểm') }}</span></p>
                 <p>Điểm tối đa: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : (criterion.mode === 'pass_fail' ? 1 : criterion.maxScore) }}</span></p>
-                <p>Trọng số: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : criterion.weight }}</span></p>
-                <p>Tần suất: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : (criterion.frequency === 'weekly_once' ? 'Mỗi tuần một lần' : 'Mỗi lần kiểm') }}</span></p>
-                <p>Trọng yếu: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : (criterion.isCritical ? 'Có' : 'Không') }}</span></p>
-                <p>Bắt buộc: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? '--' : (criterion.required ? 'Có' : 'Không') }}</span></p>
               </div>
             </div>
           </article>

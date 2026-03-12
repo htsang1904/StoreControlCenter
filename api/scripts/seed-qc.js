@@ -200,7 +200,6 @@ async function seedCriteriaRecursive(strapi, versionId, criteria, parentId = nul
                     criterion: criterion.id,
                     mode: c.mode || 'point',
                     max_score: parseFloat(c.maxScore) || 1,
-                    weight: 1,
                     sort_order: 1
                 }
             });

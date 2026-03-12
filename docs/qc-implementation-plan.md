@@ -68,7 +68,7 @@ Hệ thống cần hỗ trợ ít nhất 6 loại:
 
 - `qc-session`, `qc-session-item`, `qc-finding`, `qc-draft`.
 - QC draft-first, autosave, overview theo store.
-- Hỗ trợ `point`, `pass_fail`, `critical`, `weekly_once`.
+- Hỗ trợ `point`, `pass_fail`.
 
 ### Chưa có
 
@@ -464,7 +464,7 @@ Mitigation:
 
 - pass bình thường
 - fail do threshold
-- fail do critical
+- fail do có item không đạt
 - zero toàn bài do `C1.7`
 - zero toàn bài do `C1.5`
 - trừ 30% do `B3.1`

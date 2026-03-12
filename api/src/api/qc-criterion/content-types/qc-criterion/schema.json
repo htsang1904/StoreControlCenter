@@ -37,10 +37,6 @@
       "type": "decimal",
       "default": 0
     },
-    "default_weight": {
-      "type": "decimal",
-      "default": 1
-    },
     "is_active": {
       "type": "boolean",
       "default": true

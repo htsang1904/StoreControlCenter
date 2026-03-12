@@ -490,7 +490,6 @@ export interface ApiQcCriterionQcCriterion extends Schema.CollectionType {
     default_mode: Attribute.Enumeration<['pass_fail', 'point']> &
       Attribute.Required &
       Attribute.DefaultTo<'point'>;
-    default_weight: Attribute.Decimal & Attribute.DefaultTo<1>;
     description: Attribute.Text;
     form_criteria: Attribute.Relation<
       'api::qc-criterion.qc-criterion',
@@ -668,12 +667,8 @@ export interface ApiQcFormCriterionQcFormCriterion
       'api::qc-form-version.qc-form-version'
     > &
       Attribute.Required;
-    frequency: Attribute.Enumeration<['per_audit', 'weekly_once']> &
-      Attribute.DefaultTo<'per_audit'>;
-    is_critical: Attribute.Boolean & Attribute.DefaultTo<false>;
     max_score: Attribute.Decimal & Attribute.DefaultTo<0>;
     mode: Attribute.Enumeration<['pass_fail', 'point']> & Attribute.Required;
-    required: Attribute.Boolean & Attribute.DefaultTo<true>;
     section_name: Attribute.String;
     sort_order: Attribute.Integer & Attribute.DefaultTo<0>;
     updatedAt: Attribute.DateTime;
@@ -683,7 +678,6 @@ export interface ApiQcFormCriterionQcFormCriterion
       'admin::user'
     > &
       Attribute.Private;
-    weight: Attribute.Decimal & Attribute.DefaultTo<1>;
   };
 }
 
@@ -805,8 +799,6 @@ export interface ApiQcSessionItemQcSessionItem extends Schema.CollectionType {
     >;
     criterion_code: Attribute.String;
     criterion_name: Attribute.String & Attribute.Required;
-    frequency_snapshot: Attribute.Enumeration<['per_audit', 'weekly_once']> &
-      Attribute.DefaultTo<'per_audit'>;
     max_score_snapshot: Attribute.Decimal & Attribute.DefaultTo<0>;
     mode_snapshot: Attribute.Enumeration<['pass_fail', 'point']> &
       Attribute.Required;
@@ -831,7 +823,6 @@ export interface ApiQcSessionItemQcSessionItem extends Schema.CollectionType {
       'admin::user'
     > &
       Attribute.Private;
-    weight_snapshot: Attribute.Decimal & Attribute.DefaultTo<1>;
   };
 }
 
