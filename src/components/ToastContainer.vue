@@ -4,9 +4,9 @@ import { useToast } from '@/plugins/toast'
 const { toasts, remove } = useToast()
 
 const toneClass = (type) => {
-  if (type === 'success') return 'border-emerald-200 bg-emerald-50 text-emerald-800'
-  if (type === 'error') return 'border-red-200 bg-red-50 text-red-800'
-  return 'border-slate-200 bg-white text-slate-800'
+  if (type === 'success') return 'app-toast--success'
+  if (type === 'error') return 'app-toast--danger'
+  return 'app-toast--neutral'
 }
 </script>
 
@@ -16,7 +16,7 @@ const toneClass = (type) => {
       <div
         v-for="item in toasts"
         :key="item.id"
-        class="pointer-events-auto rounded-xl border px-3 py-2 shadow-lg"
+        class="app-toast pointer-events-auto px-3 py-2"
         :class="toneClass(item.type)"
       >
         <div class="flex items-start gap-2">

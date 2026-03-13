@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CommonModal from '@/components/CommonModal.vue'
 import { useApp } from '@/plugins/app'
@@ -21,6 +21,10 @@ const props = defineProps({
     type: [String, Number],
     default: '',
   },
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const router = useRouter()
@@ -40,6 +44,7 @@ const assignableHandlers = ref([])
 const assignableHandlersLoading = ref(false)
 const assignableHandlersError = ref('')
 const assignPanelOpen = ref(false)
+const actionMenuOpen = ref(false)
 const selectedAssignableHandlerIds = ref([])
 const assigningHandler = ref(false)
 const assigning = ref(false)
@@ -51,6 +56,7 @@ const replyError = ref('')
 const submittingReply = ref(false)
 const replyFiles = ref([])
 const replyFileInputRef = ref(null)
+const actionMenuRef = ref(null)
 const MAX_REPLY_FILES = 5
 const MAX_REPLY_FILE_SIZE_BYTES = 5 * 1024 * 1024
 const imagePreview = ref({
@@ -58,11 +64,14 @@ const imagePreview = ref({
   src: '',
   name: '',
 })
+const conversationViewportRef = ref(null)
 
 const ticketId = computed(() => Number(props.id || 0))
+const isEmbedded = computed(() => props.embedded === true)
 const hasTicket = computed(() => Boolean(ticket.value?.id))
 const userRole = computed(() => String(state.userInfo?.role || '').toLowerCase())
 const currentUserId = computed(() => Number(state.userInfo?.id || 0))
+const currentUserName = computed(() => String(state.userInfo?.name || '').trim().toLowerCase())
 const canManageAssignment = computed(() => userRole.value === 'handler' || userRole.value === 'admin')
 const isCurrentUserAssignee = computed(() => assignees.value.some((item) => Number(item?.id) === currentUserId.value))
 const isRequester = computed(() => Number(ticket.value?.requester?.id || ticket.value?.requester_id || 0) === currentUserId.value)
@@ -101,6 +110,7 @@ const canResolveTicket = computed(() => {
   return canManageAssignment.value && isCurrentUserAssignee.value
 })
 const canReopenTicket = computed(() => hasTicket.value && isResolvedTicket.value && (userRole.value === 'store' || userRole.value === 'admin'))
+const showHeaderActionMenu = computed(() => isEmbedded.value && (canAdminAssignHandler.value || canResolveTicket.value))
 const availableAssignableHandlers = computed(() => {
   const assignedIds = new Set(assignees.value.map((item) => Number(item?.id || 0)).filter((id) => id > 0))
   return assignableHandlers.value.filter((item) => !assignedIds.has(Number(item?.id || 0)))
@@ -152,11 +162,9 @@ const overviewItems = computed(() => {
   return [
     { key: 'status', label: 'Trạng thái', value: normalizeStatus(ticket.value.status), className: statusClass(ticket.value.status), kind: 'status' },
     { key: 'processingDuration', label: 'Thời gian xử lý', value: processingDurationMeta.value.value, className: processingDurationMeta.value.className, note: processingDurationMeta.value.note, kind: 'text' },
-    { key: 'requester', label: 'Người tạo', value: requesterDisplay.value, className: '', kind: 'text' },
     { key: 'store', label: 'Cửa hàng', value: storeDisplay.value, className: '', kind: 'text' },
     { key: 'department', label: 'Bộ phận phụ trách', value: departmentDisplay.value, className: '', kind: 'text' },
     { key: 'createdAt', label: 'Ngày tạo', value: formatDateTime(ticket.value.createdAt), className: '', kind: 'text' },
-    { key: 'updatedAt', label: 'Cập nhật gần nhất', value: formatDateTime(ticket.value.updatedAt || ticket.value.createdAt), className: '', kind: 'text' },
   ]
 })
 
@@ -166,6 +174,7 @@ const conversationItems = computed(() => {
   const rootAttachments = normalizeAttachmentList(ticket.value.attachments_media)
   const rootCard = {
     id: `ticket-${ticket.value.id}`,
+    sender_id: Number(ticket.value?.requester?.id || ticket.value?.requester_id || 0) || null,
     sender_name: requesterDisplay.value,
     sender_role: normalizeUserRoleLabel(ticket.value?.requester?.role || 'store'),
     sender_type: 'store',
@@ -176,6 +185,7 @@ const conversationItems = computed(() => {
 
   const logCards = logs.value.map((log, index) => ({
     id: log?.id || `log-${index}`,
+    sender_id: Number(log?.sender?.id || log?.sender_id || 0) || null,
     sender_name: log?.sender?.name || '--',
     sender_role: normalizeUserRoleLabel(log?.sender?.role || log?.sender_type || 'handler'),
     sender_type: log?.sender_type || 'handler',
@@ -208,13 +218,13 @@ function normalizeStatus(status) {
 function statusClass(status) {
   const normalized = normalizeStatusKey(status)
   const map = {
-    new: 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200',
-    in_progress: 'bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200',
-    resolved: 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200',
-    closed: 'bg-blue-100 text-blue-700 ring-1 ring-inset ring-blue-200',
-    rejected: 'bg-red-100 text-red-700 ring-1 ring-inset ring-red-200',
+    new: 'app-badge--info',
+    in_progress: 'app-badge--warning',
+    resolved: 'app-badge--success',
+    closed: 'app-badge--neutral',
+    rejected: 'app-badge--danger',
   }
-  return map[normalized] || 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200'
+  return map[normalized] || 'app-badge--neutral'
 }
 
 function normalizeUserRoleLabel(role) {
@@ -235,10 +245,84 @@ function avatarInitial(name) {
 
 function avatarClass(senderType) {
   const type = String(senderType || '').toLowerCase()
-  if (type === 'store') return 'bg-sky-500 text-white'
-  if (type === 'admin') return 'bg-violet-500 text-white'
-  if (type === 'system') return 'bg-slate-500 text-white'
-  return 'bg-orange-400 text-white'
+  if (type === 'system') return 'bg-slate-300 text-slate-700'
+  return 'app-avatar-neutral'
+}
+
+function isSystemConversationItem(item) {
+  return String(item?.sender_type || '').toLowerCase() === 'system'
+}
+
+function isOwnConversationItem(item) {
+  const senderId = Number(item?.sender_id || 0)
+  if (senderId > 0 && senderId === currentUserId.value) return true
+
+  const senderName = String(item?.sender_name || '').trim().toLowerCase()
+  if (currentUserName.value && senderName && senderName === currentUserName.value) return true
+
+  const senderType = String(item?.sender_type || '').toLowerCase()
+  if (userRole.value === 'store') {
+    return senderType === 'store' && isRequester.value
+  }
+
+  if (userRole.value === 'handler' || userRole.value === 'admin') {
+    return senderType === 'handler'
+  }
+
+  return false
+}
+
+function conversationRowClass(item) {
+  if (isSystemConversationItem(item)) return 'justify-center'
+  return isOwnConversationItem(item) ? 'justify-end' : 'justify-start'
+}
+
+function conversationThreadClass(item) {
+  if (isSystemConversationItem(item)) return 'max-w-2xl justify-center'
+  return isOwnConversationItem(item)
+    ? 'flex-row-reverse justify-end'
+    : 'flex-row justify-start'
+}
+
+function conversationMetaClass(item) {
+  if (isSystemConversationItem(item)) return 'items-center text-center'
+  return isOwnConversationItem(item) ? 'items-end text-right' : 'items-start text-left'
+}
+
+function conversationContentClass(item) {
+  if (isSystemConversationItem(item)) return 'mx-auto items-center'
+  return isOwnConversationItem(item) ? 'items-end' : 'items-start'
+}
+
+function conversationBubbleClass(item) {
+  if (isSystemConversationItem(item)) return 'rounded-2xl border border-slate-200 bg-slate-100/90'
+  return isOwnConversationItem(item)
+    ? 'rounded-2xl rounded-tr-md bg-slate-900 text-white'
+    : 'rounded-2xl rounded-tl-md border border-slate-200 bg-white'
+}
+
+function conversationMessageClass(item) {
+  return isOwnConversationItem(item) && !isSystemConversationItem(item)
+    ? 'whitespace-pre-line break-words text-sm leading-relaxed text-white'
+    : 'whitespace-pre-line break-words text-sm leading-relaxed text-slate-700'
+}
+
+function conversationAttachmentLinkClass(item) {
+  return isOwnConversationItem(item)
+    ? 'inline-flex max-w-full cursor-pointer break-all text-sm font-semibold text-white underline-offset-2 hover:underline'
+    : 'inline-flex max-w-full cursor-pointer break-all text-sm font-semibold text-slate-700 underline-offset-2 hover:underline'
+}
+
+function conversationTimestampClass(item) {
+  if (isSystemConversationItem(item)) return 'mt-2 self-center text-[11px] text-slate-400'
+  return isOwnConversationItem(item)
+    ? 'mt-2 self-end text-[11px] text-slate-300'
+    : 'mt-2 self-end text-[11px] text-slate-400'
+}
+
+function scrollConversationToBottom() {
+  if (!conversationViewportRef.value) return
+  conversationViewportRef.value.scrollTop = conversationViewportRef.value.scrollHeight
 }
 
 function formatDateTime(value) {
@@ -305,6 +389,23 @@ function closeImagePreview() {
     src: '',
     name: '',
   }
+}
+
+function toggleActionMenu() {
+  if (!showHeaderActionMenu.value) return
+  actionMenuOpen.value = !actionMenuOpen.value
+}
+
+function closeActionMenu() {
+  actionMenuOpen.value = false
+}
+
+function handleDocumentPointerDown(event) {
+  if (!actionMenuOpen.value) return
+  const target = event?.target
+  if (!(target instanceof Node)) return
+  if (actionMenuRef.value?.contains(target)) return
+  closeActionMenu()
 }
 
 function goBack() {
@@ -454,13 +555,6 @@ async function fetchAssignableHandlers() {
   }
 }
 
-function syncLegacyHandlerFromAssignees() {
-  if (!ticket.value) return
-  const first = assignees.value[0] || null
-  ticket.value.handler = first
-  ticket.value.handler_id = first?.id || null
-}
-
 async function handleAssignHandler() {
   if (
     !canAdminAssignHandler.value ||
@@ -487,7 +581,6 @@ async function handleAssignHandler() {
       if (updatedTicket?.id) {
         ticket.value = updatedTicket
         assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
-        syncLegacyHandlerFromAssignees()
       }
     }
 
@@ -526,6 +619,11 @@ function closeAssignModal() {
   assignableHandlersError.value = ''
 }
 
+async function openAssignPanelFromMenu() {
+  closeActionMenu()
+  await toggleAssignPanel()
+}
+
 async function handleClaimTicket() {
   if (!canClaimTicket.value || assigning.value || !ticket.value?.id) return
 
@@ -541,7 +639,6 @@ async function handleClaimTicket() {
     } else {
       await fetchTicketAssignees()
     }
-    syncLegacyHandlerFromAssignees()
     await fetchAssignableHandlers()
   } catch (err) {
     assigneesError.value = err?.response?.data?.message || err?.message || 'Không thể nhận xử lý ticket.'
@@ -562,7 +659,6 @@ async function handleResolveTicket() {
     if (updatedTicket?.id) {
       ticket.value = updatedTicket
       assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
-      syncLegacyHandlerFromAssignees()
     } else {
       await fetchTicketDetail()
       await fetchTicketAssignees()
@@ -573,6 +669,11 @@ async function handleResolveTicket() {
   } finally {
     resolving.value = false
   }
+}
+
+async function handleResolveFromMenu() {
+  closeActionMenu()
+  await handleResolveTicket()
 }
 
 async function handleReopenTicket() {
@@ -587,7 +688,6 @@ async function handleReopenTicket() {
     if (updatedTicket?.id) {
       ticket.value = updatedTicket
       assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
-      syncLegacyHandlerFromAssignees()
     } else {
       await fetchTicketDetail()
       await fetchTicketAssignees()
@@ -673,58 +773,67 @@ async function fetchAllData() {
   if (ticket.value?.id) {
     assignees.value = Array.isArray(ticket.value.assignees) ? ticket.value.assignees : []
     await Promise.all([fetchTicketLogs(), fetchTicketAssignees()])
-    syncLegacyHandlerFromAssignees()
     await fetchAssignableHandlers()
   }
 }
 
-onMounted(async () => {
-  await fetchAllData()
+onMounted(() => {
+  document.addEventListener('mousedown', handleDocumentPointerDown)
 })
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleDocumentPointerDown)
+})
+
+watch(
+  () => conversationItems.value.length,
+  async (nextLength) => {
+    if (!nextLength) return
+    await nextTick()
+    scrollConversationToBottom()
+  }
+)
+
+watch(
+  () => ticketId.value,
+  async (nextId, previousId) => {
+    if (!nextId || nextId === previousId) return
+    closeActionMenu()
+    await fetchAllData()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => assignPanelOpen.value,
+  (isOpen) => {
+    if (isOpen) closeActionMenu()
+  }
+)
+
+watch(
+  () => showHeaderActionMenu.value,
+  (visible) => {
+    if (!visible) closeActionMenu()
+  }
+)
 </script>
 
 <template>
-  <div class="page-stack mx-2 overflow-visible space-y-4 sm:mx-3 md:mx-0">
-    <div class="flex items-start justify-between gap-3">
-      <div class="flex min-w-0 items-start gap-3">
-        <button
-          type="button"
-          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-          aria-label="Quay lại danh sách ticket"
-          @click="goBack"
-        >
-          <span class="material-symbols-outlined text-[18px]">arrow_back</span>
-        </button>
-        <div class="min-w-0">
-          <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Chi tiết ticket</p>
-          <h1 class="mt-1 truncate text-lg font-semibold text-slate-900 sm:text-xl">{{ ticketCode }}</h1>
-          <p class="mt-1 text-sm leading-6 text-slate-500">Theo dõi tiến độ xử lý và trao đổi của ticket này.</p>
-        </div>
-      </div>
-
-      <button
-        v-if="canResolveTicket"
-        type="button"
-        class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-100 disabled:opacity-50"
-        :disabled="assigning || resolving"
-        @click="handleResolveTicket"
-      >
-        <span class="material-symbols-outlined text-[18px] text-emerald-600" :class="resolving ? 'animate-spin' : ''">
-          {{ resolving ? 'autorenew' : 'task_alt' }}
-        </span>
-        {{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý' }}
-      </button>
-    </div>
-
-    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" v-loading="loading">
-      <div v-if="errorMessage" class="p-5 sm:p-6">
-        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+  <div :class="isEmbedded ? 'h-full min-h-0' : 'page-stack mx-2 min-h-[calc(100dvh-6.5rem)] overflow-visible tablet:mx-3 pc:mx-0 pc:min-h-[calc(100dvh-7rem)]'">
+    <section
+      class="flex flex-col overflow-hidden"
+      :class="isEmbedded ? 'h-full min-h-0 bg-transparent' : 'min-h-full rounded-xl border border-slate-200 bg-white'"
+      v-loading="loading"
+    >
+      <div v-if="errorMessage" class="p-5 tablet:p-6">
+        <div class="app-state-banner">
           {{ errorMessage }}
         </div>
         <div class="mt-4">
           <button
             type="button"
-            class="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-hidden focus:ring-2 focus:ring-blue-100"
+            class="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-hidden"
             @click="fetchAllData"
           >
             Thử lại
@@ -732,13 +841,21 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-else-if="!hasTicket" class="p-5 sm:p-6 text-sm text-slate-600">
-        Không tìm thấy dữ liệu yêu cầu.
+      <div v-else-if="!hasTicket" class="p-5 tablet:p-6">
+        <div class="app-state-panel app-state-panel--center">
+          <div class="app-state-stack">
+            <div class="app-state-icon mx-auto">
+              <span class="material-symbols-outlined text-[24px]">info</span>
+            </div>
+            <p class="app-state-title">Không tìm thấy dữ liệu yêu cầu.</p>
+            <p class="app-state-body">Ticket có thể đã bị xóa hoặc đường dẫn hiện tại không còn hợp lệ.</p>
+          </div>
+        </div>
       </div>
 
-      <div v-else class="xl:grid xl:grid-cols-[320px_minmax(0,1fr)]">
-        <aside class="self-start border-b border-slate-200 xl:sticky xl:top-4 xl:border-b-0 xl:border-r xl:border-slate-200">
-          <section class="px-4 py-4 sm:px-5 sm:py-5">
+      <div v-else class="min-h-0 flex-1" :class="!isEmbedded ? 'pc:grid pc:grid-cols-[minmax(0,1fr)_320px]' : ''">
+        <aside v-if="!isEmbedded" class="hidden self-start border-b border-slate-200 pc:order-2 pc:block pc:h-full pc:sticky pc:top-4 pc:border-b-0 pc:border-slate-200">
+          <section class="px-4 py-4 tablet:px-5 tablet:py-5">
             <div class="space-y-4">
               <div>
                 <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Thông tin ticket</p>
@@ -753,7 +870,7 @@ onMounted(async () => {
                   <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">{{ item.label }}</p>
                   <span
                     v-if="item.kind === 'status'"
-                    class="mt-2 inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold"
+                    class="app-badge mt-2 inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold"
                     :class="item.className"
                   >
                     {{ item.value }}
@@ -767,7 +884,7 @@ onMounted(async () => {
             </div>
           </section>
 
-          <section class="border-t border-slate-200 px-4 py-4 sm:px-5 sm:py-5">
+          <section class="border-t border-slate-200 px-4 py-4 tablet:px-5 tablet:py-5">
             <div>
               <div class="flex items-start justify-between gap-3">
                 <div>
@@ -784,12 +901,12 @@ onMounted(async () => {
                   @click="toggleAssignPanel"
                 >
                   <span class="material-symbols-outlined text-[16px]">person_add</span>
-                  <span class="hidden sm:inline">Phân công</span>
+                  <span class="hidden tablet:inline">Phân công</span>
                 </button>
               </div>
 
-              <p v-if="assigneesError" class="mt-3 text-xs sm:text-sm text-red-600">{{ assigneesError }}</p>
-              <p v-else-if="assigneesLoading" class="mt-3 text-xs sm:text-sm text-slate-500">Đang tải người xử lý...</p>
+              <p v-if="assigneesError" class="app-field-error mt-3 tablet:text-sm">{{ assigneesError }}</p>
+              <p v-else-if="assigneesLoading" class="mt-3 text-xs tablet:text-sm text-slate-500">Đang tải người xử lý...</p>
 
               <div class="mt-4 flex flex-wrap gap-2">
                 <span
@@ -797,18 +914,18 @@ onMounted(async () => {
                   :key="member.id"
                   class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700"
                 >
-                  <span class="inline-flex size-5 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold uppercase text-blue-700">
+                  <span class="app-avatar-neutral inline-flex size-5 items-center justify-center rounded-full text-[10px] font-bold uppercase">
                     {{ avatarInitial(member.name || `#${member.id}`) }}
                   </span>
                   {{ member.name || `#${member.id}` }}
                 </span>
-                <span v-if="!assignees.length" class="text-xs sm:text-sm text-slate-500">Chưa có người xử lý.</span>
+                <span v-if="!assignees.length" class="text-xs tablet:text-sm text-slate-500">Chưa có người xử lý.</span>
               </div>
 
               <div v-if="canClaimTicket" class="mt-4">
                 <button
                   type="button"
-                  class="cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  class="app-button-primary cursor-pointer rounded-lg px-3 py-2 text-xs font-semibold"
                   :disabled="assigning || resolving"
                   @click="handleClaimTicket"
                 >
@@ -819,163 +936,332 @@ onMounted(async () => {
           </section>
         </aside>
 
-        <div>
-          <section class="px-4 py-4 sm:px-5 sm:py-5">
-            <div class="flex items-center justify-between gap-3">
-              <h2 class="text-base font-semibold text-slate-900">{{ ticket.title || 'Trao đổi' }}</h2>
-              <button
-                type="button"
-                class="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-hidden focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
-                :disabled="logsLoading"
-                @click="fetchTicketLogs"
-              >
-                {{ logsLoading ? 'Đang tải...' : 'Làm mới' }}
-              </button>
-            </div>
+        <div class="min-h-0" :class="!isEmbedded ? 'pc:order-1 pc:flex pc:h-full pc:flex-col pc:border-r pc:border-slate-200' : 'flex h-full min-h-0 flex-col'">
+          <section :class="isEmbedded ? 'flex h-full min-h-0 flex-col' : 'flex h-[calc(100dvh-8.5rem)] flex-col tablet:h-[calc(100dvh-9rem)] tablet:min-h-[620px] pc:h-full pc:min-h-0'">
+            <div class="border-b border-slate-200 bg-white px-3 py-2 tablet:px-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex min-w-0 items-center gap-3">
+                  <button
+                    v-if="!isEmbedded"
+                    type="button"
+                    class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+                    aria-label="Quay lại danh sách ticket"
+                    @click="goBack"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                  </button>
 
-            <p v-if="logsError" class="mt-3 text-xs sm:text-sm text-red-600">{{ logsError }}</p>
-            <p v-else-if="logsLoading" class="mt-3 text-xs sm:text-sm text-slate-500">Đang tải trao đổi...</p>
+                  <div class="min-w-0">
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                      {{ String(ticketCode).startsWith('#') ? ticketCode : `#${ticketCode}` }}
+                    </p>
+                    <h2 class="mt-1 truncate text-base font-semibold text-slate-900">{{ ticket.title || 'Trao đổi' }}</h2>
+                  </div>
+                </div>
 
-            <div class="mt-4 space-y-3">
-              <article
-                v-for="item in conversationItems"
-                :key="item.id"
-                class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <div class="flex min-w-0 items-center gap-3">
-                    <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold" :class="avatarClass(item.sender_type)">
-                      {{ avatarInitial(item.sender_name) }}
-                    </span>
-                    <div class="min-w-0">
-                      <p class="truncate text-base font-semibold text-slate-700">{{ item.sender_name }}</p>
-                      <p class="text-xs sm:text-sm text-slate-600">{{ item.sender_role }}</p>
+                <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <button
+                    v-if="canAdminAssignHandler && !isEmbedded"
+                    type="button"
+                    class="app-button-secondary inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold disabled:opacity-50 pc:hidden"
+                    :disabled="assigningHandler || assignableHandlersLoading"
+                    @click="toggleAssignPanel"
+                  >
+                    <span class="material-symbols-outlined text-[16px]">person_add</span>
+                    Phân công
+                  </button>
+
+                  <button
+                    v-if="canClaimTicket"
+                    type="button"
+                    class="app-button-primary cursor-pointer inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-sm font-semibold"
+                    :class="!isEmbedded ? 'pc:hidden' : ''"
+                    :disabled="assigning || resolving"
+                    @click="handleClaimTicket"
+                  >
+                    {{ assigning ? 'Đang xử lý...' : 'Nhận xử lý' }}
+                  </button>
+
+                  <div v-if="showHeaderActionMenu" ref="actionMenuRef" class="relative">
+                    <button
+                      type="button"
+                      class="inline-flex size-9 items-center justify-center text-slate-500 transition-colors hover:text-slate-900 focus:text-slate-900 focus:outline-hidden"
+                      title="Tác vụ ticket"
+                      aria-label="Tác vụ ticket"
+                      aria-haspopup="menu"
+                      :aria-expanded="actionMenuOpen ? 'true' : 'false'"
+                      @click="toggleActionMenu"
+                    >
+                      <svg
+                        class="size-[18px]"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                      >
+                        <circle cx="12" cy="5" r="1.75" />
+                        <circle cx="12" cy="12" r="1.75" />
+                        <circle cx="12" cy="19" r="1.75" />
+                      </svg>
+                    </button>
+
+                    <div
+                      v-if="actionMenuOpen"
+                      class="app-menu-panel absolute right-0 top-full z-20 mt-2 w-52 overflow-hidden py-1"
+                    >
+                      <button
+                        v-if="canAdminAssignHandler"
+                        type="button"
+                        class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="assigningHandler || assignableHandlersLoading"
+                        @click="openAssignPanelFromMenu"
+                      >
+                        <svg
+                          class="size-4 shrink-0 text-slate-500"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.1"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="10" cy="7" r="4" />
+                          <path d="M19 8v6" />
+                          <path d="M16 11h6" />
+                        </svg>
+                        <span>Phân công</span>
+                      </button>
+
+                      <button
+                        v-if="canResolveTicket"
+                        type="button"
+                        class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="assigning || resolving"
+                        @click="handleResolveFromMenu"
+                      >
+                        <svg
+                          class="size-4 shrink-0 text-emerald-600"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.1"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="m9 12 2 2 4-4" />
+                          <circle cx="12" cy="12" r="9" />
+                        </svg>
+                        <span>{{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý' }}</span>
+                      </button>
                     </div>
                   </div>
-                  <p class="whitespace-nowrap text-xs font-semibold text-slate-600 sm:text-sm">{{ formatDateTime(item.createdAt) }}</p>
-                </div>
 
-                <p class="mt-3 whitespace-pre-line break-words text-sm leading-relaxed text-slate-700">{{ item.message }}</p>
-
-                <div v-if="item.attachments.length" class="mt-4 space-y-2">
-                  <div
-                    v-for="attachment in item.attachments"
-                    :key="attachment.id"
-                    class="block rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700 sm:text-sm"
+                  <button
+                    v-if="canResolveTicket && !isEmbedded"
+                    type="button"
+                    class="app-button-success inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+                    :disabled="assigning || resolving"
+                    @click="handleResolveTicket"
                   >
-                    <a
-                      :href="toAbsoluteUrl(attachment.url)"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="break-all font-semibold hover:underline"
-                    >
-                      {{ attachment.name }}
-                    </a>
-                    <p v-if="formatFileSize(attachment.size)" class="text-xs text-blue-600">{{ formatFileSize(attachment.size) }}</p>
-                    <button
-                      v-if="isImageFile(attachment.mime)"
-                      type="button"
-                      class="mt-2 inline-block cursor-pointer"
-                      @click="openImagePreview(attachment.url, attachment.name)"
-                    >
-                      <img
-                        :src="toAbsoluteUrl(attachment.url)"
-                        :alt="attachment.name"
-                        class="size-9 rounded border border-blue-100 object-cover hover:opacity-90"
-                      />
-                    </button>
-                  </div>
+                    <span class="material-symbols-outlined text-[18px] text-emerald-600" :class="resolving ? 'animate-spin' : ''">
+                      {{ resolving ? 'autorenew' : 'task_alt' }}
+                    </span>
+                    {{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý' }}
+                  </button>
+
                 </div>
-              </article>
+              </div>
             </div>
-          </section>
 
-          <section class="border-t border-slate-200 px-4 py-4 sm:px-5 sm:py-5">
-            <div>
-              <h3 class="text-base font-semibold text-slate-900">Nội dung phản hồi</h3>
-
-              <template v-if="!isResolvedTicket">
-                <p v-if="!canReply && replyBlockedReason" class="mt-2 text-xs sm:text-sm text-amber-700">
-                  {{ replyBlockedReason }}
+            <div class="min-h-0 flex-1 bg-slate-50/60">
+              <div
+                ref="conversationViewportRef"
+                class="ticket-detail-scrollbar h-full overflow-y-auto px-3 py-4 tablet:px-4 tablet:py-5"
+              >
+                <p v-if="logsError" class="app-state-banner text-xs tablet:text-sm">
+                  {{ logsError }}
+                </p>
+                <p v-else-if="logsLoading" class="app-state-inline text-xs tablet:text-sm">
+                  Đang tải trao đổi...
                 </p>
 
-                <div class="mt-3 overflow-hidden rounded-xl border border-slate-200">
-                  <textarea
-                    v-model="replyMessage"
-                    class="block w-full min-h-[180px] p-3 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-hidden"
-                    placeholder="Nhập nội dung"
-                    :disabled="!canReply || submittingReply"
-                  ></textarea>
-                </div>
-
-                <div class="mt-3 rounded-lg bg-amber-50 px-3 py-2.5 text-sm font-medium text-amber-600">
-                  Vui lòng gửi kèm hình ảnh liên quan (tối đa 5 ảnh, mỗi ảnh tối đa 5MB) để người phụ trách nắm thông tin và xử lý nhanh hơn.
-                </div>
-
-                <div v-if="replyFiles.length" class="mt-3 flex flex-wrap gap-2">
-                  <span
-                    v-for="(file, index) in replyFiles"
-                    :key="`${file.name}-${file.size}-${file.lastModified}`"
-                    class="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs text-blue-700 sm:text-sm"
+                <div v-else-if="conversationItems.length" class="space-y-5">
+                  <article
+                    v-for="item in conversationItems"
+                    :key="item.id"
+                    class="flex"
+                    :class="conversationRowClass(item)"
                   >
-                    <span class="max-w-[220px] truncate">{{ file.name }}</span>
-                    <button type="button" class="cursor-pointer text-blue-600 hover:text-blue-800" aria-label="Xóa tệp" @click="removeReplyFile(index)">x</button>
-                  </span>
-                </div>
-
-                <p v-if="replyError" class="mt-3 text-xs sm:text-sm text-red-600">{{ replyError }}</p>
-
-                <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <input
-                      ref="replyFileInputRef"
-                      type="file"
-                      class="hidden"
-                      accept="image/*"
-                      multiple
-                      @change="addReplyFiles"
-                    />
-                    <button
-                      type="button"
-                      class="cursor-pointer inline-flex items-center gap-x-2 rounded-xl border border-blue-500 px-3 py-2 text-xs font-semibold text-blue-500 hover:bg-blue-50 disabled:opacity-50 sm:text-sm"
-                      :disabled="!canReply || submittingReply"
-                      @click="openReplyFilePicker"
+                    <div
+                      class="flex max-w-full items-start gap-3 pc:max-w-3xl"
+                      :class="conversationThreadClass(item)"
                     >
-                      <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                      Đính kèm tệp
-                    </button>
-                  </div>
+                      <span
+                        v-if="!isSystemConversationItem(item)"
+                        class="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+                        :class="avatarClass(item.sender_type)"
+                      >
+                        {{ avatarInitial(item.sender_name) }}
+                      </span>
 
-                  <div class="ml-auto flex items-center gap-3">
-                    <button
-                      type="button"
-                      class="cursor-pointer rounded-xl border border-transparent bg-blue-500 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-50"
-                      :disabled="!canReply || submittingReply"
-                      @click="submitReply"
-                    >
-                      {{ submittingReply ? 'Đang gửi...' : 'Gửi yêu cầu' }}
-                    </button>
+                      <div
+                        class="min-w-0 flex w-fit max-w-[85%] flex-col tablet:max-w-[42rem]"
+                        :class="conversationContentClass(item)"
+                      >
+                        <div
+                          class="mb-1.5 flex flex-col gap-0.5 text-xs text-slate-500"
+                          :class="conversationMetaClass(item)"
+                        >
+                          <span class="font-semibold text-slate-700">{{ item.sender_name }}</span>
+                          <span>{{ item.sender_role }}</span>
+                        </div>
+
+                        <div
+                          class="inline-flex max-w-full flex-col px-4 py-3"
+                          :class="conversationBubbleClass(item)"
+                        >
+                          <p :class="conversationMessageClass(item)">{{ item.message }}</p>
+
+                          <div v-if="item.attachments.length" class="mt-3 space-y-1.5">
+                            <template v-for="attachment in item.attachments" :key="attachment.id">
+                              <button
+                                v-if="isImageFile(attachment.mime)"
+                                type="button"
+                                :class="conversationAttachmentLinkClass(item)"
+                                @click="openImagePreview(attachment.url, attachment.name)"
+                              >
+                                {{ attachment.name }}
+                              </button>
+                              <a
+                                v-else
+                                :href="toAbsoluteUrl(attachment.url)"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                :class="conversationAttachmentLinkClass(item)"
+                              >
+                                {{ attachment.name }}
+                              </a>
+                            </template>
+                          </div>
+
+                          <span :class="conversationTimestampClass(item)">
+                            {{ formatDateTime(item.createdAt) }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+
+                <div
+                  v-else
+                  class="flex h-full min-h-[240px] items-center justify-center px-6"
+                >
+                  <div class="app-state-panel app-state-panel--compact w-full max-w-sm border-dashed border-slate-300 bg-white/80">
+                    <div class="app-state-stack mx-auto">
+                      <div class="app-state-icon mx-auto">
+                        <span class="material-symbols-outlined text-[28px]">chat</span>
+                      </div>
+                      <p class="app-state-title">Chưa có trao đổi nào.</p>
+                      <p class="app-state-body">Hội thoại sẽ xuất hiện ở đây sau khi ticket có phản hồi đầu tiên.</p>
+                    </div>
                   </div>
                 </div>
-              </template>
-
-              <template v-else>
-                <div class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-700">
-                  Ticket đã được đánh dấu xử lý xong. Nếu cửa hàng chưa hài lòng với kết quả, bạn có thể gửi lại yêu cầu để bộ phận phụ trách tiếp tục xử lý.
-                </div>
-                <p v-if="replyError" class="mt-3 text-xs sm:text-sm text-red-600">{{ replyError }}</p>
-                <div v-if="canReopenTicket" class="mt-4">
-                  <button
-                    type="button"
-                    class="cursor-pointer rounded-xl border border-transparent bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
-                    :disabled="reopening"
-                    @click="handleReopenTicket"
-                  >
-                    {{ reopening ? 'Đang mở lại...' : 'Mở lại ticket' }}
-                  </button>
-                </div>
-              </template>
+              </div>
             </div>
+
+            <section class="border-t border-slate-200 bg-white px-3 py-3 tablet:px-4">
+              <div class="space-y-2">
+
+                <template v-if="!isResolvedTicket">
+                  <p v-if="!canReply && replyBlockedReason" class="text-xs tablet:text-sm text-amber-700">
+                    {{ replyBlockedReason }}
+                  </p>
+
+                  <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white transition-colors focus-within:border-slate-300">
+                    <textarea
+                      v-model="replyMessage"
+                      class="inbox-reply-textarea block w-full min-h-[88px] resize-none bg-transparent px-4 py-3.5 text-sm leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 tablet:min-h-[96px]"
+                      placeholder="Nhập nội dung phản hồi"
+                      :disabled="!canReply || submittingReply"
+                    ></textarea>
+
+                    <div v-if="replyFiles.length" class="flex flex-wrap gap-2 px-3 pb-2">
+                      <span
+                        v-for="(file, index) in replyFiles"
+                        :key="`${file.name}-${file.size}-${file.lastModified}`"
+                        class="app-chip inline-flex max-w-full items-center gap-2 rounded-full px-2.5 py-1 text-xs"
+                      >
+                        <span class="max-w-[180px] truncate">{{ file.name }}</span>
+                        <button
+                          type="button"
+                          class="inline-flex size-4 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                          aria-label="Xóa tệp"
+                          @click="removeReplyFile(index)"
+                        >
+                          <span class="material-symbols-outlined text-[14px] leading-none">close</span>
+                        </button>
+                      </span>
+                    </div>
+
+                    <div class="flex flex-col gap-2 border-t border-slate-100 px-3 py-2.5 tablet:flex-row tablet:items-center tablet:justify-between">
+                      <div class="flex min-w-0 flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
+                        <input
+                          ref="replyFileInputRef"
+                          type="file"
+                          class="hidden"
+                          accept="image/*"
+                          multiple
+                          @change="addReplyFiles"
+                        />
+                        <button
+                          type="button"
+                          class="app-button-secondary cursor-pointer inline-flex w-full items-center justify-center gap-x-2 rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-50 tablet:w-auto"
+                          :disabled="!canReply || submittingReply"
+                          @click="openReplyFilePicker"
+                        >
+                          <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                          Ảnh
+                        </button>
+                        <span class="text-[11px] text-slate-400">
+                          Tối đa 5 ảnh, mỗi ảnh 5MB
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        class="app-button-primary cursor-pointer inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold disabled:opacity-50 tablet:w-auto"
+                        :disabled="!canReply || submittingReply"
+                        @click="submitReply"
+                      >
+                        {{ submittingReply ? 'Đang gửi...' : 'Gửi' }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <p v-if="replyError" class="app-field-error mt-2 tablet:text-sm">{{ replyError }}</p>
+                </template>
+
+                <template v-else>
+                  <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                    Ticket đã được đánh dấu xử lý xong. Nếu cửa hàng chưa hài lòng với kết quả, bạn có thể gửi lại yêu cầu để bộ phận phụ trách tiếp tục xử lý.
+                  </div>
+                  <p v-if="replyError" class="app-field-error mt-3 tablet:text-sm">{{ replyError }}</p>
+                  <div v-if="canReopenTicket" class="mt-4">
+                    <button
+                      type="button"
+                      class="app-button-warning cursor-pointer inline-flex w-full items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50 tablet:w-auto"
+                      :disabled="reopening"
+                      @click="handleReopenTicket"
+                    >
+                      {{ reopening ? 'Đang mở lại...' : 'Mở lại ticket' }}
+                    </button>
+                  </div>
+                </template>
+              </div>
+            </section>
           </section>
         </div>
       </div>
@@ -995,11 +1281,11 @@ onMounted(async () => {
           <p class="mt-1 text-sm font-semibold text-slate-900">{{ departmentDisplay }}</p>
         </div>
 
-        <p v-if="assignableHandlersError" class="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
+        <p v-if="assignableHandlersError" class="app-state-banner text-xs font-medium">
           {{ assignableHandlersError }}
         </p>
 
-        <p v-else-if="assignableHandlersLoading" class="text-sm text-slate-500">Đang tải danh sách handler...</p>
+        <p v-else-if="assignableHandlersLoading" class="app-state-inline text-sm">Đang tải danh sách handler...</p>
 
         <div v-else-if="availableAssignableHandlers.length" class="space-y-2">
           <label
@@ -1011,7 +1297,7 @@ onMounted(async () => {
               v-model="selectedAssignableHandlerIds"
               type="checkbox"
               :value="String(member.id)"
-              class="mt-0.5 size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              class="app-checkbox mt-0.5 size-4 rounded border-slate-300"
             />
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-slate-800">{{ member.name || `#${member.id}` }}</p>
@@ -1026,10 +1312,10 @@ onMounted(async () => {
       </div>
 
       <template #footer>
-        <div class="flex items-center justify-end gap-2">
+        <div class="flex flex-col-reverse gap-2 tablet:flex-row tablet:items-center tablet:justify-end">
           <button
             type="button"
-            class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            class="app-button-secondary inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
             :disabled="assigningHandler"
             @click="closeAssignModal"
           >
@@ -1037,7 +1323,7 @@ onMounted(async () => {
           </button>
           <button
             type="button"
-            class="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+            class="app-button-primary inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
             :disabled="assigningHandler || !hasSelectedAssignableHandlers"
             @click="handleAssignHandler"
           >
@@ -1052,7 +1338,7 @@ onMounted(async () => {
 
     <div
       v-if="imagePreview.open"
-      class="fixed inset-0 z-[120] bg-slate-900/85 p-3 sm:p-6 flex items-center justify-center"
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/85 p-3 tablet:p-6"
       @click.self="closeImagePreview"
     >
       <div class="relative w-full max-w-5xl">
@@ -1076,3 +1362,28 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.inbox-reply-textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.ticket-detail-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.ticket-detail-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ticket-detail-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ticket-detail-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: #cbd5e1;
+}
+</style>

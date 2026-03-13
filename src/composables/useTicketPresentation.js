@@ -7,11 +7,11 @@ const NORMALIZED_STATUS_MAP = {
 }
 
 const STATUS_CLASS_MAP = {
-  new: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200',
-  in_progress: 'bg-orange-50 text-orange-600 ring-1 ring-inset ring-orange-200',
-  resolved: 'bg-emerald-50 text-emerald-600 ring-1 ring-inset ring-emerald-200',
-  closed: 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200',
-  rejected: 'bg-rose-50 text-rose-600 ring-1 ring-inset ring-rose-200',
+  new: 'app-badge--info',
+  in_progress: 'app-badge--warning',
+  resolved: 'app-badge--success',
+  closed: 'app-badge--neutral',
+  rejected: 'app-badge--danger',
 }
 
 export const ticketStatusOptions = [
@@ -69,7 +69,6 @@ export function handlerDisplay(ticket) {
 
   return (
     firstAssignee?.name ||
-    ticket.handler?.name ||
     ticket.assigned_to?.name ||
     'Chưa phân công'
   )

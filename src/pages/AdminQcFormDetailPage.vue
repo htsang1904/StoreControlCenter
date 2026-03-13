@@ -23,9 +23,9 @@ const statusLabel = (status) => {
 
 const statusClass = (status) => {
   const normalized = String(status || '').toLowerCase()
-  if (normalized === 'published') return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
-  if (normalized === 'archived') return 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
-  return 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200'
+  if (normalized === 'published') return 'app-badge--success'
+  if (normalized === 'archived') return 'app-badge--neutral'
+  return 'app-badge--warning'
 }
 
 const criteriaRows = computed(() => {
@@ -89,9 +89,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div class="flex flex-wrap items-start justify-between gap-4">
+  <div class="page-stack space-y-4">
+    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
+      <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
         <div class="max-w-3xl">
           <button
             type="button"
@@ -107,24 +107,24 @@ onMounted(async () => {
           </p>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex w-full flex-col gap-2 tablet:w-auto tablet:flex-row tablet:flex-wrap tablet:justify-end">
           <button
             type="button"
-            class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
             @click="showDeleteComingSoon"
           >
             Xóa
           </button>
           <button
             type="button"
-            class="inline-flex items-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+            class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
             @click="openEditPage"
           >
             Chỉnh sửa
           </button>
           <button
             type="button"
-            class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            class="inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
             @click="openCreatePage"
           >
             Tạo biểu mẫu mới
@@ -133,17 +133,23 @@ onMounted(async () => {
       </div>
     </section>
 
-    <p v-if="errorMessage" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+    <p v-if="errorMessage" class="app-state-banner">
       {{ errorMessage }}
     </p>
 
-    <div v-else-if="loading" class="rounded-xl border border-slate-200 bg-white px-5 py-10 text-sm text-slate-500 shadow-sm">
-      Đang tải chi tiết biểu mẫu...
+    <div v-else-if="loading" class="app-state-panel app-state-panel--center">
+      <div class="app-state-stack">
+        <div class="app-state-icon mx-auto">
+          <span class="material-symbols-outlined text-[24px]">description</span>
+        </div>
+        <p class="app-state-title">Đang tải chi tiết biểu mẫu...</p>
+        <p class="app-state-body">Thông tin biểu mẫu và cấu trúc tiêu chí sẽ xuất hiện sau khi tải xong.</p>
+      </div>
     </div>
 
     <template v-else-if="formDetail">
-      <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="flex flex-wrap items-start justify-between gap-4">
+      <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
+        <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
           <div class="max-w-3xl">
             <p class="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">{{ formDetail.code }}</p>
             <h3 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{{ formDetail.name }}</h3>
@@ -151,12 +157,12 @@ onMounted(async () => {
             <p class="mt-3 text-sm leading-6 text-slate-500">{{ latestVersionNote }}</p>
           </div>
 
-          <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(formDetail.latestVersion?.status)">
+          <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(formDetail.latestVersion?.status)">
             {{ statusLabel(formDetail.latestVersion?.status) }}
           </span>
         </div>
 
-        <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div class="mt-6 grid gap-4 tablet:grid-cols-2 pc:grid-cols-5">
           <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <p class="text-xs uppercase tracking-wide text-slate-500">Version hiện tại</p>
             <p class="mt-2 text-lg font-semibold text-slate-900">{{ formDetail.latestVersion?.versionNo || '--' }}</p>
@@ -180,23 +186,23 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 px-5 py-4">
+      <section class="rounded-xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
           <h3 class="text-base font-semibold text-slate-900">Cấu trúc biểu mẫu</h3>
           <p class="mt-1 text-sm text-slate-500">Preview theo đúng cây nhóm và tiêu chí sẽ xuất hiện trong màn chấm QC.</p>
         </div>
 
-        <div v-if="criteriaRows.length" class="space-y-3 p-5">
+        <div v-if="criteriaRows.length" class="space-y-3 p-4 tablet:p-5">
           <article
             v-for="criterion in criteriaRows"
             :key="criterion.id"
             class="rounded-xl border border-slate-200 bg-slate-50/40 p-4"
             :style="{ marginLeft: `${Math.max((criterion.level || 1) - 1, 0) * 18}px` }"
           >
-            <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div class="grid gap-3 pc:grid-cols-[minmax(0,1fr)_280px]">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]" :class="criterion.nodeType === 'group' ? 'bg-slate-200 text-slate-700' : 'bg-blue-50 text-blue-700'">
+                  <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]" :class="criterion.nodeType === 'group' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-700'">
                     {{ criterion.nodeType === 'group' ? 'Nhóm' : 'Tiêu chí' }}
                   </span>
                   <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -207,7 +213,7 @@ onMounted(async () => {
                 <p class="mt-2 text-sm leading-6 text-slate-500">{{ criterion.description || 'Không có mô tả' }}</p>
               </div>
 
-              <div class="grid gap-2 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-1">
+              <div class="grid gap-2 text-sm text-slate-600 tablet:grid-cols-2 pc:grid-cols-1">
                 <p>Section: <span class="font-medium text-slate-900">{{ criterion.sectionName || 'Tổng quát' }}</span></p>
                 <p>Cấp cây: <span class="font-medium text-slate-900">{{ criterion.level || 1 }}</span></p>
                 <p>Kiểu chấm: <span class="font-medium text-slate-900">{{ criterion.nodeType === 'group' ? 'Node gom nhóm' : (criterion.mode === 'pass_fail' ? 'Đạt / Không đạt' : 'Chấm điểm') }}</span></p>
@@ -217,8 +223,16 @@ onMounted(async () => {
           </article>
         </div>
 
-        <div v-else class="px-5 py-8 text-sm text-slate-500">
-          Biểu mẫu này hiện chưa có tiêu chí nào.
+        <div v-else class="px-4 py-8 tablet:px-5">
+          <div class="app-state-panel app-state-panel--compact">
+            <div class="app-state-stack mx-auto">
+              <div class="app-state-icon mx-auto">
+                <span class="material-symbols-outlined text-[24px]">account_tree</span>
+              </div>
+              <p class="app-state-title">Biểu mẫu này chưa có tiêu chí nào.</p>
+              <p class="app-state-body">Thêm nhóm hoặc tiêu chí trong màn chỉnh sửa để hoàn thiện cấu trúc biểu mẫu.</p>
+            </div>
+          </div>
         </div>
       </section>
     </template>

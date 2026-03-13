@@ -1,5 +1,7 @@
 'use strict';
 
+const { getTicketAssigneeIds } = require('./ticket-permissions');
+
 const toUniqueUserIds = (ids = []) => (
   Array.from(
     new Set(
@@ -11,14 +13,6 @@ const toUniqueUserIds = (ids = []) => (
 );
 
 const getRequesterId = (ticket) => Number(ticket?.requester?.id || ticket?.requester_id || 0);
-
-const getTicketAssigneeIds = (ticket) => (
-  Array.isArray(ticket?.assignees)
-    ? ticket.assignees
-      .map((item) => Number(item?.id || item))
-      .filter((item) => Number.isInteger(item) && item > 0)
-    : []
-);
 
 const getTicketStoreId = (ticket) => Number(ticket?.store_id || 0);
 
@@ -55,10 +49,11 @@ const loadTicketAudience = async (strapi, ticketId) => {
   }
 
   const ticket = await strapi.entityService.findOne('api::ticket.ticket', normalizedTicketId, {
-    fields: ['id', 'requester_id', 'store_id', 'ticket_code', 'title', 'status'],
+    fields: ['id', 'requester_id', 'store_id', 'ticket_code', 'title', 'status', 'handler_id'],
     populate: {
       requester: { fields: ['id', 'name'] },
       assignees: { fields: ['id', 'name'] },
+      handler: { fields: ['id', 'name'] },
     },
   });
 
@@ -138,4 +133,3 @@ module.exports = {
   loadTicketAudience,
   createNotifications,
 };
-

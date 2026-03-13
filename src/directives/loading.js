@@ -3,12 +3,12 @@ export default {
     const overlay = document.createElement('div')
     overlay.className =
       'absolute inset-0 z-50 flex items-center justify-center ' +
-      'bg-white/55 backdrop-blur-[1px] transition-opacity duration-200 ' +
+      'bg-white/70 transition-opacity duration-200 ' +
       'opacity-0 pointer-events-none'
 
     overlay.innerHTML = `
       <div class="flex flex-col items-center gap-2">
-        <div class="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-blue-600"></div>
+        <div class="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-slate-700"></div>
         <p class="text-xs font-medium text-slate-600">Đang tải...</p>
       </div>
     `

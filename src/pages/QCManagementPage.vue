@@ -61,7 +61,7 @@ function normalizeHealth(store) {
     return {
       key: 'unchecked',
       label: 'Chưa kiểm tra',
-      badgeClass: 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200',
+      badgeClass: 'app-badge--neutral',
       scoreClass: 'border border-slate-200 bg-slate-100 text-slate-500',
     }
   }
@@ -73,7 +73,7 @@ function normalizeHealth(store) {
     return {
       key: 'standard',
       label: 'Đạt tiêu chuẩn',
-      badgeClass: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
+      badgeClass: 'app-badge--success',
       scoreClass: 'border border-emerald-200 bg-emerald-100 text-emerald-800',
     }
   }
@@ -82,7 +82,7 @@ function normalizeHealth(store) {
     return {
       key: 'warning',
       label: 'Cần nhắc nhở',
-      badgeClass: 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200',
+      badgeClass: 'app-badge--warning',
       scoreClass: 'border border-amber-200 bg-amber-100 text-amber-700',
     }
   }
@@ -90,7 +90,7 @@ function normalizeHealth(store) {
   return {
     key: 'critical',
     label: 'Vi phạm nghiêm trọng',
-    badgeClass: 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200',
+    badgeClass: 'app-badge--danger',
     scoreClass: 'border border-rose-200 bg-rose-100 text-rose-700',
   }
 }
@@ -132,20 +132,20 @@ function normalizeLastAuditResult(result) {
   if (normalized === 'pass' || normalized === 'passed') {
     return {
       label: 'Đạt',
-      class: 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
+      class: 'app-badge--success',
     }
   }
 
   if (normalized === 'fail' || normalized === 'failed') {
     return {
       label: 'Không đạt',
-      class: 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200',
+      class: 'app-badge--danger',
     }
   }
 
   return {
     label: 'Chưa chốt',
-    class: 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200',
+    class: 'app-badge--neutral',
   }
 }
 
@@ -359,34 +359,34 @@ const summaryCards = computed(() => [
     meta: `Hoàn thành: ${completedRate.value.toFixed(1)}%`,
     metaClass: 'bg-slate-100 text-slate-600',
     icon: 'storefront',
-    iconClass: 'bg-blue-100 text-blue-600',
+    iconClass: 'bg-slate-100 text-slate-600',
   },
   {
     key: 'avg_score',
     label: 'QC Score TB',
     value: avgQcScore.value.toFixed(2),
     meta: `Toàn kỳ: ${Number(summary.value.avgScore || 0).toFixed(1)} điểm`,
-    metaClass: 'bg-emerald-50 text-emerald-700',
+    metaClass: 'bg-slate-100 text-slate-600',
     icon: 'monitoring',
-    iconClass: 'bg-emerald-100 text-emerald-600',
+    iconClass: 'bg-slate-100 text-slate-600',
   },
   {
     key: 'need_review',
     label: 'Cần kiểm tra lại',
     value: new Intl.NumberFormat('vi-VN').format(needReviewCount.value),
     meta: `${summary.value.failed} phiên lỗi`,
-    metaClass: 'bg-rose-50 text-rose-700',
+    metaClass: 'bg-slate-100 text-slate-600',
     icon: 'warning',
-    iconClass: 'bg-rose-100 text-rose-600',
+    iconClass: 'bg-slate-100 text-slate-600',
   },
   {
     key: 'completed',
     label: 'Đã hoàn thành QC',
     value: `${completedRate.value.toFixed(1)}%`,
     meta: `Toàn kỳ: ${Number(summary.value.passRate || 0).toFixed(1)}%`,
-    metaClass: 'bg-amber-50 text-amber-700',
+    metaClass: 'bg-slate-100 text-slate-600',
     icon: 'task_alt',
-    iconClass: 'bg-amber-100 text-amber-600',
+    iconClass: 'bg-slate-100 text-slate-600',
   },
 ])
 
@@ -531,8 +531,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
-    <div class="page-stack mx-2 overflow-visible space-y-4 sm:mx-3 md:mx-0">
-      <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div class="page-stack mx-2 overflow-visible space-y-4 tablet:mx-3 pc:mx-0">
+      <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard
           v-for="card in summaryCards"
           :key="card.key"
@@ -545,15 +545,15 @@ onBeforeUnmount(() => {
         />
       </section>
 
-      <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-200 p-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-              <div class="relative min-w-[220px] flex-1 lg:w-[320px] lg:flex-none">
+      <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div class="border-b border-slate-200 p-3 tablet:p-4">
+          <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
+            <div class="flex min-w-0 flex-1 flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
+              <div class="relative w-full min-w-0 flex-1 tablet:min-w-[220px] pc:w-[320px] pc:flex-none">
                 <input
                   v-model="searchInput"
                   type="text"
-                  class="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100"
+                  class="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
                   placeholder="Tìm kiếm ..."
                 />
                 <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -565,7 +565,7 @@ onBeforeUnmount(() => {
 
               <button
                 type="button"
-                class="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
                 @click="handleRefresh"
               >
                 Tải lại
@@ -574,7 +574,7 @@ onBeforeUnmount(() => {
 
             <button
               type="button"
-              class="ml-auto inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:ml-auto tablet:w-auto"
               @click="exportReport"
             >
               <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -587,12 +587,12 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <p v-if="loadError" class="border-b border-rose-100 bg-rose-50 px-4 py-2 text-xs font-medium text-rose-600">
+        <p v-if="loadError" class="app-state-banner m-4 mb-0 text-xs font-medium">
           {{ loadError }}
         </p>
 
         <div v-loading="loading">
-          <div class="hidden overflow-x-auto lg:block">
+          <div class="hidden overflow-x-auto pc:block">
             <table class="min-w-[840px] w-full border-collapse text-left">
               <thead>
                 <tr class="bg-slate-50">
@@ -628,7 +628,7 @@ onBeforeUnmount(() => {
                 <tr
                   v-for="store in pagedStores"
                   :key="store.id"
-                  class="cursor-pointer transition-colors hover:bg-slate-50/70"
+                  class="cursor-pointer transition-colors hover:bg-slate-50"
                   @click="openStoreDetail(store.id)"
                 >
                   <td class="px-4 py-3">
@@ -643,12 +643,12 @@ onBeforeUnmount(() => {
                     <p class="text-sm font-semibold text-slate-900">{{ store.totalSessionsLabel }} phiên</p>
                   </td>
                   <td class="px-4 py-3">
-                    <span class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    <span class="app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium app-badge--success">
                       {{ store.passedLabel }} phiên
                     </span>
                   </td>
                   <td class="px-4 py-3">
-                    <span class="inline-flex items-center rounded-md bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
+                    <span class="app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium app-badge--danger">
                       {{ store.failedLabel }} phiên
                     </span>
                   </td>
@@ -664,9 +664,15 @@ onBeforeUnmount(() => {
 
               <tbody v-else>
                 <tr>
-                  <td colspan="5" class="py-10">
-                    <div class="flex flex-col items-center justify-center text-slate-500">
-                      <p class="text-sm">Không có cửa hàng phù hợp với bộ lọc tìm kiếm.</p>
+                  <td colspan="5" class="px-4 py-10">
+                    <div class="app-state-panel app-state-panel--compact">
+                      <div class="app-state-stack mx-auto">
+                        <div class="app-state-icon mx-auto">
+                          <span class="material-symbols-outlined text-[24px]">storefront</span>
+                        </div>
+                        <p class="app-state-title">Không có cửa hàng phù hợp.</p>
+                        <p class="app-state-body">Thử nới bộ lọc tìm kiếm hoặc làm mới dữ liệu QC để xem thêm kết quả.</p>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -674,7 +680,7 @@ onBeforeUnmount(() => {
             </table>
           </div>
 
-          <div class="space-y-3 p-3 lg:hidden">
+          <div class="space-y-3 p-3 pc:hidden">
             <div
               v-for="store in pagedStores"
               :key="store.id"
@@ -714,13 +720,19 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div v-if="!hasStores" class="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500">
-              Không có cửa hàng phù hợp với bộ lọc tìm kiếm.
+            <div v-if="!hasStores" class="app-state-panel app-state-panel--compact">
+              <div class="app-state-stack mx-auto">
+                <div class="app-state-icon mx-auto">
+                  <span class="material-symbols-outlined text-[24px]">storefront</span>
+                </div>
+                <p class="app-state-title">Không có cửa hàng phù hợp.</p>
+                <p class="app-state-body">Thử nới bộ lọc tìm kiếm hoặc làm mới dữ liệu QC để xem thêm kết quả.</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3">
+        <div class="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3 tablet:flex-row tablet:items-center tablet:justify-between">
           <p class="text-sm text-slate-500">
             Hiển thị
             <span class="font-semibold text-slate-700">{{ paginationStart }} - {{ paginationEnd }}</span>
@@ -729,7 +741,7 @@ onBeforeUnmount(() => {
             cửa hàng
           </p>
 
-          <div class="flex items-center gap-2">
+          <div class="flex max-w-full items-center justify-between gap-3 tablet:justify-end">
             <button
               type="button"
               class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -741,18 +753,20 @@ onBeforeUnmount(() => {
               </svg>
             </button>
 
-            <template v-for="item in visiblePageItems" :key="String(item)">
-              <button
-                v-if="typeof item === 'number'"
-                type="button"
-                class="inline-flex size-8 items-center justify-center rounded-lg border text-xs font-semibold transition-colors"
-                :class="item === currentPage ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'"
-                @click="goToPage(item)"
-              >
-                {{ item }}
-              </button>
-              <span v-else class="px-1 text-xs text-slate-400">...</span>
-            </template>
+            <div class="flex min-w-0 items-center gap-2 overflow-x-auto py-1">
+              <template v-for="item in visiblePageItems" :key="String(item)">
+                <button
+                  v-if="typeof item === 'number'"
+                  type="button"
+                  class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold transition-colors"
+                  :class="item === currentPage ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'"
+                  @click="goToPage(item)"
+                >
+                  {{ item }}
+                </button>
+                <span v-else class="px-1 text-xs text-slate-400">...</span>
+              </template>
+            </div>
 
             <button
               type="button"

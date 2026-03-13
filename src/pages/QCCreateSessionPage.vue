@@ -636,7 +636,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
-    <div class="page-stack space-y-3 pb-24 xl:pb-0">
+    <div class="page-stack space-y-3 pb-24 pc:pb-0">
       <div class="flex min-w-0 items-center gap-3">
         <button
           @click="goBack"
@@ -648,7 +648,7 @@ onBeforeUnmount(() => {
         </button>
 
         <div class="min-w-0 flex-1">
-          <h1 class="truncate text-lg font-semibold text-slate-900 sm:text-xl" :title="storeTitle">
+          <h1 class="truncate text-lg font-semibold text-slate-900 tablet:text-xl" :title="storeTitle">
             {{ storeTitle }}
           </h1>
         </div>
@@ -656,22 +656,22 @@ onBeforeUnmount(() => {
 
       <p
         v-if="errorMessage"
-        class="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600"
+        class="app-state-banner text-sm font-medium"
       >
         {{ errorMessage }}
       </p>
 
-      <section class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <section class="grid gap-4 pc:grid-cols-[minmax(0,1fr)_320px]">
         <div class="space-y-4">
-          <section class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
+          <section class="rounded-[24px] border border-slate-200 bg-white">
             <div class="border-b border-slate-200 px-4 py-3">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-base font-semibold text-slate-900">{{ qcFormTitle }}</p>
                   <div class="mt-1 flex flex-wrap items-center gap-2">
                     <span
                       class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
-                      :class="activeDraftId ? 'bg-blue-50 text-guta-blue' : 'bg-slate-100 text-slate-500'"
+                      :class="activeDraftId ? 'bg-slate-100 text-slate-700' : 'bg-slate-100 text-slate-500'"
                     >
                       {{ draftStatusLabel }}
                     </span>
@@ -685,7 +685,7 @@ onBeforeUnmount(() => {
                     :key="filter.id"
                     type="button"
                     class="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition"
-                    :class="activeCriterionFilter === filter.id ? 'border-guta-blue bg-guta-blue text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'"
+                    :class="activeCriterionFilter === filter.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'"
                     @click="setCriterionFilter(filter.id)"
                   >
                     {{ filter.label }}
@@ -696,21 +696,35 @@ onBeforeUnmount(() => {
 
             <div
               v-if="!hasDraftContext || !activeDraftId || scorableCriteria.length === 0"
-              class="px-6 py-10 text-center"
+              class="px-6 py-10"
             >
-              <p class="text-sm font-semibold text-slate-700">
-                {{ hasDraftContext ? 'Chưa tải được tiêu chí cho phiếu nháp này.' : 'Chưa có phiếu nháp để tiếp tục.' }}
-              </p>
+              <div class="app-state-panel app-state-panel--compact">
+                <div class="app-state-stack mx-auto">
+                  <div class="app-state-icon mx-auto">
+                    <span class="material-symbols-outlined text-[24px]">assignment</span>
+                  </div>
+                  <p class="app-state-title">{{ hasDraftContext ? 'Chưa tải được tiêu chí cho phiếu nháp này.' : 'Chưa có phiếu nháp để tiếp tục.' }}</p>
+                  <p class="app-state-body">{{ hasDraftContext ? 'Kiểm tra lại biểu mẫu hoặc quay về màn trước để khởi tạo lại phiếu nháp.' : 'Khởi tạo phiếu nháp từ màn chi tiết cửa hàng trước khi bắt đầu chấm QC.' }}</p>
+                </div>
+              </div>
             </div>
 
             <div
               v-else-if="visibleCriteriaTree.length === 0"
-              class="px-6 py-10 text-center"
+              class="px-6 py-10"
             >
-              <p class="text-sm font-semibold text-slate-700">{{ filteredEmptyMessage }}</p>
+              <div class="app-state-panel app-state-panel--compact">
+                <div class="app-state-stack mx-auto">
+                  <div class="app-state-icon mx-auto">
+                    <span class="material-symbols-outlined text-[24px]">filter_alt_off</span>
+                  </div>
+                  <p class="app-state-title">{{ filteredEmptyMessage }}</p>
+                  <p class="app-state-body">Đổi bộ lọc tiêu chí để tiếp tục rà soát đầy đủ các hạng mục cần chấm.</p>
+                </div>
+              </div>
             </div>
 
-            <div v-else class="px-4 py-2 pb-4 sm:px-5">
+            <div v-else class="px-4 py-2 pb-4 tablet:px-5">
               <QCCriterionTreeItem
                 v-for="criterion in visibleCriteriaTree"
                 :key="criterion.id"
@@ -726,14 +740,14 @@ onBeforeUnmount(() => {
         </div>
 
         <aside>
-          <section class="sticky top-16 rounded-[24px] border border-slate-200 bg-white shadow-sm">
+          <section class="sticky top-16 rounded-[24px] border border-slate-200 bg-white">
             <div class="border-b border-slate-200 px-4 py-3">
               <div class="flex items-center justify-between gap-3">
                 <p class="text-sm font-semibold text-slate-900">Tóm tắt</p>
                 <p class="text-[11px] font-medium text-slate-500">{{ completedCriteria }}/{{ scorableCriteria.length }} đã chấm</p>
               </div>
               <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
-                <div class="h-full rounded-full bg-guta-blue transition-all duration-300" :style="progressBarStyle"></div>
+                <div class="h-full rounded-full bg-slate-900 transition-all duration-300" :style="progressBarStyle"></div>
               </div>
               <div class="mt-2 flex items-center justify-between text-xs text-slate-500">
                 <span>{{ remainingCriteria }} mục còn lại</span>
@@ -786,7 +800,7 @@ onBeforeUnmount(() => {
                 </button>
                 <button
                   type="button"
-                  class="cursor-pointer rounded-2xl bg-guta-blue px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-guta-dark-blue disabled:cursor-not-allowed disabled:opacity-60"
+                  class="cursor-pointer rounded-2xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   :disabled="submitDisabled"
                   @click="submitSession"
                 >
@@ -799,8 +813,8 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
-    <div class="fixed inset-x-4 bottom-4 z-20 lg:hidden">
-      <div class="rounded-[24px] border border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur">
+    <div class="fixed inset-x-4 bottom-4 z-20 pc:hidden">
+      <div class="rounded-[24px] border border-slate-200 bg-white px-4 py-3">
         <div class="flex items-center justify-between gap-4">
           <div class="min-w-0">
             <p class="text-[11px] font-medium text-slate-500">Tiến độ</p>
@@ -808,7 +822,7 @@ onBeforeUnmount(() => {
           </div>
           <button
             type="button"
-            class="cursor-pointer rounded-2xl bg-guta-blue px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-guta-dark-blue disabled:cursor-not-allowed disabled:opacity-60"
+            class="cursor-pointer rounded-2xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
             :disabled="submitDisabled"
             @click="submitSession"
           >

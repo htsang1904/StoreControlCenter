@@ -46,7 +46,7 @@ const titleId = `common-modal-title-${Math.random().toString(36).slice(2, 10)}`
 
 const panelClasses = computed(() => {
   return [
-    'flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl',
+    'flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white',
     props.maxWidthClass,
     props.panelClass,
   ]
@@ -55,7 +55,7 @@ const panelClasses = computed(() => {
 })
 
 const bodyClasses = computed(() => {
-  return ['min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6', props.bodyClass].filter(Boolean).join(' ')
+  return ['min-h-0 flex-1 overflow-y-auto px-5 py-4 tablet:px-6', props.bodyClass].filter(Boolean).join(' ')
 })
 
 function closeModal() {
@@ -102,7 +102,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <div
       v-if="modelValue"
-      class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[2px]"
+      class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/30 p-4"
       @click.self="handleBackdropClick"
     >
       <div
@@ -113,7 +113,7 @@ onBeforeUnmount(() => {
       >
         <div
           v-if="$slots.header || title || description || showClose"
-          class="flex items-center gap-4 border-b border-slate-200 px-5 py-4 sm:px-6"
+          class="flex items-center gap-4 border-b border-slate-200 px-5 py-4 tablet:px-6"
         >
           <slot name="header">
             <div class="min-w-0 flex-1">
@@ -129,7 +129,7 @@ onBeforeUnmount(() => {
           <button
             v-if="showClose"
             type="button"
-            class="inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            class="inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             :disabled="closeDisabled"
             aria-label="Đóng modal"
             @click="closeModal"
@@ -144,7 +144,7 @@ onBeforeUnmount(() => {
           <slot />
         </div>
 
-        <div v-if="$slots.footer" class="border-t border-slate-200 px-5 py-4 sm:px-6">
+        <div v-if="$slots.footer" class="border-t border-slate-200 px-5 py-4 tablet:px-6">
           <slot name="footer" />
         </div>
       </div>

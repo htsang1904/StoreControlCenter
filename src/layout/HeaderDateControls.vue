@@ -67,12 +67,12 @@ watch(
 </script>
 
 <template>
-  <div class="flex items-center gap-2 sm:gap-3">
-    <div class="hidden items-center rounded-lg bg-slate-100 p-1 sm:inline-flex">
+  <div class="flex items-center gap-2 tablet:gap-3">
+    <div class="hidden items-center rounded-lg bg-slate-100 p-1 pc:inline-flex">
       <button
         type="button"
         class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-        :class="isActiveRange(todayRange) ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+        :class="isActiveRange(todayRange) ? 'border border-slate-200 bg-white text-slate-900' : 'border border-transparent text-slate-500 hover:text-slate-900'"
         @click="applyQuickRange(todayRange)"
       >
         Hôm nay
@@ -80,7 +80,7 @@ watch(
       <button
         type="button"
         class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-        :class="isActiveRange(last7Range) ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+        :class="isActiveRange(last7Range) ? 'border border-slate-200 bg-white text-slate-900' : 'border border-transparent text-slate-500 hover:text-slate-900'"
         @click="applyQuickRange(last7Range)"
       >
         7 ngày qua
@@ -88,14 +88,14 @@ watch(
       <button
         type="button"
         class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-        :class="isActiveRange(thisMonthRange) ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'"
+        :class="isActiveRange(thisMonthRange) ? 'border border-slate-200 bg-white text-slate-900' : 'border border-transparent text-slate-500 hover:text-slate-900'"
         @click="applyQuickRange(thisMonthRange)"
       >
         Tháng này
       </button>
     </div>
 
-    <div class="hidden md:block">
+    <div class="hidden tablet:block">
       <DateRangePicker
         v-model:from="headerDateFrom"
         v-model:to="headerDateTo"
@@ -103,6 +103,6 @@ watch(
       />
     </div>
 
-    <div class="hidden h-6 w-px bg-slate-200 md:block"></div>
+    <div class="hidden h-6 w-px bg-slate-200 pc:block"></div>
   </div>
 </template>

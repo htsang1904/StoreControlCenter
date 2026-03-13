@@ -28,16 +28,16 @@ defineProps({
 </script>
 
 <template>
-  <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+  <article class="rounded-xl border border-slate-200 bg-white p-4">
     <div class="flex items-start justify-between gap-3">
       <div class="min-w-0">
-        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">{{ label }}</p>
-        <p class="mt-2 text-3xl font-bold text-slate-900">{{ value }}</p>
+        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ label }}</p>
+        <p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{{ value }}</p>
       </div>
 
       <div
         v-if="icon"
-        class="flex size-9 shrink-0 items-center justify-center rounded-lg"
+        class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200"
         :class="iconClass"
       >
         <span class="material-symbols-outlined text-[18px]">{{ icon }}</span>
@@ -45,7 +45,7 @@ defineProps({
     </div>
 
     <div v-if="meta" class="mt-3">
-      <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold" :class="metaClass">
+      <span class="app-badge inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="metaClass">
         {{ meta }}
       </span>
     </div>

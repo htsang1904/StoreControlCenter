@@ -27,6 +27,12 @@ const router = createRouter({
                     meta: { auth: true }
                 },
                 {
+                    path: 'ticket/inbox',
+                    name: 'Ticket Inbox',
+                    component: () => import('@/pages/TicketInboxPage.vue'),
+                    meta: { auth: true }
+                },
+                {
                     path: 'ticket/add-ticket',
                     name: 'Ticket Add',
                     component: () => import('@/pages/AddTicketPage.vue'),

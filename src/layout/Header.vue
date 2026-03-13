@@ -44,6 +44,10 @@ function resolveHeaderContext(currentRoute) {
     return { tab: 'dashboard', title: 'Tổng quan Dashboard', display: 'title' }
   }
 
+  if (path === '/ticket/inbox') {
+    return { tab: '', title: 'Chế độ inbox', display: 'title' }
+  }
+
   if (/^\/ticket\/\d+\/edit$/.test(path)) {
     return { tab: '', title: 'Chỉnh sửa Ticket', display: 'breadcrumb' }
   }
@@ -135,16 +139,15 @@ function navigateTo(path) {
 
 <template>
   <header
-    class="stitch-shell fixed inset-x-0 top-0 z-50 border-b border-slate-200 bg-white transition-[left] duration-300 ease-in-out"
-    :class="props.drawerMode ? '' : (props.desktopOpen ? 'md:left-64' : 'md:left-20')"
+    class="stitch-shell z-40 border-b border-slate-200 bg-white"
   >
-    <div class="px-3 py-3 sm:px-5 md:px-8">
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex min-w-0 gap-3" :class="showHeaderBreadcrumb ? 'items-center' : 'items-start'">
+    <div class="px-3 py-3.5 tablet:px-5 tablet:py-4 pc:px-8">
+      <div :class="showHeaderDateFilter ? 'flex flex-col gap-3.5 pc:flex-row pc:items-center pc:justify-between' : 'flex items-center justify-between gap-3'">
+        <div class="flex min-w-0 items-center gap-3">
           <button
             v-if="props.drawerMode"
             type="button"
-            class="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+            class="inline-flex size-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
             aria-label="Mở sidebar"
             @click="emit('open-sidebar')"
           >
@@ -176,13 +179,13 @@ function navigateTo(path) {
               </template>
             </div>
             <template v-else>
-              <h1 class="truncate text-base font-semibold text-slate-900 sm:text-lg">{{ visibleTitle }}</h1>
+              <h1 class="truncate text-base font-semibold text-slate-900 tablet:text-lg">{{ visibleTitle }}</h1>
               <p v-if="visibleSubtitle" class="mt-0.5 line-clamp-1 text-xs text-slate-500">{{ visibleSubtitle }}</p>
             </template>
           </div>
         </div>
 
-        <div class="flex items-center gap-2 sm:gap-3">
+        <div class="flex min-w-0 items-center justify-end gap-2 tablet:gap-3">
           <HeaderDateControls v-if="showHeaderDateFilter" />
           <HeaderNotifications />
         </div>
@@ -194,6 +197,6 @@ function navigateTo(path) {
 
 <style scoped>
 .stitch-shell {
-  font-family: 'Montserrat', sans-serif;
+  font-family: var(--font-ui);
 }
 </style>

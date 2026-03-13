@@ -118,7 +118,7 @@ const summaryCards = computed(() => [
     meta: `Toàn bộ: ${summary.value.totalSessions}`,
     metaClass: 'bg-slate-100 text-slate-600',
     icon: 'fact_check',
-    iconClass: 'bg-blue-100 text-blue-600',
+    iconClass: 'bg-slate-100 text-slate-600',
   },
   {
     key: 'passRate',
@@ -157,12 +157,12 @@ const resultLabel = (result) => {
 }
 const resultClass = (result) => (
   result === 'draft'
-    ? 'bg-amber-100 text-amber-700'
+    ? 'app-badge--warning'
     : result === 'pending'
-      ? 'bg-blue-100 text-blue-700'
+      ? 'app-badge--neutral'
     : result === 'passed'
-      ? 'bg-emerald-100 text-emerald-700'
-      : 'bg-rose-100 text-rose-700'
+      ? 'app-badge--success'
+      : 'app-badge--danger'
 )
 
 const getTemplateLabel = (templateId) => {
@@ -181,11 +181,11 @@ const criterionStatusLabel = (status) => {
 }
 
 const criterionStatusClass = (status) => {
-  if (status === 'pass') return 'bg-emerald-100 text-emerald-700'
-  if (status === 'fail') return 'bg-rose-100 text-rose-700'
-  if (status === 'na') return 'bg-slate-200 text-slate-700'
-  if (status === 'skipped_weekly') return 'bg-violet-100 text-violet-700'
-  return 'bg-amber-100 text-amber-700'
+  if (status === 'pass') return 'app-badge--success'
+  if (status === 'fail') return 'app-badge--danger'
+  if (status === 'na') return 'app-badge--neutral'
+  if (status === 'skipped_weekly') return 'app-badge--info'
+  return 'app-badge--warning'
 }
 
 const sessionReasons = (session) => {
@@ -465,12 +465,12 @@ onBeforeUnmount(() => {
 
         <div class="min-w-0 flex-1">
           <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Chi tiết QC cửa hàng</p>
-          <h1 class="mt-1 truncate text-lg font-semibold text-slate-900 sm:text-xl" :title="storeTitle">{{ storeTitle }}</h1>
+          <h1 class="mt-1 truncate text-lg font-semibold text-slate-900 tablet:text-xl" :title="storeTitle">{{ storeTitle }}</h1>
           <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
         </div>
       </div>
 
-      <section class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard
           v-for="card in summaryCards"
           :key="card.key"
@@ -484,91 +484,187 @@ onBeforeUnmount(() => {
       </section>
 
       <section class="flex flex-col space-y-4">
-        <div class="flex flex-col rounded-xl border border-gray-200 bg-white shadow-2xs overflow-visible">
-          <div class="relative z-10 border-b border-gray-200 px-4 py-4 sm:px-6">
-            <div class="overflow-x-auto pb-1">
-              <div class="flex w-full min-w-max items-center gap-6">
-                <div class="flex shrink-0 items-center gap-2">
-                  <div class="hs-dropdown [--auto-close:inside] relative inline-block">
-                    <button
-                      id="qc-status-filter"
-                      type="button"
-                      class="relative inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                      aria-haspopup="menu"
-                      aria-expanded="false"
-                    >
-                      Kết quả
-                      <svg class="size-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0l-4.25-4.51a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
-                      </svg>
-                      <span
-                        v-if="selectedResultCount > 0"
-                        class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm"
-                      >
-                        {{ selectedResultCount }}
-                      </span>
-                    </button>
-                    <div
-                      class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-44 z-20 rounded-lg border border-slate-200 bg-white shadow-md mt-2"
-                      role="menu"
-                      aria-orientation="vertical"
-                      aria-labelledby="qc-status-filter"
-                    >
-                      <label
-                        v-for="result in resultOptions"
-                        :key="result.value || 'all'"
-                        class="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                      >
-                        <input
-                          v-model="filters.status"
-                          :value="result.value"
-                          type="radio"
-                          class="mt-0.5 shrink-0 border-slate-300 text-blue-600 focus:ring-blue-500"
-                          @change="applyFilters"
-                        >
-                        <span>{{ result.label }}</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div class="shrink-0">
-                    <DateRangePicker
-                      v-model:from="filters.from"
-                      v-model:to="filters.to"
-                      :disabled="loading"
-                      placeholder="Thời gian"
-                      @change="applyFilters"
-                    />
-                  </div>
-                </div>
-
-                <div class="ml-auto flex shrink-0 items-center gap-2">
-                  <div class="relative w-[280px] shrink-0 sm:w-[300px]">
-                    <input v-model="searchInput" type="text" class="block h-9 w-full rounded-lg border border-gray-200 px-3 ps-10 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="Tìm mã phiếu, mẫu QC, ghi chú..." />
-                    <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3">
-                      <svg class="size-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
-                    </div>
-                  </div>
-
+        <div class="flex flex-col overflow-visible rounded-xl border border-gray-200 bg-white">
+          <div class="relative z-10 border-b border-gray-200 px-4 py-4 tablet:px-6">
+            <div class="flex flex-col gap-3 pc:flex-row pc:items-center">
+              <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
+                <div class="hs-dropdown [--auto-close:inside] relative inline-block">
                   <button
+                    id="qc-status-filter"
                     type="button"
-                    class="inline-flex h-9 shrink-0 whitespace-nowrap items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-2xs transition-colors hover:bg-blue-700"
-                    @click="openCreateDraftModal"
+                    class="relative inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
+                    aria-haspopup="menu"
+                    aria-expanded="false"
                   >
-                    Tạo phiếu QC
+                    Kết quả
+                    <svg class="size-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0l-4.25-4.51a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
+                    </svg>
+                    <span
+                      v-if="selectedResultCount > 0"
+                      class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                    >
+                      {{ selectedResultCount }}
+                    </span>
                   </button>
+                  <div
+                    class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-44 z-20 mt-2 rounded-lg border border-slate-200 bg-white"
+                    role="menu"
+                    aria-orientation="vertical"
+                    aria-labelledby="qc-status-filter"
+                  >
+                    <label
+                      v-for="result in resultOptions"
+                      :key="result.value || 'all'"
+                      class="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <input
+                        v-model="filters.status"
+                        :value="result.value"
+                        type="radio"
+                        class="mt-0.5 shrink-0 border-slate-300 text-slate-900 focus:ring-slate-300"
+                        @change="applyFilters"
+                      >
+                      <span>{{ result.label }}</span>
+                    </label>
+                  </div>
                 </div>
+
+                <DateRangePicker
+                  v-model:from="filters.from"
+                  v-model:to="filters.to"
+                  :disabled="loading"
+                  placeholder="Thời gian"
+                  @change="applyFilters"
+                />
+              </div>
+
+              <div class="flex flex-col gap-2 tablet:flex-row tablet:items-center pc:ml-auto">
+                <div class="relative w-full tablet:flex-1 pc:w-[300px] pc:flex-none">
+                  <input v-model="searchInput" type="text" class="block h-9 w-full rounded-lg border border-gray-200 px-3 ps-10 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:ring-0" placeholder="Tìm mã phiếu, mẫu QC, ghi chú..." />
+                  <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3">
+                    <svg class="size-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  class="inline-flex h-9 w-full shrink-0 whitespace-nowrap items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
+                  @click="openCreateDraftModal"
+                >
+                  Tạo phiếu QC
+                </button>
               </div>
             </div>
 
-            <div v-if="draftLoadError || sessionLoadError" class="mt-3 space-y-1">
-              <p v-if="draftLoadError" class="text-xs font-medium text-rose-600">{{ draftLoadError }}</p>
-              <p v-if="sessionLoadError" class="text-xs font-medium text-rose-600">{{ sessionLoadError }}</p>
+            <div v-if="draftLoadError || sessionLoadError" class="mt-3 space-y-2">
+              <p v-if="draftLoadError" class="app-state-banner text-xs font-medium">{{ draftLoadError }}</p>
+              <p v-if="sessionLoadError" class="app-state-banner text-xs font-medium">{{ sessionLoadError }}</p>
             </div>
           </div>
 
           <div v-loading="loading" class="overflow-hidden rounded-b-xl">
-            <div class="max-w-full overflow-x-auto">
+            <div class="pc:hidden">
+              <div v-if="hasRows" class="divide-y divide-slate-100">
+                <article
+                  v-for="session in tableRows"
+                  :key="session.rowKey"
+                  class="bg-white px-4 py-4 tablet:px-6"
+                >
+                  <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
+                    <div class="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        class="block text-left"
+                        @click="handleRowAction(session)"
+                      >
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-600">{{ session.code }}</p>
+                        <p class="mt-1 text-sm font-semibold text-slate-900">{{ session.templateName || '--' }}</p>
+                      </button>
+                      <p class="mt-1 text-xs text-slate-500">{{ session.templateVersion || '--' }}</p>
+                    </div>
+
+                    <span class="app-badge inline-flex w-fit items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="resultClass(session.result)">
+                      {{ resultLabel(session.result) }}
+                    </span>
+                  </div>
+
+                  <div class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2">
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Auditor</p>
+                      <p class="mt-1 text-sm font-medium text-slate-700">{{ session.auditorName || '--' }}</p>
+                    </div>
+
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Ngày chấm</p>
+                      <p class="mt-1 text-sm font-medium text-slate-700">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</p>
+                    </div>
+
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Điểm</p>
+                      <template v-if="isDraftRow(session)">
+                        <p class="mt-1 text-sm font-semibold text-slate-500">--</p>
+                      </template>
+                      <template v-else>
+                        <p class="mt-1 text-sm font-semibold text-slate-900">{{ session.totalScore }}/{{ session.maxScore }}</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ sessionScoreRate(session) }}%</p>
+                      </template>
+                    </div>
+
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Ghi chú</p>
+                      <p class="mt-1 text-sm text-slate-700">{{ session.note || '--' }}</p>
+                    </div>
+                  </div>
+
+                  <div class="mt-4 flex flex-col gap-2 tablet:flex-row">
+                    <button type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 tablet:flex-1" @click="handleRowAction(session)">
+                      {{ isDraftRow(session) ? 'Tiếp tục' : (isSessionExpanded(session.id) ? 'Thu gọn' : 'Chi tiết') }}
+                    </button>
+                    <button v-if="isDraftRow(session)" type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 tablet:flex-1" @click="removeDraftSession(session.id)">
+                      Xóa
+                    </button>
+                  </div>
+
+                  <div v-if="!isDraftRow(session) && isSessionExpanded(session.id)" class="mt-4 space-y-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span v-for="reason in sessionReasons(session)" :key="`${session.id}-${reason}`" class="inline-flex rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">{{ reason }}</span>
+                      <span v-if="sessionReasons(session).length === 0" class="inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Trong sạch, không phát hiện lỗi quan trọng</span>
+                    </div>
+                    <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú phiên</p>
+                      <p class="mt-1 text-sm text-slate-700">{{ session.note || '--' }}</p>
+                    </div>
+                    <div v-if="sessionFailedItems(session).length > 0" class="space-y-2">
+                      <p class="text-xs font-semibold uppercase text-slate-500">Tiêu chí không đạt ({{ sessionFailedItems(session).length }})</p>
+                      <div class="grid gap-2 tablet:grid-cols-2">
+                        <div v-for="item in sessionFailedItems(session)" :key="`${session.id}-${item.id}`" class="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
+                          <div class="mb-1 flex items-center gap-2">
+                            <p class="text-sm font-semibold text-rose-800">{{ item.name }}</p>
+                            <span class="app-badge inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase" :class="criterionStatusClass(item.status)">{{ criterionStatusLabel(item.status) }}</span>
+                          </div>
+                          <p class="text-xs text-rose-700">{{ item.note || '--' }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <div v-else class="px-4 py-12 tablet:px-6">
+                <div class="app-state-panel app-state-panel--compact">
+                  <div class="app-state-stack mx-auto">
+                    <div class="app-state-icon mx-auto">
+                      <span class="material-symbols-outlined text-[24px]">fact_check</span>
+                    </div>
+                    <p class="app-state-title">Chưa có phiên dữ liệu nào.</p>
+                    <p class="app-state-body">Tạo phiếu QC mới để bắt đầu theo dõi lịch sử chấm điểm của cửa hàng này.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hidden max-w-full overflow-x-auto pc:block">
               <table class="min-w-[980px] w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50 uppercase text-xs font-semibold text-gray-700">
                   <tr>
@@ -584,7 +680,7 @@ onBeforeUnmount(() => {
                 <tbody v-if="hasRows" class="divide-y divide-gray-200">
                   <template v-for="session in tableRows" :key="session.rowKey">
                     <tr class="bg-white hover:bg-gray-50">
-                      <td class="px-4 py-2 text-sm font-medium text-blue-600 underline cursor-pointer" @click="handleRowAction(session)">{{ session.code }}</td>
+                      <td class="cursor-pointer px-4 py-2 text-sm font-medium text-slate-900 hover:text-slate-700 hover:underline" @click="handleRowAction(session)">{{ session.code }}</td>
                       <td class="px-4 py-2 text-sm text-gray-700">
                         <p class="font-medium text-slate-700">{{ session.templateName || '--' }}</p>
                         <p class="text-xs text-slate-500">{{ session.templateVersion || '--' }}</p>
@@ -600,13 +696,13 @@ onBeforeUnmount(() => {
                         </template>
                       </td>
                       <td class="px-4 py-2 text-sm">
-                        <span class="inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="resultClass(session.result)">
+                        <span class="app-badge inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="resultClass(session.result)">
                           {{ resultLabel(session.result) }}
                         </span>
                       </td>
                       <td class="px-4 py-2 text-sm text-gray-600">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</td>
                       <td class="px-4 py-2 text-end flex gap-2 justify-end">
-                        <button type="button" class="cursor-pointer rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100" @click="handleRowAction(session)">
+                        <button type="button" class="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50" @click="handleRowAction(session)">
                           {{ isDraftRow(session) ? 'Tiếp tục' : (isSessionExpanded(session.id) ? 'Thu gọn' : 'Chi tiết') }}
                         </button>
                         <button v-if="isDraftRow(session)" type="button" class="cursor-pointer rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100" @click="removeDraftSession(session.id)">
@@ -630,11 +726,11 @@ onBeforeUnmount(() => {
                           <!-- Failed Items -->
                           <div v-if="sessionFailedItems(session).length > 0" class="space-y-2">
                             <p class="text-xs font-semibold uppercase text-slate-500">Tiêu chí không đạt ({{ sessionFailedItems(session).length }})</p>
-                            <div class="grid gap-2 md:grid-cols-2">
+                            <div class="grid gap-2 tablet:grid-cols-2">
                                <div v-for="item in sessionFailedItems(session)" :key="`${session.id}-${item.id}`" class="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
                                   <div class="flex items-center gap-2 mb-1">
                                      <p class="text-sm font-semibold text-rose-800">{{ item.name }}</p>
-                                     <span class="inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase" :class="criterionStatusClass(item.status)">{{ criterionStatusLabel(item.status) }}</span>
+                                     <span class="app-badge inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase" :class="criterionStatusClass(item.status)">{{ criterionStatusLabel(item.status) }}</span>
                                   </div>
                                   <p class="text-xs text-rose-700">{{ item.note || '--' }}</p>
                                </div>
@@ -646,7 +742,19 @@ onBeforeUnmount(() => {
                   </template>
                 </tbody>
                 <tbody v-else>
-                  <tr><td colspan="7" class="py-12 flex flex-col items-center justify-center text-slate-400 text-sm">Chưa có phiên dữ liệu nào.</td></tr>
+                  <tr>
+                    <td colspan="7" class="px-4 py-12">
+                      <div class="app-state-panel app-state-panel--compact">
+                        <div class="app-state-stack mx-auto">
+                          <div class="app-state-icon mx-auto">
+                            <span class="material-symbols-outlined text-[24px]">fact_check</span>
+                          </div>
+                          <p class="app-state-title">Chưa có phiên dữ liệu nào.</p>
+                          <p class="app-state-body">Tạo phiếu QC mới để bắt đầu theo dõi lịch sử chấm điểm của cửa hàng này.</p>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>

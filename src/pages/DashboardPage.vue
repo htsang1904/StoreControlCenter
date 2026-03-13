@@ -55,13 +55,13 @@ function statusLabel(status) {
 
 function statusClass(status) {
   const map = {
-    new: 'bg-slate-100 text-slate-700',
-    in_progress: 'bg-amber-100 text-amber-700',
-    resolved: 'bg-emerald-100 text-emerald-700',
-    closed: 'bg-blue-100 text-blue-700',
-    rejected: 'bg-rose-100 text-rose-700',
+    new: 'app-badge--info',
+    in_progress: 'app-badge--warning',
+    resolved: 'app-badge--success',
+    closed: 'app-badge--neutral',
+    rejected: 'app-badge--danger',
   }
-  return map[normalizeStatus(status)] || 'bg-slate-100 text-slate-700'
+  return map[normalizeStatus(status)] || 'app-badge--neutral'
 }
 
 function storeDisplay(ticket) {
@@ -108,34 +108,34 @@ const kpiCards = computed(() => [
     meta: 'Theo bộ lọc thời gian',
     metaClass: 'bg-slate-100 text-slate-600',
     icon: 'list_alt',
-    iconClass: 'bg-blue-100 text-blue-600',
+    iconClass: 'bg-slate-100 text-slate-600',
   },
   {
     key: 'in_progress',
     label: 'Đang xử lý',
     value: numberFormatter.format(Number(ticketSummary.value.in_progress || 0)),
     meta: 'Đang chờ phản hồi',
-    metaClass: 'bg-amber-50 text-amber-700',
+    metaClass: 'bg-slate-100 text-slate-600',
     icon: 'pending',
-    iconClass: 'bg-amber-100 text-amber-600',
+    iconClass: 'bg-slate-100 text-slate-600',
   },
   {
     key: 'qc_pass_rate',
     label: 'Tỉ lệ QC đạt',
     value: `${Number(qcSummary.value.passRate || 0)}%`,
     meta: 'Mục tiêu quý: 95%',
-    metaClass: 'bg-emerald-50 text-emerald-700',
+    metaClass: 'bg-slate-100 text-slate-600',
     icon: 'check_circle',
-    iconClass: 'bg-emerald-100 text-emerald-600',
+    iconClass: 'bg-slate-100 text-slate-600',
   },
   {
     key: 'overdue',
     label: 'Cảnh báo quá hạn',
     value: numberFormatter.format(Number(ticketSummary.value.overdue || 0)),
     meta: 'Ticket quá hạn hoặc sát hạn',
-    metaClass: 'bg-violet-50 text-violet-700',
+    metaClass: 'bg-slate-100 text-slate-600',
     icon: 'timer',
-    iconClass: 'bg-violet-100 text-violet-600',
+    iconClass: 'bg-slate-100 text-slate-600',
   },
 ])
 
@@ -254,12 +254,12 @@ watch(
 </script>
 
 <template>
-  <div class="space-y-4">
-    <p v-if="errorMessage" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+  <div class="page-stack space-y-4">
+    <p v-if="errorMessage" class="app-state-banner text-xs">
       {{ errorMessage }}
     </p>
 
-    <section class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <section class="grid grid-cols-1 gap-4 tablet:grid-cols-2 pc:grid-cols-4">
       <StatSummaryCard
         v-for="card in kpiCards"
         :key="card.key"
@@ -272,14 +272,66 @@ watch(
       />
     </section>
 
-    <section class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+    <section class="grid grid-cols-1 gap-6 pc:grid-cols-3">
+      <article class="overflow-hidden rounded-xl border border-slate-200 bg-white pc:col-span-2">
         <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <h3 class="text-sm font-bold text-slate-800">Ticket gần đây</h3>
-          <router-link to="/ticket" class="text-sm font-medium text-blue-600 hover:underline">Xem tất cả</router-link>
+          <router-link to="/ticket" class="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">Xem tất cả</router-link>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="pc:hidden">
+          <div v-if="recentTickets.length" class="divide-y divide-slate-100">
+            <article
+              v-for="ticket in recentTickets"
+              :key="ticket.id"
+              class="px-5 py-4"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    {{ ticket.ticket_code || `#${ticket.id}` }}
+                  </p>
+                  <p class="mt-1 text-sm font-semibold text-slate-900">
+                    {{ ticket.title || 'Không có tiêu đề' }}
+                  </p>
+                </div>
+
+                <span
+                  class="app-badge inline-flex shrink-0 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider"
+                  :class="statusClass(ticket.status)"
+                >
+                  {{ statusLabel(ticket.status) }}
+                </span>
+              </div>
+
+              <div class="mt-3 grid grid-cols-1 gap-3 tablet:grid-cols-2">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Cửa hàng</p>
+                  <p class="mt-1 text-sm font-medium text-slate-700">{{ storeDisplay(ticket) }}</p>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Thời gian</p>
+                  <p class="mt-1 text-sm font-medium text-slate-700">{{ formatRelativeTime(ticket.createdAt) }}</p>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div v-else-if="!loading" class="px-5 py-5">
+            <div class="app-state-panel app-state-panel--compact">
+              <div class="app-state-stack mx-auto">
+                <div class="app-state-icon mx-auto">
+                  <span class="material-symbols-outlined text-[24px]">inbox</span>
+                </div>
+                <p class="app-state-title">Chưa có ticket trong giai đoạn này.</p>
+                <p class="app-state-body">Thay đổi khoảng thời gian hoặc quay lại sau khi có hoạt động mới.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hidden overflow-x-auto pc:block">
           <table class="w-full text-left text-sm">
             <thead>
               <tr class="bg-slate-50 text-slate-500">
@@ -292,12 +344,12 @@ watch(
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-for="ticket in recentTickets" :key="ticket.id" class="transition-colors hover:bg-slate-50">
-                <td class="px-5 py-4 font-medium text-blue-600">{{ ticket.ticket_code || `#${ticket.id}` }}</td>
+                <td class="px-5 py-4 font-medium text-slate-500">{{ ticket.ticket_code || `#${ticket.id}` }}</td>
                 <td class="px-5 py-4 text-slate-700">{{ ticket.title || 'Không có tiêu đề' }}</td>
                 <td class="px-5 py-4 text-slate-700">{{ storeDisplay(ticket) }}</td>
                 <td class="px-5 py-4">
                   <span
-                    class="rounded-full px-2 py-1 text-[10px] font-bold tracking-wider uppercase"
+                    class="app-badge rounded-full px-2 py-1 text-[10px] font-bold tracking-wider uppercase"
                     :class="statusClass(ticket.status)"
                   >
                     {{ statusLabel(ticket.status) }}
@@ -306,8 +358,16 @@ watch(
                 <td class="px-5 py-4 text-slate-500">{{ formatRelativeTime(ticket.createdAt) }}</td>
               </tr>
               <tr v-if="!recentTickets.length && !loading">
-                <td colspan="5" class="px-5 py-5 text-center text-sm text-slate-500">
-                  Không có ticket nào trong giai đoạn hiện tại.
+                <td colspan="5" class="px-5 py-5">
+                  <div class="app-state-panel app-state-panel--compact">
+                    <div class="app-state-stack mx-auto">
+                      <div class="app-state-icon mx-auto">
+                        <span class="material-symbols-outlined text-[24px]">inbox</span>
+                      </div>
+                      <p class="app-state-title">Chưa có ticket trong giai đoạn này.</p>
+                      <p class="app-state-body">Thay đổi khoảng thời gian hoặc quay lại sau khi có hoạt động mới.</p>
+                    </div>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -315,7 +375,7 @@ watch(
         </div>
       </article>
 
-      <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <article class="rounded-xl border border-slate-200 bg-white p-5">
         <h3 class="mb-5 text-sm font-bold text-slate-800">Hiệu suất theo cửa hàng</h3>
 
         <div class="space-y-5">
@@ -325,14 +385,14 @@ watch(
               <span class="text-slate-500">{{ store.count }} ticket</span>
             </div>
             <div class="h-2 w-full rounded-full bg-slate-100">
-              <div class="h-2 rounded-full bg-blue-600 transition-all duration-500" :style="{ width: `${store.percent}%` }"></div>
+              <div class="h-2 rounded-full bg-slate-900 transition-all duration-500" :style="{ width: `${store.percent}%` }"></div>
             </div>
           </div>
         </div>
 
-        <div class="mt-6 rounded-lg bg-slate-50 p-4">
+        <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
           <div class="flex items-start gap-2.5 text-sm text-slate-600">
-            <span class="material-symbols-outlined mt-0.5 shrink-0 text-[18px] text-amber-500">info</span>
+            <span class="material-symbols-outlined mt-0.5 shrink-0 text-[18px] text-slate-400">info</span>
             <p>
               Tỉ lệ QC đạt hiện tại là <strong>{{ qcSummary.passRate }}%</strong>.
               {{ qcSummary.passRate < 90 ? ' Cần theo dõi các cửa hàng có kết quả thấp.' : ' Kết quả đang ở mức tích cực.' }}

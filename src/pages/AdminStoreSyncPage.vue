@@ -32,9 +32,9 @@ const goBack = () => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div class="flex flex-wrap items-start justify-between gap-4">
+  <div class="page-stack space-y-4">
+    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
+      <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
         <div>
           <button
             type="button"
@@ -52,7 +52,7 @@ const goBack = () => {
 
         <button
           type="button"
-          class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
           :disabled="syncingStores"
           @click="handleSyncStoresNow"
         >
@@ -62,13 +62,13 @@ const goBack = () => {
       </div>
     </section>
 
-    <section class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.1fr)_320px]">
-      <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section class="grid grid-cols-1 gap-4 pc:grid-cols-[minmax(0,1.1fr)_320px]">
+      <article class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
         <h3 class="text-base font-semibold text-slate-900">Kết quả lần chạy gần nhất</h3>
 
         <div
           v-if="syncResult"
-          class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4"
+          class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4"
         >
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Synced</p>
@@ -90,13 +90,21 @@ const goBack = () => {
 
         <div
           v-else
-          class="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500"
+          class="mt-4"
         >
-          Chưa có lần chạy nào trong phiên hiện tại. Hãy bấm <span class="font-medium text-slate-700">Đồng bộ ngay</span> để bắt đầu.
+          <div class="app-state-panel app-state-panel--compact border-dashed border-slate-300 bg-slate-50">
+            <div class="app-state-stack mx-auto">
+              <div class="app-state-icon mx-auto">
+                <span class="material-symbols-outlined text-[24px]">sync</span>
+              </div>
+              <p class="app-state-title">Chưa có lần chạy nào trong phiên hiện tại.</p>
+              <p class="app-state-body">Bấm "Đồng bộ ngay" để bắt đầu cập nhật danh mục cửa hàng từ nguồn chính.</p>
+            </div>
+          </div>
         </div>
       </article>
 
-      <aside class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <aside class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
         <h3 class="text-base font-semibold text-slate-900">Lưu ý vận hành</h3>
         <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-500">
           <li>Chỉ chạy khi cần cập nhật danh mục mới từ nguồn chính.</li>

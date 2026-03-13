@@ -54,6 +54,8 @@ fi
 cd "$ROOT_DIR"
 
 if [ "$run_frontend" -eq 1 ]; then
+  echo "==> Frontend check: responsive breakpoint guard"
+  bash ./scripts/check-responsive-breakpoints.sh
   echo "==> Frontend check: npm run build"
   npm run build
 fi

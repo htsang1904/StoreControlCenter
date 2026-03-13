@@ -21,6 +21,7 @@ function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 
 
 export function useTicketList(userInfo) {
   const loading = ref(false)
+  const loadingMore = ref(false)
   const deletingId = ref(null)
   const reopeningId = ref(null)
   const errorMessage = ref('')
@@ -77,7 +78,7 @@ export function useTicketList(userInfo) {
 
   function isEditableTicket(ticket) {
     if (!ticket) return false
-    return ticket.status === 'new' && Number(ticket.handler?.id || ticket.handler_id || 0) <= 0
+    return ticket.status === 'new' && (!Array.isArray(ticket.assignees) || ticket.assignees.length === 0)
   }
 
   function canReopenTicket(ticket) {
@@ -85,13 +86,21 @@ export function useTicketList(userInfo) {
     return (userRole.value === 'store' || userRole.value === 'admin') && String(ticket.status || '').toLowerCase() === 'resolved'
   }
 
-  async function fetchTickets() {
-    loading.value = true
-    errorMessage.value = ''
+  async function requestTickets(targetPage = pagination.page, options = {}) {
+    const { append = false } = options
+    const requestedPage = Number(targetPage || 1)
+
+    if (append) {
+      if (loading.value || loadingMore.value) return
+      loadingMore.value = true
+    } else {
+      loading.value = true
+      errorMessage.value = ''
+    }
 
     try {
       const params = {
-        page: pagination.page,
+        page: requestedPage,
         pageSize: pagination.pageSize,
         q: filters.q,
         status: filters.statuses.join(','),
@@ -101,14 +110,28 @@ export function useTicketList(userInfo) {
       const payload = result?.data || result || {}
       const records = payload?.tickets || payload?.items || []
       const backendPagination = payload?.pagination || payload?.meta || {}
+      const nextRecords = Array.isArray(records) ? records : []
 
-      tickets.value = Array.isArray(records) ? records : []
+      if (append) {
+        const existingIds = new Set(tickets.value.map((item) => Number(item?.id || 0)).filter((id) => id > 0))
+        const appendedRecords = nextRecords.filter((item) => {
+          const id = Number(item?.id || 0)
+          if (id > 0) {
+            if (existingIds.has(id)) return false
+            existingIds.add(id)
+          }
+          return true
+        })
+        tickets.value = [...tickets.value, ...appendedRecords]
+      } else {
+        tickets.value = nextRecords
+      }
 
       const nextPagination = normalizePagination(
         backendPagination,
-        pagination.page,
+        requestedPage,
         pagination.pageSize,
-        tickets.value.length
+        append ? Math.max(pagination.total, tickets.value.length) : tickets.value.length
       )
 
       pagination.total = nextPagination.total
@@ -116,11 +139,21 @@ export function useTicketList(userInfo) {
       pagination.pageSize = nextPagination.pageSize
       pagination.pageCount = nextPagination.pageCount
     } catch (err) {
-      tickets.value = []
-      errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể tải danh sách yêu cầu.'
+      if (!append) {
+        tickets.value = []
+        errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể tải danh sách yêu cầu.'
+      }
     } finally {
-      loading.value = false
+      if (append) {
+        loadingMore.value = false
+      } else {
+        loading.value = false
+      }
     }
+  }
+
+  async function fetchTickets() {
+    await requestTickets(pagination.page, { append: false })
   }
 
   async function applySearch() {
@@ -142,15 +175,19 @@ export function useTicketList(userInfo) {
 
   async function nextPage() {
     if (pagination.page >= pagination.pageCount) return
-    pagination.page += 1
-    await fetchTickets()
+    await requestTickets(pagination.page + 1, { append: false })
   }
 
   async function goToPage(targetPage) {
     const page = Number(targetPage)
     if (!Number.isInteger(page) || page < 1 || page > pagination.pageCount || page === pagination.page) return
-    pagination.page = page
-    await fetchTickets()
+    await requestTickets(page, { append: false })
+  }
+
+  async function fetchNextPage() {
+    if (loading.value || loadingMore.value) return
+    if (pagination.pageCount > 0 && pagination.page >= pagination.pageCount) return
+    await requestTickets(pagination.page + 1, { append: true })
   }
 
   async function handleDeleteTicket(ticket) {
@@ -206,6 +243,7 @@ export function useTicketList(userInfo) {
     deletingId,
     errorMessage,
     fetchTickets,
+    fetchNextPage,
     filters,
     goToPage,
     handleDeleteTicket,
@@ -213,6 +251,7 @@ export function useTicketList(userInfo) {
     hasTickets,
     isEditableTicket,
     loading,
+    loadingMore,
     nextPage,
     pagination,
     paginationEnd,

@@ -64,10 +64,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="rootRef" class="relative w-full sm:w-auto">
+  <div ref="rootRef" class="relative w-full tablet:w-auto">
     <button
       type="button"
-      class="w-full sm:w-auto cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 inline-flex items-center justify-between gap-2 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+      class="w-full tablet:w-auto cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 inline-flex items-center justify-between gap-2 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
       :disabled="disabled"
       @click="toggleDropdown"
     >
@@ -79,14 +79,14 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open"
-      class="absolute right-0 z-30 mt-2 w-40 rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg"
+      class="absolute right-0 z-30 mt-2 w-40 rounded-lg border border-gray-200 bg-white p-1.5"
     >
       <button
         v-for="option in options"
         :key="option.key"
         type="button"
         class="w-full rounded-md px-2.5 py-2 text-left text-xs font-medium transition-colors"
-        :class="option.key === activeKey ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'"
+        :class="option.key === activeKey ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-50'"
         @click="selectPeriod(option.key)"
       >
         {{ option.label }}

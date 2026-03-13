@@ -65,6 +65,10 @@ function goToAddTicket() {
   router.push('/ticket/add-ticket')
 }
 
+function goToTicketInbox() {
+  router.push('/ticket/inbox')
+}
+
 function goToEditTicket(id) {
   router.push(`/ticket/${id}/edit`)
 }
@@ -86,8 +90,8 @@ watch(
 
 <template>
   <div>
-    <div class="page-stack mx-2 overflow-visible space-y-4 sm:mx-3 md:mx-0">
-      <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div class="page-stack mx-2 overflow-visible space-y-4 tablet:mx-3 pc:mx-0">
+      <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard
           v-for="card in reportSummaryCards"
           :key="card.key"
@@ -100,58 +104,23 @@ watch(
         />
       </section>
 
-      <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div class="border-b border-slate-200 p-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="hs-dropdown [--auto-close:inside] relative inline-block">
-              <button
-                id="ticket-status-filter"
-                type="button"
-                class="relative inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                aria-haspopup="menu"
-                aria-expanded="false"
-              >
-                Trạng thái
-                <svg class="size-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0l-4.25-4.51a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
-                </svg>
-                <span
-                  v-if="selectedStatusCount > 0"
-                  class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm"
-                >
-                  {{ selectedStatusCount }}
-                </span>
-              </button>
+          <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
+            <button
+              type="button"
+              class="app-button-secondary inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold tablet:w-auto"
+              @click="goToTicketInbox"
+            >
+              Chế độ inbox
+            </button>
 
-              <div
-                class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-44 z-20 bg-white shadow-md rounded-lg mt-2 border border-slate-200"
-                role="menu"
-                aria-orientation="vertical"
-                aria-labelledby="ticket-status-filter"
-              >
-                <label
-                  v-for="status in ticketStatusOptions"
-                  :key="status.value"
-                  class="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  <input
-                    v-model="filters.statuses"
-                    :value="status.value"
-                    type="checkbox"
-                    class="rounded-sm border-slate-300 text-blue-600 focus:ring-blue-500"
-                    @change="applyStatus"
-                  >
-                  <span>{{ status.label }}</span>
-                </label>
-              </div>
-            </div>
-
-            <div class="ml-auto flex w-full flex-wrap items-center gap-2 lg:w-auto">
-              <div class="relative min-w-[220px] flex-1 lg:w-[320px] lg:flex-none">
+            <div class="flex min-w-0 w-full flex-col gap-2 tablet:ml-auto tablet:flex-row tablet:flex-wrap tablet:items-center tablet:justify-end pc:w-auto">
+              <div class="relative min-w-0 w-full flex-1 tablet:min-w-[220px] pc:w-[320px] pc:flex-none">
                 <input
                   v-model="searchInput"
                   type="text"
-                  class="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-blue-500 focus:outline-hidden focus:ring-blue-100"
+                  class="app-input h-9 w-full rounded-lg pl-9 pr-3 text-sm"
                   placeholder="Tìm mã vé hoặc tiêu đề"
                   @keyup.enter="applySearch"
                 />
@@ -161,9 +130,51 @@ watch(
                   </svg>
                 </div>
               </div>
+              <div class="hs-dropdown [--auto-close:inside] relative inline-block w-full tablet:w-auto">
+                <button
+                  id="ticket-status-filter"
+                  type="button"
+                  class="app-button-secondary relative inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium tablet:w-auto"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  Trạng thái
+                  <svg class="size-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0l-4.25-4.51a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
+                  </svg>
+                  <span
+                    v-if="selectedStatusCount > 0"
+                    class="app-count-badge absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+                  >
+                    {{ selectedStatusCount }}
+                  </span>
+                </button>
+
+                <div
+                  class="hs-dropdown-menu app-menu-panel transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-44 z-20 mt-2"
+                  role="menu"
+                  aria-orientation="vertical"
+                  aria-labelledby="ticket-status-filter"
+                >
+                  <label
+                    v-for="status in ticketStatusOptions"
+                    :key="status.value"
+                    class="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    <input
+                      v-model="filters.statuses"
+                      :value="status.value"
+                      type="checkbox"
+                      class="app-checkbox rounded-sm border-slate-300"
+                      @change="applyStatus"
+                    >
+                    <span>{{ status.label }}</span>
+                  </label>
+                </div>
+              </div>
               <button
                 type="button"
-                class="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                class="app-button-primary inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold tablet:w-auto"
                 @click="goToAddTicket"
               >
                 Tạo vé mới
@@ -173,12 +184,12 @@ watch(
 
         </div>
 
-        <div v-if="errorMessage" class="border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+        <div v-if="errorMessage" class="app-state-banner m-4 mb-0">
           {{ errorMessage }}
         </div>
 
         <div v-loading="loading">
-          <div class="hidden overflow-x-auto lg:block">
+          <div class="hidden overflow-x-auto pc:block">
             <table class="min-w-[900px] w-full border-collapse text-left">
               <thead>
                 <tr class="bg-slate-50">
@@ -204,13 +215,13 @@ watch(
                     <p class="text-xs text-slate-500">{{ ticketSubline(ticket) }}</p>
                   </td>
                   <td class="px-4 py-3">
-                    <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="ticketStatusClass(ticket.status)">
+                    <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="ticketStatusClass(ticket.status)">
                       {{ normalizeTicketStatus(ticket.status) }}
                     </span>
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-2">
-                      <span class="inline-flex size-6 items-center justify-center rounded-full bg-blue-50 text-[10px] font-bold uppercase text-blue-700">
+                      <span class="app-avatar-neutral inline-flex size-6 items-center justify-center rounded-full text-[10px] font-bold uppercase">
                         {{ avatarInitials(handlerDisplay(ticket)) }}
                       </span>
                       <span class="text-sm text-slate-600">{{ handlerDisplay(ticket) }}</span>
@@ -232,9 +243,15 @@ watch(
 
               <tbody v-else>
                 <tr>
-                  <td colspan="6" class="py-10">
-                    <div class="flex flex-col items-center justify-center text-slate-500">
-                      <p class="text-sm">Không có dữ liệu</p>
+                  <td colspan="6" class="px-4 py-10">
+                    <div class="app-state-panel app-state-panel--compact">
+                      <div class="app-state-stack mx-auto">
+                        <div class="app-state-icon mx-auto">
+                          <span class="material-symbols-outlined text-[24px]">confirmation_number</span>
+                        </div>
+                        <p class="app-state-title">Không có dữ liệu.</p>
+                        <p class="app-state-body">Thử đổi bộ lọc hoặc tạo ticket mới để bắt đầu theo dõi công việc.</p>
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -242,7 +259,7 @@ watch(
             </table>
           </div>
 
-          <div class="space-y-3 p-3 lg:hidden">
+          <div class="space-y-3 p-3 pc:hidden">
             <div
               v-for="ticket in tickets"
               :key="ticket.id"
@@ -255,7 +272,7 @@ watch(
                   <p class="mt-1 text-sm font-medium text-slate-800">{{ ticket.title || '--' }}</p>
                   <p class="text-xs text-slate-500">{{ ticketSubline(ticket) }}</p>
                 </div>
-                <span class="inline-flex items-center rounded-lg px-2 py-1 text-[11px] font-semibold" :class="ticketStatusClass(ticket.status)">
+                <span class="app-badge inline-flex items-center rounded-lg px-2 py-1 text-[11px] font-semibold" :class="ticketStatusClass(ticket.status)">
                   {{ normalizeTicketStatus(ticket.status) }}
                 </span>
               </div>
@@ -278,7 +295,7 @@ watch(
                 <button
                   v-if="canEditTicket && isEditableTicket(ticket)"
                   type="button"
-                  class="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700"
+                  class="app-button-secondary rounded-lg px-2.5 py-1 text-xs font-semibold"
                   @click.stop="goToEditTicket(ticket.id)"
                 >
                   Chỉnh sửa
@@ -286,7 +303,7 @@ watch(
                 <button
                   v-if="canReopenTicket(ticket)"
                   type="button"
-                  class="rounded-lg border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 disabled:opacity-50"
+                  class="app-button-warning rounded-lg px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
                   :disabled="reopeningId === ticket.id"
                   @click.stop="handleReopenTicket(ticket)"
                 >
@@ -295,7 +312,7 @@ watch(
                 <button
                   v-if="canDeleteTicket"
                   type="button"
-                  class="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 disabled:opacity-50"
+                  class="app-button-danger rounded-lg px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
                   :disabled="deletingId === ticket.id"
                   @click.stop="handleDeleteTicket(ticket)"
                 >
@@ -304,13 +321,19 @@ watch(
               </div>
             </div>
 
-            <div v-if="!hasTickets" class="rounded-xl border border-slate-200 bg-white p-4 text-center text-sm text-slate-500">
-              Không có dữ liệu
+            <div v-if="!hasTickets" class="app-state-panel app-state-panel--compact">
+              <div class="app-state-stack mx-auto">
+                <div class="app-state-icon mx-auto">
+                  <span class="material-symbols-outlined text-[24px]">confirmation_number</span>
+                </div>
+                <p class="app-state-title">Không có dữ liệu.</p>
+                <p class="app-state-body">Thử đổi bộ lọc hoặc tạo ticket mới để bắt đầu theo dõi công việc.</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3">
+        <div class="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3 tablet:flex-row tablet:items-center tablet:justify-between">
           <p class="text-sm text-slate-500">
             Hiển thị
             <span class="font-semibold text-slate-800">{{ paginationStart }}-{{ paginationEnd }}</span>
@@ -319,10 +342,10 @@ watch(
             kết quả
           </p>
 
-          <div class="flex items-center gap-1">
+          <div class="flex max-w-full items-center justify-between gap-3 tablet:justify-end">
             <button
               type="button"
-              class="inline-flex size-8 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-50"
+              class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-50"
               :disabled="pagination.page <= 1 || loading"
               @click="prevPage"
             >
@@ -331,23 +354,25 @@ watch(
               </svg>
             </button>
 
-            <template v-for="item in visiblePageItems" :key="String(item)">
-              <button
-                v-if="typeof item === 'number'"
-                type="button"
-                class="inline-flex size-8 items-center justify-center rounded-lg text-xs font-semibold transition-colors"
-                :class="item === pagination.page ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'"
-                :disabled="item === pagination.page || loading"
-                @click="goToPage(item)"
-              >
-                {{ item }}
-              </button>
-              <span v-else class="px-1 text-xs text-slate-400">...</span>
-            </template>
+            <div class="flex min-w-0 items-center gap-1 overflow-x-auto py-1">
+              <template v-for="item in visiblePageItems" :key="String(item)">
+                <button
+                  v-if="typeof item === 'number'"
+                  type="button"
+                  class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold transition-colors"
+                  :class="item === pagination.page ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-200'"
+                  :disabled="item === pagination.page || loading"
+                  @click="goToPage(item)"
+                >
+                  {{ item }}
+                </button>
+                <span v-else class="shrink-0 px-1 text-xs text-slate-400">...</span>
+              </template>
+            </div>
 
             <button
               type="button"
-              class="inline-flex size-8 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-50"
+              class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-50"
               :disabled="pagination.page >= pagination.pageCount || loading || pagination.pageCount === 0"
               @click="nextPage"
             >

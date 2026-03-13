@@ -60,13 +60,13 @@ const isExpanded = computed(() => (props.drawerMode ? props.drawerOpen : props.d
 const sidebarClasses = computed(() => {
   if (props.drawerMode) {
     return props.drawerOpen
-      ? 'w-64 translate-x-0 opacity-100 pointer-events-auto shadow-xl'
+      ? 'w-64 translate-x-0 opacity-100 pointer-events-auto'
       : 'w-64 -translate-x-full opacity-0 pointer-events-none shadow-none'
   }
 
   return props.desktopOpen
-    ? 'hidden md:block md:w-64 md:translate-x-0 md:opacity-100 md:pointer-events-auto'
-    : 'hidden md:block md:w-20 md:translate-x-0 md:opacity-100 md:pointer-events-auto'
+    ? 'hidden pc:block pc:w-64 pc:translate-x-0 pc:opacity-100 pc:pointer-events-auto'
+    : 'hidden pc:block pc:w-20 pc:translate-x-0 pc:opacity-100 pc:pointer-events-auto'
 })
 
 const selectedPath = computed(() => route.path)
@@ -90,13 +90,13 @@ const tabClasses = (tab) => {
 
   if (isExpanded.value) {
     return isActive
-      ? 'gap-2.5 px-3 py-2 md:justify-start bg-[#136dec]/10 text-[#136dec]'
-      : 'gap-2.5 px-3 py-2 md:justify-start text-slate-600 hover:bg-slate-50'
+      ? 'gap-2.5 rounded-2xl bg-slate-100 px-3 py-2 text-slate-900 pc:justify-start'
+      : 'gap-2.5 rounded-2xl px-3 py-2 text-slate-600 pc:justify-start hover:bg-slate-50 hover:text-slate-900'
   }
 
   return isActive
-    ? 'mx-auto h-10 w-10 justify-center rounded-xl bg-[#136dec]/12 text-[#136dec]'
-    : 'mx-auto h-10 w-10 justify-center rounded-xl text-slate-700 hover:bg-slate-100'
+    ? 'mx-auto h-10 w-10 justify-center rounded-2xl bg-slate-100 text-slate-900'
+    : 'mx-auto h-10 w-10 justify-center rounded-2xl text-slate-700 hover:bg-slate-100'
 }
 
 const userName = computed(() => state.userInfo?.name || 'Người dùng')
@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
   <button
     v-if="props.drawerMode && props.drawerOpen"
     type="button"
-    class="fixed inset-0 z-[55] bg-slate-900/20 backdrop-blur-[1px]"
+    class="fixed inset-0 z-[55] bg-slate-900/20"
     aria-label="Đóng sidebar"
     @click="emit('close-drawer')"
   ></button>
@@ -197,23 +197,23 @@ onBeforeUnmount(() => {
     <div class="flex h-full max-h-full flex-col">
       <div
         class="flex items-center gap-2.5 px-4 py-3.5"
-        :class="isExpanded ? 'md:justify-start md:px-4 md:py-3.5' : 'md:justify-center md:px-1.5 md:py-4'"
+        :class="isExpanded ? 'pc:justify-start pc:px-4 pc:py-3.5' : 'pc:justify-center pc:px-1.5 pc:py-4'"
       >
         <div
           class="flex h-9 w-9 items-center justify-center rounded-lg bg-[#136dec] text-white"
-          :class="isExpanded ? 'md:flex' : 'md:hidden'"
+          :class="isExpanded ? 'pc:flex' : 'pc:hidden'"
         >
           <span class="material-symbols-outlined text-[18px]">storefront</span>
         </div>
-        <div class="min-w-0" :class="isExpanded ? 'md:block' : 'md:hidden'">
+        <div class="min-w-0" :class="isExpanded ? 'pc:block' : 'pc:hidden'">
           <p class="truncate text-sm font-bold tracking-tight text-slate-900">Quản trị cửa hàng</p>
         </div>
 
         <button
           v-if="!props.drawerMode"
           type="button"
-          class="hidden size-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 md:inline-flex"
-          :class="isExpanded ? 'ml-auto' : 'md:mx-auto md:border md:border-slate-200 md:bg-slate-50'"
+          class="hidden size-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 pc:inline-flex"
+          :class="isExpanded ? 'ml-auto' : 'pc:mx-auto pc:border pc:border-slate-200 pc:bg-slate-50'"
           :aria-label="isExpanded ? 'Thu gọn sidebar' : 'Mở sidebar'"
           @click="emit('toggle-desktop-sidebar')"
         >
@@ -236,7 +236,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <nav class="flex-1" :class="isExpanded ? 'space-y-4 px-3 py-3' : 'px-0 py-5 md:flex md:flex-col md:items-center md:gap-4'">
+      <nav class="flex-1" :class="isExpanded ? 'space-y-4 px-3 py-3' : 'px-0 py-5 pc:flex pc:flex-col pc:items-center pc:gap-4'">
         <div>
           <p
             v-if="isExpanded"
@@ -249,14 +249,14 @@ onBeforeUnmount(() => {
               v-for="tab in operationalTabs"
               :key="tab.path"
               :to="tab.path"
-              class="flex items-center rounded-xl text-sm font-medium transition-all duration-200"
+              class="flex items-center rounded-xl text-sm font-medium transition-colors"
               :title="tab.label"
               :class="tabClasses(tab)"
             >
               <span class="material-symbols-outlined shrink-0" :class="isExpanded ? 'text-[18px]' : 'text-[20px]'">
                 {{ tabIcon(tab.key) }}
               </span>
-              <span class="truncate" :class="isExpanded ? 'md:inline' : 'md:hidden'">{{ tab.label }}</span>
+              <span class="truncate" :class="isExpanded ? 'pc:inline' : 'pc:hidden'">{{ tab.label }}</span>
             </router-link>
           </div>
         </div>
@@ -280,24 +280,25 @@ onBeforeUnmount(() => {
               v-for="tab in privilegedTabs"
               :key="tab.path"
               :to="tab.path"
-              class="flex items-center rounded-xl text-sm font-medium transition-all duration-200"
+              class="flex items-center rounded-xl text-sm font-medium transition-colors"
               :title="tab.label"
               :class="tabClasses(tab)"
             >
               <span class="material-symbols-outlined shrink-0" :class="isExpanded ? 'text-[18px]' : 'text-[20px]'">
                 {{ tabIcon(tab.key) }}
               </span>
-              <span class="truncate" :class="isExpanded ? 'md:inline' : 'md:hidden'">{{ tab.label }}</span>
+              <span class="truncate" :class="isExpanded ? 'pc:inline' : 'pc:hidden'">{{ tab.label }}</span>
             </router-link>
           </div>
         </div>
       </nav>
 
-      <div class="border-t border-slate-200 p-4" :class="isExpanded ? 'md:block' : 'md:hidden'">
+      <div class="border-t border-slate-200 p-4" :class="isExpanded ? 'pc:block' : 'pc:hidden'">
         <div ref="userMenuRef" class="relative">
           <button
             type="button"
-            class="flex w-full items-center gap-3 rounded-lg p-2 transition-colors hover:bg-slate-50"
+            class="flex w-full items-center gap-3 rounded-2xl border p-2.5 transition-colors"
+            :class="userMenuOpen ? 'border-slate-200 bg-white' : 'border-transparent bg-slate-50/70 hover:border-slate-200 hover:bg-white'"
             @click.stop="toggleUserMenu"
           >
             <div class="inline-flex size-10 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
@@ -307,14 +308,14 @@ onBeforeUnmount(() => {
               <p class="truncate text-sm font-semibold text-slate-900">{{ userName }}</p>
               <p class="truncate text-xs text-slate-500">{{ userRoleLabel }}</p>
             </div>
-            <span class="material-symbols-outlined text-[20px] text-slate-500 transition-transform duration-200" :class="userMenuOpen ? 'rotate-180' : ''">
+            <span class="material-symbols-outlined text-[20px] text-slate-500" :class="userMenuOpen ? 'rotate-180' : ''">
               expand_more
             </span>
           </button>
 
           <div
             v-if="userMenuOpen"
-            class="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-slate-200 bg-white p-2 shadow-lg"
+            class="absolute bottom-full left-0 right-0 mb-2 rounded-2xl border border-slate-200 bg-white p-2.5"
             @click.stop
           >
             <button
@@ -327,7 +328,7 @@ onBeforeUnmount(() => {
             </button>
             <button
               type="button"
-              class="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100"
+              class="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-slate-50"
               @click="handleLogout"
             >
               Đăng xuất
@@ -336,8 +337,8 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="hidden mt-auto border-t border-slate-200 px-2 py-4 md:justify-center" :class="isExpanded ? 'md:hidden' : 'md:flex'">
-        <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-slate-100">
+      <div class="hidden mt-auto border-t border-slate-200 px-2 py-4 pc:justify-center" :class="isExpanded ? 'pc:hidden' : 'pc:flex'">
+        <div class="flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
           <div class="inline-flex size-9 items-center justify-center rounded-full bg-slate-200 text-xl font-semibold text-slate-700">
             {{ userMonogram }}
           </div>
@@ -349,6 +350,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .stitch-shell {
-  font-family: 'Montserrat', sans-serif;
+  font-family: var(--font-ui);
 }
 </style>

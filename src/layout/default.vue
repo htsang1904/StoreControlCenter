@@ -1,36 +1,23 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { useApp } from '@/plugins/app'
+import { useResponsive } from '@/composables/useResponsive'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
 
 useApp()
-const DRAWER_BREAKPOINT = 1024
 const route = useRoute()
+const { isPcViewport } = useResponsive()
 
 const desktopSidebarOpen = ref(true)
-const drawerMode = ref(false)
 const drawerOpen = ref(false)
-const mainClass = 'px-2 pt-20 pb-6 sm:px-4 md:px-3 md:pt-[5rem] md:pb-8'
-const shouldOffsetLayout = computed(() => !drawerMode.value)
-const effectiveDesktopSidebarOpen = computed(() => (shouldOffsetLayout.value ? desktopSidebarOpen.value : false))
-
-const syncDesktopSidebarViewport = () => {
-  if (typeof window === 'undefined') return
-  const nextDrawerMode = window.innerWidth <= DRAWER_BREAKPOINT
-
-  if (drawerMode.value !== nextDrawerMode) {
-    drawerMode.value = nextDrawerMode
-  }
-
-  if (nextDrawerMode) {
-    drawerOpen.value = false
-  }
-}
+const drawerMode = computed(() => !isPcViewport.value)
+const shouldOffsetLayout = computed(() => isPcViewport.value)
+const effectiveDesktopSidebarOpen = computed(() => (isPcViewport.value ? desktopSidebarOpen.value : false))
 
 const toggleDesktopSidebar = () => {
-  if (drawerMode.value) {
+  if (!isPcViewport.value) {
     drawerOpen.value = !drawerOpen.value
     return
   }
@@ -39,18 +26,9 @@ const toggleDesktopSidebar = () => {
 }
 
 const closeSidebarDrawer = () => {
-  if (!drawerMode.value || !drawerOpen.value) return
+  if (isPcViewport.value || !drawerOpen.value) return
   drawerOpen.value = false
 }
-
-onMounted(() => {
-  syncDesktopSidebarViewport()
-  window.addEventListener('resize', syncDesktopSidebarViewport)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', syncDesktopSidebarViewport)
-})
 
 watch(
   () => route.fullPath,
@@ -58,10 +36,18 @@ watch(
     closeSidebarDrawer()
   }
 )
+
+watch(
+  () => isPcViewport.value,
+  () => {
+    drawerOpen.value = false
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
-  <div class="app-shell bg-[#f6f7f8]">
+  <div class="app-shell h-dvh overflow-hidden bg-[#f6f7f8]">
     <Sidebar
       :desktop-open="desktopSidebarOpen"
       :drawer-mode="drawerMode"
@@ -71,8 +57,8 @@ watch(
     />
 
     <div
-      class="min-h-dvh transition-[padding] duration-300 ease-in-out"
-      :class="shouldOffsetLayout ? (effectiveDesktopSidebarOpen ? 'md:pl-64' : 'md:pl-20') : ''"
+      class="flex h-full min-h-0 flex-col transition-[padding] duration-300 ease-in-out"
+      :class="shouldOffsetLayout ? (effectiveDesktopSidebarOpen ? 'pc:pl-64' : 'pc:pl-20') : ''"
     >
       <Header
         :desktop-open="effectiveDesktopSidebarOpen"
@@ -80,7 +66,7 @@ watch(
         @open-sidebar="toggleDesktopSidebar"
       />
 
-      <main :class="mainClass">
+      <main class="min-h-0 flex-1 overflow-auto">
         <RouterView />
       </main>
     </div>

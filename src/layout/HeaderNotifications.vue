@@ -179,19 +179,19 @@ onBeforeUnmount(() => {
       aria-label="Thông báo"
       @click="handleToggleNotification"
     >
-      <span v-if="unreadCount > 0" class="absolute right-1.5 top-1.5 inline-flex size-2.5 rounded-full border border-white bg-rose-500"></span>
+      <span v-if="unreadCount > 0" class="absolute right-1.5 top-1.5 inline-flex size-2.5 rounded-full border border-white bg-slate-900"></span>
       <span class="material-symbols-outlined text-[20px]">notifications</span>
     </button>
 
     <div
       v-if="notificationOpen"
-      class="absolute right-0 top-full mt-2 z-[70] w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white shadow-lg"
+      class="absolute right-0 top-full mt-2 z-[70] w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white"
     >
       <div class="flex items-center justify-between border-b border-slate-100 px-3 py-2">
         <p class="text-sm font-semibold text-slate-800">Thông báo</p>
         <button
           type="button"
-          class="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          class="text-xs font-semibold text-slate-600 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="markingAllRead || unreadCount === 0"
           @click="handleMarkAllRead"
         >
@@ -200,19 +200,19 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="max-h-96 overflow-y-auto p-1.5">
-        <p v-if="notificationLoading" class="px-2 py-3 text-xs text-slate-500">Đang tải thông báo...</p>
-        <p v-else-if="!notifications.length" class="px-2 py-3 text-xs text-slate-500">Hiện chưa có thông báo nào.</p>
+        <p v-if="notificationLoading" class="app-state-inline">Đang tải thông báo...</p>
+        <p v-else-if="!notifications.length" class="app-state-inline">Hiện chưa có thông báo nào.</p>
         <button
           v-for="item in notifications"
           :key="item.id"
           type="button"
           class="mb-1 w-full rounded-lg border px-2.5 py-2 text-left transition-colors hover:bg-slate-50"
-          :class="item.is_read ? 'border-transparent' : 'border-blue-100 bg-blue-50/60'"
+          :class="item.is_read ? 'border-transparent' : 'border-slate-200 bg-slate-50'"
           @click="handleOpenNotification(item)"
         >
           <div class="flex items-start justify-between gap-2">
             <p class="text-sm font-semibold text-slate-800">{{ item.title || 'Thông báo' }}</p>
-            <span v-if="!item.is_read" class="mt-1 inline-flex size-2 rounded-full bg-blue-500"></span>
+            <span v-if="!item.is_read" class="mt-1 inline-flex size-2 rounded-full bg-slate-900"></span>
           </div>
           <p class="mt-1 line-clamp-2 text-xs text-slate-600">{{ item.message }}</p>
           <p class="mt-1 text-[11px] text-slate-400">{{ formatNotificationTime(item.createdAt) }}</p>

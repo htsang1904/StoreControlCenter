@@ -5,13 +5,26 @@ const OPEN_TICKET_STATUSES = ['new', 'assigned', 'in_progress'];
 const getRole = (user) => String(user?.role || '').toLowerCase();
 const isAdmin = (user) => getRole(user) === 'admin';
 const getRequesterId = (ticket) => Number(ticket?.requester?.id || ticket?.requester_id || 0);
-const getHandlerId = (ticket) => Number(ticket?.handler?.id || ticket?.handler_id || 0);
+const getTicketAssigneeEntries = (ticket) => {
+  if (Array.isArray(ticket?.assignees) && ticket.assignees.length) {
+    return ticket.assignees.filter(Boolean);
+  }
+
+  if (ticket?.handler?.id) {
+    return [ticket.handler];
+  }
+
+  const handlerId = Number(ticket?.handler_id || 0);
+  if (Number.isInteger(handlerId) && handlerId > 0) {
+    return [{ id: handlerId }];
+  }
+
+  return [];
+};
 const getTicketAssigneeIds = (ticket) => (
-  Array.isArray(ticket?.assignees)
-    ? ticket.assignees
-      .map((item) => Number(item?.id || item))
-      .filter((item) => Number.isInteger(item) && item > 0)
-    : []
+  getTicketAssigneeEntries(ticket)
+    .map((item) => Number(item?.id || item))
+    .filter((item) => Number.isInteger(item) && item > 0)
 );
 const getTicketStoreId = (ticket) => Number(ticket?.store_id || 0);
 const getTicketDepartmentId = (ticket) => Number(ticket?.responsible_department?.id || ticket?.responsible_department || 0);
@@ -90,9 +103,9 @@ module.exports = {
   canManageTicket,
   canReplyOnTicket,
   canViewTicket,
-  getHandlerId,
   getRequesterId,
   getRole,
+  getTicketAssigneeEntries,
   getTicketAssigneeIds,
   getTicketDepartmentId,
   getTicketStoreId,

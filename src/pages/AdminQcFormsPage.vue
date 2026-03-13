@@ -64,11 +64,11 @@ const statusLabel = (status, hasLatestVersion = true) => {
 }
 
 const statusClass = (status, hasLatestVersion = true) => {
-  if (!hasLatestVersion) return 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
+  if (!hasLatestVersion) return 'app-badge--neutral'
   const normalized = String(status || '').toLowerCase()
-  if (normalized === 'published') return 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
-  if (normalized === 'archived') return 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200'
-  return 'bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200'
+  if (normalized === 'published') return 'app-badge--success'
+  if (normalized === 'archived') return 'app-badge--neutral'
+  return 'app-badge--warning'
 }
 
 const loadQcForms = async (page = currentPage.value) => {
@@ -147,9 +147,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-4">
+  <div class="page-stack space-y-4">
+    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
+      <div class="flex flex-col gap-4 tablet:flex-row tablet:items-center tablet:justify-between">
         <div class="max-w-3xl">
           <h2 class="text-xl font-semibold tracking-tight text-slate-900">Quản lý biểu mẫu QC</h2>
           <p class="mt-2 text-sm leading-6 text-slate-500">
@@ -159,7 +159,7 @@ onBeforeUnmount(() => {
 
         <button
           type="button"
-          class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+          class="inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
           @click="openCreatePage"
         >
           Tạo biểu mẫu
@@ -167,8 +167,8 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div class="border-b border-slate-200 px-5 py-4">
+    <section class="rounded-xl border border-slate-200 bg-white">
+      <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
         <h3 class="text-base font-semibold text-slate-900">Danh sách biểu mẫu QC</h3>
         <p class="mt-1 text-sm text-slate-500">
           Bấm vào từng dòng để mở trang chi tiết biểu mẫu.
@@ -176,11 +176,90 @@ onBeforeUnmount(() => {
         </p>
       </div>
 
-      <p v-if="formsError" class="border-b border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+      <p v-if="formsError" class="app-state-banner m-4 mb-0">
         {{ formsError }}
       </p>
 
-      <div class="overflow-x-auto">
+      <div class="pc:hidden">
+        <div v-if="qcForms.length" class="divide-y divide-slate-100">
+          <article
+            v-for="form in qcForms"
+            :key="form.id"
+            class="px-4 py-4 tablet:px-5"
+          >
+            <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
+              <div class="min-w-0 flex-1">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">{{ form.code }}</p>
+                <button
+                  type="button"
+                  class="mt-2 block text-left"
+                  @click="openFormDetail(form.id)"
+                >
+                  <p class="text-base font-semibold text-slate-900 transition-colors hover:text-slate-700">
+                    {{ form.name }}
+                  </p>
+                </button>
+                <p class="mt-1 text-sm leading-6 text-slate-500">
+                  {{ form.description || 'Không có mô tả' }}
+                </p>
+              </div>
+
+              <span
+                class="app-badge inline-flex w-fit items-center rounded-lg px-2.5 py-1 text-xs font-semibold"
+                :class="statusClass(form.latestVersionStatus, form.hasLatestVersion)"
+              >
+                {{ statusLabel(form.latestVersionStatus, form.hasLatestVersion) }}
+              </span>
+            </div>
+
+            <div class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Version mới nhất</p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">{{ form.latestVersionNo || '--' }}</p>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Cập nhật</p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">{{ formatDisplayDate(form.updatedAt) }}</p>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-col gap-2 tablet:flex-row">
+              <button
+                type="button"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:flex-1"
+                @click="openFormDetail(form.id)"
+              >
+                <span class="material-symbols-outlined text-[18px] text-slate-400">visibility</span>
+                Xem chi tiết
+              </button>
+
+              <button
+                type="button"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 tablet:flex-1"
+                @click="openEditPage(form.id)"
+              >
+                <span class="material-symbols-outlined text-[18px]">edit</span>
+                Chỉnh sửa
+              </button>
+            </div>
+          </article>
+        </div>
+
+        <div v-else class="px-4 py-10 tablet:px-5">
+          <div class="app-state-panel app-state-panel--compact">
+            <div class="app-state-stack mx-auto">
+              <div class="app-state-icon mx-auto">
+                <span class="material-symbols-outlined text-[24px]">{{ loadingForms ? 'inventory_2' : 'inventory_2' }}</span>
+              </div>
+              <p class="app-state-title">{{ loadingForms ? 'Đang tải danh sách biểu mẫu...' : 'Chưa có biểu mẫu QC nào.' }}</p>
+              <p class="app-state-body">{{ loadingForms ? 'Danh sách biểu mẫu sẽ xuất hiện sau khi tải xong.' : 'Tạo biểu mẫu mới để bắt đầu xây dựng checklist QC cho hệ thống.' }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hidden overflow-x-auto pc:block">
         <table class="min-w-[920px] w-full border-collapse text-left">
           <thead>
             <tr class="bg-slate-50">
@@ -207,7 +286,7 @@ onBeforeUnmount(() => {
               </td>
               <td class="px-4 py-3 text-sm text-slate-600">{{ form.latestVersionNo || '--' }}</td>
               <td class="px-4 py-3">
-                <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.latestVersionStatus, form.hasLatestVersion)">
+                <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.latestVersionStatus, form.hasLatestVersion)">
                   {{ statusLabel(form.latestVersionStatus, form.hasLatestVersion) }}
                 </span>
               </td>
@@ -226,7 +305,7 @@ onBeforeUnmount(() => {
 
                   <div
                     v-if="activeActionMenuId === form.id"
-                    class="absolute right-0 top-full z-20 mt-2 min-w-36 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+                    class="absolute right-0 top-full z-20 mt-2 min-w-36 overflow-hidden rounded-xl border border-slate-200 bg-white py-1"
                   >
                     <button
                       type="button"
@@ -238,10 +317,10 @@ onBeforeUnmount(() => {
                     </button>
                     <button
                       type="button"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-blue-700 transition-colors hover:bg-blue-50"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
                       @click.stop="openEditPage(form.id)"
                     >
-                      <span class="material-symbols-outlined text-[18px] text-blue-500">edit</span>
+                      <span class="material-symbols-outlined text-[18px] text-slate-400">edit</span>
                       Chỉnh sửa
                     </button>
                   </div>
@@ -252,15 +331,23 @@ onBeforeUnmount(() => {
 
           <tbody v-else>
             <tr>
-              <td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">
-                {{ loadingForms ? 'Đang tải danh sách biểu mẫu...' : 'Chưa có biểu mẫu QC nào.' }}
+              <td colspan="6" class="px-4 py-10">
+                <div class="app-state-panel app-state-panel--compact">
+                  <div class="app-state-stack mx-auto">
+                    <div class="app-state-icon mx-auto">
+                      <span class="material-symbols-outlined text-[24px]">inventory_2</span>
+                    </div>
+                    <p class="app-state-title">{{ loadingForms ? 'Đang tải danh sách biểu mẫu...' : 'Chưa có biểu mẫu QC nào.' }}</p>
+                    <p class="app-state-body">{{ loadingForms ? 'Danh sách biểu mẫu sẽ xuất hiện sau khi tải xong.' : 'Tạo biểu mẫu mới để bắt đầu xây dựng checklist QC cho hệ thống.' }}</p>
+                  </div>
+                </div>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3">
+      <div class="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3 tablet:flex-row tablet:items-center tablet:justify-between">
         <p class="text-sm text-slate-500">
           Hiển thị
           <span class="font-semibold text-slate-800">{{ rangeStart }}-{{ rangeEnd }}</span>
@@ -269,7 +356,7 @@ onBeforeUnmount(() => {
           kết quả
         </p>
 
-        <div class="flex items-center gap-1">
+        <div class="flex max-w-full items-center justify-between gap-3 tablet:justify-end">
           <button
             type="button"
             class="inline-flex size-8 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-50"
@@ -281,19 +368,21 @@ onBeforeUnmount(() => {
             </svg>
           </button>
 
-          <template v-for="item in visiblePageItems" :key="String(item)">
-            <button
-              v-if="typeof item === 'number'"
-              type="button"
-              class="inline-flex size-8 items-center justify-center rounded-lg text-xs font-semibold transition-colors"
-              :class="item === currentPage ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'"
-              :disabled="item === currentPage || loadingForms"
-              @click="goToPage(item)"
-            >
-              {{ item }}
-            </button>
-            <span v-else class="px-1 text-xs text-slate-400">...</span>
-          </template>
+          <div class="flex min-w-0 items-center gap-1 overflow-x-auto py-1">
+            <template v-for="item in visiblePageItems" :key="String(item)">
+              <button
+                v-if="typeof item === 'number'"
+                type="button"
+                class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold transition-colors"
+                :class="item === currentPage ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-200'"
+                :disabled="item === currentPage || loadingForms"
+                @click="goToPage(item)"
+              >
+                {{ item }}
+              </button>
+              <span v-else class="px-1 text-xs text-slate-400">...</span>
+            </template>
+          </div>
 
           <button
             type="button"

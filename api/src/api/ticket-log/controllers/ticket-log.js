@@ -42,10 +42,11 @@ module.exports = createCoreController('api::ticket-log.ticket-log', ({ strapi })
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'store_id', 'requester_id', 'ticket_code', 'status'],
+      fields: ['id', 'store_id', 'requester_id', 'ticket_code', 'status', 'handler_id'],
       populate: {
         requester: { fields: ['id'] },
         assignees: { fields: ['id'] },
+        handler: { fields: ['id'] },
         responsible_department: { fields: ['id'] },
       },
     });
@@ -116,10 +117,11 @@ module.exports = createCoreController('api::ticket-log.ticket-log', ({ strapi })
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'store_id', 'requester_id'],
+      fields: ['id', 'store_id', 'requester_id', 'handler_id'],
       populate: {
         requester: { fields: ['id'] },
         assignees: { fields: ['id'] },
+        handler: { fields: ['id'] },
         responsible_department: { fields: ['id'] },
       },
     });

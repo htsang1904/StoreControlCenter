@@ -69,7 +69,7 @@ const cardToneClass = computed(() => {
 const statusBadgeClass = computed(() => {
   if (currentStatus.value === 'pass') return 'bg-emerald-600 text-white'
   if (currentStatus.value === 'fail') return 'bg-rose-600 text-white'
-  if (currentStatus.value === 'na') return 'bg-guta-blue text-white'
+  if (currentStatus.value === 'na') return 'bg-slate-200 text-slate-700'
   return 'bg-slate-100 text-slate-600'
 })
 
@@ -128,11 +128,11 @@ const detailToggleLabel = computed(() => (
 
 const sectionHeaderClass = computed(() => {
   if (props.level === 1) {
-    return 'rounded-2xl border border-blue-100 bg-blue-50/80 px-4 py-4'
+    return 'rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4'
   }
 
   if (props.level === 2) {
-    return 'rounded-xl border border-blue-100/80 bg-blue-50/55 px-4 py-3'
+    return 'rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3'
   }
 
   return 'rounded-xl border border-slate-200 bg-slate-50 px-3 py-3'
@@ -140,7 +140,7 @@ const sectionHeaderClass = computed(() => {
 
 const sectionTagClass = computed(() => {
   if (props.level <= 2) {
-    return 'bg-white text-guta-blue'
+    return 'bg-white text-slate-600'
   }
 
   return 'bg-slate-100 text-slate-600'
@@ -153,8 +153,8 @@ const sectionTitleClass = computed(() => {
 })
 
 const sectionChildrenLaneClass = computed(() => {
-  if (props.level === 1) return 'ml-5 space-y-1 border-l-2 border-blue-100 pl-5'
-  return 'ml-4 space-y-1 border-l border-blue-100 pl-4'
+  if (props.level === 1) return 'ml-5 space-y-1 border-l-2 border-slate-200 pl-5'
+  return 'ml-4 space-y-1 border-l border-slate-200 pl-4'
 })
 
 const collectLeafCriteria = (criterion) => {
@@ -264,7 +264,7 @@ const toggleDetails = () => {
           </div>
         </div>
 
-        <div v-if="sectionSummary" class="hidden shrink-0 items-center gap-2 md:flex">
+        <div v-if="sectionSummary" class="hidden shrink-0 items-center gap-2 tablet:flex">
           <span class="text-[11px] text-slate-500">
             {{ sectionSummary.completed }}/{{ sectionSummary.total }} hoàn tất
           </span>
@@ -312,7 +312,7 @@ const toggleDetails = () => {
       :id="criterionDomId"
       :class="['scroll-mt-24 border-b bg-white py-4 last:border-b-0 transition-colors', cardToneClass]"
     >
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div class="flex flex-col gap-3 pc:flex-row pc:items-start pc:justify-between">
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
             <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
@@ -334,7 +334,7 @@ const toggleDetails = () => {
           </p>
         </div>
 
-        <div class="w-full lg:min-w-[280px] lg:max-w-[320px]">
+        <div class="w-full pc:min-w-[280px] pc:max-w-[320px]">
           <div v-if="criterion.mode === 'pass_fail'" class="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -355,7 +355,7 @@ const toggleDetails = () => {
           </div>
 
           <div v-else class="space-y-3">
-            <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 transition focus-within:border-blue-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-50/90">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 transition focus-within:border-slate-300 focus-within:bg-white">
               <div class="flex items-center gap-3">
                 <input
                   type="number"
@@ -381,7 +381,7 @@ const toggleDetails = () => {
               <div class="h-2 overflow-hidden rounded-full bg-slate-200">
                 <div
                   class="h-full rounded-full transition-all duration-200"
-                  :class="currentStatus === 'fail' ? 'bg-rose-500' : currentStatus === 'pass' ? 'bg-emerald-500' : 'bg-blue-500'"
+                  :class="currentStatus === 'fail' ? 'bg-rose-500' : currentStatus === 'pass' ? 'bg-emerald-500' : 'bg-slate-400'"
                   :style="{ width: `${scorePercent}%` }"
                 ></div>
               </div>
@@ -426,7 +426,7 @@ const toggleDetails = () => {
           </button>
         </div>
 
-        <div v-if="detailsVisible" class="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+        <div v-if="detailsVisible" class="mt-3 grid gap-4 pc:grid-cols-[minmax(0,1fr)_220px]">
           <div>
             <label class="block text-xs font-medium text-slate-500">Nhận xét</label>
             <textarea
@@ -464,7 +464,7 @@ const toggleDetails = () => {
 
               <label
                 v-if="state.attachments.length < maxAttachments"
-                class="cursor-pointer flex h-[72px] w-[72px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white text-slate-500 transition hover:border-blue-300 hover:bg-blue-50"
+                class="cursor-pointer flex h-[72px] w-[72px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white text-slate-500 transition hover:border-slate-400 hover:bg-slate-50"
               >
                 <span class="text-lg font-semibold">+</span>
                 <span class="text-[11px] font-medium">Thêm ảnh</span>
@@ -479,10 +479,6 @@ const toggleDetails = () => {
 </template>
 
 <style scoped>
-.qc-criterion-item {
-  transition: all 0.2s ease;
-}
-
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;

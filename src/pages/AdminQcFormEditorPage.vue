@@ -154,10 +154,10 @@ const pageDescription = computed(() => (
 
 const saveDraftLabel = computed(() => (isSavingDraft.value ? 'Đang lưu nháp...' : 'Lưu nháp'))
 const publishLabel = computed(() => (isPublishing.value ? 'Đang phát hành...' : 'Phát hành'))
-const customInputClass = 'py-2.5 sm:py-3 px-4 block w-full border border-gray-200 rounded-lg bg-white text-slate-700 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:pointer-events-none disabled:bg-slate-100'
-const customTextareaClass = 'py-2 sm:py-2.5 px-3 block w-full border border-gray-200 rounded-lg bg-white text-slate-700 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:pointer-events-none disabled:bg-slate-100'
-const validationInputClass = 'border-rose-300 bg-rose-50/40 text-rose-900 placeholder:text-rose-300 focus:border-rose-500'
-const validationMessageClass = 'text-xs text-rose-600'
+const customInputClass = 'py-2.5 tablet:py-3 px-4 block w-full border border-gray-200 rounded-lg bg-white text-slate-700 tablet:text-sm focus:border-slate-400 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:pointer-events-none disabled:bg-slate-100'
+const customTextareaClass = 'py-2 tablet:py-2.5 px-3 block w-full border border-gray-200 rounded-lg bg-white text-slate-700 tablet:text-sm focus:border-slate-400 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:pointer-events-none disabled:bg-slate-100'
+const validationInputClass = 'app-input-invalid'
+const validationMessageClass = 'app-field-error'
 
 const flattenCriteriaTreeForReview = (nodes = [], path = []) => {
   return nodes.flatMap((node, index) => {
@@ -665,7 +665,7 @@ onMounted(async () => {
 
 <template>
   <div class="mx-auto max-w-6xl space-y-6">
-    <section class="flex flex-wrap items-start justify-between gap-3">
+    <section class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
       <div class="flex min-w-0 items-start gap-3">
         <button
           type="button"
@@ -677,17 +677,17 @@ onMounted(async () => {
         </button>
 
         <div class="min-w-0">
-          <h1 class="truncate text-lg font-semibold text-slate-900 sm:text-xl">
+          <h1 class="truncate text-lg font-semibold text-slate-900 tablet:text-xl">
             {{ isEditMode ? (qcForm.name || pageTitle) : pageTitle }}
           </h1>
           <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
         </div>
       </div>
 
-      <div class="shrink-0">
+      <div class="w-full tablet:w-auto tablet:shrink-0">
         <button
           type="button"
-          class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 tablet:w-auto"
           :disabled="isSaving"
           @click="submitForm('draft')"
         >
@@ -699,27 +699,33 @@ onMounted(async () => {
       </div>
     </section>
 
-    <p v-if="loadError" class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+    <p v-if="loadError" class="app-state-banner">
       {{ loadError }}
     </p>
 
-    <div v-else-if="loadingForm" class="rounded-2xl border border-slate-200 bg-white px-5 py-12 text-sm text-slate-500">
-      Đang tải biểu mẫu...
+    <div v-else-if="loadingForm" class="app-state-panel app-state-panel--center">
+      <div class="app-state-stack">
+        <div class="app-state-icon mx-auto">
+          <span class="material-symbols-outlined text-[24px]">edit_note</span>
+        </div>
+        <p class="app-state-title">Đang tải biểu mẫu...</p>
+        <p class="app-state-body">Metadata và cây tiêu chí sẽ xuất hiện sau khi hệ thống hoàn tất đồng bộ dữ liệu.</p>
+      </div>
     </div>
 
     <section v-else class="rounded-3xl border border-slate-200 bg-white">
       <div class="space-y-6 px-6 py-6">
-        <ol class="grid gap-3 md:grid-cols-3">
+        <ol class="grid gap-3 tablet:grid-cols-3">
           <li v-for="step in stepItems" :key="step.id">
             <button
               type="button"
               class="flex w-full items-start gap-3 rounded-2xl border px-4 py-4 text-left transition"
-              :class="step.isActive ? 'border-blue-200 bg-blue-50/70' : (step.isCompleted ? 'border-slate-200 bg-white hover:bg-slate-50' : 'border-slate-200 bg-white hover:bg-slate-50')"
+              :class="step.isActive ? 'border-slate-300 bg-slate-50' : (step.isCompleted ? 'border-slate-200 bg-white hover:bg-slate-50' : 'border-slate-200 bg-white hover:bg-slate-50')"
               @click="openStep(step.id)"
             >
               <span
                 class="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-                :class="step.isActive || step.isCompleted ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'"
+                :class="step.isActive || step.isCompleted ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'"
               >
                 {{ step.id }}
               </span>
@@ -734,15 +740,15 @@ onMounted(async () => {
         <div class="border-t border-slate-200 pt-6">
           <section v-if="activeStep === 1" class="space-y-6">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Bước 1</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bước 1</p>
               <h3 class="mt-2 text-lg font-semibold text-slate-900">Thiết lập biểu mẫu</h3>
               <p class="mt-2 text-sm leading-6 text-slate-500">
                 Chốt định danh và thông tin nền trước khi đi sang bước dựng cây tiêu chí.
               </p>
             </div>
 
-            <div class="grid gap-5 md:grid-cols-2">
-              <label class="space-y-2 md:col-span-1">
+            <div class="grid gap-5 tablet:grid-cols-2">
+              <label class="space-y-2 tablet:col-span-1">
                 <span class="text-sm font-semibold text-slate-700">Mã biểu mẫu</span>
                 <input
                   v-model="qcForm.code"
@@ -759,7 +765,7 @@ onMounted(async () => {
                 </p>
               </label>
 
-              <label class="space-y-2 md:col-span-1">
+              <label class="space-y-2 tablet:col-span-1">
                 <span class="text-sm font-semibold text-slate-700">Tên biểu mẫu</span>
                 <input
                   v-model="qcForm.name"
@@ -772,7 +778,7 @@ onMounted(async () => {
                 </p>
               </label>
 
-              <label class="space-y-2 md:col-span-1">
+              <label class="space-y-2 tablet:col-span-1">
                 <span class="text-sm font-semibold text-slate-700">Ngưỡng đạt (%)</span>
                 <input
                   v-model.number="qcForm.passThreshold"
@@ -787,12 +793,12 @@ onMounted(async () => {
                 </p>
               </label>
 
-              <label class="flex items-center gap-3 md:col-span-1 md:pt-8">
-                <input v-model="qcForm.isActive" type="checkbox" class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+              <label class="flex items-center gap-3 tablet:col-span-1 tablet:pt-8">
+                <input v-model="qcForm.isActive" type="checkbox" class="size-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300" />
                 <span class="text-sm font-medium text-slate-700">Kích hoạt biểu mẫu sau khi lưu</span>
               </label>
 
-              <label class="space-y-2 md:col-span-2">
+              <label class="space-y-2 tablet:col-span-2">
                 <span class="text-sm font-semibold text-slate-700">Mô tả</span>
                 <textarea
                   v-model="qcForm.description"
@@ -809,19 +815,19 @@ onMounted(async () => {
 
           <section v-else-if="activeStep === 2" class="space-y-5">
             <div class="max-w-3xl">
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Bước 2</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bước 2</p>
               <h3 class="mt-2 text-lg font-semibold text-slate-900">Dựng cây tiêu chí</h3>
             </div>
 
-            <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-              <div class="border-b border-slate-200 px-4 py-4 sm:px-5">
+            <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
+              <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
                 <p class="text-base font-semibold text-slate-900">Cấu trúc biểu mẫu</p>
               </div>
 
-              <div v-if="qcForm.criteriaTree.length" class="px-4 py-4 sm:px-5">
+              <div v-if="qcForm.criteriaTree.length" class="px-4 py-4 tablet:px-5">
                 <p
                   v-if="showStructureValidation && getStructureValidationError()"
-                  class="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600"
+                  class="app-state-banner mb-4"
                 >
                   {{ getStructureValidationError() }}
                 </p>
@@ -845,10 +851,9 @@ onMounted(async () => {
                 </div>
 
                 <div class="mt-5 border-t border-slate-200 pt-4">
-                  <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
                     <div>
                       <p class="text-sm font-semibold text-slate-900">Thêm ở cấp gốc</p>
-                      <p class="mt-1 text-sm text-slate-500">Không cần quay lại đầu danh sách để thêm mục mới.</p>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
@@ -858,29 +863,34 @@ onMounted(async () => {
                         @click="addTopLevelGroup"
                       >
                         <span class="material-symbols-outlined text-[18px]">account_tree</span>
-                        Thêm nhóm gốc
+                        Thêm nhóm
                       </button>
                       <button
                         type="button"
-                        class="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50"
+                        class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
                         @click="addTopLevelCriterion"
                       >
                         <span class="material-symbols-outlined text-[18px]">playlist_add</span>
-                        Thêm tiêu chí độc lập
+                        Thêm tiêu chí
                       </button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div v-else class="px-6 py-10 text-center">
-                <p class="text-sm font-semibold text-slate-700">Cây tiêu chí đang trống.</p>
-                <p class="mt-1 text-sm text-slate-500">
-                  Bắt đầu bằng một nhóm lớn, sau đó thêm các tiêu chí chấm điểm bên trong.
-                </p>
+              <div v-else class="px-6 py-10">
+                <div class="app-state-panel app-state-panel--compact">
+                  <div class="app-state-stack mx-auto">
+                    <div class="app-state-icon mx-auto">
+                      <span class="material-symbols-outlined text-[24px]">account_tree</span>
+                    </div>
+                    <p class="app-state-title">Cây tiêu chí đang trống.</p>
+                    <p class="app-state-body">Bắt đầu bằng một nhóm lớn, sau đó thêm các tiêu chí chấm điểm bên trong.</p>
+                  </div>
+                </div>
                 <p
                   v-if="showStructureValidation && getStructureValidationError()"
-                  class="mx-auto mt-4 max-w-xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600"
+                  class="app-state-banner mx-auto mt-4 max-w-xl"
                 >
                   {{ getStructureValidationError() }}
                 </p>
@@ -892,15 +902,15 @@ onMounted(async () => {
                     @click="addTopLevelGroup"
                   >
                     <span class="material-symbols-outlined text-[18px]">account_tree</span>
-                    Thêm nhóm gốc
+                    Thêm nhóm
                   </button>
                   <button
                     type="button"
-                    class="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50"
+                    class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
                     @click="addTopLevelCriterion"
                   >
                     <span class="material-symbols-outlined text-[18px]">playlist_add</span>
-                    Thêm tiêu chí độc lập
+                    Thêm tiêu chí
                   </button>
                 </div>
               </div>
@@ -909,19 +919,19 @@ onMounted(async () => {
 
           <section v-else class="space-y-6">
             <div class="max-w-3xl">
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Bước 3</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bước 3</p>
               <h3 class="mt-2 text-lg font-semibold text-slate-900">Rà soát và phát hành</h3>
               <p class="mt-2 text-sm leading-6 text-slate-500">
                 Kiểm tra nhanh metadata và cấu trúc cây trước khi phát hành version làm việc hiện tại.
               </p>
             </div>
 
-            <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-              <div class="border-b border-slate-200 px-4 py-4 sm:px-5">
+            <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
+              <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
                 <h4 class="text-base font-semibold text-slate-900">Thông tin chuẩn bị phát hành</h4>
               </div>
 
-              <dl class="grid gap-x-8 gap-y-5 px-4 py-4 sm:grid-cols-2 xl:grid-cols-3 sm:px-5">
+              <dl class="grid gap-x-8 gap-y-5 px-4 py-4 tablet:grid-cols-2 pc:grid-cols-3 tablet:px-5">
                 <div class="min-w-0">
                   <dt class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Mã biểu mẫu</dt>
                   <dd class="mt-2 break-words text-sm font-semibold text-slate-900">{{ String(qcForm.code || '').trim() || '--' }}</dd>
@@ -941,8 +951,8 @@ onMounted(async () => {
               </dl>
             </section>
 
-            <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-              <div class="border-b border-slate-200 px-4 py-4 sm:px-5">
+            <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
+              <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h4 class="text-base font-semibold text-slate-900">Preview cây tiêu chí</h4>
@@ -957,7 +967,7 @@ onMounted(async () => {
                 </div>
               </div>
 
-              <div class="px-4 py-4 sm:px-5">
+              <div class="px-4 py-4 tablet:px-5">
                 <div class="space-y-2.5">
                   <article
                     v-for="row in visibleReviewRows"
@@ -1009,7 +1019,7 @@ onMounted(async () => {
 
                         <div class="min-w-0 flex-1 space-y-1.5">
                           <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                            <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
                               Tiêu chí
                             </span>
                             <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
@@ -1029,16 +1039,16 @@ onMounted(async () => {
           </section>
         </div>
 
-        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-6">
+        <div class="flex flex-col gap-3 border-t border-slate-200 pt-6 tablet:flex-row tablet:items-center tablet:justify-between">
           <p class="text-sm text-slate-500">
             {{ activeStep === 1 ? 'Hoàn tất metadata trước khi dựng cây tiêu chí.' : (activeStep === 2 ? 'Chỉ node lá mới là tiêu chí chấm điểm trong phiên QC.' : 'Nếu mọi thứ đã ổn, anh có thể phát hành ngay version làm việc này.') }}
           </p>
 
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="flex w-full flex-col gap-2 tablet:w-auto tablet:flex-row tablet:flex-wrap tablet:items-center tablet:justify-end">
             <button
               v-if="activeStep > 1"
               type="button"
-              class="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
               @click="goToPreviousStep"
             >
               <span class="material-symbols-outlined text-[18px]">arrow_back</span>
@@ -1048,7 +1058,7 @@ onMounted(async () => {
             <button
               v-if="activeStep < 3"
               type="button"
-              class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+              class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
               @click="goToNextStep"
             >
               {{ activeStep === 1 ? 'Tạo cây tiêu chí' : 'Rà soát' }}
@@ -1058,7 +1068,7 @@ onMounted(async () => {
             <button
               v-else
               type="button"
-              class="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              class="inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
               :disabled="isSaving"
               @click="submitForm('published')"
             >

@@ -161,7 +161,7 @@ function dayContainerClass(day, index) {
   const atRowStart = index % 7 === 0
   const atRowEnd = index % 7 === 6
 
-  classes.push('bg-blue-100')
+  classes.push('bg-slate-100')
   if (atRowStart || !prevInRange) classes.push('rounded-l-full')
   if (atRowEnd || !nextInRange) classes.push('rounded-r-full')
 
@@ -188,13 +188,13 @@ function dayClass(day) {
   if (!day.isCurrentMonth) {
     classes.push('text-slate-300', 'border-transparent')
   } else if (isStart || isEnd) {
-    classes.push('bg-blue-600', 'border-blue-600', 'text-white', 'font-semibold')
+    classes.push('bg-slate-900', 'border-slate-900', 'text-white', 'font-semibold')
   } else if (inRange) {
     classes.push('bg-transparent', 'border-transparent', 'text-slate-700')
   } else if (day.isToday) {
-    classes.push('border-blue-200', 'text-blue-700', 'hover:border-blue-300')
+    classes.push('border-slate-300', 'text-slate-900', 'hover:border-slate-400')
   } else {
-    classes.push('border-transparent', 'text-slate-700', 'hover:border-blue-200', 'hover:text-blue-700')
+    classes.push('border-transparent', 'text-slate-700', 'hover:border-slate-300', 'hover:text-slate-900')
   }
 
   return classes.join(' ')
@@ -254,7 +254,7 @@ onBeforeUnmount(() => {
       :disabled="disabled"
       @click="togglePicker"
     >
-      <span class="max-w-[170px] truncate sm:max-w-[220px]">{{ buttonLabel }}</span>
+      <span class="max-w-[170px] truncate tablet:max-w-[220px]">{{ buttonLabel }}</span>
       <svg class="size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="m6 9 6 6 6-6" />
       </svg>
@@ -262,7 +262,7 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open"
-      class="absolute left-0 top-full z-30 mt-2 w-[18rem] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-2.5 shadow-lg"
+      class="absolute left-0 top-full z-30 mt-2 w-[18rem] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-2.5"
       :aria-labelledby="pickerId"
     >
       <div class="grid grid-cols-3 items-center gap-1.5 px-1 pb-2">
@@ -315,7 +315,7 @@ onBeforeUnmount(() => {
         </button>
         <button
           type="button"
-          class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+          class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
           @click="applyPicker"
         >
           Áp dụng

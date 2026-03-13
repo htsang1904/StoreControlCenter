@@ -7,9 +7,9 @@ const {
   canManageAssignees,
   canManageTicket,
   canViewTicket,
-  getHandlerId,
   getRequesterId,
   getRole,
+  getTicketAssigneeEntries,
   getTicketAssigneeIds,
   getTicketDepartmentId,
   getUserDepartmentId,
@@ -91,20 +91,6 @@ const normalizeAttachmentFileIds = (rawValue) => {
   return normalized;
 };
 
-const normalizeAssigneeIds = (rawValue) => {
-  if (rawValue === undefined) return null;
-  if (!Array.isArray(rawValue)) return null;
-
-  const normalized = [
-    ...new Set(
-      rawValue
-        .map((item) => Number(item))
-        .filter((item) => Number.isInteger(item) && item > 0)
-    ),
-  ];
-  return normalized;
-};
-
 const extractUploadFiles = (filesInput) => {
   if (!filesInput) return [];
 
@@ -135,6 +121,21 @@ const findStoreByBusinessId = async (strapi, storeId) => {
   return stores?.[0] || null;
 };
 
+const normalizeTicketAssigneeRelations = (ticketsInput) => {
+  const tickets = Array.isArray(ticketsInput) ? ticketsInput : [ticketsInput];
+
+  const normalized = tickets.map((ticket) => {
+    if (!ticket || typeof ticket !== 'object') return ticket;
+
+    return {
+      ...ticket,
+      assignees: getTicketAssigneeEntries(ticket),
+    };
+  });
+
+  return Array.isArray(ticketsInput) ? normalized : normalized[0];
+};
+
 const hydrateTicketUsers = async (strapi, ticketsInput) => {
   const tickets = Array.isArray(ticketsInput) ? ticketsInput : [ticketsInput];
   const missingUserIds = new Set();
@@ -152,7 +153,7 @@ const hydrateTicketUsers = async (strapi, ticketsInput) => {
   });
 
   if (!missingUserIds.size) {
-    return decorateTicketProcessingMetrics(ticketsInput);
+    return decorateTicketProcessingMetrics(normalizeTicketAssigneeRelations(ticketsInput));
   }
 
   const users = await strapi.entityService.findMany('api::user-info.user-info', {
@@ -174,7 +175,9 @@ const hydrateTicketUsers = async (strapi, ticketsInput) => {
     };
   });
 
-  return decorateTicketProcessingMetrics(Array.isArray(ticketsInput) ? hydrated : hydrated[0]);
+  return decorateTicketProcessingMetrics(
+    normalizeTicketAssigneeRelations(Array.isArray(ticketsInput) ? hydrated : hydrated[0])
+  );
 };
 
 const toIsoDate = (value) => {
@@ -819,8 +822,6 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
           requester_id: requester.id,
           store_id: storeId,
           store: linkedStore.id,
-          handler: initialHandler?.id || null,
-          handler_id: initialHandler?.id || null,
           assignees: initialHandler?.id ? [Number(initialHandler.id)] : [],
           responsible_department: responsibleDepartment.id,
           ticket_category_id: payload.ticket_category_id ? Number(payload.ticket_category_id) : null,
@@ -1009,11 +1010,11 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'requester_id', 'status', 'handler_id', 'processing_started_at', 'resolved_at'],
+      fields: ['id', 'requester_id', 'status'],
       populate: {
         requester: { fields: ['id'] },
-        handler: { fields: ['id'] },
         assignees: { fields: ['id'] },
+        handler: { fields: ['id'] },
         responsible_department: { fields: ['id'] },
       },
     });
@@ -1026,7 +1027,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       return errorResponse(ctx, 403, 'Bạn không có quyền chỉnh sửa phiếu này');
     }
 
-    const isAcceptedByDepartment = ticket.status !== 'new' || getHandlerId(ticket) > 0;
+    const isAcceptedByDepartment = ticket.status !== 'new' || getTicketAssigneeIds(ticket).length > 0;
     if (isAcceptedByDepartment) {
       return errorResponse(ctx, 400, 'Phiếu đã được bộ phận phụ trách tiếp nhận, không thể chỉnh sửa');
     }
@@ -1137,61 +1138,11 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     if (Object.prototype.hasOwnProperty.call(payload, 'assignee_ids')) {
-      const assigneeIds = normalizeAssigneeIds(payload.assignee_ids);
-      if (assigneeIds === null) {
-        return errorResponse(ctx, 400, 'assignee_ids phải là mảng số nguyên dương');
-      }
-
-      if (assigneeIds.length > 0) {
-        const users = await strapi.entityService.findMany('api::user-info.user-info', {
-          filters: { id: { $in: assigneeIds } },
-          fields: ['id', 'role'],
-          populate: {
-            department: { fields: ['id'] },
-          },
-          limit: assigneeIds.length,
-        });
-
-        if (!Array.isArray(users) || users.length !== assigneeIds.length) {
-          return errorResponse(ctx, 400, 'Có người xử lý không tồn tại');
-        }
-
-        const ticketDepartmentId = getTicketDepartmentId(ticket);
-        const invalidAssignee = users.find((member) => {
-          const memberRole = getRole(member);
-          if (memberRole !== 'handler' && memberRole !== 'admin') return true;
-          if (memberRole === 'admin') return false;
-          const memberDepartmentId = Number(member?.department?.id || 0);
-          return memberDepartmentId <= 0 || memberDepartmentId !== ticketDepartmentId;
-        });
-
-        if (invalidAssignee) {
-          return errorResponse(ctx, 400, 'Danh sách người xử lý chứa người không thuộc bộ phận phụ trách');
-        }
-      }
-
-      updateData.assignees = assigneeIds;
-      updateData.handler_id = assigneeIds[0] || null;
-      updateData.handler = assigneeIds[0] || null;
-      if (!assigneeIds.length && ticket.status === 'assigned') {
-        updateData.status = 'new';
-      }
-      if (!assigneeIds.length && ticket.status === 'in_progress') {
-        updateData.status = 'new';
-      }
-      if (assigneeIds.length && (ticket.status === 'new' || ticket.status === 'assigned')) {
-        updateData.status = 'in_progress';
-      }
-    }
-
-    if (updateData.status === 'in_progress' && !ticket.processing_started_at) {
-      updateData.processing_started_at = new Date().toISOString();
-      updateData.resolved_at = null;
-    }
-
-    if (updateData.status === 'new' && Array.isArray(updateData.assignees) && !updateData.assignees.length) {
-      updateData.processing_started_at = null;
-      updateData.resolved_at = null;
+      return errorResponse(
+        ctx,
+        400,
+        'Không hỗ trợ cập nhật assignee_ids qua endpoint chỉnh sửa ticket. Vui lòng dùng API phân công riêng.'
+      );
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -1283,6 +1234,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       populate: {
         requester: { fields: ['id'] },
         assignees: { fields: ['id'] },
+        handler: { fields: ['id'] },
         responsible_department: { fields: ['id', 'name', 'code'] },
       },
     });
@@ -1341,8 +1293,6 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       data: {
         assignees: nextAssigneeIds,
         status: normalizedStatus === 'new' ? 'in_progress' : ticket.status,
-        handler_id: currentAssigneeIds[0] || handlerId,
-        handler: currentAssigneeIds[0] || handlerId,
         processing_started_at: ticket.processing_started_at || new Date().toISOString(),
         resolved_at: null,
       },
@@ -1385,10 +1335,11 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'requester_id', 'store_id'],
+      fields: ['id', 'requester_id', 'store_id', 'handler_id'],
       populate: {
         requester: { fields: ['id'] },
         assignees: { fields: ['id', 'name', 'email', 'role'] },
+        handler: { fields: ['id', 'name', 'email', 'role'] },
         responsible_department: { fields: ['id'] },
       },
     });
@@ -1402,7 +1353,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     return successResponse('Lấy danh sách người xử lý thành công', {
-      assignees: Array.isArray(ticket.assignees) ? ticket.assignees : [],
+      assignees: getTicketAssigneeEntries(ticket),
     });
   },
 
@@ -1423,10 +1374,11 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'requester_id', 'store_id', 'status', 'processing_started_at'],
+      fields: ['id', 'requester_id', 'store_id', 'status', 'processing_started_at', 'handler_id'],
       populate: {
         requester: { fields: ['id'] },
         assignees: { fields: ['id'] },
+        handler: { fields: ['id'] },
         responsible_department: { fields: ['id'] },
       },
     });
@@ -1454,8 +1406,6 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
         ? await strapi.entityService.update('api::ticket.ticket', ticket.id, {
           data: {
             status: 'in_progress',
-            handler_id: currentAssigneeIds[0] || null,
-            handler: currentAssigneeIds[0] || null,
             processing_started_at: ticket.processing_started_at || new Date().toISOString(),
             resolved_at: null,
           },
@@ -1474,8 +1424,6 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     const assignData = {
       assignees: nextAssigneeIds,
       status: ticket.status === 'new' || ticket.status === 'assigned' ? 'in_progress' : ticket.status,
-      handler_id: nextAssigneeIds[0] || null,
-      handler: nextAssigneeIds[0] || null,
     };
     if (ticket.status === 'new' || ticket.status === 'assigned') {
       assignData.processing_started_at = ticket.processing_started_at || new Date().toISOString();
@@ -1533,10 +1481,11 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'requester_id', 'store_id', 'status', 'processing_started_at', 'resolved_at'],
+      fields: ['id', 'requester_id', 'store_id', 'status', 'processing_started_at', 'resolved_at', 'handler_id'],
       populate: {
         requester: { fields: ['id'] },
         assignees: { fields: ['id'] },
+        handler: { fields: ['id'] },
       },
     });
 
@@ -1612,10 +1561,11 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
     }
 
     const ticket = await strapi.entityService.findOne('api::ticket.ticket', ticketId, {
-      fields: ['id', 'requester_id', 'store_id', 'status'],
+      fields: ['id', 'requester_id', 'store_id', 'status', 'handler_id'],
       populate: {
         requester: { fields: ['id'] },
         assignees: { fields: ['id'] },
+        handler: { fields: ['id'] },
       },
     });
 
@@ -1766,6 +1716,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       fields: ['id', 'requester_id', 'status', 'handler_id'],
       populate: {
         requester: { fields: ['id'] },
+        assignees: { fields: ['id'] },
         handler: { fields: ['id'] },
       },
     });
@@ -1778,7 +1729,7 @@ module.exports = createCoreController('api::ticket.ticket', ({ strapi }) => ({
       return errorResponse(ctx, 403, 'Bạn không có quyền xóa phiếu này');
     }
 
-    const isAcceptedByDepartment = ticket.status !== 'new' || getHandlerId(ticket) > 0;
+    const isAcceptedByDepartment = ticket.status !== 'new' || getTicketAssigneeIds(ticket).length > 0;
     if (isAcceptedByDepartment) {
       return errorResponse(ctx, 400, 'Phiếu đã được bộ phận phụ trách tiếp nhận, không thể xóa');
     }

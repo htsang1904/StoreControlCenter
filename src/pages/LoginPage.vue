@@ -32,7 +32,7 @@ async function submitData() {
 
 <template>
   <div class="flex h-[100dvh] flex-col overflow-hidden bg-[#f6f7f8]">
-    <header class="z-50 flex w-full shrink-0 items-center justify-between border-b border-slate-200 bg-white/80 px-5 py-3.5 backdrop-blur-md md:px-6 md:py-4">
+    <header class="z-50 flex w-full shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-3.5 tablet:px-6 tablet:py-4">
       <div class="flex items-center gap-3">
         <span class="text-[#136dec]">
           <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 48">
@@ -44,11 +44,11 @@ async function submitData() {
       <span class="text-sm font-medium text-slate-500">{{ appVersion }}</span>
     </header>
 
-    <main class="flex min-h-0 flex-1 items-center justify-center p-3 md:p-6">
-      <div class="w-full max-w-[440px] rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:p-8">
-        <div class="mb-6 text-center md:mb-8">
-          <div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#136dec]/10 text-[#136dec] md:mb-6 md:h-16 md:w-16">
-            <svg class="h-8 w-8 md:h-9 md:w-9" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <main class="flex min-h-0 flex-1 items-center justify-center p-3 tablet:p-6">
+      <div class="w-full max-w-[440px] rounded-xl border border-slate-200 bg-white p-5 tablet:p-8">
+        <div class="mb-6 text-center tablet:mb-8">
+          <div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 tablet:mb-6 tablet:h-16 tablet:w-16">
+            <svg class="h-8 w-8 tablet:h-9 tablet:w-9" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 8.5 4.5 4h15L21 8.5" />
               <path d="M20 8.5v8.8A2.7 2.7 0 0 1 17.3 20H6.7A2.7 2.7 0 0 1 4 17.3V8.5" />
               <path d="M3 8.5h18" />
@@ -59,8 +59,8 @@ async function submitData() {
           <p class="text-sm text-slate-500">Truy cập vào hệ thống quản trị cửa hàng của bạn</p>
         </div>
 
-        <form class="space-y-4 md:space-y-5" @submit.prevent="submitData">
-          <p v-if="errorMessage" class="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+        <form class="space-y-4 tablet:space-y-5" @submit.prevent="submitData">
+          <p v-if="errorMessage" class="app-state-banner">
             {{ errorMessage }}
           </p>
 
@@ -70,7 +70,7 @@ async function submitData() {
               id="username"
               v-model="formData.username"
               type="text"
-              class="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3.5 text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#136dec] focus:ring-2 focus:ring-[#136dec]/20"
+              class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 text-slate-900 outline-none transition-all"
               placeholder="Nhập tên đăng nhập của bạn"
               autocomplete="username"
             />
@@ -79,14 +79,14 @@ async function submitData() {
           <div class="space-y-2">
             <div class="ml-1 flex items-center justify-between">
               <label for="password" class="text-sm font-semibold text-slate-700">Mật khẩu</label>
-              <a href="#" class="text-xs font-medium text-[#136dec] hover:underline">Quên mật khẩu?</a>
+              <a href="#" class="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline">Quên mật khẩu?</a>
             </div>
             <div class="relative">
               <input
                 id="password"
                 v-model="formData.password"
                 :type="showPassword ? 'text' : 'password'"
-                class="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3.5 pr-12 text-slate-900 placeholder:text-slate-400 outline-none transition-all focus:border-[#136dec] focus:ring-2 focus:ring-[#136dec]/20"
+                class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 pr-12 text-slate-900 outline-none transition-all"
                 placeholder="••••••••"
                 autocomplete="current-password"
               />
@@ -113,7 +113,7 @@ async function submitData() {
           <div class="pt-1">
             <button
               type="submit"
-              class="group flex w-full items-center justify-center gap-2 rounded-lg bg-[#136dec] py-3.5 font-bold text-white shadow-md shadow-[#136dec]/20 transition-all hover:bg-[#136dec]/90 disabled:cursor-not-allowed disabled:opacity-70"
+              class="app-button-primary group flex w-full items-center justify-center gap-2 rounded-lg py-3.5 font-bold disabled:cursor-not-allowed disabled:opacity-70"
               :disabled="loading"
             >
               <span v-if="loading" class="inline-block size-5 animate-spin rounded-full border-2 border-white border-t-transparent" role="status" aria-label="Đang tải"></span>
@@ -128,10 +128,10 @@ async function submitData() {
           </div>
         </form>
 
-        <div class="mt-6 border-t border-slate-100 pt-5 text-center md:mt-8 md:pt-6">
-          <p class="mb-3 text-xs uppercase tracking-widest text-slate-400 md:mb-4">Hỗ trợ kỹ thuật</p>
+        <div class="mt-6 border-t border-slate-100 pt-5 text-center tablet:mt-8 tablet:pt-6">
+          <p class="mb-3 text-xs uppercase tracking-widest text-slate-400 tablet:mb-4">Hỗ trợ kỹ thuật</p>
           <div class="flex justify-center gap-6">
-            <a href="#" class="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-[#136dec]">
+            <a href="#" class="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-slate-700">
               <svg class="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10" />
                 <path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4" />
@@ -139,7 +139,7 @@ async function submitData() {
               </svg>
               <span class="text-sm font-medium">Trung tâm trợ giúp</span>
             </a>
-            <a href="#" class="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-[#136dec]">
+            <a href="#" class="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-slate-700">
               <svg class="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
@@ -150,7 +150,7 @@ async function submitData() {
       </div>
     </main>
 
-    <footer class="w-full shrink-0 py-3 text-center text-xs text-slate-400 md:py-4">
+    <footer class="w-full shrink-0 py-3 text-center text-xs text-slate-400 tablet:py-4">
       <p>© 2023 Trung tâm Điều hành Cửa hàng. Tất cả quyền được bảo lưu.</p>
     </footer>
   </div>

@@ -164,9 +164,9 @@ watch(
               "placeholder": "Chọn biểu mẫu QC",
               "toggleTag": "<button type=\"button\" aria-expanded=\"false\"></button>",
               "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-10 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-xl border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden",
-              "dropdownClasses": "mt-2 z-[80] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-xl overflow-hidden overflow-y-auto shadow-lg",
+              "dropdownClasses": "mt-2 z-[80] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-xl overflow-hidden overflow-y-auto",
               "optionClasses": "py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg focus:outline-hidden",
-              "optionTemplate": "<div class=\"flex justify-between items-center w-full gap-3\"><span data-title class=\"truncate\"></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-blue-600\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
+              "optionTemplate": "<div class=\"flex justify-between items-center w-full gap-3\"><span data-title class=\"truncate\"></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-slate-900\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
               "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-slate-500\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
             }'
           >
@@ -191,7 +191,7 @@ watch(
           <input
             v-model="form.auditedAt"
             type="datetime-local"
-            class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100"
+            class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
           >
         </label>
       </section>
@@ -201,25 +201,31 @@ watch(
         <textarea
           v-model="form.note"
           rows="3"
-          class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-100"
+          class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
           placeholder="Ví dụ: kiểm tra định kỳ đầu ca, cần tập trung khu vực quầy và checklist vệ sinh."
         ></textarea>
       </label>
 
-      <div v-if="normalizedTemplates.length === 0" class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-        Chưa có biểu mẫu QC khả dụng để khởi tạo phiếu.
+      <div v-if="normalizedTemplates.length === 0" class="app-state-panel app-state-panel--compact border-dashed border-slate-300 bg-slate-50">
+        <div class="app-state-stack mx-auto">
+          <div class="app-state-icon mx-auto">
+            <span class="material-symbols-outlined text-[24px]">inventory_2</span>
+          </div>
+          <p class="app-state-title">Chưa có biểu mẫu QC khả dụng.</p>
+          <p class="app-state-body">Tạo hoặc phát hành biểu mẫu trước khi khởi tạo phiếu mới.</p>
+        </div>
       </div>
 
-      <p v-if="errorMessage" class="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
+      <p v-if="errorMessage" class="app-state-banner text-xs font-medium">
         {{ errorMessage }}
       </p>
     </div>
 
     <template #footer>
-      <div class="flex items-center justify-end gap-2">
+      <div class="flex flex-col-reverse gap-2 tablet:flex-row tablet:items-center tablet:justify-end">
         <button
           type="button"
-          class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex h-10 w-full items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
           :disabled="loading"
           @click="closeModal"
         >
@@ -227,7 +233,7 @@ watch(
         </button>
         <button
           type="button"
-          class="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex h-10 w-full items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
           :disabled="!canSubmit"
           @click="submitModal"
         >
