@@ -44,12 +44,12 @@ const refreshAccessToken = async () => {
   )
 
   const data = response?.data
-  const accessToken = data?.data?.accessToken
-  if (!data?.success || !accessToken) {
+  const accessToken = data?.jwt || data?.accessToken
+  if (!accessToken) {
     throw new Error(data?.message || 'Refresh token failed')
   }
 
-  storeAuthTokens(data)
+  storeAuthTokens({ data: { accessToken: data?.jwt || data?.accessToken, refreshToken: data?.refreshToken } })
   return accessToken
 }
 
@@ -84,7 +84,10 @@ const getClient = (baseURL = API_BASE_URL) => {
   )
 
   client.interceptors.response.use(
-    (response) => response.data,
+    (response) => {
+      // With FastAPI, the data is typically flat, so we just return response.data
+      return response.data
+    },
     async (error) => {
       if (!isAppApiClient) {
         return Promise.reject(error)

@@ -1,0 +1,64 @@
+from datetime import datetime
+from typing import Optional, List, Any
+from pydantic import BaseModel, ConfigDict
+
+# Base schema reflecting both Ticket and TicketLog
+class TicketLogBase(BaseModel):
+    message: str
+    attachments: Optional[Any] = None
+    sender_type: str = "store"
+
+class TicketLogCreate(TicketLogBase):
+    pass
+
+class TicketLogResponse(TicketLogBase):
+    id: int
+    ticket_id: int
+    sender_id: Optional[int] = None
+    created_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class TicketBase(BaseModel):
+    title: str
+    description: str
+    status: str = "new"
+    type: Optional[str] = None
+    
+    store_id: int
+    responsible_department_id: int
+    ticket_category_id: Optional[int] = None
+
+class TicketCreate(TicketBase):
+    # The requester is typically the logged-in user, but if admin creates it for someone else:
+    requester_id: Optional[int] = None 
+    attachments: Optional[Any] = None
+
+class TicketUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    handler_id: Optional[int] = None
+    responsible_department_id: Optional[int] = None
+    
+class TicketResponse(TicketBase):
+    id: int
+    ticket_code: str
+    requester_id: int
+    handler_id: Optional[int] = None
+    
+    start_date: Optional[datetime] = None
+    processing_started_at: Optional[datetime] = None
+    resolved_at: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    
+    attachments: Optional[Any] = None
+    attachments_media: Optional[Any] = None
+    
+    created_at: datetime
+    updated_at: datetime
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class TicketDetailResponse(TicketResponse):
+    ticket_logs: List[TicketLogResponse] = []

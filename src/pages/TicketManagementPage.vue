@@ -98,9 +98,8 @@ watch(
           :label="card.label"
           :value="card.value"
           :meta="card.meta"
-          :meta-class="card.metaClass"
           :icon="card.icon"
-          :icon-class="card.iconClass"
+          :tone="card.tone"
         />
       </section>
 

@@ -115,37 +115,33 @@ const summaryCards = computed(() => [
     key: 'totalSessions',
     label: 'Phiên đang hiển thị',
     value: filteredSummary.value.totalSessions,
-    meta: `Toàn bộ: ${summary.value.totalSessions}`,
-    metaClass: 'bg-slate-100 text-slate-600',
+    meta: `Toàn kỳ ${summary.value.totalSessions}`,
     icon: 'fact_check',
-    iconClass: 'bg-slate-100 text-slate-600',
+    tone: 'sky',
   },
   {
     key: 'passRate',
     label: 'Tỷ lệ đạt',
     value: `${filteredSummary.value.passRate}%`,
-    meta: `Toàn kỳ: ${summary.value.passRate}%`,
-    metaClass: 'bg-emerald-50 text-emerald-700',
+    meta: `Toàn kỳ ${summary.value.passRate}%`,
     icon: 'task_alt',
-    iconClass: 'bg-emerald-100 text-emerald-600',
+    tone: 'emerald',
   },
   {
     key: 'failed',
     label: 'Cần khắc phục',
     value: filteredSummary.value.failed,
-    meta: `Toàn kỳ: ${summary.value.failed}`,
-    metaClass: 'bg-rose-50 text-rose-700',
+    meta: `Toàn kỳ ${summary.value.failed}`,
     icon: 'warning',
-    iconClass: 'bg-rose-100 text-rose-600',
+    tone: 'rose',
   },
   {
     key: 'avgScoreRate',
     label: 'Điểm TB',
     value: `${filteredSummary.value.avgScoreRate}%`,
     meta: `${filteredSummary.value.avgScore}/${filteredSummary.value.avgMaxScore} điểm`,
-    metaClass: 'bg-amber-50 text-amber-700',
     icon: 'monitoring',
-    iconClass: 'bg-amber-100 text-amber-600',
+    tone: 'amber',
   },
 ])
 
@@ -477,9 +473,8 @@ onBeforeUnmount(() => {
           :label="card.label"
           :value="card.value"
           :meta="card.meta"
-          :meta-class="card.metaClass"
           :icon="card.icon"
-          :icon-class="card.iconClass"
+          :tone="card.tone"
         />
       </section>
 

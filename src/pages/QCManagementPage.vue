@@ -356,37 +356,33 @@ const summaryCards = computed(() => [
     key: 'total_stores',
     label: 'Tổng số cửa hàng',
     value: new Intl.NumberFormat('vi-VN').format(normalizedStores.value.length),
-    meta: `Hoàn thành: ${completedRate.value.toFixed(1)}%`,
-    metaClass: 'bg-slate-100 text-slate-600',
+    meta: `Hoàn tất ${completedRate.value.toFixed(1)}%`,
     icon: 'storefront',
-    iconClass: 'bg-slate-100 text-slate-600',
+    tone: 'sky',
   },
   {
     key: 'avg_score',
     label: 'QC Score TB',
     value: avgQcScore.value.toFixed(2),
-    meta: `Toàn kỳ: ${Number(summary.value.avgScore || 0).toFixed(1)} điểm`,
-    metaClass: 'bg-slate-100 text-slate-600',
+    meta: `Toàn kỳ ${Number(summary.value.avgScore || 0).toFixed(1)}`,
     icon: 'monitoring',
-    iconClass: 'bg-slate-100 text-slate-600',
+    tone: 'teal',
   },
   {
     key: 'need_review',
     label: 'Cần kiểm tra lại',
     value: new Intl.NumberFormat('vi-VN').format(needReviewCount.value),
     meta: `${summary.value.failed} phiên lỗi`,
-    metaClass: 'bg-slate-100 text-slate-600',
     icon: 'warning',
-    iconClass: 'bg-slate-100 text-slate-600',
+    tone: 'rose',
   },
   {
     key: 'completed',
     label: 'Đã hoàn thành QC',
     value: `${completedRate.value.toFixed(1)}%`,
-    meta: `Toàn kỳ: ${Number(summary.value.passRate || 0).toFixed(1)}%`,
-    metaClass: 'bg-slate-100 text-slate-600',
+    meta: `Pass ${Number(summary.value.passRate || 0).toFixed(1)}%`,
     icon: 'task_alt',
-    iconClass: 'bg-slate-100 text-slate-600',
+    tone: 'emerald',
   },
 ])
 
@@ -539,9 +535,8 @@ onBeforeUnmount(() => {
           :label="card.label"
           :value="card.value"
           :meta="card.meta"
-          :meta-class="card.metaClass"
           :icon="card.icon"
-          :icon-class="card.iconClass"
+          :tone="card.tone"
         />
       </section>
 

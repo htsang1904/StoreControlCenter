@@ -1,5 +1,7 @@
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   label: {
     type: String,
     default: '',
@@ -24,30 +26,36 @@ defineProps({
     type: String,
     default: 'bg-slate-100 text-slate-600',
   },
+  tone: {
+    type: String,
+    default: 'neutral',
+  },
+})
+
+const toneClass = computed(() => {
+  const allowedTones = new Set(['neutral', 'sky', 'teal', 'amber', 'emerald', 'rose'])
+  return `app-metric-card--${allowedTones.has(props.tone) ? props.tone : 'neutral'}`
 })
 </script>
 
 <template>
-  <article class="rounded-xl border border-slate-200 bg-white p-4">
-    <div class="flex items-start justify-between gap-3">
+  <article class="app-metric-card h-full p-5" :class="toneClass">
+    <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">
-        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ label }}</p>
-        <p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">{{ value }}</p>
+        <p class="app-metric-card__eyebrow">{{ label }}</p>
+        <p class="mt-4 text-3xl font-semibold tracking-tight text-slate-950 tablet:text-[2rem]">{{ value }}</p>
       </div>
 
       <div
         v-if="icon"
-        class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200"
-        :class="iconClass"
+        class="app-metric-card__icon flex size-11 shrink-0 items-center justify-center rounded-[20px]"
       >
-        <span class="material-symbols-outlined text-[18px]">{{ icon }}</span>
+        <span class="material-symbols-outlined text-[20px]">{{ icon }}</span>
       </div>
     </div>
 
-    <div v-if="meta" class="mt-3">
-      <span class="app-badge inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="metaClass">
-        {{ meta }}
-      </span>
-    </div>
+    <p v-if="meta" class="app-metric-card__meta mt-5">
+      <span>{{ meta }}</span>
+    </p>
   </article>
 </template>

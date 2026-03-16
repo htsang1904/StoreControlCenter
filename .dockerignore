@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.git/
+.env
+.env.*
+*.log
+coverage/
+.DS_Store
+
+# Python related (if context ever includes them)
+python-api/venv/
+python-api/__pycache__/
+python-api/.pytest_cache/
+api/node_modules/
+api/build/
+api/.tmp/

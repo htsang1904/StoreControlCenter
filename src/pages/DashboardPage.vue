@@ -99,43 +99,65 @@ function formatRelativeTime(value) {
 }
 
 const numberFormatter = new Intl.NumberFormat('vi-VN')
+const storeTonePalette = [
+  {
+    dotClass: 'bg-sky-500',
+    railClass: 'bg-sky-100',
+    fillClass: 'bg-sky-500',
+    badgeClass: 'border border-sky-200 bg-sky-50 text-sky-700',
+  },
+  {
+    dotClass: 'bg-teal-500',
+    railClass: 'bg-teal-100',
+    fillClass: 'bg-teal-500',
+    badgeClass: 'border border-teal-200 bg-teal-50 text-teal-700',
+  },
+  {
+    dotClass: 'bg-amber-500',
+    railClass: 'bg-amber-100',
+    fillClass: 'bg-amber-500',
+    badgeClass: 'border border-amber-200 bg-amber-50 text-amber-700',
+  },
+  {
+    dotClass: 'bg-rose-500',
+    railClass: 'bg-rose-100',
+    fillClass: 'bg-rose-500',
+    badgeClass: 'border border-rose-200 bg-rose-50 text-rose-700',
+  },
+]
 
 const kpiCards = computed(() => [
   {
     key: 'total_ticket',
     label: 'Tổng Ticket',
     value: numberFormatter.format(Number(ticketSummary.value.total_ticket || 0)),
-    meta: 'Theo bộ lọc thời gian',
-    metaClass: 'bg-slate-100 text-slate-600',
+    meta: 'Trong kỳ',
     icon: 'list_alt',
-    iconClass: 'bg-slate-100 text-slate-600',
+    tone: 'sky',
   },
   {
     key: 'in_progress',
     label: 'Đang xử lý',
     value: numberFormatter.format(Number(ticketSummary.value.in_progress || 0)),
-    meta: 'Đang chờ phản hồi',
-    metaClass: 'bg-slate-100 text-slate-600',
+    meta: 'Cần theo dõi',
     icon: 'pending',
-    iconClass: 'bg-slate-100 text-slate-600',
+    tone: 'amber',
   },
   {
     key: 'qc_pass_rate',
     label: 'Tỉ lệ QC đạt',
     value: `${Number(qcSummary.value.passRate || 0)}%`,
-    meta: 'Mục tiêu quý: 95%',
-    metaClass: 'bg-slate-100 text-slate-600',
+    meta: 'Mục tiêu 95%',
     icon: 'check_circle',
-    iconClass: 'bg-slate-100 text-slate-600',
+    tone: 'emerald',
   },
   {
     key: 'overdue',
     label: 'Cảnh báo quá hạn',
     value: numberFormatter.format(Number(ticketSummary.value.overdue || 0)),
-    meta: 'Ticket quá hạn hoặc sát hạn',
-    metaClass: 'bg-slate-100 text-slate-600',
+    meta: 'Sát SLA',
     icon: 'timer',
-    iconClass: 'bg-slate-100 text-slate-600',
+    tone: 'rose',
   },
 ])
 
@@ -143,14 +165,47 @@ const topStoreStats = computed(() => {
   const storesData = Array.isArray(ticketTopStores.value) ? ticketTopStores.value : []
   const maxCount = storesData.reduce((max, item) => Math.max(max, Number(item?.count || 0)), 0)
 
-  return storesData.slice(0, 4).map((item) => {
+  return storesData.slice(0, 4).map((item, index) => {
     const count = Number(item?.count || 0)
+    const share = maxCount > 0 ? Math.round((count / maxCount) * 100) : 0
+    const palette = storeTonePalette[index % storeTonePalette.length]
     return {
       name: item?.name || `Store #${item?.store_id || '--'}`,
       count,
       percent: maxCount > 0 ? Math.max(Math.round((count / maxCount) * 100), 6) : 0,
+      shareLabel: share > 0 ? `${share}% so với nhóm dẫn đầu` : 'Chưa có phát sinh',
+      ...palette,
     }
   })
+})
+
+const qcInsight = computed(() => {
+  const passRate = Number(qcSummary.value.passRate || 0)
+
+  if (passRate >= 90) {
+    return {
+      panelClass: 'border-emerald-200 bg-emerald-50/70',
+      iconClass: 'bg-emerald-100 text-emerald-700',
+      title: 'Chất lượng QC đang ổn định',
+      body: `Tỉ lệ QC đạt hiện ở mức ${passRate}%. Có thể tiếp tục giữ nhịp kiểm tra như hiện tại và theo dõi các cửa hàng đang tăng ticket.`,
+    }
+  }
+
+  if (passRate >= 75) {
+    return {
+      panelClass: 'border-amber-200 bg-amber-50/75',
+      iconClass: 'bg-amber-100 text-amber-700',
+      title: 'Có tín hiệu cần theo dõi thêm',
+      body: `Tỉ lệ QC đạt đang là ${passRate}%. Nên rà soát nhóm cửa hàng có nhiều ticket hoặc đang có kết quả QC không ổn định.`,
+    }
+  }
+
+  return {
+    panelClass: 'border-rose-200 bg-rose-50/80',
+    iconClass: 'bg-rose-100 text-rose-700',
+    title: 'Ưu tiên siết lại chất lượng vận hành',
+    body: `Tỉ lệ QC đạt hiện chỉ còn ${passRate}%. Nên tập trung vào các cửa hàng có ticket tăng nhanh và kết quả QC dưới chuẩn.`,
+  }
 })
 
 async function loadDashboard() {
@@ -266,9 +321,8 @@ watch(
         :label="card.label"
         :value="card.value"
         :meta="card.meta"
-        :meta-class="card.metaClass"
         :icon="card.icon"
-        :icon-class="card.iconClass"
+        :tone="card.tone"
       />
     </section>
 
@@ -375,28 +429,67 @@ watch(
         </div>
       </article>
 
-      <article class="rounded-xl border border-slate-200 bg-white p-5">
-        <h3 class="mb-5 text-sm font-bold text-slate-800">Hiệu suất theo cửa hàng</h3>
+      <article class="rounded-[24px] border border-slate-200 bg-white p-5">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-medium text-slate-500">Vận hành theo cửa hàng</p>
+            <h3 class="mt-1 text-base font-semibold text-slate-900">Hiệu suất theo cửa hàng</h3>
+          </div>
+          <span class="app-badge app-badge--neutral rounded-full px-2.5 py-1 text-[11px] font-semibold">
+            Top 4 ticket
+          </span>
+        </div>
 
-        <div class="space-y-5">
-          <div v-for="store in topStoreStats" :key="store.name">
-            <div class="mb-2 flex items-center justify-between text-sm">
-              <span class="font-medium text-slate-700">{{ store.name }}</span>
-              <span class="text-slate-500">{{ store.count }} ticket</span>
+        <div v-if="topStoreStats.length" class="mt-6 space-y-4">
+          <article
+            v-for="store in topStoreStats"
+            :key="store.name"
+            class="rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="mt-0.5 size-2 shrink-0 rounded-full" :class="store.dotClass"></span>
+                  <p class="truncate text-sm font-medium text-slate-800">{{ store.name }}</p>
+                </div>
+                <p class="mt-1 text-xs text-slate-500">{{ store.shareLabel }}</p>
+              </div>
+
+              <span
+                class="inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                :class="store.badgeClass"
+              >
+                {{ store.count }} ticket
+              </span>
             </div>
-            <div class="h-2 w-full rounded-full bg-slate-100">
-              <div class="h-2 rounded-full bg-slate-900 transition-all duration-500" :style="{ width: `${store.percent}%` }"></div>
+
+            <div class="mt-3 h-2 w-full rounded-full" :class="store.railClass">
+              <div class="h-2 rounded-full transition-all duration-500" :class="store.fillClass" :style="{ width: `${store.percent}%` }"></div>
+            </div>
+          </article>
+        </div>
+
+        <div v-else-if="!loading" class="mt-6">
+          <div class="app-state-panel app-state-panel--compact">
+            <div class="app-state-stack mx-auto">
+              <div class="app-state-icon mx-auto">
+                <span class="material-symbols-outlined text-[24px]">equalizer</span>
+              </div>
+              <p class="app-state-title">Chưa có dữ liệu cửa hàng nổi bật.</p>
+              <p class="app-state-body">Khi ticket phát sinh nhiều hơn, khu vực này sẽ giúp bạn nhận ra nhóm cửa hàng cần theo dõi.</p>
             </div>
           </div>
         </div>
 
-        <div class="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <div class="flex items-start gap-2.5 text-sm text-slate-600">
-            <span class="material-symbols-outlined mt-0.5 shrink-0 text-[18px] text-slate-400">info</span>
-            <p>
-              Tỉ lệ QC đạt hiện tại là <strong>{{ qcSummary.passRate }}%</strong>.
-              {{ qcSummary.passRate < 90 ? ' Cần theo dõi các cửa hàng có kết quả thấp.' : ' Kết quả đang ở mức tích cực.' }}
-            </p>
+        <div class="mt-6 rounded-[20px] border p-4" :class="qcInsight.panelClass">
+          <div class="flex items-start gap-3">
+            <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl" :class="qcInsight.iconClass">
+              <span class="material-symbols-outlined text-[18px]">insights</span>
+            </div>
+            <div>
+              <p class="text-sm font-semibold text-slate-900">{{ qcInsight.title }}</p>
+              <p class="mt-1 text-sm leading-6 text-slate-600">{{ qcInsight.body }}</p>
+            </div>
           </div>
         </div>
       </article>

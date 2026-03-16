@@ -74,9 +74,9 @@ export const syncStoresNow = () => {
 }
 
 const normalizeAdminQcForm = (entry = {}) => {
-  const source = entry?.attributes || entry || {}
+  const source = entry || {}
   const versions = toRelationRows(source?.versions).map((item) => {
-    const version = item?.attributes || item || {}
+    const version = item || {}
     return {
       id: Number(item?.id || version?.id || 0),
       versionNo: String(version?.version_no || version?.versionNo || ''),

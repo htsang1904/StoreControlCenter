@@ -265,6 +265,86 @@ body.page-scroll-hidden::-webkit-scrollbar {
   color: #4b5563;
 }
 
+.app-metric-card {
+  --metric-border: var(--stroke);
+  --metric-icon-bg: #f5f5f7;
+  --metric-icon-border: #ececf1;
+  --metric-icon-fg: #57575c;
+  --metric-meta: var(--text-secondary);
+  overflow: hidden;
+  border: 1px solid var(--metric-border);
+  background: var(--surface);
+  border-radius: 18px;
+}
+
+.app-metric-card__eyebrow {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.app-metric-card__icon {
+  border: 1px solid var(--metric-icon-border);
+  background: var(--metric-icon-bg);
+  color: var(--metric-icon-fg);
+}
+
+.app-metric-card__meta {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--metric-meta);
+}
+
+.app-metric-card--neutral {
+  --metric-border: var(--stroke);
+  --metric-icon-bg: #f3f4f6;
+  --metric-icon-border: #ececf1;
+  --metric-icon-fg: #4b5563;
+  --metric-meta: var(--text-secondary);
+}
+
+.app-metric-card--sky {
+  --metric-border: var(--stroke);
+  --metric-icon-bg: #edf4ff;
+  --metric-icon-border: #e4eefc;
+  --metric-icon-fg: #356fd6;
+  --metric-meta: var(--text-secondary);
+}
+
+.app-metric-card--teal {
+  --metric-border: var(--stroke);
+  --metric-icon-bg: #e9f7f4;
+  --metric-icon-border: #deefea;
+  --metric-icon-fg: #167c71;
+  --metric-meta: var(--text-secondary);
+}
+
+.app-metric-card--amber {
+  --metric-border: var(--stroke);
+  --metric-icon-bg: #fff3e4;
+  --metric-icon-border: #f7e7d1;
+  --metric-icon-fg: #b86b1f;
+  --metric-meta: var(--text-secondary);
+}
+
+.app-metric-card--emerald {
+  --metric-border: var(--stroke);
+  --metric-icon-bg: #ecf8f0;
+  --metric-icon-border: #e0efe5;
+  --metric-icon-fg: #1c8b5f;
+  --metric-meta: var(--text-secondary);
+}
+
+.app-metric-card--rose {
+  --metric-border: var(--stroke);
+  --metric-icon-bg: #fff0f2;
+  --metric-icon-border: #f6e3e7;
+  --metric-icon-fg: #cf4b68;
+  --metric-meta: var(--text-secondary);
+}
+
 .app-checkbox {
   accent-color: #1d1d1f;
 }
