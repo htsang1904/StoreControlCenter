@@ -1,49 +1,49 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, ConfigDict
 
-# --- Role Schemas ---
-class RoleBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-    type: str
-
-class RoleResponse(RoleBase):
+# --- Org Response Schemas ---
+class DepartmentResponse(BaseModel):
     id: int
-    
+    name: str
+    code: str
+    model_config = ConfigDict(from_attributes=True)
+
+class StoreResponse(BaseModel):
+    id: int
+    storeId: str
+    code: Optional[str] = None
+    address: Optional[str] = None
+    shortAddress: Optional[str] = None
+    brandId: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 # --- User Schemas ---
 class UserBase(BaseModel):
-    username: str
+    name: str
     email: EmailStr
-
-class UserCreate(UserBase):
-    password: str
-    role_id: Optional[int] = None
-
-class UserUpdate(BaseModel):
-    username: Optional[str] = None
-    email: Optional[EmailStr] = None
-    password: Optional[str] = None
-    role_id: Optional[int] = None
-    blocked: Optional[bool] = None
 
 class UserResponse(UserBase):
     id: int
-    provider: str
-    confirmed: bool
-    blocked: bool
-    created_at: datetime
-    role: Optional[RoleResponse] = None
-
+    is_active: bool
+    role: str
+    department: Optional[DepartmentResponse] = None
+    department_id: Optional[int] = None
+    stores: List[StoreResponse] = []
+    store_id: Optional[str] = None # primary store
+    store_name: Optional[str] = None # primary store shortAddress
+    
     model_config = ConfigDict(from_attributes=True)
 
 # --- Auth Schemas ---
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
 class LoginRequest(BaseModel):
-    identifier: str # Email or Username just like Strapi
-    password: str
+    token: str
+    profile: dict
+    
+class RefreshRequest(BaseModel):
+    refreshToken: str
+
+class AuthTokensResponse(BaseModel):
+    tokenType: str
+    accessToken: str
+    refreshToken: str

@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "store_control_center"
     POSTGRES_PORT: str = "5432"
     
+    # External APIs
+    SUITE_API: str = "https://lab-sapi.guta.asia"
+    MAIN_STORE_SYNC_URL: str = "https://gapi.guta.asia/webapi/stores?all_stores=true"
+    
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"

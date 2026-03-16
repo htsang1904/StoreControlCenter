@@ -1,39 +1,73 @@
+import enum
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Table, Enum
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
 
-class Role(Base):
-    __tablename__ = "up_roles" # keeping Strapi-like naming convention but cleaner
+# Association Table for User <-> Store (Many-to-Many as per Strapi schema `stores` relation)
+user_stores = Table(
+    'user_stores',
+    Base.metadata,
+    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
+    Column('store_id', Integer, ForeignKey('stores.id'), primary_key=True)
+)
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), unique=True, index=True, nullable=False)
-    description = Column(String(255))
-    type = Column(String(255), unique=True) # e.g. authenticated, public
-    
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    users = relationship("User", back_populates="role")
+class UserRole(str, enum.Enum):
+    admin = "admin"
+    store = "store"
+    handler = "handler"
+    qc = "qc"
+
+from sqlalchemy.types import TypeDecorator
+
+class LowerCaseEnum(TypeDecorator):
+    """Ensures database values are lowercased before mapping to Enum."""
+    impl = Enum(UserRole, native_enum=False, length=50)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        return value.value if hasattr(value, 'value') else str(value).lower()
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return UserRole(value.lower())
 
 class User(Base):
-    __tablename__ = "up_users"
+    """
+    Unified User model replacing Strapi's split `up_users` and `user_infos` tables.
+    Matches the `UserInfo` logic from the Node.js implementation perfectly.
+    """
+    __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(255), unique=True, index=True, nullable=False)
+    name = Column(String(255))
     email = Column(String(255), unique=True, index=True, nullable=False)
-    provider = Column(String(255), default="local")
-    password = Column(String(255), nullable=False)
-    reset_password_token = Column(String(255), nullable=True)
-    confirmation_token = Column(String(255), nullable=True)
-    confirmed = Column(Boolean, default=False)
-    blocked = Column(Boolean, default=False)
+    suite_token = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=False) # Created as False by default pending admin approval
     
-    role_id = Column(Integer, ForeignKey("up_roles.id"), nullable=True)
+    refresh_token_hash = Column(String(255), nullable=True)
+    refresh_token_expires_at = Column(DateTime, nullable=True)
+    token_version = Column(Integer, default=0)
     
+    # Store enum values from Strapi: "store", "handler", "qc", "admin"
+    role = Column(LowerCaseEnum, default=UserRole.store, nullable=False)
+    
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    role = relationship("Role", back_populates="users")
-    # Will add user_info relationship later in Phase 3
+    # Relationships
+    department = relationship("Department", back_populates="users")
+    stores = relationship("Store", secondary=user_stores, back_populates="users")
+    
+    from app.models.ticket import ticket_assignees
+    assigned_tickets = relationship("Ticket", secondary=ticket_assignees, back_populates="assignees")
+    
+    from app.models.notification import Notification
+    notifications = relationship("Notification", foreign_keys="Notification.recipient_id", overlaps="recipient")

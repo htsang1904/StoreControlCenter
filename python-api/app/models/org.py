@@ -12,15 +12,15 @@ class Store(Base):
     name = Column(String(255))
     address = Column(String(255))
     shortAddress = Column(String(255))
-    storeId = Column(String(50), index=True) # Following Strapi's schema fields
+    storeId = Column(String(50), index=True)
     brandId = Column(String(50), index=True)
-    is_active = Column(Boolean, default=True) # Often good practice for soft deletes
+    is_active = Column(Boolean, default=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Needs many-to-many relationship with UserInfo if mapping `stores` relation
-    user_infos = relationship("UserInfo", secondary="user_info_stores", back_populates="stores")
+    users = relationship("User", secondary="user_stores", back_populates="stores")
+
 
 class Department(Base):
     __tablename__ = "departments"
@@ -33,5 +33,5 @@ class Department(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    users = relationship("UserInfo", back_populates="department")
+    users = relationship("User", back_populates="department")
     tickets = relationship("Ticket", back_populates="responsible_department")

@@ -12,7 +12,7 @@ class QCSession(Base):
     
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
     form_version_id = Column(Integer, ForeignKey("qc_form_versions.id"), nullable=False, index=True)
-    auditor_id = Column(Integer, ForeignKey("user_infos.id"), nullable=True, index=True)
+    auditor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     
     # Enums: "draft", "submitted", "needs_fix", "closed"
     status = Column(String(50), default="draft", nullable=False)
@@ -33,7 +33,7 @@ class QCSession(Base):
     # Relationships
     store = relationship("Store")
     form_version = relationship("QCFormVersion", back_populates="sessions")
-    auditor = relationship("UserInfo")
+    auditor = relationship("User")
     
     items = relationship("QCSessionItem", back_populates="session", cascade="all, delete-orphan")
     findings = relationship("QCFinding", back_populates="session", cascade="all, delete-orphan")
@@ -73,7 +73,7 @@ class QCDraft(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
-    auditor_id = Column(Integer, ForeignKey("user_infos.id"), nullable=True, index=True)
+    auditor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     
     template_id = Column(String(50), nullable=False) # Maps to form version or form id roughly
     audited_at = Column(DateTime, nullable=False)
@@ -84,7 +84,7 @@ class QCDraft(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     store = relationship("Store")
-    auditor = relationship("UserInfo")
+    auditor = relationship("User")
 
 class QCFinding(Base):
     __tablename__ = "qc_findings"
@@ -103,7 +103,7 @@ class QCFinding(Base):
     # Enum: "open", "in_progress", "resolved", "verified", "rejected"
     status = Column(String(50), default="open")
     
-    assignee_id = Column(Integer, ForeignKey("user_infos.id"), nullable=True, index=True)
+    assignee_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     due_date = Column(DateTime, nullable=True) # Strapi mapped to `date` but we use datetime here
     
     corrective_action = Column(Text, nullable=True)
@@ -111,7 +111,7 @@ class QCFinding(Base):
     
     resolved_at = Column(DateTime, nullable=True)
     verified_at = Column(DateTime, nullable=True)
-    verifier_id = Column(Integer, ForeignKey("user_infos.id"), nullable=True, index=True)
+    verifier_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     
     evidence = Column(JSON, nullable=True)
     meta_info = Column(JSON, nullable=True)
@@ -122,5 +122,5 @@ class QCFinding(Base):
     session = relationship("QCSession", back_populates="findings")
     session_item = relationship("QCSessionItem")
     store = relationship("Store")
-    assignee = relationship("UserInfo", foreign_keys=[assignee_id])
-    verifier = relationship("UserInfo", foreign_keys=[verifier_id])
+    assignee = relationship("User", foreign_keys=[assignee_id])
+    verifier = relationship("User", foreign_keys=[verifier_id])

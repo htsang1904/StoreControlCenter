@@ -18,14 +18,14 @@ class Notification(Base):
     read_at = Column(DateTime, nullable=True)
     meta_info = Column(JSON, nullable=True) # "meta" is often a reserved word
     
-    recipient_id = Column(Integer, ForeignKey("user_infos.id"), nullable=False, index=True)
-    actor_id = Column(Integer, ForeignKey("user_infos.id"), nullable=True, index=True)
+    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    actor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=True, index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    recipient = relationship("UserInfo", foreign_keys=[recipient_id])
-    actor = relationship("UserInfo", foreign_keys=[actor_id])
+    recipient = relationship("User", foreign_keys=[recipient_id])
+    actor = relationship("User", foreign_keys=[actor_id])
     ticket = relationship("Ticket", backref="notifications")
