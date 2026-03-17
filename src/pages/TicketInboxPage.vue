@@ -2,6 +2,8 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TicketDetailPage from '@/pages/TicketDetailPage.vue'
+import TicketCreateChat from '@/components/ticket-chat-create/TicketCreateChat.vue'
+import { useTicketCreateChat } from '@/composables/useTicketCreateChat'
 import { useTicketList } from '@/composables/useTicketList'
 import {
   avatarInitials,
@@ -21,6 +23,8 @@ const { state } = useApp()
 
 const userInfo = computed(() => state.userInfo || null)
 const mobileSidebarOpen = ref(false)
+const isCreatingTicket = ref(false)
+const chatState = useTicketCreateChat()
 
 const {
   applySearch: applySearchBase,
@@ -38,8 +42,14 @@ const {
 const selectedTicketId = computed(() => Number(route.query.ticket || 0))
 const selectedStatusValue = computed(() => filters.statuses[0] || '')
 const quickStatusOptions = computed(() => [{ value: '', label: 'Tất cả' }, ...ticketStatusOptions])
-const showSidebarPane = computed(() => !selectedTicketId.value || mobileSidebarOpen.value)
-const showDetailPane = computed(() => Boolean(selectedTicketId.value) && !mobileSidebarOpen.value)
+const showSidebarPane = computed(() => {
+  if (isCreatingTicket.value) return false
+  return !selectedTicketId.value || mobileSidebarOpen.value
+})
+const showDetailPane = computed(() => {
+  if (isCreatingTicket.value) return true
+  return Boolean(selectedTicketId.value) && !mobileSidebarOpen.value
+})
 const currentUserId = computed(() => Number(userInfo.value?.id || 0))
 const hasMoreTickets = computed(() => {
   if (!pagination.pageCount) return false
@@ -52,7 +62,23 @@ function goToManagementMode() {
 }
 
 function goToAddTicket() {
-  router.push('/ticket/add-ticket')
+  const query = { ...route.query }
+  delete query.ticket
+  router.push({ path: '/ticket/inbox', query })
+  
+  isCreatingTicket.value = true
+  chatState.resetState()
+  mobileSidebarOpen.value = false
+}
+
+function handleCloseCreateTicket() {
+  isCreatingTicket.value = false
+}
+
+function handleTicketCreatedFromChat(newTicketId) {
+  isCreatingTicket.value = false
+  openTicket(newTicketId)
+  fetchTickets()
 }
 
 function openTicket(ticketId) {
@@ -186,6 +212,7 @@ watch(
   (nextId) => {
     if (!nextId) return
     mobileSidebarOpen.value = false
+    isCreatingTicket.value = false
   }
 )
 </script>
@@ -416,7 +443,14 @@ watch(
       </aside>
 
       <div class="relative min-h-0 overflow-hidden bg-white" :class="showDetailPane ? 'flex flex-col' : 'hidden pc:flex pc:flex-col'">
-        <div v-if="selectedTicketId" class="relative border-b border-slate-200 px-3 py-2 bg-white pc:hidden">
+        <TicketCreateChat 
+          v-if="isCreatingTicket" 
+          :chat-state="chatState" 
+          @close="handleCloseCreateTicket" 
+          @ticket-created="handleTicketCreatedFromChat" 
+        />
+        <template v-else>
+          <div v-if="selectedTicketId" class="relative border-b border-slate-200 px-3 py-2 bg-white pc:hidden">
           <button
             type="button"
             class="inline-flex min-h-9 items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
@@ -450,6 +484,7 @@ watch(
             </div>
           </div>
         </div>
+        </template>
       </div>
     </section>
   </div>
