@@ -8,7 +8,7 @@ from app.schemas.org import DepartmentResponse
 
 router = APIRouter()
 
-@router.get("/", response_model=List[DepartmentResponse])
+@router.get("/", response_model=dict)
 async def read_departments(
     session: SessionDep,
     current_user: CurrentUser,
@@ -17,14 +17,18 @@ async def read_departments(
 ) -> Any:
     """Read all departments."""
     result = await session.execute(select(Department).offset(skip).limit(limit))
-    return result.scalars().all()
+    items = result.scalars().all()
+    # Manual conversion to ensure serialization through Pydantic
+    serialized_items = [DepartmentResponse.model_validate(item) for item in items]
+    return {"success": True, "data": serialized_items}
 
-@router.get("/active", response_model=List[DepartmentResponse])
+@router.get("/active", response_model=dict)
 async def read_active_departments(
     session: SessionDep,
     current_user: CurrentUser,
 ) -> Any:
     """Read all active departments."""
-    # Assuming all departments for now, could filter by an is_active flag if added to model
-    result = await session.execute(select(Department))
-    return result.scalars().all()
+    result = await session.execute(select(Department).where(Department.is_active == True))
+    items = result.scalars().all()
+    serialized_items = [DepartmentResponse.model_validate(item) for item in items]
+    return {"success": True, "data": serialized_items}

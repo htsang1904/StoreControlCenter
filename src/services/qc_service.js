@@ -461,7 +461,7 @@ const normalizeDraft = (draft = {}) => {
 }
 
 const normalizeOverviewPayloadFromApi = (payload = {}) => {
-  const rawSessions = Array.isArray(payload?.sessions) ? payload.sessions : []
+  const rawSessions = Array.isArray(payload?.data) ? payload.data : []
   const sessions = rawSessions.map((item, index) => normalizeSessionFromApi(item, index))
   const sourceSummary = payload?.summary || {}
   const totalSessions = toNumber(sourceSummary?.totalSessions, sessions.length)
@@ -521,7 +521,7 @@ export const createQcSession = async (payload = {}) => {
   }
 
   const response = await http.post('/api/qc/sessions/create', requestBody)
-  const session = response?.data?.session
+  const session = response?.data
   if (!session) {
     throw new Error('Không thể tạo phiên QC')
   }
@@ -565,7 +565,7 @@ export const listQcSessionsApi = async ({
 
   while (currentPage <= pageCount) {
     const response = await http.get(buildEndpoint(currentPage))
-    const normalized = normalizeOverviewPayloadFromApi(response?.data || {})
+    const normalized = normalizeOverviewPayloadFromApi(response || {})
 
     if (!firstPayload) {
       firstPayload = normalized
@@ -652,8 +652,8 @@ const normalizeStoreOverviewStat = (item = {}) => ({
 })
 
 const normalizeStoresOverviewResponse = (response = {}) => {
-  const payload = response?.data || {}
-  const summary = payload?.summary || {}
+  const storeStats = Array.isArray(response?.data) ? response.data : []
+  const summary = response?.summary || {}
 
   return {
     success: response?.success !== false,
@@ -668,10 +668,8 @@ const normalizeStoresOverviewResponse = (response = {}) => {
         avgScoreRate: toNumber(summary?.scoreRate ?? summary?.avgScoreRate),
         passRate: toNumber(summary?.passRate),
       },
-      storeStats: Array.isArray(payload?.storeStats)
-        ? payload.storeStats.map((item) => normalizeStoreOverviewStat(item))
-        : [],
-      pagination: payload?.pagination || {
+      storeStats: storeStats.map((item) => normalizeStoreOverviewStat(item)),
+      pagination: response?.pagination || {
         page: 1,
         pageSize: 0,
         total: 0,
@@ -687,7 +685,7 @@ const normalizeStoresOverviewResponse = (response = {}) => {
 
 export const listQcTemplates = async () => {
   const response = await http.get('/api/qc/forms')
-  const forms = Array.isArray(response?.data?.items) ? response.data.items : []
+  const forms = Array.isArray(response?.data) ? response.data : []
 
   return forms.map((form) => ({
     id: String(form.id),
@@ -700,7 +698,7 @@ export const listQcTemplates = async () => {
 
 export const getQcTemplateById = async (formId) => {
   const response = await http.get(`/api/qc/forms/${formId}`)
-  const formData = response?.data?.item
+  const formData = response?.data
   if (!formData) return null
 
   const flattened = Array.isArray(formData.criteria)
@@ -808,10 +806,10 @@ export const listQcDraftSessions = async ({ storeId, page = 1, pageSize = 100, w
 
   while (currentPage <= pageCount) {
     const response = await http.get(buildEndpoint(currentPage))
-    const rows = Array.isArray(response?.data?.drafts) ? response.data.drafts : []
+    const rows = Array.isArray(response?.data) ? response.data : []
     allRows.push(...rows)
 
-    const pagination = response?.data?.pagination || {}
+    const pagination = response?.pagination || {}
     pageCount = Math.max(toNumber(pagination?.pageCount, 1), 1)
     lastPagination = {
       page: toNumber(pagination?.page, currentPage),
@@ -836,7 +834,7 @@ export const listQcDraftSessions = async ({ storeId, page = 1, pageSize = 100, w
 export const getQcDraftSessionById = async (draftId) => {
   if (!draftId) return null
   const response = await http.get(`/api/qc/drafts/${encodeURIComponent(String(draftId))}`)
-  const draft = response?.data?.draft
+  const draft = response?.data
   if (!draft) return null
   return normalizeDraftFromApi(draft)
 }
@@ -857,7 +855,7 @@ export const createQcDraftSession = async (payload = {}) => {
   }
 
   const response = await http.post('/api/qc/drafts', requestBody)
-  const created = response?.data?.draft
+  const created = response?.data
   if (!created) {
     throw new Error('Không thể tạo phiếu nháp')
   }
@@ -884,7 +882,7 @@ export const updateQcDraftSession = async (draftId, payload = {}) => {
   })
 
   const response = await http.put(`/api/qc/drafts/${encodeURIComponent(String(draftId))}`, requestBody)
-  const updated = response?.data?.draft
+  const updated = response?.data
   if (!updated) return null
 
   return normalizeDraftFromApi(updated)
@@ -902,7 +900,7 @@ export const deleteQcDraftSession = async (draftId) => {
 
 export const createQcFinding = async (payload = {}) => {
   const response = await http.post('/api/qc/findings', payload)
-  const created = response?.data?.item
+  const created = response?.data
   return created ? normalizeFinding(created) : null
 }
 
@@ -914,14 +912,14 @@ export const listQcFindings = async (params = {}) => {
   }
   const queryString = toQueryString(query)
   const response = await http.get(`/api/qc/findings?${queryString}`)
-  const items = Array.isArray(response?.data?.items) ? response.data.items : []
+  const items = Array.isArray(response?.data) ? response.data : []
   return items.map(item => normalizeFinding(item))
 }
 
 export const updateQcFinding = async (id, payload = {}) => {
   if (!id) return null
   const response = await http.put(`/api/qc/findings/${id}`, payload)
-  const updated = response?.data?.item
+  const updated = response?.data
   return updated ? normalizeFinding(updated) : null
 }
 

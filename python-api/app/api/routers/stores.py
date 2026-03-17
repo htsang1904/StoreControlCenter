@@ -36,7 +36,7 @@ def normalize_store_item(item: Any) -> Any:
         "is_active": True
     }
 
-@router.get("/", response_model=List[StoreResponse])
+@router.get("/", response_model=dict)
 async def read_stores(
     session: SessionDep,
     current_user: CurrentUser, # Guard route
@@ -45,9 +45,11 @@ async def read_stores(
 ) -> Any:
     """Read all stores."""
     result = await session.execute(select(Store).offset(skip).limit(limit))
-    return result.scalars().all()
+    items = result.scalars().all()
+    serialized_items = [StoreResponse.model_validate(item) for item in items]
+    return {"success": True, "data": serialized_items}
 
-@router.post("/", response_model=StoreResponse)
+@router.post("/", response_model=dict)
 async def create_store(
     *,
     session: SessionDep,
@@ -62,7 +64,7 @@ async def create_store(
     session.add(store)
     await session.commit()
     await session.refresh(store)
-    return store
+    return {"success": True, "data": StoreResponse.model_validate(store)}
 from sqlalchemy.ext.asyncio import AsyncSession
 
 

@@ -257,7 +257,7 @@ async function loadDashboard() {
   }
 
   if (qcOverviewResult.status === 'fulfilled') {
-    const remoteSummary = qcOverviewResult.value?.data?.summary || {}
+    const remoteSummary = qcOverviewResult.value?.summary || {}
     qcSummary.value = {
       totalSessions: Number(remoteSummary.totalSessions || 0),
       passed: Number(remoteSummary.passed || 0),
@@ -283,8 +283,8 @@ async function loadDashboard() {
   }
 
   if (recentTicketsResult.status === 'fulfilled') {
-    const payload = recentTicketsResult.value?.data || recentTicketsResult.value || {}
-    recentTickets.value = Array.isArray(payload?.tickets) ? payload.tickets.slice(0, 6) : []
+    const payload = recentTicketsResult.value?.data || []
+    recentTickets.value = Array.isArray(payload) ? payload.slice(0, 6) : []
   } else {
     recentTickets.value = []
     if (!errorMessage.value) {

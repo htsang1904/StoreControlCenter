@@ -107,9 +107,8 @@ export function useTicketList(userInfo) {
       }
 
       const result = await listTickets(params)
-      const payload = result?.data || result || {}
-      const records = payload?.tickets || payload?.items || []
-      const backendPagination = payload?.pagination || payload?.meta || {}
+      const records = result?.data || []
+      const backendPagination = result?.pagination || {}
       const nextRecords = Array.isArray(records) ? records : []
 
       if (append) {
