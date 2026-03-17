@@ -1124,26 +1124,23 @@ watch(
                         >
                           <p :class="conversationMessageClass(item)">{{ item.message }}</p>
 
-                          <div v-if="item.attachments.length" class="mt-3 space-y-1.5">
-                            <template v-for="attachment in item.attachments" :key="attachment.id">
-                              <button
-                                v-if="isImageFile(attachment.mime)"
-                                type="button"
-                                :class="conversationAttachmentLinkClass(item)"
-                                @click="openImagePreview(attachment.url, attachment.name)"
-                              >
-                                {{ attachment.name }}
-                              </button>
-                              <a
-                                v-else
-                                :href="toAbsoluteUrl(attachment.url)"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                :class="conversationAttachmentLinkClass(item)"
-                              >
-                                {{ attachment.name }}
-                              </a>
-                            </template>
+                          <div v-if="item.attachments.length" class="mt-3">
+                            <div class="flex flex-wrap gap-2">
+                              <template v-for="attachment in item.attachments" :key="attachment.id">
+                                <div v-if="isImageFile(attachment.mime)" class="relative size-16 tablet:size-24 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-pointer shadow-xs transition-opacity hover:opacity-90" @click="openImagePreview(attachment.url, attachment.name)">
+                                  <img :src="toAbsoluteUrl(attachment.url)" :alt="attachment.name" class="absolute inset-0 size-full object-cover" />
+                                </div>
+                                <a
+                                  v-else
+                                  :href="toAbsoluteUrl(attachment.url)"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  :class="conversationAttachmentLinkClass(item)"
+                                >
+                                  {{ attachment.name }}
+                                </a>
+                              </template>
+                            </div>
                           </div>
 
                           <span :class="conversationTimestampClass(item)">
