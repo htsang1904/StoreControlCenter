@@ -35,9 +35,20 @@ async def read_notifications(
     
     page_count = (total + pageSize - 1) // pageSize if pageSize > 0 else 1
     
-    # Return matched format for frontend (Strapi-like pagination)
+    # Count unread
+    unread_query = select(func.count()).select_from(Notification).where(
+        Notification.recipient_id == current_user.id,
+        Notification.is_read == False
+    )
+    unread_result = await session.execute(unread_query)
+    unread_count = unread_result.scalar() or 0
+    
+    # Return matched format for frontend (Strapi-like pagination but flattened as requested)
+    serialized_items = [NotificationResponse.model_validate(item) for item in items]
     return {
-        "items": items,
+        "success": True,
+        "data": serialized_items,
+        "unread_count": unread_count,
         "pagination": {
             "page": page,
             "pageSize": pageSize,
@@ -68,4 +79,12 @@ async def mark_notification_as_read(
     session.add(notification)
     await session.commit()
     
-    return {"success": True}
+    # Return unread count after marking one as read
+    unread_query = select(func.count()).select_from(Notification).where(
+        Notification.recipient_id == current_user.id,
+        Notification.is_read == False
+    )
+    unread_result = await session.execute(unread_query)
+    unread_count = unread_result.scalar() or 0
+    
+    return {"success": True, "unread_count": unread_count}

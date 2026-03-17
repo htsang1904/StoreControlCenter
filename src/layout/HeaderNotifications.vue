@@ -64,9 +64,8 @@ const fetchNotifications = async ({ silent = false } = {}) => {
       page: 1,
       pageSize: NOTIFICATION_PAGE_SIZE,
     })
-    const payload = result?.data || {}
-    notifications.value = Array.isArray(payload.notifications) ? payload.notifications : []
-    unreadCount.value = Number(payload.unread_count || 0)
+    notifications.value = Array.isArray(result?.data) ? result.data : []
+    unreadCount.value = Number(result?.unread_count || 0)
   } catch (error) {
     if (!silent) {
       const message = error?.response?.data?.message || error?.message || 'Không thể tải thông báo'
@@ -98,7 +97,7 @@ const handleOpenNotification = async (notification) => {
 
   try {
     const result = await markNotificationRead(notificationId)
-    const unread = Number(result?.data?.unread_count)
+    const unread = Number(result?.unread_count)
     if (Number.isInteger(unread) && unread >= 0) {
       unreadCount.value = unread
     } else {

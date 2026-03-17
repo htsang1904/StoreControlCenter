@@ -218,7 +218,7 @@ def serialize_user(user: User) -> dict:
             "storeId": s.storeId,
             "code": s.code,
             "address": s.address,
-            "shortAddress": s.shortAddress,
+            "shortAddress": s.shortAddress or s.address,
         })
         
     primary_store = stores[0] if stores else None
@@ -254,7 +254,7 @@ async def get_me(current_user: CurrentUser) -> Any:
     }
 
 @router.post("/logout", response_model=dict)
-async def logout(current_user: CurrentUser, session: AsyncSession = Depends(SessionDep)) -> Any:
+async def logout(current_user: CurrentUser, session: SessionDep) -> Any:
     """
     Invalidate refresh token payload for the current user.
     """

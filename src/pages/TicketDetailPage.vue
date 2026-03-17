@@ -478,7 +478,7 @@ async function fetchTicketDetail() {
     }
 
     const result = await getTicketById(ticketId.value)
-    const detail = result?.data?.ticket || result?.ticket || result?.data?.data || null
+    const detail = result?.data || null
 
     if (!detail?.id) {
       throw new Error('Không tìm thấy dữ liệu yêu cầu.')
@@ -500,7 +500,7 @@ async function fetchTicketLogs() {
 
   try {
     const result = await listTicketLogs(ticket.value.id)
-    const records = result?.data?.logs || result?.logs || []
+    const records = result?.data || []
     logs.value = Array.isArray(records) ? records : []
   } catch (err) {
     logs.value = []
@@ -518,7 +518,7 @@ async function fetchTicketAssignees() {
 
   try {
     const result = await listTicketAssignees(ticket.value.id)
-    const records = result?.data?.assignees || result?.assignees || []
+    const records = result?.data || []
     assignees.value = Array.isArray(records) ? records : []
   } catch (err) {
     assignees.value = []
@@ -542,7 +542,7 @@ async function fetchAssignableHandlers() {
 
   try {
     const result = await listAssignableTicketHandlers(ticket.value.id)
-    const records = result?.data?.handlers || result?.handlers || []
+    const records = result?.data || []
     assignableHandlers.value = Array.isArray(records) ? records : []
     const availableIds = new Set(assignableHandlers.value.map((item) => String(item?.id || '')))
     selectedAssignableHandlerIds.value = selectedAssignableHandlerIds.value.filter((id) => availableIds.has(String(id)))
@@ -577,7 +577,7 @@ async function handleAssignHandler() {
 
     for (const handlerId of handlerIds) {
       const result = await assignTicketHandler(ticket.value.id, handlerId)
-      const updatedTicket = result?.data?.ticket || result?.ticket || null
+      const updatedTicket = result?.data || null
       if (updatedTicket?.id) {
         ticket.value = updatedTicket
         assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
@@ -632,7 +632,7 @@ async function handleClaimTicket() {
 
   try {
     const result = await claimTicket(ticket.value.id)
-    const updatedTicket = result?.data?.ticket || result?.ticket || null
+    const updatedTicket = result?.data || null
     if (updatedTicket?.id) {
       ticket.value = updatedTicket
       assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
@@ -655,7 +655,7 @@ async function handleResolveTicket() {
 
   try {
     const result = await resolveTicket(ticket.value.id)
-    const updatedTicket = result?.data?.ticket || result?.ticket || null
+    const updatedTicket = result?.data || null
     if (updatedTicket?.id) {
       ticket.value = updatedTicket
       assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
@@ -684,7 +684,7 @@ async function handleReopenTicket() {
 
   try {
     const result = await reopenTicket(ticket.value.id)
-    const updatedTicket = result?.data?.ticket || result?.ticket || null
+    const updatedTicket = result?.data || null
     if (updatedTicket?.id) {
       ticket.value = updatedTicket
       assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
@@ -717,7 +717,7 @@ async function uploadReplyFiles() {
   })
 
   const result = await uploadTicketAttachments(formData)
-  const uploaded = result?.data?.files || result?.files || []
+  const uploaded = result?.data || []
 
   return (Array.isArray(uploaded) ? uploaded : []).map((file) => ({
     id: file?.id,
@@ -751,7 +751,7 @@ async function submitReply() {
       attachments: uploadedAttachments,
     })
 
-    const createdLog = result?.data?.log || result?.log || null
+    const createdLog = result?.data || null
     if (createdLog?.id) {
       logs.value.push(createdLog)
     } else {
