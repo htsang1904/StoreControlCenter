@@ -1,12 +1,12 @@
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import SessionDep, CurrentUser
 from app.models.notification import Notification
-from app.schemas.notification import NotificationListResponse, NotificationResponse
+from app.schemas.notification import NotificationResponse
 
 router = APIRouter()
 
@@ -43,7 +43,6 @@ async def read_notifications(
     unread_result = await session.execute(unread_query)
     unread_count = unread_result.scalar() or 0
     
-    # Return matched format for frontend (Strapi-like pagination but flattened as requested)
     serialized_items = [NotificationResponse.model_validate(item) for item in items]
     return {
         "success": True,
@@ -57,13 +56,13 @@ async def read_notifications(
         }
     }
 
-@router.post("/{id}/read", response_model=dict)
+@router.patch("/{id}/read", response_model=dict)
 async def mark_notification_as_read(
     id: int,
     session: SessionDep,
     current_user: CurrentUser,
 ) -> Any:
-    """Mark a notification as read."""
+    """Mark a single notification as read."""
     query = select(Notification).where(
         Notification.id == id,
         Notification.recipient_id == current_user.id
@@ -79,7 +78,7 @@ async def mark_notification_as_read(
     session.add(notification)
     await session.commit()
     
-    # Return unread count after marking one as read
+    # Return unread count
     unread_query = select(func.count()).select_from(Notification).where(
         Notification.recipient_id == current_user.id,
         Notification.is_read == False
@@ -88,3 +87,22 @@ async def mark_notification_as_read(
     unread_count = unread_result.scalar() or 0
     
     return {"success": True, "unread_count": unread_count}
+
+@router.patch("/read-all", response_model=dict)
+async def mark_all_notifications_as_read(
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    """Mark all notifications as read for current user."""
+    stmt = (
+        update(Notification)
+        .where(
+            Notification.recipient_id == current_user.id,
+            Notification.is_read == False
+        )
+        .values(is_read=True, read_at=func.now())
+    )
+    await session.execute(stmt)
+    await session.commit()
+    
+    return {"success": True, "unread_count": 0, "message": "Đã đánh dấu tất cả đã đọc"}

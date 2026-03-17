@@ -1,22 +1,7 @@
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, EmailStr, ConfigDict
-
-# --- Org Response Schemas ---
-class DepartmentResponse(BaseModel):
-    id: int
-    name: str
-    code: str
-    model_config = ConfigDict(from_attributes=True)
-
-class StoreResponse(BaseModel):
-    id: int
-    storeId: str
-    code: Optional[str] = None
-    address: Optional[str] = None
-    shortAddress: Optional[str] = None
-    brandId: Optional[str] = None
-    model_config = ConfigDict(from_attributes=True)
+from app.schemas.org import DepartmentResponse, StoreResponse
 
 # --- User Schemas ---
 class UserBase(BaseModel):

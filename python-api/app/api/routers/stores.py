@@ -2,15 +2,15 @@ from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 import httpx
 from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep, CurrentUser
+from app.core.config import settings
 from app.models.user import UserRole
 from app.models.org import Store
 from app.schemas.org import StoreResponse, StoreCreate
 
 router = APIRouter()
-
-MAIN_STORE_SYNC_URL = "https://gapi.guta.asia/webapi/stores?all_stores=true"
 
 def extract_store_list(payload: Any) -> List[Any]:
     if isinstance(payload, list): return payload
@@ -65,7 +65,6 @@ async def create_store(
     await session.commit()
     await session.refresh(store)
     return {"success": True, "data": StoreResponse.model_validate(store)}
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @router.post("/sync", response_model=dict)
@@ -82,7 +81,7 @@ async def sync_all_stores(
 async def perform_store_sync(session: AsyncSession) -> dict:
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(MAIN_STORE_SYNC_URL)
+            response = await client.get(settings.MAIN_STORE_SYNC_URL)
             response.raise_for_status()
             payload = response.json()
     except Exception as e:

@@ -20,9 +20,3 @@ class NotificationResponse(NotificationBase):
     
     model_config = ConfigDict(from_attributes=True)
 
-class NotificationListResponse(BaseModel):
-    items: List[NotificationResponse]
-    total: int
-    page: int
-    pageSize: int
-    pageCount: int

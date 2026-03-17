@@ -1,5 +1,4 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Numeric, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Numeric, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -13,8 +12,8 @@ class QCForm(Base):
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     versions = relationship("QCFormVersion", back_populates="form")
 
@@ -32,8 +31,8 @@ class QCFormVersion(Base):
     effective_from = Column(DateTime, nullable=True)
     effective_to = Column(DateTime, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     form = relationship("QCForm", back_populates="versions")
     form_criteria = relationship("QCFormCriterion", back_populates="form_version")
@@ -56,8 +55,8 @@ class QCCriterion(Base):
     level = Column(Integer, default=1)
     ordering = Column(String(50), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Self-referential relationship for tree structure
     parent = relationship("QCCriterion", remote_side=[id], back_populates="children")
@@ -74,8 +73,8 @@ class QCFormCriterion(Base):
     form_version_id = Column(Integer, ForeignKey("qc_form_versions.id"), nullable=False, index=True)
     criterion_id = Column(Integer, ForeignKey("qc_criteria.id"), nullable=False, index=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     form_version = relationship("QCFormVersion", back_populates="form_criteria")
     criterion = relationship("QCCriterion", back_populates="form_criteria_links")

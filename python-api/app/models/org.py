@@ -1,5 +1,4 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -16,8 +15,8 @@ class Store(Base):
     brandId = Column(String(50), index=True)
     is_active = Column(Boolean, default=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
     users = relationship("User", secondary="user_stores", back_populates="stores")
 
@@ -30,8 +29,8 @@ class Department(Base):
     code = Column(String(50), unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     users = relationship("User", back_populates="department")
     tickets = relationship("Ticket", back_populates="responsible_department")

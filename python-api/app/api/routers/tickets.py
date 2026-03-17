@@ -50,7 +50,8 @@ async def read_tickets(
         selectinload(Ticket.requester),
         selectinload(Ticket.handler),
         selectinload(Ticket.store),
-        selectinload(Ticket.responsible_department)
+        selectinload(Ticket.responsible_department),
+        selectinload(Ticket.assignees)
     ).order_by(Ticket.created_at.desc())
     count_query = select(func.count()).select_from(Ticket)
     
@@ -116,6 +117,15 @@ async def create_ticket(
     """Create a new ticket."""
     data = ticket_in.model_dump()
     
+    # Gap 5: Store role scoping — only allow creating tickets for assigned stores
+    if current_user.role == "store":
+        user_store_ids = [s.id for s in current_user.stores]
+        if data["store_id"] not in user_store_ids:
+            raise HTTPException(
+                status_code=403,
+                detail="Không có quyền tạo ticket cho cửa hàng này"
+            )
+    
     if data.get("handler_id"):
         data["status"] = "in_progress"
         data["processing_started_at"] = datetime.now(timezone.utc)
@@ -136,6 +146,8 @@ async def upload_ticket_attachments(
     files: List[UploadFile] = File(...),
 ) -> Any:
     """Upload multiple images for tickets."""
+    ALLOWED_MIMES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"}
+    
     if len(files) > 5:
         raise HTTPException(status_code=400, detail="Tối đa 5 ảnh một lần")
         
@@ -144,6 +156,13 @@ async def upload_ticket_attachments(
     os.makedirs(upload_dir, exist_ok=True)
     
     for file in files:
+        # Gap 6: MIME type validation
+        if file.content_type not in ALLOWED_MIMES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File {file.filename} không phải ảnh (chỉ chấp nhận JPEG, PNG, GIF, WebP)"
+            )
+        
         contents = await file.read()
         if len(contents) > 5 * 1024 * 1024:
             raise HTTPException(status_code=400, detail=f"File {file.filename} vượt quá 5MB")
@@ -404,3 +423,23 @@ async def read_ticket_logs(
     logs = result.scalars().all()
     serialized_logs = [TicketLogResponse.model_validate(l) for l in logs]
     return {"success": True, "data": serialized_logs}
+
+@router.delete("/{id}", response_model=dict)
+async def delete_ticket(
+    id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    """Delete a ticket. Only admin or the original requester can delete."""
+    ticket = await session.get(Ticket, id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+    
+    # Only admin or the requester can delete
+    if current_user.role != "admin" and ticket.requester_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Không có quyền xóa phiếu này")
+    
+    await session.delete(ticket)
+    await session.commit()
+    
+    return {"success": True, "message": "Đã xóa phiếu thành công"}

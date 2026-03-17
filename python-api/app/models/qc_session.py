@@ -1,5 +1,4 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Numeric, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Numeric, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -27,8 +26,8 @@ class QCSession(Base):
     max_score = Column(Numeric(10, 2), default=0)
     note = Column(Text, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     store = relationship("Store")
@@ -61,8 +60,8 @@ class QCSessionItem(Base):
     note = Column(Text, nullable=True)
     attachments = Column(JSON, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     session = relationship("QCSession", back_populates="items")
     criterion = relationship("QCCriterion", back_populates="session_items")
@@ -80,8 +79,8 @@ class QCDraft(Base):
     note = Column(Text, nullable=True)
     criteria_states = Column(JSON, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     store = relationship("Store")
     auditor = relationship("User")
@@ -116,8 +115,8 @@ class QCFinding(Base):
     evidence = Column(JSON, nullable=True)
     meta_info = Column(JSON, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     session = relationship("QCSession", back_populates="findings")
     session_item = relationship("QCSessionItem")

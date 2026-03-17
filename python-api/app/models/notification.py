@@ -1,5 +1,4 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -22,8 +21,8 @@ class Notification(Base):
     actor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=True, index=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     recipient = relationship("User", foreign_keys=[recipient_id])

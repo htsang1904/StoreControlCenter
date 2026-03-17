@@ -1,6 +1,5 @@
 import enum
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Table, Enum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Table, Enum, func
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -59,15 +58,11 @@ class User(Base):
     
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     department = relationship("Department", back_populates="users")
     stores = relationship("Store", secondary=user_stores, back_populates="users")
-    
-    from app.models.ticket import ticket_assignees
-    assigned_tickets = relationship("Ticket", secondary=ticket_assignees, back_populates="assignees")
-    
-    from app.models.notification import Notification
-    notifications = relationship("Notification", foreign_keys="Notification.recipient_id", overlaps="recipient")
+    assigned_tickets = relationship("Ticket", secondary="ticket_assignees", back_populates="assignees")
+    notifications = relationship("Notification", foreign_keys="[Notification.recipient_id]", overlaps="recipient")

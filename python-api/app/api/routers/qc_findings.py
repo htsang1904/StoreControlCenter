@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, and_
@@ -76,12 +76,15 @@ async def list_findings(
         filters.append(QCFinding.store_id == store_id)
 
     # RBAC Scoping
-    if current_user.role != "admin":
+    if current_user.role == "admin":
+        pass  # Admin sees all
+    elif current_user.role == "handler":
+        # Handlers see findings assigned to them or in their stores
+        filters.append(QCFinding.assignee_id == current_user.id)
+    else:
+        # store, qc roles: filter by assigned stores
         user_store_ids = [s.id for s in current_user.stores]
         filters.append(QCFinding.store_id.in_(user_store_ids))
-    elif current_user.role == "handler":
-        # Handlers see findings assigned to them?
-        filters.append(QCFinding.assignee_id == current_user.id)
 
     if filters:
         query = query.where(and_(*filters))
@@ -106,7 +109,7 @@ async def create_finding(
     data = finding_in.model_dump()
     
     if not data.get("finding_code"):
-        timestamp = datetime.utcnow().strftime("%y%m%d%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
         random_part = uuid.uuid4().hex[:4].upper()
         data["finding_code"] = f"QCF-{timestamp}-{random_part}"
 
@@ -172,9 +175,9 @@ async def update_finding(
         setattr(finding, field, value)
         
     if "status" in update_data and update_data["status"] == "resolved":
-        finding.resolved_at = datetime.utcnow()
+        finding.resolved_at = datetime.now(timezone.utc)
     if "status" in update_data and update_data["status"] == "verified":
-        finding.verified_at = datetime.utcnow()
+        finding.verified_at = datetime.now(timezone.utc)
         finding.verifier_id = current_user.id
 
     session.add(finding)

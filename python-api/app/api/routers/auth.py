@@ -2,6 +2,7 @@ from datetime import timedelta, datetime, timezone
 from typing import Any
 import jwt
 import hashlib
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,7 @@ from app.models.org import Store
 from app.schemas.user import LoginRequest, RefreshRequest, AuthTokensResponse, UserResponse
 
 router = APIRouter()
+logger = logging.getLogger("app.auth")
 
 # Strapi compatibility logic ported from Node.js
 # -----------------------------------------------
@@ -85,7 +87,7 @@ async def user_login(
     # Store token metadata in user table
     user.token_version = next_token_version
     user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = datetime.utcnow() + timedelta(days=30)
+    user.refresh_token_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
     user.suite_token = request.token
     
     session.add(user)
@@ -96,7 +98,7 @@ async def user_login(
     try:
         await map_suite_stores_to_user(session, user)
     except Exception as sync_err:
-        print(f"[auth] initial sync failed during login for {user.email}: {sync_err}")
+        logger.warning(f"[auth] initial sync failed during login for {user.email}: {sync_err}")
 
     return {
         "success": True,
@@ -175,7 +177,7 @@ async def map_suite_stores_to_user(session: AsyncSession, user: User) -> list:
             payload = response.json()
     except Exception as e:
         # Log warning similar to Strapi
-        print(f"[auth] sync suite stores failed for user {user.id}: {str(e)}")
+        logger.warning(f"[auth] sync suite stores failed for user {user.id}: {str(e)}")
         return []
 
     if not payload.get("success"):

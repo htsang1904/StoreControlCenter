@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Literal
 from pydantic import BaseModel, Field
 
 class QCFindingBase(BaseModel):
@@ -8,8 +8,8 @@ class QCFindingBase(BaseModel):
     session_item_id: Optional[int] = None
     store_id: int
     criterion_name: Optional[str] = None
-    severity: str = "medium" # low, medium, high, critical
-    status: str = "open" # open, in_progress, resolved, verified, rejected
+    severity: Literal["low", "medium", "high", "critical"] = "medium"
+    status: Literal["open", "in_progress", "resolved", "verified", "rejected"] = "open"
     assignee_id: Optional[int] = None
     due_date: Optional[datetime] = None
     corrective_action: Optional[str] = None

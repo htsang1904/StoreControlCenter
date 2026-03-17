@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, and_, case
@@ -172,8 +172,8 @@ async def create_qc_session(
     if "formVersionId" in data:
         data["form_version_id"] = data.pop("formVersionId")
         
-    data["code"] = f"QC-{datetime.utcnow().strftime('%y%m')}-{uuid.uuid4().hex[:4].upper()}"
-    data["audited_at"] = datetime.fromisoformat(data["audited_at"].replace("Z", "+00:00")).replace(tzinfo=None) if isinstance(data.get("audited_at"), str) else data.get("audited_at", datetime.utcnow())
+    data["code"] = f"QC-{datetime.now(timezone.utc).strftime('%y%m')}-{uuid.uuid4().hex[:4].upper()}"
+    data["audited_at"] = datetime.fromisoformat(data["audited_at"].replace("Z", "+00:00")).replace(tzinfo=None) if isinstance(data.get("audited_at"), str) else data.get("audited_at", datetime.now(timezone.utc))
         
     qc_session = QCSession(**data)
     session.add(qc_session)
@@ -410,7 +410,7 @@ async def submit_qc_session(
     qc_session.max_score = max_score
     qc_session.result = "pass" if is_pass else "fail"
     qc_session.status = "closed" if is_pass else "needs_fix"
-    qc_session.submitted_at = datetime.utcnow()
+    qc_session.submitted_at = datetime.now(timezone.utc)
     
     session.add(qc_session)
     
@@ -419,7 +419,7 @@ async def submit_qc_session(
     if not is_pass:
         for item in items:
             if item.result == "fail":
-                timestamp = datetime.utcnow().strftime("%y%m%d%H%M%S")
+                timestamp = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
                 random_part = uuid.uuid4().hex[:4].upper()
                 finding_code = f"QCF-{timestamp}-{random_part}"
                 
@@ -431,7 +431,7 @@ async def submit_qc_session(
                     criterion_name=item.criterion_name,
                     severity="medium", # Default
                     status="open",
-                    due_date=datetime.utcnow() + timedelta(days=3) # Default 3 days
+                    due_date=datetime.now(timezone.utc) + timedelta(days=3) # Default 3 days
                 )
                 session.add(finding)
                 new_findings.append(finding_code)

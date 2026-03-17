@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Literal
 from pydantic import BaseModel, ConfigDict
 from app.schemas.user import UserMinimalResponse, DepartmentResponse, StoreResponse
 
@@ -10,7 +10,7 @@ class TicketLogBase(BaseModel):
     sender_type: str = "store"
 
 class TicketLogCreate(TicketLogBase):
-    pass
+    ticket_id: int
 
 class TicketLogResponse(TicketLogBase):
     id: int
@@ -24,7 +24,7 @@ class TicketLogResponse(TicketLogBase):
 class TicketBase(BaseModel):
     title: str
     description: str
-    status: str = "new"
+    status: Literal["new", "assigned", "in_progress", "resolved", "closed", "rejected"] = "new"
     type: Optional[str] = None
     
     store_id: int

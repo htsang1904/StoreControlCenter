@@ -19,8 +19,8 @@ class DepartmentResponse(DepartmentBase):
 
 # --- Store Schemas ---
 class StoreBase(BaseModel):
-    name: str
-    code: str
+    name: Optional[str] = None
+    code: Optional[str] = None
     address: Optional[str] = None
     shortAddress: Optional[str] = None
     storeId: Optional[str] = None
