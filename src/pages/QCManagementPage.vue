@@ -438,7 +438,7 @@ async function loadOverview() {
 
   try {
     const storeIds = stores.value
-      .map((store) => Number(store?.storeId || 0))
+      .map((store) => Number(store?.id || 0))
       .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
     const targetPageSize = storeIds.length > 0
       ? Math.min(Math.max(stores.value.length, 100), 1000)

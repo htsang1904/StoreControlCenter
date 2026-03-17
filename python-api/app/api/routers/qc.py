@@ -93,7 +93,7 @@ async def read_qc_sessions_overview(
     elif status == "fail":
         filters.append(QCSession.result == "fail")
         
-    if current_user.role == "store":
+    if current_user.role != "admin":
         user_store_ids = [s.id for s in current_user.stores]
         filters.append(QCSession.store_id.in_(user_store_ids))
     elif store_id:
@@ -221,7 +221,7 @@ async def read_qc_stores_overview(
     if date_to:
         filters.append(QCSession.audited_at <= datetime.fromisoformat(date_to.replace("Z", "+00:00")).replace(hour=23, minute=59, second=59, tzinfo=None))
         
-    if current_user.role == "store":
+    if current_user.role != "admin":
         user_store_ids = [s.id for s in current_user.stores]
         filters.append(QCSession.store_id.in_(user_store_ids))
     elif store_ids:
@@ -263,7 +263,7 @@ async def read_qc_stores_overview(
         )
         store_query = store_query.where(search_filter)
         
-    if current_user.role == "store":
+    if current_user.role != "admin":
         user_store_ids = [s.id for s in current_user.stores]
         store_query = store_query.where(Store.id.in_(user_store_ids))
     elif store_ids:

@@ -76,7 +76,7 @@ async def list_findings(
         filters.append(QCFinding.store_id == store_id)
 
     # RBAC Scoping
-    if current_user.role == "store":
+    if current_user.role != "admin":
         user_store_ids = [s.id for s in current_user.stores]
         filters.append(QCFinding.store_id.in_(user_store_ids))
     elif current_user.role == "handler":

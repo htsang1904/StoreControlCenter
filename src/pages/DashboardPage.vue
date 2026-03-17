@@ -213,7 +213,7 @@ async function loadDashboard() {
   errorMessage.value = ''
 
   const storeIds = stores.value
-    .map((store) => Number(store?.storeId || 0))
+    .map((store) => Number(store?.id || 0))
     .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
 
   const [ticketOverviewResult, qcOverviewResult, recentTicketsResult] = await Promise.allSettled([
