@@ -194,7 +194,16 @@ async def create_qc_session(
         session.add(item_obj)
         
     await session.commit()
-    await session.refresh(qc_session)
+    
+    # Reload with details
+    query = select(QCSession).options(
+        selectinload(QCSession.store),
+        selectinload(QCSession.auditor),
+        selectinload(QCSession.form_version).selectinload(QCFormVersion.form)
+    ).where(QCSession.id == qc_session.id)
+    result = await session.execute(query)
+    qc_session = result.scalar_one()
+
     return {"success": True, "data": QCSessionResponse.model_validate(qc_session)}
 
 @router.get("/stores/overview", response_model=dict)

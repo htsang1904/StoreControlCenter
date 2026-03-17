@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional, List, Any
 from pydantic import BaseModel, ConfigDict
 from decimal import Decimal
+from app.schemas.user import UserMinimalResponse, StoreResponse
 
 # --- Base QC Form Schemas ---
 class QCFormBase(BaseModel):
@@ -33,6 +34,8 @@ class QCSessionCreate(QCSessionBase):
 class QCSessionResponse(QCSessionBase):
     id: int
     submitted_at: Optional[datetime] = None
+    auditor: Optional[UserMinimalResponse] = None
+    store: Optional[StoreResponse] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)

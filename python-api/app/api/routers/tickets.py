@@ -21,6 +21,18 @@ from .dashboard import get_dashboard_overview as dashboard_backup
 router.add_api_route("/dashboard/overview", dashboard_backup, methods=["GET"], tags=["Dashboard (Backup)"])
 router.add_api_route("/dashboard/overview/", dashboard_backup, methods=["GET"], tags=["Dashboard (Backup)"])
 
+async def _get_ticket_with_details(session: AsyncSession, ticket_id: int) -> Optional[Ticket]:
+    """Helper to fetch a ticket with all nested relationships for rich responses."""
+    query = select(Ticket).options(
+        selectinload(Ticket.requester),
+        selectinload(Ticket.handler),
+        selectinload(Ticket.store),
+        selectinload(Ticket.responsible_department),
+        selectinload(Ticket.assignees)
+    ).where(Ticket.id == ticket_id)
+    result = await session.execute(query)
+    return result.scalar_one_or_none()
+
 @router.get("/", response_model=dict)
 async def read_tickets(
     session: SessionDep,
@@ -34,7 +46,12 @@ async def read_tickets(
     skip = (page - 1) * pageSize
     
     # Base Query
-    query = select(Ticket).order_by(Ticket.created_at.desc())
+    query = select(Ticket).options(
+        selectinload(Ticket.requester),
+        selectinload(Ticket.handler),
+        selectinload(Ticket.store),
+        selectinload(Ticket.responsible_department)
+    ).order_by(Ticket.created_at.desc())
     count_query = select(func.count()).select_from(Ticket)
     
     filters = []
@@ -109,8 +126,9 @@ async def create_ticket(
     ticket = Ticket(**data)
     session.add(ticket)
     await session.commit()
-    await session.refresh(ticket)
-    return {"success": True, "message": "Tạo phiếu thành công", "data": {"ticket": TicketResponse.model_validate(ticket)}}
+    
+    updated_ticket = await _get_ticket_with_details(session, ticket.id)
+    return {"success": True, "message": "Tạo phiếu thành công", "data": TicketResponse.model_validate(updated_ticket)}
 
 @router.post("/upload-attachments", response_model=dict)
 async def upload_ticket_attachments(
@@ -193,8 +211,9 @@ async def update_ticket(
         
     session.add(ticket)
     await session.commit()
-    await session.refresh(ticket)
-    return {"success": True, "message": "Cập nhật phiếu thành công", "data": TicketResponse.model_validate(ticket)}
+    
+    updated_ticket = await _get_ticket_with_details(session, ticket.id)
+    return {"success": True, "message": "Cập nhật phiếu thành công", "data": TicketResponse.model_validate(updated_ticket)}
 
 @router.get("/{id}/assignees", response_model=dict)
 async def list_ticket_assignees(
@@ -276,8 +295,9 @@ async def assign_handler(
         
     session.add(ticket)
     await session.commit()
-    await session.refresh(ticket)
-    return {"success": True, "message": "Phân công thành công", "data": TicketResponse.model_validate(ticket)}
+    
+    updated_ticket = await _get_ticket_with_details(session, ticket.id)
+    return {"success": True, "message": "Phân công thành công", "data": TicketResponse.model_validate(updated_ticket)}
 
 @router.post("/{id}/resolve", response_model=dict)
 async def resolve_ticket(
@@ -298,8 +318,9 @@ async def resolve_ticket(
     
     session.add(ticket)
     await session.commit()
-    await session.refresh(ticket)
-    return {"success": True, "message": "Đã giải quyết phiếu", "data": TicketResponse.model_validate(ticket)}
+    
+    updated_ticket = await _get_ticket_with_details(session, ticket.id)
+    return {"success": True, "message": "Đã giải quyết phiếu", "data": TicketResponse.model_validate(updated_ticket)}
 
 @router.post("/{id}/reopen", response_model=dict)
 async def reopen_ticket(
@@ -320,8 +341,9 @@ async def reopen_ticket(
     
     session.add(ticket)
     await session.commit()
-    await session.refresh(ticket)
-    return {"success": True, "message": "Đã mở lại phiếu", "data": TicketResponse.model_validate(ticket)}
+    
+    updated_ticket = await _get_ticket_with_details(session, ticket.id)
+    return {"success": True, "message": "Đã mở lại phiếu", "data": TicketResponse.model_validate(updated_ticket)}
 
 @router.post("/{id}/reject", response_model=dict)
 async def reject_ticket(
@@ -340,8 +362,9 @@ async def reject_ticket(
     ticket.status = "rejected"
     session.add(ticket)
     await session.commit()
-    await session.refresh(ticket)
-    return {"success": True, "message": "Đã từ chối phiếu", "data": TicketResponse.model_validate(ticket)}
+    
+    updated_ticket = await _get_ticket_with_details(session, ticket.id)
+    return {"success": True, "message": "Đã từ chối phiếu", "data": TicketResponse.model_validate(updated_ticket)}
 
 @router.post("/{id}/assignees/me", response_model=dict)
 async def assign_ticket_to_me(
@@ -365,9 +388,9 @@ async def assign_ticket_to_me(
             
         session.add(ticket)
         await session.commit()
-        await session.refresh(ticket)
         
-    return {"success": True, "message": "Đã nhận xử lý", "data": TicketResponse.model_validate(ticket)}
+    updated_ticket = await _get_ticket_with_details(session, ticket.id)
+    return {"success": True, "message": "Đã nhận xử lý", "data": TicketResponse.model_validate(updated_ticket)}
 
 @router.get("/{id}/logs", response_model=dict)
 async def read_ticket_logs(

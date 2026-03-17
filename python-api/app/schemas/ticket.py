@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional, List, Any
 from pydantic import BaseModel, ConfigDict
+from app.schemas.user import UserMinimalResponse, DepartmentResponse, StoreResponse
 
 # Base schema reflecting both Ticket and TicketLog
 class TicketLogBase(BaseModel):
@@ -15,6 +16,7 @@ class TicketLogResponse(TicketLogBase):
     id: int
     ticket_id: int
     sender_id: Optional[int] = None
+    sender: Optional[UserMinimalResponse] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
@@ -45,7 +47,12 @@ class TicketResponse(TicketBase):
     id: int
     ticket_code: str
     requester_id: int
+    requester: Optional[UserMinimalResponse] = None
     handler_id: Optional[int] = None
+    handler: Optional[UserMinimalResponse] = None
+    store: Optional[StoreResponse] = None
+    responsible_department: Optional[DepartmentResponse] = None
+    assignees: List[UserMinimalResponse] = []
     
     start_date: Optional[datetime] = None
     processing_started_at: Optional[datetime] = None

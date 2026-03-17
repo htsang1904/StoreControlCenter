@@ -23,6 +23,10 @@ class UserBase(BaseModel):
     name: str
     email: EmailStr
 
+class UserMinimalResponse(UserBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
 class UserResponse(UserBase):
     id: int
     is_active: bool
