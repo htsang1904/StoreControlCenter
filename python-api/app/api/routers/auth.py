@@ -87,7 +87,7 @@ async def user_login(
     # Store token metadata in user table
     user.token_version = next_token_version
     user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    user.refresh_token_expires_at = datetime.utcnow() + timedelta(days=30)
     user.suite_token = request.token
     
     session.add(user)
@@ -139,7 +139,7 @@ async def refresh_token(
     refresh_token = security.create_access_token((user.id), expires_delta=timedelta(days=30))
     
     user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    user.refresh_token_expires_at = datetime.utcnow() + timedelta(days=30)
     session.add(user)
     await session.commit()
     
