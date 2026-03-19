@@ -4,6 +4,7 @@ Provides endpoints at /api/admin/qc/forms for managing QC forms.
 Admin-only access.
 """
 import logging
+import re
 from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func
@@ -95,6 +96,16 @@ def _serialize_form_detail(form: QCForm, version: Optional[QCFormVersion] = None
             "criteria": criteria,
         } if version else None,
     }
+
+def _next_version_no(current_version_no: str) -> str:
+    raw = str(current_version_no or "").strip()
+    match = re.match(r"^v?(\d+)(?:\.(\d+))?$", raw, flags=re.IGNORECASE)
+    if not match:
+        return f"{raw or 'v1.0'}-rev"
+
+    major = int(match.group(1))
+    minor = int(match.group(2) or 0)
+    return f"v{major}.{minor + 1}"
 
 
 @router.get("/forms", response_model=dict)
@@ -255,14 +266,30 @@ async def update_admin_qc_form(
     latest_version_data = payload.get("latestVersion", {})
     if latest_version_data and form.versions:
         latest = sorted(form.versions, key=lambda v: v.id, reverse=True)[0]
-        
+
+        new_pass_rule = dict(latest.pass_rule or {})
         if "passThreshold" in latest_version_data:
-            latest.pass_rule = latest.pass_rule or {}
-            latest.pass_rule["passThreshold"] = latest_version_data["passThreshold"]
-        if "status" in latest_version_data:
-            latest.status = latest_version_data["status"]
-        
-        session.add(latest)
+            new_pass_rule["passThreshold"] = latest_version_data["passThreshold"]
+
+        new_version = QCFormVersion(
+            form_id=form.id,
+            version_no=latest_version_data.get("versionNo") or _next_version_no(latest.version_no),
+            status=latest_version_data.get("status", "draft"),
+            pass_rule=new_pass_rule,
+            effective_from=latest.effective_from,
+            effective_to=latest.effective_to,
+        )
+        session.add(new_version)
+        await session.flush()
+
+        # Preserve immutable history: clone existing criteria mapping to the new version.
+        for fc in latest.form_criteria or []:
+            session.add(
+                QCFormCriterion(
+                    form_version_id=new_version.id,
+                    criterion_id=fc.criterion_id,
+                )
+            )
     
     session.add(form)
     await session.commit()

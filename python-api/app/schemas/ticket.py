@@ -34,14 +34,22 @@ class TicketBase(BaseModel):
 class TicketCreate(TicketBase):
     # The requester is typically the logged-in user, but if admin creates it for someone else:
     requester_id: Optional[int] = None 
+    handler_id: Optional[int] = None
+    initialHandler: Optional[int] = None
     attachments: Optional[Any] = None
+    attachments_media: Optional[Any] = None
 
 class TicketUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[Literal["new", "assigned", "in_progress", "resolved", "closed", "rejected"]] = None
+    type: Optional[str] = None
+    store_id: Optional[int] = None
     handler_id: Optional[int] = None
     responsible_department_id: Optional[int] = None
+    ticket_category_id: Optional[int] = None
+    attachments: Optional[Any] = None
+    attachments_media: Optional[Any] = None
     
 class TicketResponse(TicketBase):
     id: int

@@ -12,6 +12,7 @@ from app.api.api import api_router
 from sqladmin import Admin
 from app.db.database import engine
 from app.admin.views import UserAdmin, StoreAdmin, DepartmentAdmin
+from app.admin.auth import AdminAuthBackend
 
 # Configure logging to be more concise
 logging.basicConfig(
@@ -32,7 +33,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_credentials=settings.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -80,7 +81,16 @@ def root():
     return {"message": "Welcome to Store Control Center Python API"}
 
 # Setup SQLAdmin
-admin = Admin(app, engine)
-admin.add_view(UserAdmin)
-admin.add_view(StoreAdmin)
-admin.add_view(DepartmentAdmin)
+if settings.ENABLE_SQLADMIN:
+    if not settings.SQLADMIN_USERNAME or not settings.SQLADMIN_PASSWORD:
+        logger.warning("SQLAdmin enabled but SQLADMIN_USERNAME/SQLADMIN_PASSWORD is missing. SQLAdmin is disabled.")
+    else:
+        auth_backend = AdminAuthBackend(
+            secret_key=settings.SQLADMIN_SESSION_SECRET or settings.SECRET_KEY
+        )
+        admin = Admin(app, engine, authentication_backend=auth_backend)
+        admin.add_view(UserAdmin)
+        admin.add_view(StoreAdmin)
+        admin.add_view(DepartmentAdmin)
+else:
+    logger.info("SQLAdmin is disabled. Set ENABLE_SQLADMIN=true to enable it.")

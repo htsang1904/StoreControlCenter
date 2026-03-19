@@ -40,6 +40,16 @@ const MAX_UPLOAD_FILES = props.maxFiles
 const MAX_UPLOAD_FILE_SIZE_BYTES = props.maxSizeMb * 1024 * 1024
 
 const getApiBaseUrl = () => String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+const normalizeFileId = (value) => {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value <= 0) return ''
+    return String(Math.trunc(value))
+  }
+  const text = String(value).trim()
+  if (!text || text === '0') return ''
+  return text
+}
 const toAbsoluteUrl = (url) => {
   if (!url) return ''
   if (/^https?:\/\//i.test(url)) return url
@@ -50,12 +60,12 @@ const normalizeModelFiles = (source) => {
   const items = Array.isArray(source) ? source : []
   return items
     .map((file) => ({
-      id: Number(file?.id),
+      id: normalizeFileId(file?.id),
       name: String(file?.name || ''),
       url: String(file?.url || ''),
       size: Number(file?.size || 0),
     }))
-    .filter((file) => Number.isInteger(file.id) && file.id > 0 && file.url)
+    .filter((file) => file.id && file.url)
 }
 
 const emitModelFiles = (files) => {
@@ -64,22 +74,24 @@ const emitModelFiles = (files) => {
 
 const upsertModelFile = (file) => {
   const next = Array.isArray(props.modelValue) ? [...props.modelValue] : []
-  const targetId = Number(file?.id)
-  const index = next.findIndex((item) => Number(item?.id) === targetId)
+  const targetId = normalizeFileId(file?.id)
+  if (!targetId) return
+
+  const index = next.findIndex((item) => normalizeFileId(item?.id) === targetId)
   if (index >= 0) {
-    next[index] = file
+    next[index] = { ...file, id: targetId }
   } else {
-    next.push(file)
+    next.push({ ...file, id: targetId })
   }
   emitModelFiles(next)
 }
 
 const removeModelFile = (dropzoneFile) => {
-  const targetId = Number(dropzoneFile?.__uploadedId || dropzoneFile?.id)
-  if (!Number.isInteger(targetId) || targetId <= 0) return
+  const targetId = normalizeFileId(dropzoneFile?.__uploadedId || dropzoneFile?.id)
+  if (!targetId) return
 
   const next = (Array.isArray(props.modelValue) ? props.modelValue : []).filter(
-    (item) => Number(item?.id) !== targetId
+    (item) => normalizeFileId(item?.id) !== targetId
   )
   emitModelFiles(next)
 }
@@ -90,8 +102,8 @@ const syncModelToDropzone = () => {
 
   const existingIds = new Set(
     (dropzone.files || [])
-      .map((file) => Number(file?.__uploadedId || file?.id))
-      .filter((id) => Number.isInteger(id) && id > 0)
+      .map((file) => normalizeFileId(file?.__uploadedId || file?.id))
+      .filter(Boolean)
   )
 
   normalizeModelFiles(props.modelValue).forEach((file) => {

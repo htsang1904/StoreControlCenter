@@ -1,8 +1,9 @@
+import asyncio
 import uuid
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from sqlalchemy import func, or_, and_
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -10,10 +11,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep, CurrentUser
 from app.models.ticket import Ticket, TicketLog
-from app.models.org import Store
 from app.models.user import User
-from app.schemas.ticket import TicketResponse, TicketCreate, TicketDetailResponse, TicketLogResponse
+from app.schemas.ticket import TicketResponse, TicketCreate, TicketDetailResponse, TicketLogResponse, TicketUpdate
 from app.schemas.user import UserResponse
+from app.services.ticket_policy import (
+    can_access_ticket,
+    can_assign_handler,
+    can_claim_ticket,
+    can_reject_ticket,
+    can_reopen_ticket,
+    can_resolve_ticket,
+    validate_direct_status_update,
+)
 
 router = APIRouter()
 
@@ -32,6 +41,45 @@ async def _get_ticket_with_details(session: AsyncSession, ticket_id: int) -> Opt
     ).where(Ticket.id == ticket_id)
     result = await session.execute(query)
     return result.scalar_one_or_none()
+
+def _get_user_store_ids(current_user: CurrentUser) -> set[int]:
+    return {s.id for s in current_user.stores if getattr(s, "id", None) is not None}
+
+async def _can_access_ticket(session: AsyncSession, ticket: Ticket, current_user: CurrentUser) -> bool:
+    is_assignee = False
+    if current_user.role == "handler":
+        is_assignee = await _is_handler_assignee(session, ticket.id, current_user.id)
+
+    return can_access_ticket(
+        user_role=current_user.role,
+        user_id=current_user.id,
+        user_department_id=current_user.department_id,
+        user_store_ids=_get_user_store_ids(current_user),
+        ticket_store_id=ticket.store_id,
+        ticket_department_id=ticket.responsible_department_id,
+        ticket_handler_id=ticket.handler_id,
+        ticket_requester_id=ticket.requester_id,
+        is_assignee=is_assignee,
+    )
+
+async def _ensure_ticket_access(session: AsyncSession, ticket: Ticket, current_user: CurrentUser) -> None:
+    if not await _can_access_ticket(session, ticket, current_user):
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập ticket này")
+
+async def _write_file(file_path: str, contents: bytes) -> None:
+    def _sync_write() -> None:
+        with open(file_path, "wb") as f:
+            f.write(contents)
+
+    await asyncio.to_thread(_sync_write)
+
+async def _is_handler_assignee(session: AsyncSession, ticket_id: int, user_id: int) -> bool:
+    assigned_result = await session.execute(
+        select(func.count())
+        .select_from(Ticket)
+        .where(Ticket.id == ticket_id, Ticket.assignees.any(id=user_id))
+    )
+    return (assigned_result.scalar() or 0) > 0
 
 @router.get("/", response_model=dict)
 async def read_tickets(
@@ -126,7 +174,22 @@ async def create_ticket(
                 detail="Không có quyền tạo ticket cho cửa hàng này"
             )
     
-    if data.get("handler_id"):
+    incoming_handler_id = data.get("handler_id") or data.pop("initialHandler", None)
+    if incoming_handler_id is not None:
+        try:
+            incoming_handler_id = int(incoming_handler_id)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="initialHandler/handler_id không hợp lệ")
+
+        h_query = select(User).where(User.id == incoming_handler_id)
+        h_result = await session.execute(h_query)
+        handler = h_result.scalar_one_or_none()
+        if not handler or handler.role != "handler":
+            raise HTTPException(status_code=400, detail="Handler không hợp lệ")
+        if data.get("responsible_department_id") and handler.department_id != data["responsible_department_id"]:
+            raise HTTPException(status_code=400, detail="Handler không thuộc đúng bộ phận phụ trách")
+
+        data["handler_id"] = incoming_handler_id
         data["status"] = "in_progress"
         data["processing_started_at"] = datetime.now(timezone.utc)
     
@@ -171,8 +234,7 @@ async def upload_ticket_attachments(
         new_filename = f"ticket_{uuid.uuid4().hex}{file_ext}"
         file_path = os.path.join(upload_dir, new_filename)
         
-        with open(file_path, "wb") as f:
-            f.write(contents)
+        await _write_file(file_path, contents)
             
         uploaded_files.append({
             "id": uuid.uuid4().hex,
@@ -203,6 +265,8 @@ async def read_ticket(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+
+    await _ensure_ticket_access(session, ticket, current_user)
         
     # We use TicketDetailResponse for manual validation because it has nested items/logs
     return {"success": True, "data": TicketDetailResponse.model_validate(ticket)}
@@ -213,7 +277,7 @@ async def update_ticket(
     session: SessionDep,
     current_user: CurrentUser,
     id: int,
-    ticket_in: Any
+    ticket_in: TicketUpdate
 ) -> Any:
     """Update ticket info."""
     query = select(Ticket).where(Ticket.id == id)
@@ -222,11 +286,35 @@ async def update_ticket(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+
+    await _ensure_ticket_access(session, ticket, current_user)
     
-    update_data = ticket_in if isinstance(ticket_in, dict) else ticket_in.model_dump(exclude_unset=True)
+    update_data = ticket_in.model_dump(exclude_unset=True)
+
+    # Invariant: store role chỉ được sửa ticket trong danh sách store được gán
+    if current_user.role == "store" and "store_id" in update_data:
+        user_store_ids = _get_user_store_ids(current_user)
+        if update_data["store_id"] not in user_store_ids:
+            raise HTTPException(status_code=403, detail="Không có quyền sửa ticket sang cửa hàng này")
+
+    if "status" in update_data:
+        is_allowed, err = validate_direct_status_update(
+            user_role=current_user.role,
+            old_status=ticket.status,
+            new_status=update_data["status"],
+        )
+        if update_data["status"] == ticket.status:
+            update_data.pop("status", None)
+        elif not is_allowed:
+            status_code = 403 if "Chỉ admin" in err else 400
+            raise HTTPException(status_code=status_code, detail=err)
+
     for field, value in update_data.items():
-        if hasattr(ticket, field):
-            setattr(ticket, field, value)
+        setattr(ticket, field, value)
+
+    if update_data.get("handler_id") and ticket.status == "new":
+        ticket.status = "in_progress"
+        ticket.processing_started_at = datetime.now(timezone.utc)
         
     session.add(ticket)
     await session.commit()
@@ -247,6 +335,8 @@ async def list_ticket_assignees(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+
+    await _ensure_ticket_access(session, ticket, current_user)
         
     serialized_assignees = [UserResponse.model_validate(u) for u in ticket.assignees]
     return {"success": True, "data": serialized_assignees}
@@ -264,6 +354,8 @@ async def list_assignable_handlers(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+
+    await _ensure_ticket_access(session, ticket, current_user)
         
     if not ticket.responsible_department_id:
         return {"success": True, "data": {"handlers": []}}
@@ -297,6 +389,11 @@ async def assign_handler(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+
+    await _ensure_ticket_access(session, ticket, current_user)
+    allowed, err = can_assign_handler(current_user.role, ticket.status)
+    if not allowed:
+        raise HTTPException(status_code=403 if "Chỉ admin" in err else 400, detail=err)
         
     h_query = select(User).where(User.id == handler_id)
     h_result = await session.execute(h_query)
@@ -304,6 +401,8 @@ async def assign_handler(
     
     if not handler or handler.role != "handler":
         raise HTTPException(status_code=400, detail="Handler không hợp lệ")
+    if ticket.responsible_department_id and handler.department_id != ticket.responsible_department_id:
+        raise HTTPException(status_code=400, detail="Handler không thuộc đúng bộ phận phụ trách")
 
     if ticket.status == "new":
         ticket.status = "in_progress"
@@ -331,6 +430,15 @@ async def resolve_ticket(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+
+    await _ensure_ticket_access(session, ticket, current_user)
+    is_assignee = await _is_handler_assignee(session, ticket.id, current_user.id) if current_user.role == "handler" else False
+    allowed, err = can_resolve_ticket(current_user.role, ticket.status, is_assignee=is_assignee)
+    if not allowed:
+        raise HTTPException(
+            status_code=403 if ("Không có quyền" in err or "Handler cần" in err) else 400,
+            detail=err,
+        )
         
     ticket.status = "resolved"
     ticket.resolved_at = datetime.now(timezone.utc)
@@ -354,6 +462,11 @@ async def reopen_ticket(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+
+    await _ensure_ticket_access(session, ticket, current_user)
+    allowed, err = can_reopen_ticket(current_user.role, ticket.status)
+    if not allowed:
+        raise HTTPException(status_code=403 if "Chỉ admin hoặc store" in err else 400, detail=err)
         
     ticket.status = "in_progress"
     ticket.resolved_at = None
@@ -377,6 +490,11 @@ async def reject_ticket(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+
+    await _ensure_ticket_access(session, ticket, current_user)
+    allowed, err = can_reject_ticket(current_user.role, ticket.status)
+    if not allowed:
+        raise HTTPException(status_code=403 if "Chỉ admin" in err else 400, detail=err)
         
     ticket.status = "rejected"
     session.add(ticket)
@@ -398,6 +516,14 @@ async def assign_ticket_to_me(
     
     if not ticket:
         raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+
+    await _ensure_ticket_access(session, ticket, current_user)
+    allowed, err = can_claim_ticket(current_user.role, ticket.status)
+    if not allowed:
+        raise HTTPException(
+            status_code=403 if "Chỉ handler/admin" in err else 400,
+            detail=err,
+        )
         
     if current_user not in ticket.assignees:
         ticket.assignees.append(current_user)
@@ -418,6 +544,11 @@ async def read_ticket_logs(
     current_user: CurrentUser,
 ) -> Any:
     """Get all logs for a ticket."""
+    ticket = await session.get(Ticket, id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Phiếu không tồn tại")
+    await _ensure_ticket_access(session, ticket, current_user)
+
     query = select(TicketLog).options(selectinload(TicketLog.sender)).where(TicketLog.ticket_id == id).order_by(TicketLog.created_at.desc())
     result = await session.execute(query)
     logs = result.scalars().all()

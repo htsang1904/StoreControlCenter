@@ -145,7 +145,8 @@ function validateForm() {
 
 async function fetchDepartments() {
   const result = await getActiveDepartments()
-  departments.value = result?.data?.departments || []
+  const records = result?.data?.departments || result?.data || []
+  departments.value = Array.isArray(records) ? records : []
   await nextTick()
   if (window.HSStaticMethods?.autoInit) {
     window.HSStaticMethods.autoInit()
@@ -156,7 +157,7 @@ async function fetchTicketForEdit() {
   if (!isEditMode.value) return
 
   const result = await getTicketById(editTicketId.value)
-  const ticket = result?.data?.ticket
+  const ticket = result?.data?.ticket || result?.data
 
   if (!ticket?.id) {
     throw new Error('Không tìm thấy ticket để chỉnh sửa.')
@@ -202,9 +203,17 @@ async function submitTicket() {
       store_id: Number(formData.store_id),
       responsible_department_id: Number(formData.responsible_department_id),
       type: formData.type || null,
-      attachment_file_ids: formData.attachments_media
-        .map((file) => Number(file?.id))
-        .filter((id) => Number.isInteger(id) && id > 0),
+      attachments_media: Array.isArray(formData.attachments_media)
+        ? formData.attachments_media.map((file) => ({
+          id: file?.id,
+          name: file?.name,
+          url: file?.url,
+          size: file?.size,
+          mime: file?.mime,
+          ext: file?.ext,
+          formats: file?.formats || null,
+        }))
+        : [],
     }
 
     const result = isEditMode.value

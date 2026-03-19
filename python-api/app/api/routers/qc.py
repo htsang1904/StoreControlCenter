@@ -9,10 +9,46 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep, CurrentUser
 from app.models.qc_session import QCSession, QCSessionItem, QCDraft, QCFinding
-from app.models.qc_form import QCForm, QCFormVersion, QCCriterion
+from app.models.qc_form import QCForm, QCFormVersion, QCCriterion, QCFormCriterion
 from app.models.org import Store
 
 router = APIRouter()
+
+def _serialize_qc_form_detail(form: QCForm) -> dict:
+    versions = sorted(form.versions, key=lambda v: v.id, reverse=True) if form.versions else []
+    published = [v for v in versions if v.status == "published"]
+    active_version = published[0] if published else (versions[0] if versions else None)
+
+    criteria = []
+    if active_version and active_version.form_criteria:
+        criteria_rows = [fc.criterion for fc in active_version.form_criteria if fc.criterion]
+        criteria_rows.sort(key=lambda c: (c.ordering or "", c.id))
+        for criterion in criteria_rows:
+            criteria.append(
+                {
+                    "id": criterion.id,
+                    "code": criterion.code,
+                    "name": criterion.name,
+                    "description": criterion.description,
+                    "level": criterion.level,
+                    "ordering": criterion.ordering,
+                    "parentId": criterion.parent_id,
+                    "mode": criterion.default_mode,
+                    "maxScore": float(criterion.default_max_score or 0),
+                    "sortOrder": criterion.id,
+                }
+            )
+
+    return {
+        "id": form.id,
+        "code": form.code,
+        "name": form.name,
+        "description": form.description,
+        "activeVersionId": active_version.id if active_version else None,
+        "version": active_version.version_no if active_version else None,
+        "passThreshold": (active_version.pass_rule or {}).get("passThreshold", 40) if active_version else 40,
+        "criteria": criteria,
+    }
 
 @router.get("/drafts", response_model=dict)
 async def read_qc_drafts(
@@ -67,14 +103,22 @@ async def read_qc_form(
     current_user: CurrentUser,
 ) -> Any:
     """Read QC form details including criteria."""
-    query = select(QCForm).where(QCForm.id == id).options(selectinload(QCForm.criteria))
+    query = (
+        select(QCForm)
+        .where(QCForm.id == id)
+        .options(
+            selectinload(QCForm.versions)
+            .selectinload(QCFormVersion.form_criteria)
+            .selectinload(QCFormCriterion.criterion)
+        )
+    )
     result = await session.execute(query)
     form = result.scalar_one_or_none()
     
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
         
-    return {"success": True, "data": QCFormResponse.model_validate(form)}
+    return {"success": True, "data": _serialize_qc_form_detail(form)}
 
 @router.get("/sessions/overview", response_model=dict)
 async def read_qc_sessions_overview(
@@ -188,6 +232,8 @@ async def create_qc_session(
             max_score_snapshot=item_in.get("maxScore", 0),
             result=item_in.get("status", "pending"),
             score=item_in.get("score"),
+            applicable=item_in.get("applicable", item_in.get("status") not in {"na", "skipped_weekly"}),
+            requires_fix=item_in.get("requires_fix", item_in.get("status") == "fail"),
             note=item_in.get("note"),
             attachments=item_in.get("attachments")
         )
@@ -418,7 +464,7 @@ async def submit_qc_session(
     new_findings = []
     if not is_pass:
         for item in items:
-            if item.result == "fail":
+            if item.result == "fail" and item.requires_fix:
                 timestamp = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
                 random_part = uuid.uuid4().hex[:4].upper()
                 finding_code = f"QCF-{timestamp}-{random_part}"

@@ -79,11 +79,16 @@ onMounted(async () => {
   resetState()
   loadingDeps.value = true
   try {
+    const syncStoresTask = typeof syncUserStores === 'function'
+      ? syncUserStores().catch(err => console.warn('Failed to sync stores:', err))
+      : Promise.resolve()
+
     const [result] = await Promise.all([
       getActiveDepartments(),
-      syncUserStores().catch(err => console.warn('Failed to sync stores:', err))
+      syncStoresTask
     ])
-    departments.value = result?.data?.departments || []
+    const records = result?.data?.departments || result?.data || []
+    departments.value = Array.isArray(records) ? records : []
   } catch (error) {
     console.error('Failed to load departments', error)
   } finally {
@@ -155,9 +160,22 @@ async function handleConfirm() {
       store_id: Number(formData.store_id),
       responsible_department_id: Number(formData.responsible_department_id),
       type: formData.type || null,
-      attachment_file_ids: formData.attachments_media
-        .map((file) => Number(file?.id))
-        .filter((id) => Number.isInteger(id) && id > 0),
+      attachments_media: Array.isArray(formData.attachments_media)
+        ? formData.attachments_media.map((file) => ({
+          id: file?.id,
+          name: file?.name,
+          url: file?.url,
+          size: file?.size,
+          mime: file?.mime,
+          ext: file?.ext,
+          formats: file?.formats || null,
+        }))
+        : [],
+      attachment_file_ids: Array.isArray(formData.attachments_media)
+        ? formData.attachments_media
+          .map((file) => Number(file?.id))
+          .filter((id) => Number.isInteger(id) && id > 0)
+        : [],
     }
 
     const result = await createTicket(payload)

@@ -3,6 +3,7 @@ from typing import Any
 import jwt
 import hashlib
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +28,39 @@ def hash_refresh_token(token: str) -> str:
     salt = settings.SECRET_KEY
     return hashlib.sha256(f"{token}{salt}".encode()).hexdigest()
 
+def verify_suite_token_if_enabled(token: str) -> None:
+    """
+    Verify Suite token signature when security hardening is enabled.
+    Disabled by default for compatibility with legacy local environments.
+    """
+    if not settings.SUITE_VERIFY_TOKEN:
+        return
+
+    key_file = settings.SUITE_PUBLIC_KEY_FILE.strip()
+    if not key_file:
+        raise HTTPException(
+            status_code=500,
+            detail="Thiếu cấu hình SUITE_PUBLIC_KEY_FILE khi bật SUITE_VERIFY_TOKEN",
+        )
+
+    try:
+        public_key = Path(key_file).read_text(encoding="utf-8")
+    except OSError:
+        raise HTTPException(
+            status_code=500,
+            detail="Không thể đọc public key của Suite",
+        )
+
+    try:
+        jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            options={"verify_signature": True, "verify_aud": False},
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Thông tin đăng nhập không chính xác")
+
 @router.post("/login", response_model=dict)
 async def user_login(
     session: SessionDep, request: LoginRequest
@@ -39,12 +73,7 @@ async def user_login(
     if not request.token or not suite_user.get("email"):
         raise HTTPException(status_code=400, detail="Thiếu thông tin đăng nhập")
 
-    # TODO: In production, verify `request.token` using public RSA key `oauth-public.key`!
-    # For now, we trust the incoming Suite payload as we did in Strapi local if `publicKey` exists.
-    # try:
-    #    jwt.decode(request.token, public_key, algorithms=['RS256'], options={"verify_signature": True})
-    # except Exception:
-    #    raise HTTPException(status_code=401, detail="Thông tin đăng nhập không chính xác")
+    verify_suite_token_if_enabled(request.token)
 
     query = select(User).where(User.email == suite_user["email"])
     result = await session.execute(query)
@@ -132,15 +161,28 @@ async def refresh_token(
     # Similar to strapi `/refresh` endpoint
     try:
         payload = jwt.decode(
-            request.refreshToken, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
+            request.refreshToken,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"require": ["exp", "sub", "type"]},
         )
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Refresh token không hợp lệ hoặc đã hết hạn")
 
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Token không đúng loại refresh token")
+
     user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
+
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
     
     # Retrieve User
-    query = select(User).where(User.id == int(user_id))
+    query = select(User).where(User.id == user_id)
     user = (await session.execute(query)).scalar_one_or_none()
     
     if not user or not user.is_active:
@@ -148,6 +190,17 @@ async def refresh_token(
         
     if user.refresh_token_hash != hash_refresh_token(request.refreshToken):
         raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
+    if user.refresh_token_expires_at and user.refresh_token_expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
+        raise HTTPException(status_code=401, detail="Refresh token đã hết hạn")
+
+    token_version = payload.get("tokenVersion")
+    if token_version is not None and user.token_version is not None:
+        try:
+            token_version = int(token_version)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
+        if token_version != int(user.token_version):
+            raise HTTPException(status_code=401, detail="Refresh token đã bị vô hiệu hóa")
         
     # Issue new pair - keeping same token version
     access_payload = {"sub": str(user.id), "email": user.email, "tokenVersion": user.token_version, "type": "access"}

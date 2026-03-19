@@ -10,11 +10,11 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # JWT Settings
-    SECRET_KEY: str = "change_this_to_a_secure_random_string_in_production"
+    SECRET_KEY: str = "change_me_in_production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
     
-    # Database Settings
+    # Database Settings (Defaults are for local dev without docker)
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
@@ -24,9 +24,18 @@ class Settings(BaseSettings):
     # External APIs
     SUITE_API: str = "https://lab-sapi.guta.asia"
     MAIN_STORE_SYNC_URL: str = "https://gapi.guta.asia/webapi/stores?all_stores=true"
+    SUITE_VERIFY_TOKEN: bool = False
+    SUITE_PUBLIC_KEY_FILE: str = ""
     
     # CORS
-    ALLOWED_ORIGINS: str = "*"  # Comma-separated, e.g. "http://localhost:3000,https://prod.example.com"
+    ALLOWED_ORIGINS: str = "*"
+    CORS_ALLOW_CREDENTIALS: bool = True
+    
+    # Admin
+    ENABLE_SQLADMIN: bool = False
+    SQLADMIN_USERNAME: str = ""
+    SQLADMIN_PASSWORD: str = ""
+    SQLADMIN_SESSION_SECRET: str = ""
     
     @property
     def DATABASE_URL(self) -> str:
@@ -37,10 +46,16 @@ class Settings(BaseSettings):
         if self.ALLOWED_ORIGINS == "*":
             return ["*"]
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def cors_allow_credentials(self) -> bool:
+        if self.ALLOWED_ORIGINS == "*":
+            return False
+        return self.CORS_ALLOW_CREDENTIALS
     
     @model_validator(mode='after')
     def validate_secret(self):
-        if self.SECRET_KEY == "change_this_to_a_secure_random_string_in_production":
+        if self.SECRET_KEY == "change_me_in_production":
             logger.warning("⚠️  SECRET_KEY chưa được cấu hình! Đang dùng key mặc định, KHÔNG AN TOÀN cho production.")
         return self
         

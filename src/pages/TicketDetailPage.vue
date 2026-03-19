@@ -81,25 +81,11 @@ const canAdminAssignHandler = computed(() => {
   return userRole.value === 'admin' && hasTicket.value && isOpenTicketStatus.value
 })
 const canReply = computed(() => {
-  if (!hasTicket.value || !isOpenTicketStatus.value) return false
-  if (userRole.value === 'admin') return true
-  if (userRole.value === 'handler') {
-    return isOpenTicketStatus.value && isCurrentUserAssignee.value
-  }
-  if (userRole.value === 'store') {
-    return isOpenTicketStatus.value && isRequester.value
-  }
-  return false
+  return hasTicket.value && isOpenTicketStatus.value
 })
 const replyBlockedReason = computed(() => {
   if (!hasTicket.value) return 'Không tìm thấy thông tin ticket.'
   if (!isOpenTicketStatus.value) return 'Chỉ có thể phản hồi khi ticket đang mở.'
-  if (userRole.value === 'handler' && !isCurrentUserAssignee.value) {
-    return 'Bạn cần tiếp nhận ticket (Nhận xử lý ticket) trước khi gửi phản hồi.'
-  }
-  if (userRole.value === 'store' && !isRequester.value) {
-    return 'Chỉ người tạo ticket mới có quyền phản hồi.'
-  }
   return ''
 })
 const canClaimTicket = computed(() => canManageAssignment.value && hasTicket.value && isOpenTicketStatus.value && !isCurrentUserAssignee.value)
@@ -717,7 +703,7 @@ async function uploadReplyFiles() {
   })
 
   const result = await uploadTicketAttachments(formData)
-  const uploaded = result?.data || []
+  const uploaded = result?.data?.files || result?.files || result?.data || []
 
   return (Array.isArray(uploaded) ? uploaded : []).map((file) => ({
     id: file?.id,
