@@ -77,6 +77,7 @@ export function useApp() {
             localStorage.removeItem('token')
             localStorage.removeItem('refreshToken')
             const message =
+                err?.response?.data?.detail ||
                 err?.response?.data?.message ||
                 err?.message ||
                 'Đăng nhập thất bại'

@@ -17,7 +17,7 @@ class TicketLogResponse(TicketLogBase):
     ticket_id: int
     sender_id: Optional[int] = None
     sender: Optional[UserMinimalResponse] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -46,7 +46,7 @@ class TicketUpdate(BaseModel):
 class TicketResponse(TicketBase):
     id: int
     ticket_code: str
-    requester_id: int
+    requester_id: Optional[int] = None
     requester: Optional[UserMinimalResponse] = None
     handler_id: Optional[int] = None
     handler: Optional[UserMinimalResponse] = None
@@ -62,8 +62,8 @@ class TicketResponse(TicketBase):
     attachments: Optional[Any] = None
     attachments_media: Optional[Any] = None
     
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 

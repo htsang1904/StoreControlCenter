@@ -36,8 +36,8 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
             detail="Could not validate credentials",
         )
     
-    # Needs to match id logic type (int usually)
     user_id = int(token_data)
+    token_version = payload.get("tokenVersion")
     
     result = await session.execute(
         select(User).options(selectinload(User.department)).options(selectinload(User.stores)).where(User.id == user_id)
@@ -48,6 +48,14 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+
+    # Kiểm tra tokenVersion để hỗ trợ logout/vô hiệu hóa token cũ
+    if token_version is not None and user.token_version is not None:
+        if int(token_version) != user.token_version:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been invalidated",
+            )
     
     return user
 

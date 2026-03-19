@@ -44,12 +44,20 @@ const refreshAccessToken = async () => {
   )
 
   const data = response?.data
-  const accessToken = data?.jwt || data?.accessToken
+  const accessToken = data?.data?.accessToken || data?.accessToken || data?.jwt
   if (!accessToken) {
     throw new Error(data?.message || 'Refresh token failed')
   }
 
-  storeAuthTokens({ data: { accessToken: data?.jwt || data?.accessToken, refreshToken: data?.refreshToken } })
+  // Support both new FastAPI structure (data.data) and legacy structures
+  const newRefreshToken = data?.data?.refreshToken || data?.refreshToken
+
+  storeAuthTokens({ 
+    data: { 
+      accessToken, 
+      refreshToken: newRefreshToken || refreshToken 
+    } 
+  })
   return accessToken
 }
 

@@ -1,9 +1,11 @@
 import logging
 import os
+import time
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
 from app.api.api import api_router
@@ -11,10 +13,12 @@ from sqladmin import Admin
 from app.db.database import engine
 from app.admin.views import UserAdmin, StoreAdmin, DepartmentAdmin
 
-# Configure logging
+# Configure logging to be more concise
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S",
+    force=True,
 )
 logger = logging.getLogger("app")
 
@@ -33,13 +37,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = (time.time() - start_time) * 1000
+    
+    # Log: METHOD PATH - STATUS - TIME ms
+    logger.info(
+        f"{request.method} {request.url.path} - "
+        f"{response.status_code} - "
+        f"{process_time:.2f}ms"
+    )
+    return response
+
 # Global Error Handler — prevents leaking internal details
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    # Determine if we should show traceback
+    show_traceback = not isinstance(exc, (StarletteHTTPException))
+    
+    if show_traceback:
+        logger.error(f"Critical Error: {request.method} {request.url.path} - {exc}", exc_info=True)
+    else:
+        logger.warning(f"Request Error: {request.method} {request.url.path} - {exc}")
+
     return JSONResponse(
-        status_code=500,
-        content={"success": False, "message": "Lỗi hệ thống. Vui lòng thử lại sau."}
+        status_code=getattr(exc, "status_code", 400 if not show_traceback else 500),
+        content={"success": False, "message": str(exc) if not show_traceback else "Lỗi hệ thống. Vui lòng thử lại sau."}
     )
 
 # API Routes

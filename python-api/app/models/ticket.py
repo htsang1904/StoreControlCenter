@@ -8,7 +8,7 @@ ticket_assignees = Table(
     'ticket_assignees',
     Base.metadata,
     Column('ticket_id', Integer, ForeignKey('tickets.id'), primary_key=True),
-    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True)
+    Column('user_id', Integer, ForeignKey('users.id', ondelete="CASCADE"), primary_key=True)
 )
 
 class Ticket(Base):
@@ -23,8 +23,8 @@ class Ticket(Base):
     status = Column(String(50), default="new", nullable=False)
     type = Column(String(50), nullable=True) # Type/Category text
     
-    requester_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    handler_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    requester_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    handler_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
     responsible_department_id = Column(Integer, ForeignKey("departments.id"), nullable=False, index=True)
     ticket_category_id = Column(Integer, nullable=True) # Unmapped external ID?
@@ -49,6 +49,9 @@ class Ticket(Base):
     assignees = relationship("User", secondary=ticket_assignees, back_populates="assigned_tickets")
     
     ticket_logs = relationship("TicketLog", back_populates="ticket", cascade="all, delete-orphan")
+    
+    def __str__(self):
+        return f"{self.ticket_code}: {self.title}"
     # Will add `notifications` later
 
 class TicketLog(Base):
@@ -62,7 +65,7 @@ class TicketLog(Base):
     sender_type = Column(String(50), default="store", nullable=False)
     
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False, index=True)
-    sender_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
