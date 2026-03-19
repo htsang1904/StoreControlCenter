@@ -13,7 +13,7 @@ class DepartmentCreate(DepartmentBase):
 
 class DepartmentResponse(DepartmentBase):
     id: int
-    created_at: datetime
+    created_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -32,6 +32,6 @@ class StoreCreate(StoreBase):
 
 class StoreResponse(StoreBase):
     id: int
-    created_at: datetime
+    created_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)

@@ -17,8 +17,8 @@ class Notification(Base):
     read_at = Column(DateTime, nullable=True)
     meta_info = Column(JSON, nullable=True) # "meta" is often a reserved word
     
-    recipient_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    actor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    recipient_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=True, index=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -28,3 +28,6 @@ class Notification(Base):
     recipient = relationship("User", foreign_keys=[recipient_id])
     actor = relationship("User", foreign_keys=[actor_id])
     ticket = relationship("Ticket", backref="notifications")
+
+    def __str__(self):
+        return self.title

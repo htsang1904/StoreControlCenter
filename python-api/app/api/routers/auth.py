@@ -23,8 +23,8 @@ logger = logging.getLogger("app.auth")
 # -----------------------------------------------
 
 def hash_refresh_token(token: str) -> str:
-    # Adding a salt if you define one, similar to Strapi logic
-    salt = "" # Provide AUTH_REFRESH_TOKEN_SALT if needed inside settings
+    # Use SECRET_KEY as salt for refresh token hashing if no specific salt is defined
+    salt = settings.SECRET_KEY
     return hashlib.sha256(f"{token}{salt}".encode()).hexdigest()
 
 @router.post("/login", response_model=dict)
@@ -59,6 +59,7 @@ async def user_login(
         user = User(
             name=suite_user.get("name", ""),
             email=suite_user["email"],
+            phone_number=suite_user.get("phone_number") or suite_user.get("phone"),
             suite_token=request.token,
             token_version=0,
             role=assigned_role,
@@ -67,6 +68,12 @@ async def user_login(
         session.add(user)
         await session.commit()
         await session.refresh(user)
+    else:
+        # Update existing user profile info from Suite if changed
+        user.name = suite_user.get("name", user.name)
+        user.phone_number = suite_user.get("phone_number") or suite_user.get("phone") or user.phone_number
+        user.suite_token = request.token
+        session.add(user)
 
     if not user.is_active:
         raise HTTPException(
@@ -79,15 +86,23 @@ async def user_login(
     
     # Payload similar to existing access token
     access_payload = {"sub": str(user.id), "email": user.email, "tokenVersion": next_token_version, "type": "access"}
-    access_token = security.create_access_token((user.id), expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    access_token = security.create_access_token(
+        (user.id), 
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        data=access_payload
+    )
     
     refresh_payload = {"sub": str(user.id), "tokenVersion": next_token_version, "type": "refresh"}
-    refresh_token = security.create_access_token((user.id), expires_delta=timedelta(days=30)) # Example
+    refresh_token = security.create_access_token(
+        (user.id), 
+        expires_delta=timedelta(days=30),
+        data=refresh_payload
+    )
     
     # Store token metadata in user table
     user.token_version = next_token_version
     user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = datetime.utcnow() + timedelta(days=30)
+    user.refresh_token_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
     user.suite_token = request.token
     
     session.add(user)
@@ -134,12 +149,23 @@ async def refresh_token(
     if user.refresh_token_hash != hash_refresh_token(request.refreshToken):
         raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
         
-    # Issue new pair
-    access_token = security.create_access_token((user.id), expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-    refresh_token = security.create_access_token((user.id), expires_delta=timedelta(days=30))
+    # Issue new pair - keeping same token version
+    access_payload = {"sub": str(user.id), "email": user.email, "tokenVersion": user.token_version, "type": "access"}
+    access_token = security.create_access_token(
+        (user.id), 
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        data=access_payload
+    )
+    
+    refresh_payload = {"sub": str(user.id), "tokenVersion": user.token_version, "type": "refresh"}
+    refresh_token = security.create_access_token(
+        (user.id), 
+        expires_delta=timedelta(days=30),
+        data=refresh_payload
+    )
     
     user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = datetime.utcnow() + timedelta(days=30)
+    user.refresh_token_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
     session.add(user)
     await session.commit()
     
@@ -229,6 +255,7 @@ def serialize_user(user: User) -> dict:
         "id": user.id,
         "name": user.name,
         "email": user.email,
+        "phone_number": user.phone_number,
         "is_active": user.is_active,
         "role": user.role,
         "department": {

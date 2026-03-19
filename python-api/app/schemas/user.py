@@ -7,6 +7,7 @@ from app.schemas.org import DepartmentResponse, StoreResponse
 class UserBase(BaseModel):
     name: str
     email: EmailStr
+    phone_number: Optional[str] = None
 
 class UserMinimalResponse(UserBase):
     id: int

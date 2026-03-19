@@ -8,7 +8,7 @@ from app.db.database import Base
 user_stores = Table(
     'user_stores',
     Base.metadata,
-    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
+    Column('user_id', Integer, ForeignKey('users.id', ondelete="CASCADE"), primary_key=True),
     Column('store_id', Integer, ForeignKey('stores.id'), primary_key=True)
 )
 
@@ -46,6 +46,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255))
     email = Column(String(255), unique=True, index=True, nullable=False)
+    phone_number = Column(String(20), nullable=True) # Mới: Lưu số điện thoại từ Suite
     suite_token = Column(Text, nullable=True)
     is_active = Column(Boolean, default=False) # Created as False by default pending admin approval
     
@@ -66,3 +67,6 @@ class User(Base):
     stores = relationship("Store", secondary=user_stores, back_populates="users")
     assigned_tickets = relationship("Ticket", secondary="ticket_assignees", back_populates="assignees")
     notifications = relationship("Notification", foreign_keys="[Notification.recipient_id]", overlaps="recipient")
+
+    def __str__(self):
+        return self.name or self.email
