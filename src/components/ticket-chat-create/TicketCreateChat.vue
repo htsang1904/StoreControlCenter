@@ -15,7 +15,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'ticket-created'])
 
-const { state } = useApp()
+const { state, syncUserStores } = useApp()
 const toast = useToast()
 
 const {
@@ -24,6 +24,7 @@ const {
   messages,
   resetState,
   addMessage,
+  selectTicketType,
   selectStore,
   selectDepartment,
   submitContent
@@ -60,7 +61,17 @@ const loadingDeps = ref(false)
 
 const chatContainerRef = ref(null)
 
+// Store search
+const searchStoreQuery = ref('')
+
+const filteredStores = computed(() => {
+  if (!searchStoreQuery.value.trim()) return availableStores.value
+  const query = searchStoreQuery.value.toLowerCase()
+  return availableStores.value.filter(store => store.label.toLowerCase().includes(query))
+})
+
 // Content inputs
+const inputPhone = ref('')
 const inputDescription = ref('')
 const inputAttachments = ref([])
 
@@ -68,7 +79,10 @@ onMounted(async () => {
   resetState()
   loadingDeps.value = true
   try {
-    const result = await getActiveDepartments()
+    const [result] = await Promise.all([
+      getActiveDepartments(),
+      syncUserStores().catch(err => console.warn('Failed to sync stores:', err))
+    ])
     departments.value = result?.data?.departments || []
   } catch (error) {
     console.error('Failed to load departments', error)
@@ -84,6 +98,16 @@ watch(() => messages.value.length, async () => {
   }
 })
 
+const ticketTypes = [
+  { value: 'thay_moi', label: 'Thay mới' },
+  { value: 'sua_chua', label: 'Sửa chữa' }
+]
+
+function handleSelectTicketType(type) {
+  if (currentStep.value !== CHAT_STEPS.SELECT_TICKET_TYPE) return
+  selectTicketType(type.value, type.label)
+}
+
 function handleSelectStore(store) {
   if (currentStep.value !== CHAT_STEPS.SELECT_STORE) return
   selectStore(store.value, store.label)
@@ -96,11 +120,15 @@ function handleSelectDepartment(dept) {
 
 function handleContentSubmit() {
   if (currentStep.value !== CHAT_STEPS.INPUT_CONTENT) return
+  if (!inputPhone.value.trim()) {
+    toast.error('Vui lòng nhập số điện thoại liên hệ.')
+    return
+  }
   if (!inputDescription.value.trim()) {
     toast.error('Vui lòng nhập nội dung chi tiết.')
     return
   }
-  submitContent(inputDescription.value, inputAttachments.value)
+  submitContent(inputPhone.value, inputDescription.value, inputAttachments.value)
 }
 
 const handleTicketUpload = async (fileData) => {
@@ -117,12 +145,16 @@ async function handleConfirm() {
   currentStep.value = CHAT_STEPS.CREATING
   
   try {
+    const descText = formData.phone
+      ? `SĐT liên hệ: ${formData.phone}\n\n${formData.description.trim()}`
+      : formData.description.trim()
+
     const payload = {
       title: formData.title.trim(),
-      description: formData.description.trim(),
+      description: descText,
       store_id: Number(formData.store_id),
       responsible_department_id: Number(formData.responsible_department_id),
-      type: null,
+      type: formData.type || null,
       attachment_file_ids: formData.attachments_media
         .map((file) => Number(file?.id))
         .filter((id) => Number.isInteger(id) && id > 0),
@@ -184,7 +216,7 @@ function renderMessage(content) {
 
     <!-- Chat Area -->
     <div ref="chatContainerRef" class="ticket-inbox-scrollbar flex-1 overflow-y-auto px-3 py-4 tablet:px-4 scroll-smooth">
-      <div class="flex flex-col gap-5 max-w-3xl mx-auto pb-2">
+      <div class="flex flex-col gap-5 mx-auto pb-2">
         <template v-for="msg in messages" :key="msg.id">
           <!-- Bot Message -->
           <div v-if="msg.role === 'bot'" class="flex gap-3">
@@ -197,18 +229,48 @@ function renderMessage(content) {
               <div v-if="msg.type === 'text'" class="rounded-2xl rounded-tl-none bg-white p-3.5 shadow-sm border border-indigo-50/50 text-sm text-slate-700 leading-relaxed" v-html="renderMessage(msg.content)">
               </div>
               
+              <!-- Ticket Type Selection Action -->
+              <div v-if="msg.type === 'action_ticket_type'" class="rounded-2xl rounded-tl-none bg-white p-3.5 shadow-sm border border-indigo-50/50">
+                <p class="text-sm text-slate-700 leading-relaxed mb-3">{{ msg.content }}</p>
+                <div v-if="currentStep === CHAT_STEPS.SELECT_TICKET_TYPE" class="flex flex-wrap gap-2">
+                  <button 
+                    v-for="typeOption in ticketTypes" :key="typeOption.value"
+                    @click="handleSelectTicketType(typeOption)"
+                    class="rounded-full border border-slate-200 bg-white px-4 py-2 hover:border-indigo-400 hover:bg-indigo-50/50 hover:text-indigo-700 hover:shadow-xs transition-all text-sm font-medium text-slate-700 focus:outline-hidden"
+                  >
+                    {{ typeOption.label }}
+                  </button>
+                </div>
+              </div>
+
               <!-- Store Selection Action -->
               <div v-if="msg.type === 'action_store'" class="rounded-2xl rounded-tl-none bg-white p-3.5 shadow-sm border border-indigo-50/50">
                 <p class="text-sm text-slate-700 leading-relaxed mb-3">{{ msg.content }}</p>
-                <div v-if="currentStep === CHAT_STEPS.SELECT_STORE" class="flex flex-col gap-2">
+                <!-- Search Input for Store -->
+                <div v-if="currentStep === CHAT_STEPS.SELECT_STORE" class="mb-3 relative">
+                  <input
+                    v-model="searchStoreQuery"
+                    type="text"
+                    class="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-700 placeholder-slate-400 focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-400 transition-colors"
+                    placeholder="Tìm cửa hàng..."
+                  />
+                  <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <svg class="size-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                    </svg>
+                  </div>
+                </div>
+
+                <div v-if="currentStep === CHAT_STEPS.SELECT_STORE" class="flex flex-col gap-2 max-h-[220px] overflow-y-auto ticket-inbox-scrollbar pr-1 -mr-1">
                   <button 
-                    v-for="store in availableStores" :key="store.value"
+                    v-for="store in filteredStores" :key="store.value"
                     @click="handleSelectStore(store)"
-                    class="text-left w-full rounded-xl border border-slate-200 p-3 hover:border-indigo-400 hover:text-indigo-700 hover:bg-indigo-50/50 hover:shadow-xs transition-all text-sm font-medium text-slate-700 focus:outline-hidden"
+                    class="text-left w-full rounded-xl border border-slate-200 p-3 hover:border-indigo-400 hover:text-indigo-700 hover:bg-indigo-50/50 hover:shadow-xs transition-all text-sm font-medium text-slate-700 focus:outline-hidden shrink-0"
                   >
                     {{ store.label }}
                   </button>
-                  <p v-if="availableStores.length === 0" class="text-sm text-rose-500">Bạn không có quyền ở cửa hàng nào.</p>
+                  <p v-if="filteredStores.length === 0 && searchStoreQuery" class="text-sm text-slate-500 py-2 text-center">Không tìm thấy cửa hàng nào phù hợp.</p>
+                  <p v-if="availableStores.length === 0" class="text-sm text-rose-500 py-2">Bạn không có quyền ở cửa hàng nào.</p>
                 </div>
               </div>
 
@@ -234,6 +296,12 @@ function renderMessage(content) {
                 <p class="text-sm text-slate-700 leading-relaxed mb-4 font-medium">{{ msg.content }}</p>
                 <div v-if="currentStep === CHAT_STEPS.INPUT_CONTENT" class="flex flex-col gap-4">
                   <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white transition-colors focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-400">
+                    <input
+                      v-model="inputPhone"
+                      type="text"
+                      placeholder="Số điện thoại liên hệ (Bắt buộc)..."
+                      class="app-input block w-full border-0 border-b border-slate-100 bg-transparent px-4 py-3.5 text-sm leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                    />
                     <textarea 
                       v-model="inputDescription"
                       rows="4" 
@@ -257,7 +325,7 @@ function renderMessage(content) {
                     <button 
                       @click="handleContentSubmit"
                       class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-700 hover:shadow-md disabled:opacity-50 outline-none"
-                      :disabled="!inputDescription.trim()"
+                      :disabled="!inputDescription.trim() || !inputPhone.trim()"
                     >
                       Tiếp tục
                     </button>

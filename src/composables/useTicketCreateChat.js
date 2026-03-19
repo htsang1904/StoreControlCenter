@@ -1,6 +1,7 @@
 import { reactive, ref } from 'vue'
 
 export const CHAT_STEPS = {
+  SELECT_TICKET_TYPE: 'select_ticket_type',
   SELECT_STORE: 'select_store',
   SELECT_DEPARTMENT: 'select_department',
   INPUT_CONTENT: 'input_content',
@@ -10,13 +11,17 @@ export const CHAT_STEPS = {
 }
 
 export function useTicketCreateChat() {
-  const currentStep = ref(CHAT_STEPS.SELECT_STORE)
+  const currentStep = ref(CHAT_STEPS.SELECT_TICKET_TYPE)
+
   
   const formData = reactive({
+    type: '',
+    type_name: '',
     store_id: '',
     store_name: '',
     responsible_department_id: '',
     department_name: '',
+    phone: '',
     title: '',
     description: '',
     attachments_media: []
@@ -35,17 +40,30 @@ export function useTicketCreateChat() {
   }
 
   function resetState() {
-    currentStep.value = CHAT_STEPS.SELECT_STORE
+    currentStep.value = CHAT_STEPS.SELECT_TICKET_TYPE
+    formData.type = ''
+    formData.type_name = ''
     formData.store_id = ''
     formData.store_name = ''
     formData.responsible_department_id = ''
     formData.department_name = ''
+    formData.phone = ''
     formData.title = ''
     formData.description = ''
     formData.attachments_media = []
     messages.value = []
     
     addMessage('bot', 'text', 'Xin chào! Bạn đang muốn tạo một yêu cầu hỗ trợ mới.')
+    addMessage('bot', 'action_ticket_type', 'Vui lòng chọn phân loại yêu cầu của bạn.')
+  }
+
+  function selectTicketType(typeValue, typeLabel) {
+    formData.type = typeValue
+    formData.type_name = typeLabel
+    addMessage('user', 'text', `Phân loại: **${typeLabel}**`)
+    
+    currentStep.value = CHAT_STEPS.SELECT_STORE
+    addMessage('bot', 'text', 'Đã ghi nhận phân loại.')
     addMessage('bot', 'action_store', 'Vui lòng chọn cửa hàng cần hỗ trợ.')
   }
 
@@ -68,12 +86,13 @@ export function useTicketCreateChat() {
     addMessage('bot', 'action_content', 'Vui lòng nhập nội dung chi tiết và đính kèm hình ảnh (nếu có).')
   }
 
-  function submitContent(description, attachments) {
+  function submitContent(phone, description, attachments) {
     formData.title = formData.store_name || 'Yêu cầu hỗ trợ'
+    formData.phone = phone
     formData.description = description
     formData.attachments_media = attachments
     
-    addMessage('user', 'text', `**Nội dung:**\n${description}`)
+    addMessage('user', 'text', `**Số điện thoại:** ${phone}\n**Nội dung:**\n${description}`)
     if (attachments && attachments.length) {
       addMessage('user', 'attachment_preview', 'Đã đính kèm ảnh', { attachments })
     }
@@ -88,6 +107,7 @@ export function useTicketCreateChat() {
     messages,
     resetState,
     addMessage,
+    selectTicketType,
     selectStore,
     selectDepartment,
     submitContent

@@ -2,6 +2,8 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FileUploadItem from '@/components/FileUploadItem.vue'
+import TicketCreateChat from '@/components/ticket-chat-create/TicketCreateChat.vue'
+import { useTicketCreateChat } from '@/composables/useTicketCreateChat'
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
 import { createTicket, getActiveDepartments, getTicketById, updateTicket, uploadTicketAttachments } from '@/services/ticket_service'
@@ -10,6 +12,8 @@ const route = useRoute()
 const router = useRouter()
 const { state } = useApp()
 const toast = useToast()
+
+const chatState = useTicketCreateChat()
 
 const pageLoading = ref(true)
 const submitting = ref(false)
@@ -231,6 +235,10 @@ function goBack() {
   router.back()
 }
 
+function onTicketCreated(ticketId) {
+  router.push(`/ticket`)
+}
+
 onMounted(async () => {
   pageLoading.value = true
   try {
@@ -276,28 +284,37 @@ watch(
 </script>
 
 <template>
-  <div class="page-stack mx-2 overflow-visible space-y-4 tablet:mx-3 pc:mx-0">
-    <div class="flex min-w-0 items-start gap-3">
-      <button
-        type="button"
-        class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-        aria-label="Quay lại danh sách ticket"
-        @click="goBack"
-      >
-        <span class="material-symbols-outlined text-[18px]">arrow_back</span>
-      </button>
-      <div class="min-w-0">
-        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-          {{ isEditMode ? 'Cập nhật ticket' : 'Ticket mới' }}
-        </p>
-        <h1 class="mt-1 text-lg font-semibold text-slate-900 tablet:text-xl">{{ pageTitle }}</h1>
-        <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
-      </div>
+  <!-- Ticket Creation Chat Assistant (Full View) -->
+  <template v-if="!isEditMode">
+    <div class="h-[calc(100vh-64px)] w-full overflow-hidden bg-slate-50 tablet:h-[calc(100vh-80px)]">
+      <TicketCreateChat :chat-state="chatState" @close="goBack" @ticket-created="onTicketCreated" />
     </div>
+  </template>
 
-    <div>
-      <div class="overflow-hidden rounded-xl border border-slate-200 bg-white" v-loading="pageLoading">
-        <form @submit.prevent="submitTicket">
+  <!-- Edit Ticket Form (Standard Page Stack Layout) -->
+  <template v-else>
+    <div class="page-stack mx-2 overflow-visible space-y-4 tablet:mx-3 pc:mx-0">
+      <div class="flex min-w-0 items-start gap-3">
+        <button
+          type="button"
+          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+          aria-label="Quay lại danh sách ticket"
+          @click="goBack"
+        >
+          <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+        </button>
+        <div class="min-w-0">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            Cập nhật ticket
+          </p>
+          <h1 class="mt-1 text-lg font-semibold text-slate-900 tablet:text-xl">{{ pageTitle }}</h1>
+          <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white" v-loading="pageLoading">
+          <form @submit.prevent="submitTicket">
           <div class="rounded-xl bg-white">
             <div class="p-4 tablet:p-7">
               <div class="space-y-4 tablet:space-y-6">
@@ -450,6 +467,7 @@ watch(
       </div>
     </div>
   </div>
+  </template>
 </template>
 
 <style scoped></style>

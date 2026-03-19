@@ -57,6 +57,23 @@ const hasMoreTickets = computed(() => {
 })
 const sidebarViewportRef = ref(null)
 
+const currentTab = ref('sua_chua')
+
+const tabTickets = computed(() => {
+  if (currentTab.value === 'sua_chua') {
+    return [
+      ...tickets.value.filter(t => t.type === 'sua_chua'),
+      { id: 'MOCK-1', ticket_code: 'TCK-M01', title: '[Mẫu] Máy lạnh chảy nước ngắt quãng', description: 'Máy lạnh ở quầy thu ngân phà nước liên tục.', status: 'new', handler: { name: 'Nguyễn Văn A' }, createdAt: new Date().toISOString(), type: 'sua_chua' },
+      { id: 'MOCK-2', ticket_code: 'TCK-M02', title: '[Mẫu] Tủ mát hở ron cửa', description: 'Tủ mát không đóng kín được, cần kiểm tra ron cao su.', status: 'in_progress', handler: { name: 'Trần Thị B' }, createdAt: new Date(Date.now() - 3600000).toISOString(), type: 'sua_chua' }
+    ]
+  } else {
+    return [
+      ...tickets.value.filter(t => t.type === 'thay_moi'),
+      { id: 'MOCK-3', ticket_code: 'TCK-M03', title: '[Mẫu] Thay bóng đèn trần phòng trưng bày', description: '2 bóng đèn bị đứt bóng, cần chuẩn bị bóng led 40w.', status: 'resolved', handler: { name: 'Lê Văn C' }, createdAt: new Date(Date.now() - 86400000).toISOString(), type: 'thay_moi' }
+    ]
+  }
+})
+
 function goToManagementMode() {
   router.push('/ticket')
 }
@@ -225,39 +242,22 @@ watch(
         :class="showSidebarPane ? 'flex flex-col' : 'hidden pc:flex pc:flex-col'"
       >
         <div class="relative flex h-full min-h-0 flex-col">
-          <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
+          <div class="flex flex-col px-4 pt-4 tablet:px-5 tablet:pt-5">
             <div class="flex items-center justify-between gap-3">
-              <h2 class="min-w-0 truncate text-lg font-semibold text-slate-900">Danh sách ticket</h2>
+              <div class="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  aria-label="Quay lại quản lý ticket"
+                  title="Quay lại quản lý ticket"
+                  @click="goToManagementMode"
+                >
+                  <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+                </button>
+                <h2 class="min-w-0 truncate text-lg font-semibold text-slate-900">Danh sách ticket</h2>
+              </div>
 
               <div class="flex shrink-0 items-center gap-2">
-                <div class="group relative">
-                  <button
-                    type="button"
-                    class="inline-flex size-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 focus:outline-hidden"
-                    title="Chế độ quản lý"
-                    aria-label="Chế độ quản lý"
-                    @click="goToManagementMode"
-                  >
-                    <svg
-                      class="size-[18px]"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.1"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
-                      <rect x="4" y="4" width="6" height="6" rx="1.5" />
-                      <rect x="14" y="4" width="6" height="6" rx="1.5" />
-                      <rect x="4" y="14" width="6" height="6" rx="1.5" />
-                      <rect x="14" y="14" width="6" height="6" rx="1.5" />
-                    </svg>
-                  </button>
-                  <span class="pointer-events-none absolute right-0 top-full z-10 mt-2 hidden whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white group-hover:block group-focus-within:block">
-                    Chế độ quản lý
-                  </span>
-                </div>
 
                 <div class="group relative">
                   <button
@@ -326,6 +326,24 @@ watch(
                 {{ status.label }}
               </button>
             </div>
+
+            <!-- System Tabs -->
+            <div class="flex items-end mt-2 -mx-4 tablet:-mx-5 px-4 tablet:px-5 border-b border-slate-200">
+              <nav class="flex space-x-1" aria-label="Tabs">
+                <button
+                  v-for="(tab, index) in [{ id: 'sua_chua', name: 'Sửa chữa' }, { id: 'thay_moi', name: 'Thay mới' }]"
+                  :key="tab.id"
+                  class="relative -mb-px border border-slate-200 px-5 py-2.5 text-xs font-semibold transition-colors focus:outline-hidden"
+                  :class="[
+                    currentTab === tab.id ? 'border-b-white bg-white text-blue-600 z-10' : 'border-b-slate-200 bg-slate-100/50 text-slate-500 hover:bg-slate-50 hover:text-slate-700',
+                    index === 0 ? 'rounded-tl-2xl rounded-tr-xl' : 'rounded-t-xl'
+                  ]"
+                  @click="currentTab = tab.id"
+                >
+                  {{ tab.name }}
+                </button>
+              </nav>
+            </div>
           </div>
 
           <div
@@ -349,9 +367,9 @@ watch(
               </div>
             </div>
 
-            <div v-else-if="tickets.length">
+            <div v-else-if="tabTickets.length">
               <button
-                v-for="ticket in tickets"
+                v-for="ticket in tabTickets"
                 :key="ticket.id"
                 type="button"
                 class="mb-3 flex w-full flex-col overflow-hidden rounded-2xl border px-4 py-3.5 text-left transition-colors last:mb-0"
