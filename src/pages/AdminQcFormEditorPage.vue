@@ -664,7 +664,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-stack mx-auto max-w-6xl space-y-4">
+  <div class="page-stack mx-auto max-w-6xl space-y-4 p-3">
     <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
       <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
         <div class="flex min-w-0 items-start gap-3">

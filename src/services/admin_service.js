@@ -182,6 +182,10 @@ export const updateAdminQcForm = async (formId, payload = {}) => {
   return normalizeAdminQcFormDetail(response?.data?.item || {})
 }
 
+export const deleteAdminQcForm = async (formId) => {
+  return http.delete(`/api/admin/qc/forms/${formId}`)
+}
+
 const normalizeAdminUser = (item = {}) => {
   const stores = Array.isArray(item?.stores)
     ? item.stores.map((store) => ({
@@ -266,6 +270,10 @@ export const updateAdminUser = async (userId, payload = {}) => {
   return normalizeAdminUser(response?.data?.item || {})
 }
 
+export const deleteAdminUser = async (userId) => {
+  return http.delete(`/api/admin/users/${userId}`)
+}
+
 export const listAdminDepartments = async () => {
   const response = await http.get('/api/departments')
   const rows = Array.isArray(response?.data) ? response.data : []
@@ -310,4 +318,8 @@ export const createAdminStore = async (payload = {}) => {
 export const updateAdminStore = async (storeId, payload = {}) => {
   const response = await http.put(`/api/admin/stores/${storeId}`, payload)
   return normalizeAdminStore(response?.data?.item || {})
+}
+
+export const deleteAdminStore = async (storeId) => {
+  return http.delete(`/api/admin/stores/${storeId}`)
 }

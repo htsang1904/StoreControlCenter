@@ -26,6 +26,9 @@ from app.services.ticket_policy import (
 
 router = APIRouter()
 
+def _utcnow_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 async def _get_ticket_with_details(session: AsyncSession, ticket_id: int) -> Optional[Ticket]:
     """Helper to fetch a ticket with all nested relationships for rich responses."""
     query = select(Ticket).options(
@@ -187,7 +190,7 @@ async def create_ticket(
 
         data["handler_id"] = incoming_handler_id
         data["status"] = "in_progress"
-        data["processing_started_at"] = datetime.now(timezone.utc)
+        data["processing_started_at"] = _utcnow_naive()
     
     data["requester_id"] = current_user.id
     data["ticket_code"] = f"TCK-{uuid.uuid4().hex[:8].upper()}"
@@ -310,7 +313,7 @@ async def update_ticket(
 
     if update_data.get("handler_id") and ticket.status == "new":
         ticket.status = "in_progress"
-        ticket.processing_started_at = datetime.now(timezone.utc)
+        ticket.processing_started_at = _utcnow_naive()
         
     session.add(ticket)
     await session.commit()
@@ -402,7 +405,7 @@ async def assign_handler(
 
     if ticket.status == "new":
         ticket.status = "in_progress"
-        ticket.processing_started_at = datetime.now(timezone.utc)
+        ticket.processing_started_at = _utcnow_naive()
         
     if handler not in ticket.assignees:
         ticket.assignees.append(handler)
@@ -437,7 +440,7 @@ async def resolve_ticket(
         )
         
     ticket.status = "resolved"
-    ticket.resolved_at = datetime.now(timezone.utc)
+    ticket.resolved_at = _utcnow_naive()
     
     session.add(ticket)
     await session.commit()
@@ -525,7 +528,7 @@ async def assign_ticket_to_me(
         ticket.assignees.append(current_user)
         if ticket.status == "new":
             ticket.status = "in_progress"
-            ticket.processing_started_at = datetime.now(timezone.utc)
+            ticket.processing_started_at = _utcnow_naive()
             
         session.add(ticket)
         await session.commit()

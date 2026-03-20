@@ -18,12 +18,19 @@ ALLOWED_STATUS_TRANSITIONS = {
 }
 
 
+def _normalize_text(value: object | None) -> str:
+    if value is None:
+        return ""
+    raw = value.value if hasattr(value, "value") else value
+    return str(raw).strip().lower()
+
+
 def normalize_status(status: str | None) -> str:
-    return str(status or "").strip().lower()
+    return _normalize_text(status)
 
 
 def normalize_role(role: str | None) -> str:
-    return str(role or "").strip().lower()
+    return _normalize_text(role)
 
 
 def can_access_ticket(

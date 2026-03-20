@@ -118,6 +118,16 @@ def test_assign_and_claim_rules():
     assert not ok and "Chỉ handler/admin" in msg
 
 
+def test_can_claim_ticket_accepts_enum_role_values():
+    from app.models.user import UserRole
+
+    ok, _ = can_claim_ticket(UserRole.admin, "new")
+    assert ok
+
+    ok, _ = can_claim_ticket(UserRole.handler, "assigned")
+    assert ok
+
+
 def test_resolve_reopen_reject_rules():
     ok, _ = can_resolve_ticket("admin", "in_progress", is_assignee=False)
     assert ok

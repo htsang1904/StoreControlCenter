@@ -5,11 +5,14 @@ Endpoints under /api/admin/stores for list/create/update stores.
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import func, or_
+from sqlalchemy import delete, func, or_
 from sqlalchemy.future import select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.models.org import Store
+from app.models.qc_session import QCDraft, QCFinding, QCSession
+from app.models.ticket import Ticket
+from app.models.user import user_stores
 
 router = APIRouter()
 
@@ -38,6 +41,54 @@ def _serialize_store(store: Store) -> dict:
         "created_at": store.created_at.isoformat() if store.created_at else None,
         "updated_at": store.updated_at.isoformat() if store.updated_at else None,
     }
+
+
+async def _count_store_business_references(session: SessionDep, store_id: int) -> dict:
+    ticket_count = int((await session.execute(
+        select(func.count())
+        .select_from(Ticket)
+        .where(Ticket.store_id == store_id)
+    )).scalar() or 0)
+
+    qc_session_count = int((await session.execute(
+        select(func.count())
+        .select_from(QCSession)
+        .where(QCSession.store_id == store_id)
+    )).scalar() or 0)
+
+    qc_draft_count = int((await session.execute(
+        select(func.count())
+        .select_from(QCDraft)
+        .where(QCDraft.store_id == store_id)
+    )).scalar() or 0)
+
+    qc_finding_count = int((await session.execute(
+        select(func.count())
+        .select_from(QCFinding)
+        .where(QCFinding.store_id == store_id)
+    )).scalar() or 0)
+
+    return {
+        "tickets": ticket_count,
+        "qc_sessions": qc_session_count,
+        "qc_drafts": qc_draft_count,
+        "qc_findings": qc_finding_count,
+    }
+
+
+def _format_store_blocking_references(reference_counts: dict) -> str:
+    labels = {
+        "tickets": "ticket",
+        "qc_sessions": "phiếu QC",
+        "qc_drafts": "nháp QC",
+        "qc_findings": "finding QC",
+    }
+    non_zero_parts = [
+        f"{labels[key]}: {value}"
+        for key, value in reference_counts.items()
+        if int(value or 0) > 0
+    ]
+    return ", ".join(non_zero_parts)
 
 
 @router.get("/", response_model=dict)
@@ -220,3 +271,34 @@ async def update_admin_store(
     await session.refresh(store)
 
     return {"success": True, "data": {"item": _serialize_store(store)}}
+
+
+@router.delete("/{store_id}", response_model=dict)
+async def delete_admin_store(
+    store_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    _require_admin(current_user)
+
+    result = await session.execute(select(Store).where(Store.id == store_id))
+    store = result.scalar_one_or_none()
+    if not store:
+        raise HTTPException(status_code=404, detail="Không tìm thấy cửa hàng")
+
+    reference_counts = await _count_store_business_references(session, store.id)
+    blocking_detail = _format_store_blocking_references(reference_counts)
+    if blocking_detail:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Không thể xóa cửa hàng vì còn dữ liệu nghiệp vụ liên quan "
+                f"({blocking_detail}). Hãy khóa cửa hàng thay vì xóa."
+            ),
+        )
+
+    await session.execute(delete(user_stores).where(user_stores.c.store_id == store.id))
+    await session.delete(store)
+    await session.commit()
+
+    return {"success": True, "message": "Xóa cửa hàng thành công"}

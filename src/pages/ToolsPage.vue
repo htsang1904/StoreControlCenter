@@ -22,7 +22,7 @@ const openTool = (path) => {
 </script>
 
 <template>
-  <div class="page-stack space-y-4">
+  <div class="page-stack space-y-4 p-3">
     <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
       <h2 class="text-xl font-semibold tracking-tight text-slate-900">Công cụ quản trị</h2>
       <p class="mt-2 text-sm leading-6 text-slate-500">

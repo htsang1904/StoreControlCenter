@@ -89,7 +89,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-stack space-y-4">
+  <div class="page-stack space-y-4 p-3">
     <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
       <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
         <div class="max-w-3xl">

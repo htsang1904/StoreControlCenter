@@ -11,6 +11,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import CurrentUser, SessionDep
 from app.models.org import Department, Store
+from app.models.qc_session import QCDraft, QCFinding, QCSession
+from app.models.ticket import Ticket, TicketLog
 from app.models.user import User, UserRole
 
 router = APIRouter()
@@ -82,6 +84,62 @@ async def _count_other_active_admins(session: SessionDep, excluded_user_id: int)
         )
     )
     return int(count_result.scalar() or 0)
+
+
+async def _count_user_business_references(session: SessionDep, user_id: int) -> dict:
+    ticket_count = int((await session.execute(
+        select(func.count())
+        .select_from(Ticket)
+        .where(or_(Ticket.requester_id == user_id, Ticket.handler_id == user_id))
+    )).scalar() or 0)
+
+    ticket_log_count = int((await session.execute(
+        select(func.count())
+        .select_from(TicketLog)
+        .where(TicketLog.sender_id == user_id)
+    )).scalar() or 0)
+
+    qc_session_count = int((await session.execute(
+        select(func.count())
+        .select_from(QCSession)
+        .where(QCSession.auditor_id == user_id)
+    )).scalar() or 0)
+
+    qc_draft_count = int((await session.execute(
+        select(func.count())
+        .select_from(QCDraft)
+        .where(QCDraft.auditor_id == user_id)
+    )).scalar() or 0)
+
+    qc_finding_count = int((await session.execute(
+        select(func.count())
+        .select_from(QCFinding)
+        .where(or_(QCFinding.assignee_id == user_id, QCFinding.verifier_id == user_id))
+    )).scalar() or 0)
+
+    return {
+        "tickets": ticket_count,
+        "ticket_logs": ticket_log_count,
+        "qc_sessions": qc_session_count,
+        "qc_drafts": qc_draft_count,
+        "qc_findings": qc_finding_count,
+    }
+
+
+def _format_blocking_references(reference_counts: dict) -> str:
+    labels = {
+        "tickets": "ticket",
+        "ticket_logs": "log ticket",
+        "qc_sessions": "phiếu QC",
+        "qc_drafts": "nháp QC",
+        "qc_findings": "finding QC",
+    }
+    non_zero_parts = [
+        f"{labels[key]}: {value}"
+        for key, value in reference_counts.items()
+        if int(value or 0) > 0
+    ]
+    return ", ".join(non_zero_parts)
 
 
 @router.get("/", response_model=dict)
@@ -288,3 +346,46 @@ async def update_admin_user(
     refreshed_user = refresh_result.scalar_one()
 
     return {"success": True, "data": {"item": _serialize_user(refreshed_user)}}
+
+
+@router.delete("/{user_id}", response_model=dict)
+async def delete_admin_user(
+    user_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    _require_admin(current_user)
+
+    result = await session.execute(
+        select(User).where(User.id == user_id)
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Không tìm thấy nhân viên")
+
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Không thể tự xóa chính tài khoản đang đăng nhập")
+
+    if user.role == UserRole.admin and bool(user.is_active):
+        other_active_admins = await _count_other_active_admins(session, user.id)
+        if other_active_admins <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Hệ thống phải luôn có ít nhất một admin đang hoạt động",
+            )
+
+    reference_counts = await _count_user_business_references(session, user.id)
+    blocking_detail = _format_blocking_references(reference_counts)
+    if blocking_detail:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Không thể xóa nhân viên vì còn dữ liệu nghiệp vụ liên quan "
+                f"({blocking_detail}). Hãy khóa tài khoản thay vì xóa."
+            ),
+        )
+
+    await session.delete(user)
+    await session.commit()
+
+    return {"success": True, "message": "Xóa nhân viên thành công"}

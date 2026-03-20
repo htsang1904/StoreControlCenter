@@ -7,12 +7,13 @@ import logging
 import re
 from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import func
+from sqlalchemy import delete, func
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import SessionDep, CurrentUser
 from app.models.qc_form import QCForm, QCFormVersion, QCCriterion, QCFormCriterion
+from app.models.qc_session import QCSession
 
 router = APIRouter()
 logger = logging.getLogger("app.admin_qc")
@@ -299,3 +300,43 @@ async def update_admin_qc_form(
     form = result.scalar_one()
     
     return {"success": True, "data": {"item": _serialize_form_detail(form)}}
+
+
+@router.delete("/forms/{form_id}", response_model=dict)
+async def delete_admin_qc_form(
+    form_id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    """Delete a QC form (admin only) when no QC sessions are linked to its versions."""
+    _require_admin(current_user)
+
+    form_result = await session.execute(select(QCForm).where(QCForm.id == form_id))
+    form = form_result.scalar_one_or_none()
+    if not form:
+        raise HTTPException(status_code=404, detail="QC Form không tồn tại")
+
+    version_id_query = select(QCFormVersion.id).where(QCFormVersion.form_id == form.id)
+    linked_session_count = int((await session.execute(
+        select(func.count())
+        .select_from(QCSession)
+        .where(QCSession.form_version_id.in_(version_id_query))
+    )).scalar() or 0)
+
+    if linked_session_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Không thể xóa biểu mẫu QC vì đã có dữ liệu chấm điểm liên quan "
+                f"(phiếu QC: {linked_session_count}). Hãy lưu trữ hoặc ngừng kích hoạt thay vì xóa."
+            ),
+        )
+
+    await session.execute(
+        delete(QCFormCriterion).where(QCFormCriterion.form_version_id.in_(version_id_query))
+    )
+    await session.execute(delete(QCFormVersion).where(QCFormVersion.form_id == form.id))
+    await session.delete(form)
+    await session.commit()
+
+    return {"success": True, "message": "Xóa biểu mẫu QC thành công"}
