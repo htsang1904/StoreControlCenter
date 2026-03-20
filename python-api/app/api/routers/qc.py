@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, or_, and_, case
@@ -7,6 +7,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import SessionDep, CurrentUser
+from app.core.datetime_utils import utc_now_naive
 from app.models.qc_session import QCSession, QCSessionItem, QCFinding
 from app.models.qc_form import QCForm, QCFormVersion, QCCriterion, QCFormCriterion
 from app.models.org import Store
@@ -586,7 +587,7 @@ async def submit_qc_session(
     qc_session.max_score = max_score
     qc_session.result = "pass" if is_pass else "fail"
     qc_session.status = "closed" if is_pass else "needs_fix"
-    qc_session.submitted_at = datetime.now(timezone.utc)
+    qc_session.submitted_at = utc_now_naive()
     
     session.add(qc_session)
     
@@ -595,7 +596,7 @@ async def submit_qc_session(
     if not is_pass:
         for item in items:
             if item.result == "fail" and item.requires_fix:
-                timestamp = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
+                timestamp = utc_now_naive().strftime("%y%m%d%H%M%S")
                 random_part = uuid.uuid4().hex[:4].upper()
                 finding_code = f"QCF-{timestamp}-{random_part}"
                 
@@ -607,7 +608,7 @@ async def submit_qc_session(
                     criterion_name=item.criterion_name,
                     severity="medium", # Default
                     status="open",
-                    due_date=datetime.now(timezone.utc) + timedelta(days=3) # Default 3 days
+                    due_date=utc_now_naive() + timedelta(days=3) # Default 3 days
                 )
                 session.add(finding)
                 new_findings.append(finding_code)

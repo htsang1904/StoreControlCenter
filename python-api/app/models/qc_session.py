@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Numeric
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
+from app.db.types import UTCNaiveDateTime
 
 class QCSession(Base):
     __tablename__ = "qc_sessions"
@@ -16,8 +17,8 @@ class QCSession(Base):
     # Enums: "draft", "submitted", "needs_fix", "closed"
     status = Column(String(50), default="draft", nullable=False)
     
-    audited_at = Column(DateTime, nullable=False)
-    submitted_at = Column(DateTime, nullable=True)
+    audited_at = Column(UTCNaiveDateTime(), nullable=False)
+    submitted_at = Column(UTCNaiveDateTime(), nullable=True)
     
     # Enum: "pending", "pass", "fail"
     result = Column(String(50), default="pending", nullable=False)
@@ -75,7 +76,7 @@ class QCDraft(Base):
     auditor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     
     template_id = Column(String(50), nullable=False) # Maps to form version or form id roughly
-    audited_at = Column(DateTime, nullable=False)
+    audited_at = Column(UTCNaiveDateTime(), nullable=False)
     note = Column(Text, nullable=True)
     criteria_states = Column(JSON, nullable=True)
 
@@ -103,13 +104,13 @@ class QCFinding(Base):
     status = Column(String(50), default="open")
     
     assignee_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    due_date = Column(DateTime, nullable=True) # Strapi mapped to `date` but we use datetime here
+    due_date = Column(UTCNaiveDateTime(), nullable=True) # Strapi mapped to `date` but we use datetime here
     
     corrective_action = Column(Text, nullable=True)
     corrective_note = Column(Text, nullable=True)
     
-    resolved_at = Column(DateTime, nullable=True)
-    verified_at = Column(DateTime, nullable=True)
+    resolved_at = Column(UTCNaiveDateTime(), nullable=True)
+    verified_at = Column(UTCNaiveDateTime(), nullable=True)
     verifier_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     
     evidence = Column(JSON, nullable=True)

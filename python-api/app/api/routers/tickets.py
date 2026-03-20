@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from sqlalchemy import func, or_, and_
@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep, CurrentUser
+from app.core.datetime_utils import utc_now_naive
 from app.models.ticket import Ticket, TicketLog
 from app.models.user import User
 from app.schemas.ticket import TicketResponse, TicketCreate, TicketDetailResponse, TicketLogResponse, TicketUpdate
@@ -27,7 +28,7 @@ from app.services.ticket_policy import (
 router = APIRouter()
 
 def _utcnow_naive() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return utc_now_naive()
 
 async def _get_ticket_with_details(session: AsyncSession, ticket_id: int) -> Optional[Ticket]:
     """Helper to fetch a ticket with all nested relationships for rich responses."""

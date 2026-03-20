@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, or_, and_
@@ -6,6 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import SessionDep, CurrentUser
+from app.core.datetime_utils import parse_datetime_to_utc_naive, utc_now_naive
 from app.models.ticket import Ticket, TicketLog
 from app.models.org import Store
 from app.models.user import User
@@ -36,7 +37,7 @@ async def get_dashboard_overview(
     """
     # 1. Xử lý khoảng thời gian (Date Range) như Strapi
     # Sử dụng Naive Datetime đại diện cho UTC vì models đang dùng Naive DateTime
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = utc_now_naive()
     
     # Mặc định: 7 ngày gần nhất (bao gồm hôm nay)
     default_to = now.date().isoformat()
@@ -48,8 +49,12 @@ async def get_dashboard_overview(
     try:
         # Chuyển về 00:00:00 cho ngày bắt đầu và 23:59:59 cho ngày kết thúc
         # Loại bỏ tzinfo để tránh lỗi "can't subtract offset-naive and offset-aware datetimes"
-        date_from_dt = datetime.fromisoformat(date_from_str.replace("Z", "+00:00")).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
-        date_to_dt = datetime.fromisoformat(date_to_str.replace("Z", "+00:00")).replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=None)
+        date_from_dt = parse_datetime_to_utc_naive(date_from_str).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        date_to_dt = parse_datetime_to_utc_naive(date_to_str).replace(
+            hour=23, minute=59, second=59, microsecond=999999
+        )
     except ValueError:
         date_from_dt = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
         date_to_dt = now.replace(hour=23, minute=59, second=59, microsecond=999999)

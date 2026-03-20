@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Tabl
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
+from app.db.types import UTCNaiveDateTime
 
 # Association Table for Ticket <-> User (Many-to-Many - Assignees)
 ticket_assignees = Table(
@@ -29,10 +30,10 @@ class Ticket(Base):
     responsible_department_id = Column(Integer, ForeignKey("departments.id"), nullable=False, index=True)
     ticket_category_id = Column(Integer, nullable=True) # Unmapped external ID?
 
-    start_date = Column(DateTime, nullable=True)
-    processing_started_at = Column(DateTime, nullable=True)
-    resolved_at = Column(DateTime, nullable=True)
-    end_date = Column(DateTime, nullable=True)
+    start_date = Column(UTCNaiveDateTime(), nullable=True)
+    processing_started_at = Column(UTCNaiveDateTime(), nullable=True)
+    resolved_at = Column(UTCNaiveDateTime(), nullable=True)
+    end_date = Column(UTCNaiveDateTime(), nullable=True)
     
     # Storing file paths / metadata
     attachments = Column(JSON, nullable=True)

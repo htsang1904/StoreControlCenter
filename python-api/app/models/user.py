@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Foreign
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
+from app.db.types import UTCNaiveDateTime
 
 # Association Table for User <-> Store (Many-to-Many as per Strapi schema `stores` relation)
 user_stores = Table(
@@ -51,7 +52,7 @@ class User(Base):
     is_active = Column(Boolean, default=False) # Created as False by default pending admin approval
     
     refresh_token_hash = Column(String(255), nullable=True)
-    refresh_token_expires_at = Column(DateTime, nullable=True)
+    refresh_token_expires_at = Column(UTCNaiveDateTime(), nullable=True)
     token_version = Column(Integer, default=0)
     
     # Store enum values from Strapi: "store", "handler", "qc", "admin"
