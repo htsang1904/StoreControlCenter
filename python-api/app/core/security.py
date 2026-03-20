@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 import jwt
 from passlib.context import CryptContext
 from app.core.config import settings
+from app.core.datetime_utils import utc_now_naive
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -17,9 +18,9 @@ def create_access_token(
     data: dict | None = None
 ) -> str:
     if expires_delta:
-        expire = datetime.now(timezone.utc).replace(tzinfo=None) + expires_delta
+        expire = utc_now_naive() + expires_delta
     else:
-        expire = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = utc_now_naive() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     # We use string subject just in case Strapi holds UUIDs or Integers
     to_encode = {"exp": expire, "sub": str(subject)}

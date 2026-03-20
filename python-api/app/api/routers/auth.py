@@ -1,4 +1,4 @@
-from datetime import timedelta, datetime, timezone
+from datetime import timedelta
 from typing import Any
 import jwt
 import hashlib
@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core import security
 from app.core.config import settings
+from app.core.datetime_utils import utc_now_naive
 from app.api.deps import SessionDep, CurrentUser
 from app.models.user import User
 from app.models.org import Store
@@ -131,7 +132,7 @@ async def user_login(
     # Store token metadata in user table
     user.token_version = next_token_version
     user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
+    user.refresh_token_expires_at = utc_now_naive() + timedelta(days=30)
     user.suite_token = request.token
     
     session.add(user)
@@ -190,7 +191,7 @@ async def refresh_token(
         
     if user.refresh_token_hash != hash_refresh_token(request.refreshToken):
         raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
-    if user.refresh_token_expires_at and user.refresh_token_expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
+    if user.refresh_token_expires_at and user.refresh_token_expires_at < utc_now_naive():
         raise HTTPException(status_code=401, detail="Refresh token đã hết hạn")
 
     token_version = payload.get("tokenVersion")
@@ -218,7 +219,7 @@ async def refresh_token(
     )
     
     user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)
+    user.refresh_token_expires_at = utc_now_naive() + timedelta(days=30)
     session.add(user)
     await session.commit()
     

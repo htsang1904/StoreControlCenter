@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from app.core.datetime_utils import parse_datetime_to_utc_naive, utc_now_naive
 from app.models.qc_session import QCDraft
 from app.models.user import User
 from app.schemas.qc import (
@@ -22,16 +23,7 @@ from app.schemas.qc import (
 
 
 def parse_iso_datetime(value: object, fallback: datetime | None = None) -> datetime:
-    if isinstance(value, datetime):
-        return value.replace(tzinfo=None)
-    if isinstance(value, str) and value.strip():
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(
-                tzinfo=None
-            )
-        except ValueError:
-            pass
-    return (fallback or datetime.now(timezone.utc)).replace(tzinfo=None)
+    return parse_datetime_to_utc_naive(value, fallback=fallback)
 
 
 def serialize_qc_draft(draft: QCDraft) -> QCDraftData:
@@ -224,7 +216,7 @@ def build_qc_session_create_payload(
     items_data = data.pop("criteria", [])
 
     data["auditor_id"] = current_user.id
-    data["code"] = f"QC-{datetime.now(timezone.utc).strftime('%y%m')}-{uuid.uuid4().hex[:4].upper()}"
+    data["code"] = f"QC-{utc_now_naive().strftime('%y%m')}-{uuid.uuid4().hex[:4].upper()}"
     data["audited_at"] = parse_iso_datetime(data.get("audited_at"))
 
     return data, items_data

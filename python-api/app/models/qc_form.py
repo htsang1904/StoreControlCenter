@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Numeric
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
+from app.db.types import UTCNaiveDateTime
 
 class QCForm(Base):
     __tablename__ = "qc_forms"
@@ -28,8 +29,8 @@ class QCFormVersion(Base):
     status = Column(String(50), default="draft", nullable=False)
     
     pass_rule = Column(JSON, nullable=True)
-    effective_from = Column(DateTime, nullable=True)
-    effective_to = Column(DateTime, nullable=True)
+    effective_from = Column(UTCNaiveDateTime(), nullable=True)
+    effective_to = Column(UTCNaiveDateTime(), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime, timezone
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, and_
@@ -8,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep, CurrentUser
+from app.core.datetime_utils import utc_now_naive
 from app.models.qc_session import QCFinding, QCSession, QCSessionItem
 from app.models.org import Store
 from app.models.user import User
@@ -109,7 +109,7 @@ async def create_finding(
     data = finding_in.model_dump()
     
     if not data.get("finding_code"):
-        timestamp = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
+        timestamp = utc_now_naive().strftime("%y%m%d%H%M%S")
         random_part = uuid.uuid4().hex[:4].upper()
         data["finding_code"] = f"QCF-{timestamp}-{random_part}"
 
@@ -175,9 +175,9 @@ async def update_finding(
         setattr(finding, field, value)
         
     if "status" in update_data and update_data["status"] == "resolved":
-        finding.resolved_at = datetime.now(timezone.utc)
+        finding.resolved_at = utc_now_naive()
     if "status" in update_data and update_data["status"] == "verified":
-        finding.verified_at = datetime.now(timezone.utc)
+        finding.verified_at = utc_now_naive()
         finding.verifier_id = current_user.id
 
     session.add(finding)
