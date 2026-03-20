@@ -13,7 +13,7 @@ from app.models.user import User
 
 # Strapi uses Bearer <token> which fits nicely with OAuth2PasswordBearer
 reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl="/api/user-info/login"
+    tokenUrl="/api/auth/login"
 )
 
 TokenDep = Annotated[str, Depends(reusable_oauth2)]

@@ -26,10 +26,6 @@ from app.services.ticket_policy import (
 
 router = APIRouter()
 
-from .dashboard import get_dashboard_overview as dashboard_backup
-router.add_api_route("/dashboard/overview", dashboard_backup, methods=["GET"], tags=["Dashboard (Backup)"])
-router.add_api_route("/dashboard/overview/", dashboard_backup, methods=["GET"], tags=["Dashboard (Backup)"])
-
 async def _get_ticket_with_details(session: AsyncSession, ticket_id: int) -> Optional[Ticket]:
     """Helper to fetch a ticket with all nested relationships for rich responses."""
     query = select(Ticket).options(

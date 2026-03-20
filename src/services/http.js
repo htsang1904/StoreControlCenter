@@ -33,7 +33,7 @@ const refreshAccessToken = async () => {
   }
 
   const response = await axios.post(
-    `${API_BASE_URL}/api/user-info/refresh`,
+    `${API_BASE_URL}/api/auth/refresh`,
     { refreshToken },
     {
       headers: {
@@ -62,9 +62,9 @@ const refreshAccessToken = async () => {
 }
 
 const isAuthEndpoint = (url = '') =>
-  url.includes('/api/user-info/login') ||
-  url.includes('/api/user-info/refresh') ||
-  url.includes('/api/user-info/logout')
+  url.includes('/api/auth/login') ||
+  url.includes('/api/auth/refresh') ||
+  url.includes('/api/auth/logout')
 
 const getClient = (baseURL = API_BASE_URL) => {
   const isAppApiClient = baseURL === API_BASE_URL

@@ -4,7 +4,6 @@ from .routers import auth, stores, departments, tickets, qc, qc_findings, ticket
 api_router = APIRouter()
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
-api_router.include_router(auth.router, prefix="/user-info", tags=["Auth (Legacy)"])
 api_router.include_router(stores.router, prefix="/stores", tags=["Stores"])
 api_router.include_router(departments.router, prefix="/departments", tags=["Departments"])
 api_router.include_router(tickets.router, prefix="/tickets", tags=["Tickets"])

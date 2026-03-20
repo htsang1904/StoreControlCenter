@@ -526,8 +526,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div>
-    <div class="page-stack mx-2 overflow-visible space-y-4 tablet:mx-3 pc:mx-0">
+  <div class="px-2 py-3 tablet:px-3 tablet:py-4 pc:px-0">
+    <div class="page-stack overflow-visible space-y-4">
       <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard
           v-for="card in summaryCards"

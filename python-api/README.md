@@ -103,7 +103,7 @@ FastAPI automatically generates interactive API documentation. Once the server i
 - **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-You can use the Swagger UI to directly interact with the `/auth/local`, `/tickets`, and `/qc` endpoints.
+You can use the Swagger UI to directly interact with the `/auth`, `/tickets`, and `/qc` endpoints.
 
 ---
 
