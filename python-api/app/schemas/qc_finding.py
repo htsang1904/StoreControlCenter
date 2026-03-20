@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Any, List, Optional, Literal
-from pydantic import BaseModel, Field
+from typing import Optional, Literal
+from pydantic import BaseModel, ConfigDict, Field
 
 class QCFindingBase(BaseModel):
     finding_code: Optional[str] = None
@@ -14,8 +14,8 @@ class QCFindingBase(BaseModel):
     due_date: Optional[datetime] = None
     corrective_action: Optional[str] = None
     corrective_note: Optional[str] = None
-    evidence: Optional[List[dict]] = None
-    meta_info: Optional[dict] = None
+    evidence: Optional[list[dict[str, object]]] = None
+    meta_info: Optional[dict[str, object]] = None
 
 class QCFindingCreate(QCFindingBase):
     pass
@@ -30,8 +30,8 @@ class QCFindingUpdate(BaseModel):
     resolved_at: Optional[datetime] = None
     verified_at: Optional[datetime] = None
     verifier_id: Optional[int] = None
-    evidence: Optional[List[dict]] = None
-    meta_info: Optional[dict] = None
+    evidence: Optional[list[dict[str, object]]] = None
+    meta_info: Optional[dict[str, object]] = None
 
 class QCFindingShortResponse(BaseModel):
     id: int
@@ -41,8 +41,7 @@ class QCFindingShortResponse(BaseModel):
     criterion_name: Optional[str]
     due_date: Optional[datetime]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class QCFindingResponse(QCFindingBase):
     id: int
@@ -53,5 +52,4 @@ class QCFindingResponse(QCFindingBase):
     verified_at: Optional[datetime] = None
     verifier_id: Optional[int] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

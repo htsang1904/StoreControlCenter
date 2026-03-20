@@ -31,6 +31,7 @@ async def test_auth_router_mock_login(monkeypatch):
     
     # Mock database session
     mock_session = AsyncMock()
+    mock_session.add = MagicMock()
     mock_user = MagicMock()
     mock_user.id = 1
     mock_user.email = "marketing@gutacafe.com"
