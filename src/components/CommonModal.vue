@@ -38,6 +38,14 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  disableTeleport: {
+    type: Boolean,
+    default: false,
+  },
+  containerClass: {
+    type: String,
+    default: 'fixed inset-0 z-[70]',
+  },
 })
 
 const emit = defineEmits(['update:modelValue', 'close'])
@@ -99,10 +107,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="disableTeleport">
     <div
       v-if="modelValue"
-      class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/30 p-4"
+      :class="[containerClass, 'flex items-center justify-center bg-slate-950/30 p-4']"
       @click.self="handleBackdropClick"
     >
       <div

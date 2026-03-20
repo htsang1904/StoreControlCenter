@@ -223,7 +223,8 @@ async function submitTicket() {
     const successMsg = result?.message || (isEditMode.value ? 'Cập nhật yêu cầu thành công' : 'Tạo yêu cầu thành công')
     toast.success(successMsg)
     await new Promise((resolve) => setTimeout(resolve, 220))
-    await router.push('/ticket')
+    const targetRoute = isEditMode.value ? '/ticket' : '/ticket/inbox'
+    await router.push(targetRoute)
   } catch (err) {
     const message = err?.response?.data?.message || err?.message || (isEditMode.value
       ? 'Không thể cập nhật yêu cầu. Vui lòng thử lại.'
@@ -245,7 +246,11 @@ function goBack() {
 }
 
 function onTicketCreated(ticketId) {
-  router.push(`/ticket`)
+  if (ticketId) {
+    router.push({ path: '/ticket/inbox', query: { ticket: ticketId } })
+  } else {
+    router.push('/ticket/inbox')
+  }
 }
 
 onMounted(async () => {

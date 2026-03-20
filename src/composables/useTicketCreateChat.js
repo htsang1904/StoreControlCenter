@@ -40,7 +40,7 @@ export function useTicketCreateChat() {
   }
 
   function resetState() {
-    currentStep.value = CHAT_STEPS.SELECT_TICKET_TYPE
+    currentStep.value = CHAT_STEPS.SELECT_STORE
     formData.type = ''
     formData.type_name = ''
     formData.store_id = ''
@@ -54,7 +54,7 @@ export function useTicketCreateChat() {
     messages.value = []
     
     addMessage('bot', 'text', 'Xin chào! Bạn đang muốn tạo một yêu cầu hỗ trợ mới.')
-    addMessage('bot', 'action_ticket_type', 'Vui lòng chọn phân loại yêu cầu của bạn.')
+    addMessage('bot', 'action_store', 'Vui lòng chọn cửa hàng cần hỗ trợ.')
   }
 
   function selectTicketType(typeValue, typeLabel) {

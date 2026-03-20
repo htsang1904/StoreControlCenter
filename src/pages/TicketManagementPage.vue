@@ -52,22 +52,7 @@ const {
   visiblePageItems,
 } = useTicketList(userInfo)
 
-const currentTab = ref('sua_chua')
-
-const tabTickets = computed(() => {
-  if (currentTab.value === 'sua_chua') {
-    return [
-      ...tickets.value.filter(t => t.type === 'sua_chua'),
-      { id: 'MOCK-1', ticket_code: 'TCK-M01', title: '[Mẫu] Máy lạnh chảy nước ngắt quãng', description: 'Máy lạnh ở quầy thu ngân phà nước liên tục.', status: 'new', handler: { name: 'Nguyễn Văn A' }, createdAt: new Date().toISOString(), type: 'sua_chua' },
-      { id: 'MOCK-2', ticket_code: 'TCK-M02', title: '[Mẫu] Tủ mát hở ron cửa', description: 'Tủ mát không đóng kín được, cần kiểm tra ron cao su.', status: 'in_progress', handler: { name: 'Trần Thị B' }, createdAt: new Date(Date.now() - 3600000).toISOString(), type: 'sua_chua' }
-    ]
-  } else {
-    return [
-      ...tickets.value.filter(t => t.type === 'thay_moi'),
-      { id: 'MOCK-3', ticket_code: 'TCK-M03', title: '[Mẫu] Thay bóng đèn trần phòng trưng bày', description: '2 bóng đèn bị đứt bóng, cần chuẩn bị bóng led 40w.', status: 'resolved', handler: { name: 'Lê Văn C' }, createdAt: new Date(Date.now() - 86400000).toISOString(), type: 'thay_moi' }
-    ]
-  }
-})
+const tabTickets = computed(() => tickets.value)
 
 const hasTabTickets = computed(() => tabTickets.value.length > 0)
 
@@ -127,25 +112,7 @@ watch(
 
       <!-- Bảng Ticket chính -->
       <section>
-        <!-- System Tabs for Thay mới / Sửa chữa -->
-        <div class="flex items-end">
-          <nav class="flex space-x-1" aria-label="Tabs">
-            <button
-              v-for="(tab, index) in [{ id: 'sua_chua', name: 'Sửa chữa' }, { id: 'thay_moi', name: 'Thay mới' }]"
-              :key="tab.id"
-              class="relative -mb-px border border-slate-200 px-6 py-3 text-sm font-semibold transition-colors focus:outline-hidden"
-              :class="[
-                currentTab === tab.id ? 'border-b-white bg-white text-blue-600 z-10' : 'border-b-slate-200 bg-slate-100/50 text-slate-500 hover:bg-slate-50 hover:text-slate-700',
-                index === 0 ? 'rounded-tl-2xl rounded-tr-xl' : 'rounded-t-xl'
-              ]"
-              @click="currentTab = tab.id"
-            >
-              {{ tab.name }}
-            </button>
-          </nav>
-        </div>
-
-        <div class="overflow-hidden rounded-2xl rounded-tl-none border border-slate-200 bg-white shadow-sm relative z-0">
+        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm relative z-0">
           <!-- Toolbar & Filter -->
           <div class="border-b border-slate-100 bg-white p-3">
           <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">

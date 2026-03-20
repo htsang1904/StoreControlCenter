@@ -96,7 +96,7 @@ const canResolveTicket = computed(() => {
   return canManageAssignment.value && isCurrentUserAssignee.value
 })
 const canReopenTicket = computed(() => hasTicket.value && isResolvedTicket.value && (userRole.value === 'store' || userRole.value === 'admin'))
-const showHeaderActionMenu = computed(() => isEmbedded.value && (canAdminAssignHandler.value || canResolveTicket.value))
+const showHeaderActionMenu = computed(() => canClaimTicket.value || canAdminAssignHandler.value || canResolveTicket.value)
 const availableAssignableHandlers = computed(() => {
   const assignedIds = new Set(assignees.value.map((item) => Number(item?.id || 0)).filter((id) => id > 0))
   return assignableHandlers.value.filter((item) => !assignedIds.has(Number(item?.id || 0)))
@@ -806,10 +806,10 @@ watch(
 </script>
 
 <template>
-  <div :class="isEmbedded ? 'h-full min-h-0' : 'page-stack mx-2 min-h-[calc(100dvh-6.5rem)] overflow-visible tablet:mx-3 pc:mx-0 pc:min-h-[calc(100dvh-7rem)]'">
+  <div :class="isEmbedded ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'page-stack h-full min-h-0 overflow-hidden mx-2 tablet:mx-3 pc:mx-0 flex flex-col'">
     <section
-      class="flex flex-col overflow-hidden"
-      :class="isEmbedded ? 'h-full min-h-0 bg-transparent' : 'min-h-full rounded-xl border border-slate-200 bg-white'"
+      class="flex flex-col flex-1 min-h-0 overflow-hidden"
+      :class="isEmbedded ? 'bg-transparent' : 'rounded-xl border border-slate-200 bg-white'"
       v-loading="loading"
     >
       <div v-if="errorMessage" class="p-5 tablet:p-6">
@@ -839,9 +839,9 @@ watch(
         </div>
       </div>
 
-      <div v-else class="min-h-0 flex-1" :class="!isEmbedded ? 'pc:grid pc:grid-cols-[minmax(0,1fr)_320px]' : ''">
-        <aside v-if="!isEmbedded" class="hidden self-start border-b border-slate-200 pc:order-2 pc:block pc:h-full pc:sticky pc:top-4 pc:border-b-0 pc:border-slate-200">
-          <section class="px-4 py-4 tablet:px-5 tablet:py-5">
+      <div v-else class="min-h-0 flex-1 flex flex-col" :class="!isEmbedded ? 'pc:grid pc:grid-cols-[minmax(0,1fr)_320px] pc:flex-none' : ''">
+        <aside v-if="!isEmbedded" class="hidden border-b border-slate-200 pc:order-2 pc:flex pc:flex-col pc:h-full pc:border-b-0 pc:border-slate-200 bg-white">
+          <section class="flex-1 overflow-y-auto px-4 py-4 tablet:px-5 tablet:py-5 ticket-detail-scrollbar">
             <div class="space-y-4">
               <div>
                 <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Thông tin ticket</p>
@@ -870,7 +870,7 @@ watch(
             </div>
           </section>
 
-          <section class="border-t border-slate-200 px-4 py-4 tablet:px-5 tablet:py-5">
+          <section class="shrink-0 border-t border-slate-200 bg-white px-4 py-4 tablet:px-5 tablet:py-5">
             <div>
               <div class="flex items-start justify-between gap-3">
                 <div>
@@ -922,9 +922,9 @@ watch(
           </section>
         </aside>
 
-        <div class="min-h-0" :class="!isEmbedded ? 'pc:order-1 pc:flex pc:h-full pc:flex-col pc:border-r pc:border-slate-200' : 'flex h-full min-h-0 flex-col'">
-          <section :class="isEmbedded ? 'flex h-full min-h-0 flex-col' : 'flex h-[calc(100dvh-8.5rem)] flex-col tablet:h-[calc(100dvh-9rem)] tablet:min-h-[620px] pc:h-full pc:min-h-0'">
-            <div class="border-b border-slate-200 bg-white px-3 py-2 tablet:px-4">
+        <div class="min-h-0 flex-1 flex flex-col relative" :class="!isEmbedded ? 'pc:order-1 pc:border-r pc:border-slate-200' : ''">
+          <section class="flex flex-1 min-h-0 flex-col">
+            <div class="shrink-0 border-b border-slate-200 bg-white px-3 py-2 tablet:px-4">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-3">
                   <button
@@ -946,119 +946,83 @@ watch(
                 </div>
 
                 <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  <button
-                    v-if="canAdminAssignHandler && !isEmbedded"
-                    type="button"
-                    class="app-button-secondary inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold disabled:opacity-50 pc:hidden"
-                    :disabled="assigningHandler || assignableHandlersLoading"
-                    @click="toggleAssignPanel"
-                  >
-                    <span class="material-symbols-outlined text-[16px]">person_add</span>
-                    Phân công
-                  </button>
-
-                  <button
-                    v-if="canClaimTicket"
-                    type="button"
-                    class="app-button-primary cursor-pointer inline-flex min-h-9 items-center rounded-lg px-3 py-1.5 text-sm font-semibold"
-                    :class="!isEmbedded ? 'pc:hidden' : ''"
-                    :disabled="assigning || resolving"
-                    @click="handleClaimTicket"
-                  >
-                    {{ assigning ? 'Đang xử lý...' : 'Nhận xử lý' }}
-                  </button>
-
-                  <div v-if="showHeaderActionMenu" ref="actionMenuRef" class="relative">
+                  <div ref="actionMenuRef">
                     <button
+                      v-if="showHeaderActionMenu"
                       type="button"
-                      class="inline-flex size-9 items-center justify-center text-slate-500 transition-colors hover:text-slate-900 focus:text-slate-900 focus:outline-hidden"
-                      title="Tác vụ ticket"
-                      aria-label="Tác vụ ticket"
-                      aria-haspopup="menu"
-                      :aria-expanded="actionMenuOpen ? 'true' : 'false'"
+                      class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      aria-label="Tùy chọn thao tác"
                       @click="toggleActionMenu"
                     >
-                      <svg
-                        class="size-[18px]"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <circle cx="12" cy="5" r="1.75" />
-                        <circle cx="12" cy="12" r="1.75" />
-                        <circle cx="12" cy="19" r="1.75" />
-                      </svg>
+                      Tiếp nhận xử lý
+                      <span class="material-symbols-outlined text-[18px]">expand_{{ actionMenuOpen ? 'less' : 'more' }}</span>
                     </button>
-
-                    <div
-                      v-if="actionMenuOpen"
-                      class="app-menu-panel absolute right-0 top-full z-20 mt-2 w-52 overflow-hidden py-1"
-                    >
-                      <button
-                        v-if="canAdminAssignHandler"
-                        type="button"
-                        class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        :disabled="assigningHandler || assignableHandlersLoading"
-                        @click="openAssignPanelFromMenu"
+                    
+                    <Transition name="action-modal">
+                      <div
+                        v-if="actionMenuOpen"
+                        class="fixed inset-0 z-[100] flex flex-col justify-end overflow-hidden bg-slate-900/40 tablet:absolute tablet:z-[60] tablet:items-center tablet:justify-center tablet:p-6"
                       >
-                        <svg
-                          class="size-4 shrink-0 text-slate-500"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.1"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                          <circle cx="10" cy="7" r="4" />
-                          <path d="M19 8v6" />
-                          <path d="M16 11h6" />
-                        </svg>
-                        <span>Phân công</span>
-                      </button>
+                        <div class="absolute inset-0" @click.stop="closeActionMenu"></div>
+                        
+                        <div class="modal-panel relative flex h-[50dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl focus:outline-none tablet:h-auto tablet:max-h-[80%] tablet:max-w-sm tablet:rounded-2xl">
+                          <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+                            <h3 class="text-base font-semibold text-slate-800">Tùy chọn thao tác</h3>
+                            <button
+                              type="button"
+                              class="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-200/50 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                              @click.stop="closeActionMenu"
+                            >
+                              <span class="material-symbols-outlined text-[18px]">close</span>
+                            </button>
+                          </div>
+                        
+                        <div class="flex-1 overflow-y-auto p-3 space-y-2">
+                          <button
+                            v-if="canClaimTicket"
+                            type="button"
+                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-700 transition-all hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50"
+                            :disabled="assigning || resolving"
+                            @click="actionMenuOpen = false; handleClaimTicket()"
+                          >
+                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                              <span class="material-symbols-outlined text-[20px]">{{ assigning ? 'hourglass_empty' : 'how_to_reg' }}</span>
+                            </span>
+                            <span class="flex-1">{{ assigning ? 'Đang nhận xử lý...' : 'Nhận xử lý việc này' }}</span>
+                          </button>
 
-                      <button
-                        v-if="canResolveTicket"
-                        type="button"
-                        class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        :disabled="assigning || resolving"
-                        @click="handleResolveFromMenu"
-                      >
-                        <svg
-                          class="size-4 shrink-0 text-emerald-600"
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2.1"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="m9 12 2 2 4-4" />
-                          <circle cx="12" cy="12" r="9" />
-                        </svg>
-                        <span>{{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý' }}</span>
-                      </button>
+                          <button
+                            v-if="canAdminAssignHandler"
+                            type="button"
+                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-700 transition-all hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
+                            :disabled="assigningHandler || assignableHandlersLoading"
+                            @click="openAssignPanelFromMenu"
+                          >
+                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+                              <span class="material-symbols-outlined text-[20px]">person_add</span>
+                            </span>
+                            <span class="flex-1">Giao việc cho nhân viên khác</span>
+                          </button>
+
+                          <button
+                            v-if="canResolveTicket"
+                            type="button"
+                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                            :disabled="assigning || resolving"
+                            @click="handleResolveFromMenu"
+                          >
+                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                              <span class="material-symbols-outlined text-[20px]" :class="resolving ? 'animate-spin' : ''">{{ resolving ? 'autorenew' : 'task_alt' }}</span>
+                            </span>
+                            <span class="flex-1">{{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý xong' }}</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-
-                  <button
-                    v-if="canResolveTicket && !isEmbedded"
-                    type="button"
-                    class="app-button-success inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
-                    :disabled="assigning || resolving"
-                    @click="handleResolveTicket"
-                  >
-                    <span class="material-symbols-outlined text-[18px] text-emerald-600" :class="resolving ? 'animate-spin' : ''">
-                      {{ resolving ? 'autorenew' : 'task_alt' }}
-                    </span>
-                    {{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý' }}
-                  </button>
-
+                  </Transition>
                 </div>
               </div>
+            </div>
             </div>
 
             <div class="min-h-0 flex-1 bg-slate-50/60">
@@ -1155,7 +1119,7 @@ watch(
               </div>
             </div>
 
-            <section class="border-t border-slate-200 bg-white px-3 py-3 tablet:px-4">
+            <section class="shrink-0 border-t border-slate-200 bg-white px-3 py-3 tablet:px-4">
               <div class="space-y-2">
 
                 <template v-if="!isResolvedTicket">
@@ -1163,15 +1127,8 @@ watch(
                     {{ replyBlockedReason }}
                   </p>
 
-                  <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white transition-colors focus-within:border-slate-300">
-                    <textarea
-                      v-model="replyMessage"
-                      class="inbox-reply-textarea block w-full min-h-[88px] resize-none bg-transparent px-4 py-3.5 text-sm leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 tablet:min-h-[96px]"
-                      placeholder="Nhập nội dung phản hồi"
-                      :disabled="!canReply || submittingReply"
-                    ></textarea>
-
-                    <div v-if="replyFiles.length" class="flex flex-wrap gap-2 px-3 pb-2">
+                  <div class="flex flex-col">
+                    <div v-if="replyFiles.length" class="flex flex-wrap gap-2 px-1 pb-3">
                       <span
                         v-for="(file, index) in replyFiles"
                         :key="`${file.name}-${file.size}-${file.lastModified}`"
@@ -1189,9 +1146,8 @@ watch(
                       </span>
                     </div>
 
-                    <div class="flex flex-col gap-2 border-t border-slate-100 px-3 py-2.5 tablet:flex-row tablet:items-center tablet:justify-between">
-                      <div class="flex min-w-0 flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
-                        <input
+                    <div class="flex items-end gap-1.5 tablet:gap-2">
+                       <input
                           ref="replyFileInputRef"
                           type="file"
                           class="hidden"
@@ -1199,28 +1155,37 @@ watch(
                           multiple
                           @change="addReplyFiles"
                         />
-                        <button
+                       <button
                           type="button"
-                          class="app-button-secondary cursor-pointer inline-flex w-full items-center justify-center gap-x-2 rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-50 tablet:w-auto"
-                          :disabled="!canReply || submittingReply"
+                          class="shrink-0 flex items-center justify-center size-[46px] rounded-full text-slate-500 hover:bg-slate-100 transition-colors"
+                          title="Đính kèm ảnh"
                           @click="openReplyFilePicker"
-                        >
-                          <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                          Ảnh
-                        </button>
-                        <span class="text-[11px] text-slate-400">
-                          Tối đa 5 ảnh, mỗi ảnh 5MB
-                        </span>
-                      </div>
+                          :disabled="!canReply || submittingReply"
+                       >
+                         <svg class="size-[22px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                       </button>
 
-                      <button
-                        type="button"
-                        class="app-button-primary cursor-pointer inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold disabled:opacity-50 tablet:w-auto"
-                        :disabled="!canReply || submittingReply"
-                        @click="submitReply"
-                      >
-                        {{ submittingReply ? 'Đang gửi...' : 'Gửi' }}
-                      </button>
+                       <div class="flex-1 relative rounded-[20px] border border-slate-200 bg-white focus-within:border-slate-400 transition-colors">
+                         <textarea
+                            v-model="replyMessage"
+                            class="block w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-0"
+                            placeholder="Nhập nội dung phản hồi..."
+                            rows="1"
+                            style="min-height: 46px; max-height: 120px;"
+                            :disabled="!canReply || submittingReply"
+                          ></textarea>
+                       </div>
+
+                       <button
+                          type="button"
+                          class="app-button-primary shrink-0 flex items-center justify-center h-[46px] w-[46px] tablet:w-auto tablet:px-5 rounded-full shadow-sm disabled:opacity-50 transition-all font-semibold ml-0.5"
+                          @click="submitReply"
+                          :disabled="!canReply || submittingReply || (!replyMessage.trim() && !replyFiles.length)"
+                       >
+                         <span v-if="submittingReply" class="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                         <span v-else class="material-symbols-outlined text-[20px] tablet:mr-1.5">send</span>
+                         <span class="hidden tablet:inline text-sm">{{ submittingReply ? 'Đang gửi' : 'Gửi' }}</span>
+                       </button>
                     </div>
                   </div>
 
@@ -1246,78 +1211,77 @@ watch(
               </div>
             </section>
           </section>
+
+          <CommonModal
+            v-model="assignPanelOpen"
+            title="Phân công handler"
+            description="Chọn một hoặc nhiều nhân viên handler trong đúng bộ phận phụ trách để thêm vào ticket."
+            max-width-class="max-w-lg"
+            :close-disabled="assigningHandler"
+            :disable-teleport="true"
+            container-class="absolute inset-x-0 bottom-0 top-[60px] tablet:inset-0 z-[70] rounded-xl"
+            @close="closeAssignModal"
+          >
+            <div class="space-y-4">
+              <div v-if="assignableHandlersLoading" class="text-sm text-slate-500">Đang tải danh sách handler...</div>
+              <div v-else-if="assignableHandlersError" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                {{ assignableHandlersError }}
+              </div>
+
+              <div v-else-if="availableAssignableHandlers.length" class="space-y-3">
+                <label
+                  v-for="member in availableAssignableHandlers"
+                  :key="member.id"
+                  class="group relative flex cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition-colors hover:border-blue-500 hover:bg-slate-50"
+                  :class="selectedAssignableHandlerIds.includes(String(member.id)) ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-600' : ''"
+                >
+                  <div class="flex h-6 items-center">
+                    <input
+                      v-model="selectedAssignableHandlerIds"
+                      :value="String(member.id)"
+                      type="checkbox"
+                      class="size-5 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                    />
+                  </div>
+                  <div class="ml-3 flex flex-col">
+                    <span class="block text-sm font-semibold text-slate-900">{{ member.name || `#${member.id}` }}</span>
+                    <p class="mt-0.5 text-xs text-slate-500">{{ member.department_name || departmentDisplay }}</p>
+                  </div>
+                </label>
+              </div>
+
+              <div v-else class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                Không còn handler khả dụng trong bộ phận này.
+              </div>
+            </div>
+
+            <template #footer>
+              <div class="flex flex-col-reverse gap-2 tablet:flex-row tablet:items-center tablet:justify-end">
+                <button
+                  type="button"
+                  class="app-button-secondary inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
+                  :disabled="assigningHandler"
+                  @click="closeAssignModal"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  class="app-button-primary inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
+                  :disabled="assigningHandler || !hasSelectedAssignableHandlers"
+                  @click="handleAssignHandler"
+                >
+                  <span class="material-symbols-outlined text-[18px]" :class="assigningHandler ? 'animate-spin' : ''">
+                    {{ assigningHandler ? 'autorenew' : 'done_all' }}
+                  </span>
+                  {{ assigningHandler ? 'Đang thêm...' : 'Thêm' }}
+                </button>
+              </div>
+            </template>
+          </CommonModal>
         </div>
       </div>
     </section>
-
-    <CommonModal
-      v-model="assignPanelOpen"
-      title="Phân công handler"
-      description="Chọn một hoặc nhiều nhân viên handler trong đúng bộ phận phụ trách để thêm vào ticket."
-      max-width-class="max-w-lg"
-      :close-disabled="assigningHandler"
-      @close="closeAssignModal"
-    >
-      <div class="space-y-4">
-        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Bộ phận phụ trách</p>
-          <p class="mt-1 text-sm font-semibold text-slate-900">{{ departmentDisplay }}</p>
-        </div>
-
-        <p v-if="assignableHandlersError" class="app-state-banner text-xs font-medium">
-          {{ assignableHandlersError }}
-        </p>
-
-        <p v-else-if="assignableHandlersLoading" class="app-state-inline text-sm">Đang tải danh sách handler...</p>
-
-        <div v-else-if="availableAssignableHandlers.length" class="space-y-2">
-          <label
-            v-for="member in availableAssignableHandlers"
-            :key="member.id"
-            class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 transition-colors hover:border-slate-300"
-          >
-            <input
-              v-model="selectedAssignableHandlerIds"
-              type="checkbox"
-              :value="String(member.id)"
-              class="app-checkbox mt-0.5 size-4 rounded border-slate-300"
-            />
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-slate-800">{{ member.name || `#${member.id}` }}</p>
-              <p class="mt-0.5 text-xs text-slate-500">{{ member.department_name || departmentDisplay }}</p>
-            </div>
-          </label>
-        </div>
-
-        <div v-else class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-          Không còn handler khả dụng trong bộ phận này.
-        </div>
-      </div>
-
-      <template #footer>
-        <div class="flex flex-col-reverse gap-2 tablet:flex-row tablet:items-center tablet:justify-end">
-          <button
-            type="button"
-            class="app-button-secondary inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
-            :disabled="assigningHandler"
-            @click="closeAssignModal"
-          >
-            Hủy
-          </button>
-          <button
-            type="button"
-            class="app-button-primary inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
-            :disabled="assigningHandler || !hasSelectedAssignableHandlers"
-            @click="handleAssignHandler"
-          >
-            <span class="material-symbols-outlined text-[18px]" :class="assigningHandler ? 'animate-spin' : ''">
-              {{ assigningHandler ? 'autorenew' : 'done_all' }}
-            </span>
-            {{ assigningHandler ? 'Đang thêm...' : 'Thêm' }}
-          </button>
-        </div>
-      </template>
-    </CommonModal>
 
     <div
       v-if="imagePreview.open"
@@ -1368,5 +1332,28 @@ watch(
 .ticket-detail-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 9999px;
   background-color: #cbd5e1;
+}
+
+.action-modal-enter-active,
+.action-modal-leave-active {
+  transition: opacity 0.3s ease;
+}
+.action-modal-enter-from,
+.action-modal-leave-to {
+  opacity: 0;
+}
+.action-modal-enter-active .modal-panel,
+.action-modal-leave-active .modal-panel {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.action-modal-enter-from .modal-panel,
+.action-modal-leave-to .modal-panel {
+  transform: translateY(100%);
+}
+@media (min-width: 768px) {
+  .action-modal-enter-from .modal-panel,
+  .action-modal-leave-to .modal-panel {
+    transform: translateY(10px) scale(0.95);
+  }
 }
 </style>
