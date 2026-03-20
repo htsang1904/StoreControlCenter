@@ -181,3 +181,133 @@ export const updateAdminQcForm = async (formId, payload = {}) => {
   const response = await http.put(`/api/admin/qc/forms/${formId}`, payload)
   return normalizeAdminQcFormDetail(response?.data?.item || {})
 }
+
+const normalizeAdminUser = (item = {}) => {
+  const stores = Array.isArray(item?.stores)
+    ? item.stores.map((store) => ({
+      id: Number(store?.id || 0),
+      code: String(store?.code || ''),
+      name: String(store?.name || ''),
+      shortAddress: String(store?.shortAddress || ''),
+      storeId: String(store?.storeId || ''),
+      isActive: store?.is_active !== false && store?.isActive !== false,
+    }))
+    : []
+
+  const department = item?.department
+    ? {
+      id: Number(item.department?.id || 0),
+      name: String(item.department?.name || ''),
+      code: String(item.department?.code || ''),
+      isActive: item.department?.is_active !== false,
+    }
+    : null
+
+  return {
+    id: Number(item?.id || 0),
+    name: String(item?.name || ''),
+    email: String(item?.email || ''),
+    phoneNumber: String(item?.phone_number || ''),
+    role: String(item?.role || '').toLowerCase(),
+    isActive: item?.is_active === true,
+    departmentId: item?.department_id ? Number(item.department_id) : null,
+    department,
+    stores,
+    storeIds: stores.map((store) => Number(store.id || 0)).filter((id) => Number.isInteger(id) && id > 0),
+    createdAt: item?.created_at || null,
+    updatedAt: item?.updated_at || null,
+  }
+}
+
+const normalizeAdminStore = (item = {}) => ({
+  id: Number(item?.id || 0),
+  code: String(item?.code || ''),
+  name: String(item?.name || ''),
+  address: String(item?.address || ''),
+  shortAddress: String(item?.shortAddress || ''),
+  storeId: String(item?.storeId || ''),
+  brandId: String(item?.brandId || ''),
+  isActive: item?.is_active !== false && item?.isActive !== false,
+  createdAt: item?.created_at || null,
+  updatedAt: item?.updated_at || null,
+})
+
+export const listAdminUsers = async ({
+  page = 1,
+  pageSize = 12,
+  q = '',
+  role = '',
+  isActive,
+  departmentId,
+} = {}) => {
+  const params = { page, pageSize }
+  if (String(q || '').trim()) params.q = String(q).trim()
+  if (String(role || '').trim()) params.role = String(role).trim().toLowerCase()
+  if (typeof isActive === 'boolean') params.isActive = isActive
+  if (Number.isInteger(Number(departmentId)) && Number(departmentId) > 0) params.departmentId = Number(departmentId)
+
+  const response = await http.get('/api/admin/users', { params })
+  const rows = Array.isArray(response?.data?.items) ? response.data.items : []
+  const pagination = response?.data?.pagination || {}
+
+  return {
+    items: rows.map((item) => normalizeAdminUser(item)),
+    pagination: {
+      page: Number(pagination?.page || page),
+      pageSize: Number(pagination?.pageSize || pageSize),
+      total: Number(pagination?.total || rows.length),
+      pageCount: Number(pagination?.pageCount || 1),
+    },
+  }
+}
+
+export const updateAdminUser = async (userId, payload = {}) => {
+  const response = await http.put(`/api/admin/users/${userId}`, payload)
+  return normalizeAdminUser(response?.data?.item || {})
+}
+
+export const listAdminDepartments = async () => {
+  const response = await http.get('/api/departments')
+  const rows = Array.isArray(response?.data) ? response.data : []
+  return rows.map((item) => ({
+    id: Number(item?.id || 0),
+    name: String(item?.name || ''),
+    code: String(item?.code || ''),
+    isActive: item?.is_active !== false,
+  }))
+}
+
+export const listAdminStores = async ({
+  page = 1,
+  pageSize = 20,
+  q = '',
+  isActive,
+} = {}) => {
+  const params = { page, pageSize }
+  if (String(q || '').trim()) params.q = String(q).trim()
+  if (typeof isActive === 'boolean') params.isActive = isActive
+
+  const response = await http.get('/api/admin/stores', { params })
+  const rows = Array.isArray(response?.data?.items) ? response.data.items : []
+  const pagination = response?.data?.pagination || {}
+
+  return {
+    items: rows.map((item) => normalizeAdminStore(item)),
+    pagination: {
+      page: Number(pagination?.page || page),
+      pageSize: Number(pagination?.pageSize || pageSize),
+      total: Number(pagination?.total || rows.length),
+      pageCount: Number(pagination?.pageCount || 1),
+    },
+  }
+}
+
+export const createAdminStore = async (payload = {}) => {
+  const response = await http.post('/api/admin/stores', payload)
+  return normalizeAdminStore(response?.data?.item || {})
+}
+
+export const updateAdminStore = async (storeId, payload = {}) => {
+  const response = await http.put(`/api/admin/stores/${storeId}`, payload)
+  return normalizeAdminStore(response?.data?.item || {})
+}

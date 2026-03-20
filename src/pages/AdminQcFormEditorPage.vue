@@ -664,38 +664,40 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-6xl space-y-6">
-    <section class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
-      <div class="flex min-w-0 items-start gap-3">
-        <button
-          type="button"
-          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-          aria-label="Quay lại danh sách biểu mẫu QC"
-          @click="goBack"
-        >
-          <span class="material-symbols-outlined text-[18px]">arrow_back</span>
-        </button>
+  <div class="page-stack mx-auto max-w-6xl space-y-4">
+    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
+      <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
+        <div class="flex min-w-0 items-start gap-3">
+          <button
+            type="button"
+            class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+            aria-label="Quay lại danh sách biểu mẫu QC"
+            @click="goBack"
+          >
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+          </button>
 
-        <div class="min-w-0">
-          <h1 class="truncate text-lg font-semibold text-slate-900 tablet:text-xl">
-            {{ isEditMode ? (qcForm.name || pageTitle) : pageTitle }}
-          </h1>
-          <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
+          <div class="min-w-0">
+            <h1 class="truncate text-lg font-semibold text-slate-900 tablet:text-xl">
+              {{ isEditMode ? (qcForm.name || pageTitle) : pageTitle }}
+            </h1>
+            <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
+          </div>
         </div>
-      </div>
 
-      <div class="w-full tablet:w-auto tablet:shrink-0">
-        <button
-          type="button"
-          class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 tablet:w-auto"
-          :disabled="isSaving"
-          @click="submitForm('draft')"
-        >
-          <span class="material-symbols-outlined text-[18px]" :class="isSavingDraft ? 'animate-spin' : ''">
-            {{ isSavingDraft ? 'autorenew' : 'save' }}
-          </span>
-          {{ saveDraftLabel }}
-        </button>
+        <div class="w-full tablet:w-auto tablet:shrink-0">
+          <button
+            type="button"
+            class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 tablet:w-auto"
+            :disabled="isSaving"
+            @click="submitForm('draft')"
+          >
+            <span class="material-symbols-outlined text-[18px]" :class="isSavingDraft ? 'animate-spin' : ''">
+              {{ isSavingDraft ? 'autorenew' : 'save' }}
+            </span>
+            {{ saveDraftLabel }}
+          </button>
+        </div>
       </div>
     </section>
 
@@ -713,7 +715,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <section v-else class="rounded-3xl border border-slate-200 bg-white">
+    <section v-else class="rounded-xl border border-slate-200 bg-white">
       <div class="space-y-6 px-6 py-6">
         <ol class="grid gap-3 tablet:grid-cols-3">
           <li v-for="step in stepItems" :key="step.id">
@@ -819,7 +821,7 @@ onMounted(async () => {
               <h3 class="mt-2 text-lg font-semibold text-slate-900">Dựng cây tiêu chí</h3>
             </div>
 
-            <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
+            <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
               <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
                 <p class="text-base font-semibold text-slate-900">Cấu trúc biểu mẫu</p>
               </div>
@@ -926,7 +928,7 @@ onMounted(async () => {
               </p>
             </div>
 
-            <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
+            <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
               <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
                 <h4 class="text-base font-semibold text-slate-900">Thông tin chuẩn bị phát hành</h4>
               </div>
@@ -951,7 +953,7 @@ onMounted(async () => {
               </dl>
             </section>
 
-            <section class="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
+            <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
               <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>

@@ -15,7 +15,7 @@ detect_scope_from_changes() {
     [ -z "$file" ] && continue
 
     case "$file" in
-      api/*)
+      api/*|python-api/*)
         run_backend=1
         ;;
       src/*|public/*|index.html|vite.config.js|package.json|package-lock.json)
@@ -61,8 +61,15 @@ if [ "$run_frontend" -eq 1 ]; then
 fi
 
 if [ "$run_backend" -eq 1 ]; then
-  echo "==> Backend check: npm --prefix api run build"
-  npm --prefix api run build
+  if [ -f "$ROOT_DIR/api/package.json" ]; then
+    echo "==> Backend check: npm --prefix api run build"
+    npm --prefix api run build
+  elif [ -d "$ROOT_DIR/python-api/app" ]; then
+    echo "==> Backend check: python-api syntax compile"
+    PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/agent-pycache" python3 -m compileall -q python-api/app
+  else
+    echo "==> Backend check: skipped (no known backend project found)"
+  fi
 fi
 
 echo "All selected checks passed."

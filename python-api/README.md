@@ -71,6 +71,22 @@ uvicorn app.main:app --reload
 ```
 *The `--reload` flag enables auto-reloading during development.*
 
+### 5. Bootstrap Admin (Important)
+When backend starts, it will ensure there is always at least **1 admin account** in DB:
+- If an admin already exists: no change.
+- If no admin exists:
+  - Promote user with `BOOTSTRAP_ADMIN_EMAIL` to admin + active, or
+  - Create a new active admin using bootstrap profile.
+
+Set these env vars in your `.env`:
+
+```env
+ENABLE_BOOTSTRAP_ADMIN=true
+BOOTSTRAP_ADMIN_EMAIL=your-admin-email@company.com
+BOOTSTRAP_ADMIN_NAME=System Administrator
+BOOTSTRAP_ADMIN_PHONE_NUMBER=
+```
+
 ---
 
 ## 🐳 Docker Compose (Run Everything At Once)

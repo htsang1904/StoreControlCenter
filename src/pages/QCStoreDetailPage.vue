@@ -447,7 +447,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div>
+  <div class="px-3 py-3">
     <div class="page-stack space-y-4">
       <div class="flex min-w-0 items-start gap-3">
         <button

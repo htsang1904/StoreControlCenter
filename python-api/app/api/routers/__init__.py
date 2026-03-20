@@ -1,1 +1,14 @@
-from . import auth, stores, departments, tickets, qc, qc_findings, ticket_logs, notifications, dashboard, admin_qc
+from . import (
+    admin_qc,
+    admin_stores,
+    admin_users,
+    auth,
+    dashboard,
+    departments,
+    notifications,
+    qc,
+    qc_findings,
+    stores,
+    ticket_logs,
+    tickets,
+)

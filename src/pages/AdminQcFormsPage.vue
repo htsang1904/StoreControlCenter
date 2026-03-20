@@ -8,20 +8,49 @@ const router = useRouter()
 const loadingForms = ref(false)
 const formsError = ref('')
 const qcForms = ref([])
+const searchInput = ref('')
+const statusFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const totalForms = ref(0)
 const pageCount = ref(1)
 const activeActionMenuId = ref(null)
 
+const normalizedSearch = computed(() => String(searchInput.value || '').trim().toLowerCase())
+const hasLocalFilters = computed(() => Boolean(normalizedSearch.value || statusFilter.value))
+
+const displayForms = computed(() => {
+  return qcForms.value.filter((form) => {
+    const status = form.hasLatestVersion
+      ? String(form.latestVersionStatus || 'draft').toLowerCase()
+      : 'no_version'
+
+    if (statusFilter.value && status !== statusFilter.value) return false
+
+    const keyword = normalizedSearch.value
+    if (!keyword) return true
+
+    return (
+      String(form.code || '').toLowerCase().includes(keyword)
+      || String(form.name || '').toLowerCase().includes(keyword)
+      || String(form.description || '').toLowerCase().includes(keyword)
+      || String(form.latestVersionNo || '').toLowerCase().includes(keyword)
+    )
+  })
+})
+
+const summaryTotalForms = computed(() => (hasLocalFilters.value ? displayForms.value.length : totalForms.value))
+
 const rangeStart = computed(() => {
-  if (!qcForms.value.length) return 0
+  if (!displayForms.value.length) return 0
+  if (hasLocalFilters.value) return 1
   return (currentPage.value - 1) * pageSize.value + 1
 })
 
 const rangeEnd = computed(() => {
-  if (!qcForms.value.length) return 0
-  return rangeStart.value + qcForms.value.length - 1
+  if (!displayForms.value.length) return 0
+  if (hasLocalFilters.value) return displayForms.value.length
+  return rangeStart.value + displayForms.value.length - 1
 })
 
 const visiblePageItems = computed(() => {
@@ -136,6 +165,20 @@ const goToPage = async (page) => {
   await loadQcForms(page)
 }
 
+const applyFilters = async () => {
+  closeActionMenu()
+  if (currentPage.value !== 1) {
+    await loadQcForms(1)
+  }
+}
+
+const resetFilters = async () => {
+  searchInput.value = ''
+  statusFilter.value = ''
+  closeActionMenu()
+  await loadQcForms(1)
+}
+
 onMounted(async () => {
   document.addEventListener('click', handleDocumentClick)
   await loadQcForms()
@@ -149,30 +192,73 @@ onBeforeUnmount(() => {
 <template>
   <div class="page-stack space-y-4">
     <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-      <div class="flex flex-col gap-4 tablet:flex-row tablet:items-center tablet:justify-between">
-        <div class="max-w-3xl">
-          <h2 class="text-xl font-semibold tracking-tight text-slate-900">Quản lý biểu mẫu QC</h2>
-          <p class="mt-2 text-sm leading-6 text-slate-500">
-            Danh sách biểu mẫu hiện có của hệ thống.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          class="inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
-          @click="openCreatePage"
-        >
-          Tạo biểu mẫu
-        </button>
-      </div>
+      <h2 class="text-xl font-semibold tracking-tight text-slate-900">Quản lý biểu mẫu QC</h2>
+      <p class="mt-2 text-sm leading-6 text-slate-500">
+        Danh sách biểu mẫu hiện có của hệ thống.
+      </p>
     </section>
 
     <section class="rounded-xl border border-slate-200 bg-white">
-      <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
-        <h3 class="text-base font-semibold text-slate-900">Danh sách biểu mẫu QC</h3>
-        <p class="mt-1 text-sm text-slate-500">
-          Bấm vào từng dòng để mở trang chi tiết biểu mẫu.
-          <span v-if="totalForms" class="ml-1 text-slate-400">Hiển thị {{ rangeStart }}-{{ rangeEnd }} / {{ totalForms }} biểu mẫu.</span>
+      <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
+        <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
+          <div>
+            <h3 class="text-base font-semibold text-slate-900">Danh sách biểu mẫu QC</h3>
+            <p class="mt-1 text-sm text-slate-500">
+              Bấm vào từng dòng để mở trang chi tiết biểu mẫu.
+              <span class="ml-1 text-slate-400">Hiển thị {{ rangeStart }}-{{ rangeEnd }} / {{ summaryTotalForms }} biểu mẫu.</span>
+            </p>
+          </div>
+
+          <button
+            type="button"
+            class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
+            @click="openCreatePage"
+          >
+            Tạo biểu mẫu
+          </button>
+        </div>
+
+        <div class="flex flex-col gap-3 pc:flex-row pc:items-center pc:justify-between">
+          <div class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:flex-1">
+            <input
+              v-model="searchInput"
+              type="text"
+              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+              placeholder="Tìm theo mã, tên, mô tả..."
+            />
+
+            <select
+              v-model="statusFilter"
+              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            >
+              <option value="">Tất cả trạng thái</option>
+              <option value="draft">Bản nháp</option>
+              <option value="published">Đang phát hành</option>
+              <option value="archived">Lưu trữ</option>
+              <option value="no_version">Chưa có version</option>
+            </select>
+          </div>
+
+          <div class="flex w-full gap-2 pc:w-auto">
+            <button
+              type="button"
+              class="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 pc:min-w-24"
+              @click="applyFilters"
+            >
+              Lọc
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 pc:min-w-24"
+              @click="resetFilters"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <p v-if="hasLocalFilters" class="text-xs text-slate-400">
+          Bộ lọc hiện áp dụng trên các bản ghi của trang hiện tại.
         </p>
       </div>
 
@@ -180,86 +266,7 @@ onBeforeUnmount(() => {
         {{ formsError }}
       </p>
 
-      <div class="pc:hidden">
-        <div v-if="qcForms.length" class="divide-y divide-slate-100">
-          <article
-            v-for="form in qcForms"
-            :key="form.id"
-            class="px-4 py-4 tablet:px-5"
-          >
-            <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
-              <div class="min-w-0 flex-1">
-                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">{{ form.code }}</p>
-                <button
-                  type="button"
-                  class="mt-2 block text-left"
-                  @click="openFormDetail(form.id)"
-                >
-                  <p class="text-base font-semibold text-slate-900 transition-colors hover:text-slate-700">
-                    {{ form.name }}
-                  </p>
-                </button>
-                <p class="mt-1 text-sm leading-6 text-slate-500">
-                  {{ form.description || 'Không có mô tả' }}
-                </p>
-              </div>
-
-              <span
-                class="app-badge inline-flex w-fit items-center rounded-lg px-2.5 py-1 text-xs font-semibold"
-                :class="statusClass(form.latestVersionStatus, form.hasLatestVersion)"
-              >
-                {{ statusLabel(form.latestVersionStatus, form.hasLatestVersion) }}
-              </span>
-            </div>
-
-            <div class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2">
-              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Version mới nhất</p>
-                <p class="mt-1 text-sm font-semibold text-slate-900">{{ form.latestVersionNo || '--' }}</p>
-              </div>
-
-              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Cập nhật</p>
-                <p class="mt-1 text-sm font-semibold text-slate-900">{{ formatDisplayDate(form.updatedAt) }}</p>
-              </div>
-            </div>
-
-            <div class="mt-4 flex flex-col gap-2 tablet:flex-row">
-              <button
-                type="button"
-                class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:flex-1"
-                @click="openFormDetail(form.id)"
-              >
-                <span class="material-symbols-outlined text-[18px] text-slate-400">visibility</span>
-                Xem chi tiết
-              </button>
-
-              <button
-                type="button"
-                class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 tablet:flex-1"
-                @click="openEditPage(form.id)"
-              >
-                <span class="material-symbols-outlined text-[18px]">edit</span>
-                Chỉnh sửa
-              </button>
-            </div>
-          </article>
-        </div>
-
-        <div v-else class="px-4 py-10 tablet:px-5">
-          <div class="app-state-panel app-state-panel--compact">
-            <div class="app-state-stack mx-auto">
-              <div class="app-state-icon mx-auto">
-                <span class="material-symbols-outlined text-[24px]">{{ loadingForms ? 'inventory_2' : 'inventory_2' }}</span>
-              </div>
-              <p class="app-state-title">{{ loadingForms ? 'Đang tải danh sách biểu mẫu...' : 'Chưa có biểu mẫu QC nào.' }}</p>
-              <p class="app-state-body">{{ loadingForms ? 'Danh sách biểu mẫu sẽ xuất hiện sau khi tải xong.' : 'Tạo biểu mẫu mới để bắt đầu xây dựng checklist QC cho hệ thống.' }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="hidden overflow-x-auto pc:block">
+      <div class="overflow-x-auto">
         <table class="min-w-[920px] w-full border-collapse text-left">
           <thead>
             <tr class="bg-slate-50">
@@ -272,9 +279,9 @@ onBeforeUnmount(() => {
             </tr>
           </thead>
 
-          <tbody v-if="qcForms.length" class="divide-y divide-slate-100">
+          <tbody v-if="displayForms.length" class="divide-y divide-slate-100">
             <tr
-              v-for="form in qcForms"
+              v-for="form in displayForms"
               :key="form.id"
               class="cursor-pointer transition-colors hover:bg-slate-50/80"
               @click="openFormDetail(form.id)"
@@ -352,7 +359,7 @@ onBeforeUnmount(() => {
           Hiển thị
           <span class="font-semibold text-slate-800">{{ rangeStart }}-{{ rangeEnd }}</span>
           trong
-          <span class="font-semibold text-slate-800">{{ totalForms }}</span>
+          <span class="font-semibold text-slate-800">{{ summaryTotalForms }}</span>
           kết quả
         </p>
 

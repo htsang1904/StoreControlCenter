@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     SQLADMIN_USERNAME: str = ""
     SQLADMIN_PASSWORD: str = ""
     SQLADMIN_SESSION_SECRET: str = ""
+
+    # Bootstrap Admin (for first-time DB initialization)
+    ENABLE_BOOTSTRAP_ADMIN: bool = True
+    BOOTSTRAP_ADMIN_EMAIL: str = "admin@storecontrol.local"
+    BOOTSTRAP_ADMIN_NAME: str = "System Administrator"
+    BOOTSTRAP_ADMIN_PHONE_NUMBER: str = ""
     
     @property
     def DATABASE_URL(self) -> str:

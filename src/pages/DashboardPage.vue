@@ -309,7 +309,7 @@ watch(
 </script>
 
 <template>
-  <div class="page-stack space-y-4">
+  <div class="page-stack space-y-4 px-3 py-3">
     <p v-if="errorMessage" class="app-state-banner text-xs">
       {{ errorMessage }}
     </p>

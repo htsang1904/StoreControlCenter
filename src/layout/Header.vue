@@ -77,6 +77,14 @@ function resolveHeaderContext(currentRoute) {
   }
 
   if (path.startsWith('/tools')) {
+    if (path.startsWith('/tools/users')) {
+      return { tab: '', title: 'Quản lý nhân viên', display: 'breadcrumb' }
+    }
+
+    if (path.startsWith('/tools/stores')) {
+      return { tab: '', title: 'Quản lý cửa hàng', display: 'breadcrumb' }
+    }
+
     if (path.startsWith('/tools/store-sync')) {
       return { tab: '', title: 'Đồng bộ cửa hàng', display: 'breadcrumb' }
     }
@@ -121,7 +129,12 @@ function resolveBreadcrumbItems(currentRoute, context, currentLabelValue) {
     ]
   }
 
-  if (path.startsWith('/tools/store-sync') || path.startsWith('/tools/qc-forms')) {
+  if (
+    path.startsWith('/tools/users') ||
+    path.startsWith('/tools/stores') ||
+    path.startsWith('/tools/store-sync') ||
+    path.startsWith('/tools/qc-forms')
+  ) {
     return [
       { label: 'Công cụ Admin', to: '/tools' },
       { label: currentLabel || context.title },

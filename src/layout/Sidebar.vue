@@ -51,6 +51,22 @@ const adminTabs = [
     key: 'tools',
     label: 'Công cụ Admin',
     path: '/tools',
+    exact: true,
+  },
+  {
+    key: 'admin_users',
+    label: 'Nhân viên',
+    path: '/tools/users',
+  },
+  {
+    key: 'admin_stores',
+    label: 'Cửa hàng',
+    path: '/tools/stores',
+  },
+  {
+    key: 'admin_qc_forms',
+    label: 'Biểu mẫu QC',
+    path: '/tools/qc-forms',
   },
 ]
 
@@ -71,8 +87,10 @@ const sidebarClasses = computed(() => {
 
 const selectedPath = computed(() => route.path)
 
-const isTabActive = (tabPath) => {
+const isTabActive = (tab) => {
+  const tabPath = String(tab?.path || '')
   if (!selectedPath.value) return false
+  if (tab?.exact) return selectedPath.value === tabPath
   if (tabPath === '/') return selectedPath.value === '/'
   return selectedPath.value === tabPath || selectedPath.value.startsWith(`${tabPath}/`)
 }
@@ -82,11 +100,14 @@ const tabIcon = (tabKey) => {
   if (tabKey === 'ticket') return 'confirmation_number'
   if (tabKey === 'qc') return 'verified_user'
   if (tabKey === 'tools') return 'admin_panel_settings'
+  if (tabKey === 'admin_users') return 'group'
+  if (tabKey === 'admin_stores') return 'storefront'
+  if (tabKey === 'admin_qc_forms') return 'fact_check'
   return 'settings'
 }
 
 const tabClasses = (tab) => {
-  const isActive = isTabActive(tab.path)
+  const isActive = isTabActive(tab)
 
   if (isExpanded.value) {
     return isActive

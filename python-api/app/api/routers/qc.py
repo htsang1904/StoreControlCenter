@@ -14,6 +14,48 @@ from app.models.org import Store
 
 router = APIRouter()
 
+def _parse_iso_datetime(value: Any, fallback: Optional[datetime] = None) -> datetime:
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None)
+    if isinstance(value, str) and value.strip():
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            pass
+    return (fallback or datetime.now(timezone.utc)).replace(tzinfo=None)
+
+def _serialize_qc_draft(draft: QCDraft) -> dict:
+    audited_at_iso = draft.audited_at.isoformat() if draft.audited_at else None
+    created_at_iso = draft.created_at.isoformat() if draft.created_at else None
+    updated_at_iso = draft.updated_at.isoformat() if draft.updated_at else None
+    criteria_states = draft.criteria_states or {}
+
+    return {
+        "id": draft.id,
+        "store_id": draft.store_id,
+        "storeId": draft.store_id,
+        "auditor_id": draft.auditor_id,
+        "auditorId": draft.auditor_id,
+        "template_id": draft.template_id,
+        "templateId": draft.template_id,
+        "audited_at": audited_at_iso,
+        "auditedAt": audited_at_iso,
+        "note": draft.note,
+        "criteria_states": criteria_states,
+        "criteriaStates": criteria_states,
+        "created_at": created_at_iso,
+        "createdAt": created_at_iso,
+        "updated_at": updated_at_iso,
+        "updatedAt": updated_at_iso,
+    }
+
+def _assert_store_access(current_user: CurrentUser, store_id: int) -> None:
+    if current_user.role == "admin":
+        return
+    user_store_ids = {s.id for s in (current_user.stores or []) if getattr(s, "id", None) is not None}
+    if store_id not in user_store_ids:
+        raise HTTPException(status_code=403, detail="Không có quyền thao tác nháp cho cửa hàng này")
+
 def _serialize_qc_form_detail(form: QCForm) -> dict:
     versions = sorted(form.versions, key=lambda v: v.id, reverse=True) if form.versions else []
     published = [v for v in versions if v.status == "published"]
@@ -54,33 +96,163 @@ def _serialize_qc_form_detail(form: QCForm) -> dict:
 async def read_qc_drafts(
     session: SessionDep,
     current_user: CurrentUser,
+    store_id: Optional[int] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500, alias="pageSize"),
 ) -> Any:
     """Read all QC drafts for current auditor."""
-    query = select(QCDraft).where(QCDraft.auditor_id == current_user.id)
-    result = await session.execute(query)
+    filters = [QCDraft.auditor_id == current_user.id]
+    if store_id:
+        filters.append(QCDraft.store_id == store_id)
+
+    query = (
+        select(QCDraft)
+        .where(and_(*filters))
+        .order_by(QCDraft.updated_at.desc(), QCDraft.id.desc())
+    )
+    count_query = select(func.count()).select_from(QCDraft).where(and_(*filters))
+
+    total_result = await session.execute(count_query)
+    total = total_result.scalar() or 0
+
+    skip = (page - 1) * page_size
+    result = await session.execute(query.offset(skip).limit(page_size))
     drafts = result.scalars().all()
-    serialized_drafts = [
-        {
-            "id": d.id,
-            "store_id": d.store_id,
-            "auditor_id": d.auditor_id,
-            "template_id": d.template_id,
-            "audited_at": d.audited_at,
-            "note": d.note,
-            "criteria_states": d.criteria_states,
-            "created_at": d.created_at
-        } for d in drafts
-    ]
+    serialized_drafts = [_serialize_qc_draft(d) for d in drafts]
+    page_count = (total + page_size - 1) // page_size if page_size > 0 else 0
+
     return {
         "success": True, 
         "data": serialized_drafts,
         "pagination": {
-            "page": 1,
-            "pageSize": len(drafts),
-            "total": len(drafts),
-            "pageCount": 1 if drafts else 0
+            "page": page,
+            "pageSize": page_size,
+            "total": total,
+            "pageCount": page_count
         }
     }
+
+@router.get("/drafts/{id}", response_model=dict)
+async def read_qc_draft_by_id(
+    id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    query = select(QCDraft).where(QCDraft.id == id)
+    result = await session.execute(query)
+    draft = result.scalar_one_or_none()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Phiếu nháp không tồn tại")
+
+    if current_user.role != "admin" and draft.auditor_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Không có quyền truy cập phiếu nháp này")
+
+    return {"success": True, "data": _serialize_qc_draft(draft)}
+
+@router.post("/drafts", response_model=dict)
+async def create_qc_draft(
+    session: SessionDep,
+    current_user: CurrentUser,
+    qc_draft_in: Any,
+) -> Any:
+    payload = qc_draft_in if isinstance(qc_draft_in, dict) else qc_draft_in.model_dump()
+    store_id_raw = payload.get("storeId", payload.get("store_id"))
+    template_id_raw = payload.get("templateId", payload.get("template_id"))
+
+    try:
+        store_id = int(store_id_raw)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="storeId/store_id không hợp lệ")
+
+    template_id = str(template_id_raw or "").strip()
+    if not template_id:
+        raise HTTPException(status_code=400, detail="templateId/template_id là bắt buộc")
+
+    _assert_store_access(current_user, store_id)
+
+    draft = QCDraft(
+        store_id=store_id,
+        auditor_id=current_user.id,
+        template_id=template_id,
+        audited_at=_parse_iso_datetime(payload.get("auditedAt", payload.get("audited_at"))),
+        note=str(payload.get("note", "") or ""),
+        criteria_states=payload.get("criteriaStates", payload.get("criteria_states")) or {},
+    )
+    session.add(draft)
+    await session.commit()
+    await session.refresh(draft)
+
+    return {"success": True, "data": _serialize_qc_draft(draft)}
+
+@router.put("/drafts/{id}", response_model=dict)
+async def update_qc_draft(
+    id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+    qc_draft_in: Any,
+) -> Any:
+    query = select(QCDraft).where(QCDraft.id == id)
+    result = await session.execute(query)
+    draft = result.scalar_one_or_none()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Phiếu nháp không tồn tại")
+
+    if current_user.role != "admin" and draft.auditor_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Không có quyền cập nhật phiếu nháp này")
+
+    payload = qc_draft_in if isinstance(qc_draft_in, dict) else qc_draft_in.model_dump()
+
+    if "storeId" in payload or "store_id" in payload:
+        store_id_raw = payload.get("storeId", payload.get("store_id"))
+        try:
+            next_store_id = int(store_id_raw)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="storeId/store_id không hợp lệ")
+        _assert_store_access(current_user, next_store_id)
+        draft.store_id = next_store_id
+
+    if "templateId" in payload or "template_id" in payload:
+        template_id = str(payload.get("templateId", payload.get("template_id")) or "").strip()
+        if not template_id:
+            raise HTTPException(status_code=400, detail="templateId/template_id không hợp lệ")
+        draft.template_id = template_id
+
+    if "auditedAt" in payload or "audited_at" in payload:
+        draft.audited_at = _parse_iso_datetime(
+            payload.get("auditedAt", payload.get("audited_at")),
+            fallback=draft.audited_at,
+        )
+
+    if "note" in payload:
+        draft.note = str(payload.get("note") or "")
+
+    if "criteriaStates" in payload or "criteria_states" in payload:
+        draft.criteria_states = payload.get("criteriaStates", payload.get("criteria_states")) or {}
+
+    session.add(draft)
+    await session.commit()
+    await session.refresh(draft)
+
+    return {"success": True, "data": _serialize_qc_draft(draft)}
+
+@router.delete("/drafts/{id}", response_model=dict)
+async def delete_qc_draft(
+    id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    query = select(QCDraft).where(QCDraft.id == id)
+    result = await session.execute(query)
+    draft = result.scalar_one_or_none()
+    if not draft:
+        raise HTTPException(status_code=404, detail="Phiếu nháp không tồn tại")
+
+    if current_user.role != "admin" and draft.auditor_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Không có quyền xóa phiếu nháp này")
+
+    await session.delete(draft)
+    await session.commit()
+    return {"success": True, "message": "Xóa phiếu nháp thành công"}
 
 from app.schemas.qc import QCSessionResponse, QCSessionCreate, QCSessionDetailResponse, QCFormResponse
 
@@ -126,17 +298,63 @@ async def read_qc_sessions_overview(
     current_user: CurrentUser,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    pageSize: Optional[int] = Query(None, ge=1, le=100),
     status: Optional[str] = Query(None),
     store_id: Optional[int] = Query(None),
+    q: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    template_id: Optional[str] = Query(None),
 ) -> Any:
     """Overview of QC sessions with summary metrics."""
+    effective_page_size = pageSize or page_size
+
     # 1. Base Query Filters
     filters = []
     if status == "pass":
         filters.append(QCSession.result == "pass")
     elif status == "fail":
         filters.append(QCSession.result == "fail")
-        
+
+    if date_from:
+        parsed_from = _parse_iso_datetime(date_from)
+        if isinstance(date_from, str) and "T" not in date_from:
+            parsed_from = parsed_from.replace(hour=0, minute=0, second=0, microsecond=0)
+        filters.append(QCSession.audited_at >= parsed_from)
+
+    if date_to:
+        parsed_to = _parse_iso_datetime(date_to)
+        if isinstance(date_to, str) and "T" not in date_to:
+            parsed_to = parsed_to.replace(hour=23, minute=59, second=59, microsecond=999999)
+        filters.append(QCSession.audited_at <= parsed_to)
+
+    keyword = str(q or "").strip()
+    if keyword:
+        like_q = f"%{keyword}%"
+        filters.append(
+            or_(
+                QCSession.code.ilike(like_q),
+                QCSession.note.ilike(like_q),
+                Store.code.ilike(like_q),
+                Store.shortAddress.ilike(like_q),
+                Store.address.ilike(like_q),
+                QCForm.code.ilike(like_q),
+                QCForm.name.ilike(like_q),
+            )
+        )
+
+    template_keyword = str(template_id or "").strip()
+    if template_keyword:
+        template_filters = [
+            QCForm.code.ilike(f"%{template_keyword}%"),
+            QCForm.name.ilike(f"%{template_keyword}%"),
+        ]
+        if template_keyword.isdigit():
+            numeric_template = int(template_keyword)
+            template_filters.append(QCForm.id == numeric_template)
+            template_filters.append(QCFormVersion.id == numeric_template)
+        filters.append(or_(*template_filters))
+
     if current_user.role != "admin":
         user_store_ids = [s.id for s in current_user.stores]
         filters.append(QCSession.store_id.in_(user_store_ids))
@@ -144,20 +362,37 @@ async def read_qc_sessions_overview(
         filters.append(QCSession.store_id == store_id)
 
     # 2. Fetch Sessions with Pagination
-    query = select(QCSession).options(
-        selectinload(QCSession.store),
-        selectinload(QCSession.auditor),
-        selectinload(QCSession.form_version).selectinload(QCFormVersion.form),
-        selectinload(QCSession.items)
-    ).where(and_(*filters) if filters else True).order_by(QCSession.created_at.desc())
+    base_condition = and_(*filters) if filters else True
+
+    query = (
+        select(QCSession)
+        .join(Store, QCSession.store_id == Store.id, isouter=True)
+        .join(QCFormVersion, QCSession.form_version_id == QCFormVersion.id, isouter=True)
+        .join(QCForm, QCFormVersion.form_id == QCForm.id, isouter=True)
+        .options(
+            selectinload(QCSession.store),
+            selectinload(QCSession.auditor),
+            selectinload(QCSession.form_version).selectinload(QCFormVersion.form),
+            selectinload(QCSession.items)
+        )
+        .where(base_condition)
+        .order_by(QCSession.created_at.desc())
+    )
     
     # Total Count for Pagination
-    count_query = select(func.count()).select_from(QCSession).where(and_(*filters) if filters else True)
+    count_query = (
+        select(func.count())
+        .select_from(QCSession)
+        .join(Store, QCSession.store_id == Store.id, isouter=True)
+        .join(QCFormVersion, QCSession.form_version_id == QCFormVersion.id, isouter=True)
+        .join(QCForm, QCFormVersion.form_id == QCForm.id, isouter=True)
+        .where(base_condition)
+    )
     total_res = await session.execute(count_query)
     total_count = total_res.scalar() or 0
     
     # Paging
-    query = query.limit(page_size).offset((page - 1) * page_size)
+    query = query.limit(effective_page_size).offset((page - 1) * effective_page_size)
     result = await session.execute(query)
     sessions = result.scalars().all()
     
@@ -168,7 +403,13 @@ async def read_qc_sessions_overview(
         func.sum(case((QCSession.result == 'fail', 1), else_=0)).label("failed"),
         func.avg(QCSession.total_score).label("avg_score"),
         func.avg(QCSession.max_score).label("avg_max_score"),
-    ).where(and_(*filters) if filters else True)
+    ).select_from(QCSession).join(
+        Store, QCSession.store_id == Store.id, isouter=True
+    ).join(
+        QCFormVersion, QCSession.form_version_id == QCFormVersion.id, isouter=True
+    ).join(
+        QCForm, QCFormVersion.form_id == QCForm.id, isouter=True
+    ).where(base_condition)
     
     summary_res = await session.execute(summary_query)
     summary_data = summary_res.first()
@@ -192,9 +433,9 @@ async def read_qc_sessions_overview(
         },
         "pagination": {
             "page": page,
-            "pageSize": page_size,
+            "pageSize": effective_page_size,
             "total": total_count,
-            "pageCount": (total_count + page_size - 1) // page_size
+            "pageCount": (total_count + effective_page_size - 1) // effective_page_size
         }
     }
 
@@ -262,10 +503,17 @@ async def read_qc_stores_overview(
     store_ids: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=500),
+    pageSize: Optional[int] = Query(None, ge=1, le=500),
     sort_by: str = Query("totalSessions"),
-    sort_dir: str = Query("desc")
+    sortBy: Optional[str] = Query(None),
+    sort_dir: str = Query("desc"),
+    sortDir: Optional[str] = Query(None),
 ) -> Any:
     """Get QC overview aggregated by store."""
+    effective_page_size = pageSize or page_size
+    effective_sort_by = sortBy or sort_by
+    effective_sort_dir = sortDir or sort_dir
+
     # 1. Base Query for Sessions
     query = select(QCSession).options(selectinload(QCSession.store))
     
@@ -341,7 +589,7 @@ async def read_qc_stores_overview(
             stat = {
                 "storeId": s.id, "storeCode": s.code, "storeNo": s.storeId,
                 "storeName": s.shortAddress or s.name, "totalSessions": 0, "passed": 0, "failed": 0,
-                "avgScore": 0, "scoreRate": 0, "passRate": 0, "lastAuditedAt": None
+                "avgScore": 0, "scoreRate": 0, "avgScoreRate": 0, "passRate": 0, "lastAuditedAt": None
             }
         else:
             totalS = agg.totalSessions
@@ -366,20 +614,25 @@ async def read_qc_stores_overview(
                 "failed": failed,
                 "avgScore": round(tScore / totalS, 1) if totalS > 0 else 0,
                 "scoreRate": round((tScore / mScore * 100), 1) if mScore > 0 else 0,
+                "avgScoreRate": round((tScore / mScore * 100), 1) if mScore > 0 else 0,
                 "passRate": round((passed / totalS * 100)) if totalS > 0 else 0,
                 "lastAuditedAt": agg.lastAuditedAt.isoformat() if agg.lastAuditedAt else None
             }
         store_stats.append(stat)
 
     # 6. Sorting
-    reverse = (sort_dir == "desc")
-    # Mapping FE keys to our stat keys if needed
-    store_stats.sort(key=lambda x: (x.get(sort_by) if x.get(sort_by) is not None else 0), reverse=reverse)
+    reverse = str(effective_sort_dir or "desc").lower() != "asc"
+    sort_field_map = {
+        "avgScoreRate": "scoreRate",
+        "lastAuditAt": "lastAuditedAt",
+    }
+    sort_field = sort_field_map.get(effective_sort_by, effective_sort_by)
+    store_stats.sort(key=lambda x: (x.get(sort_field) if x.get(sort_field) is not None else 0), reverse=reverse)
     
     # 7. Pagination
     total = len(store_stats)
-    start = (page - 1) * page_size
-    paged_stats = store_stats[start:start + page_size]
+    start = (page - 1) * effective_page_size
+    paged_stats = store_stats[start:start + effective_page_size]
     
     # Summary calculation
     summary = {
@@ -388,6 +641,7 @@ async def read_qc_stores_overview(
         "failed": summary_metrics["failed"],
         "avgScore": round(summary_metrics["totalScore"] / summary_metrics["totalSessions"], 1) if summary_metrics["totalSessions"] > 0 else 0,
         "scoreRate": round((summary_metrics["totalScore"] / summary_metrics["maxScore"] * 100), 1) if summary_metrics["maxScore"] > 0 else 0,
+        "avgScoreRate": round((summary_metrics["totalScore"] / summary_metrics["maxScore"] * 100), 1) if summary_metrics["maxScore"] > 0 else 0,
         "passRate": round((summary_metrics["passed"] / summary_metrics["totalSessions"] * 100)) if summary_metrics["totalSessions"] > 0 else 0,
     }
 
@@ -398,9 +652,9 @@ async def read_qc_stores_overview(
         "summary": summary,
         "pagination": {
             "page": page,
-            "pageSize": page_size,
+            "pageSize": effective_page_size,
             "total": total,
-            "pageCount": (total + page_size - 1) // page_size
+            "pageCount": (total + effective_page_size - 1) // effective_page_size
         }
     }
 

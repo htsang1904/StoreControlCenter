@@ -5,14 +5,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import ProgrammingError, OperationalError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
 from app.api.api import api_router
 from sqladmin import Admin
-from app.db.database import engine
+from app.db.database import SessionLocal, engine
 from app.admin.views import UserAdmin, StoreAdmin, DepartmentAdmin
 from app.admin.auth import AdminAuthBackend
+from app.services.bootstrap_admin import ensure_bootstrap_admin_account
 
 # Configure logging to be more concise
 logging.basicConfig(
@@ -79,6 +81,32 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/")
 def root():
     return {"message": "Welcome to Store Control Center Python API"}
+
+
+@app.on_event("startup")
+async def bootstrap_admin_on_startup() -> None:
+    if not settings.ENABLE_BOOTSTRAP_ADMIN:
+        logger.info("Bootstrap admin is disabled (ENABLE_BOOTSTRAP_ADMIN=false).")
+        return
+
+    try:
+        async with SessionLocal() as session:
+            changed = await ensure_bootstrap_admin_account(
+                session,
+                email=settings.BOOTSTRAP_ADMIN_EMAIL,
+                name=settings.BOOTSTRAP_ADMIN_NAME,
+                phone_number=settings.BOOTSTRAP_ADMIN_PHONE_NUMBER,
+            )
+            if changed:
+                logger.info("Bootstrap admin check completed with updates.")
+            else:
+                logger.info("Bootstrap admin check completed with no changes.")
+    except (ProgrammingError, OperationalError) as exc:
+        # DB may not be migrated yet; keep app booting and let migration run first.
+        logger.warning("Skipped bootstrap admin due to database state: %s", exc)
+    except Exception as exc:
+        # Do not block server startup if bootstrap admin fails unexpectedly.
+        logger.error("Bootstrap admin failed unexpectedly: %s", exc, exc_info=True)
 
 # Setup SQLAdmin
 if settings.ENABLE_SQLADMIN:
