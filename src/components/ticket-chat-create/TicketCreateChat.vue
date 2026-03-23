@@ -71,7 +71,6 @@ const filteredStores = computed(() => {
 })
 
 // Content inputs
-const inputPhone = ref('')
 const inputDescription = ref('')
 const inputAttachments = ref([])
 
@@ -125,20 +124,22 @@ function handleSelectDepartment(dept) {
 
 function handleContentSubmit() {
   if (currentStep.value !== CHAT_STEPS.INPUT_CONTENT) return
-  if (!inputPhone.value.trim()) {
-    toast.error('Vui lòng nhập số điện thoại liên hệ.')
-    return
-  }
   if (!inputDescription.value.trim()) {
     toast.error('Vui lòng nhập nội dung chi tiết.')
     return
   }
-  submitContent(inputPhone.value, inputDescription.value, inputAttachments.value)
+  submitContent(inputDescription.value, inputAttachments.value)
 }
 
 const handleTicketUpload = async (fileData) => {
   const result = await uploadTicketAttachments(fileData)
   return result?.data?.files?.[0] || result?.files?.[0]
+}
+
+function removeAttachment(index) {
+  if (Array.isArray(inputAttachments.value)) {
+    inputAttachments.value.splice(index, 1)
+  }
 }
 
 const isSubmitting = ref(false)
@@ -150,9 +151,7 @@ async function handleConfirm() {
   currentStep.value = CHAT_STEPS.CREATING
   
   try {
-    const descText = formData.phone
-      ? `SĐT liên hệ: ${formData.phone}\n\n${formData.description.trim()}`
-      : formData.description.trim()
+    const descText = formData.description.trim()
 
     const payload = {
       title: formData.title.trim(),
@@ -195,6 +194,13 @@ async function handleConfirm() {
   } finally {
     isSubmitting.value = false
   }
+}
+
+const getApiBaseUrl = () => String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+const toAbsoluteUrl = (url) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${getApiBaseUrl()}${url.startsWith('/') ? '' : '/'}${url}`
 }
 
 function handleCancel() {
@@ -314,12 +320,6 @@ function renderMessage(content) {
                 <p class="text-sm text-slate-700 leading-relaxed mb-4 font-medium">{{ msg.content }}</p>
                 <div v-if="currentStep === CHAT_STEPS.INPUT_CONTENT" class="flex flex-col gap-4">
                   <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white transition-colors focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-400">
-                    <input
-                      v-model="inputPhone"
-                      type="text"
-                      placeholder="Số điện thoại liên hệ (Bắt buộc)..."
-                      class="app-input block w-full border-0 border-b border-slate-100 bg-transparent px-4 py-3.5 text-sm leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                    />
                     <textarea 
                       v-model="inputDescription"
                       rows="4" 
@@ -328,12 +328,15 @@ function renderMessage(content) {
                     ></textarea>
                     
                     <div class="flex items-center gap-2 px-3 pb-3">
-                      <FileUploadItem v-model="inputAttachments" :upload-handler="handleTicketUpload" icon-only />
+                      <FileUploadItem v-model="inputAttachments" :upload-handler="handleTicketUpload" icon-only hide-previews />
                       
                       <div v-if="inputAttachments.length > 0" class="flex flex-wrap gap-2 ml-2">
-                        <div v-for="file in inputAttachments" :key="file.id" class="relative size-10 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 shadow-xs">
-                          <img v-if="file.url" :src="file.url" class="absolute inset-0 size-full object-cover" />
-                          <div v-else class="flex size-full items-center justify-center text-[8px] font-medium text-slate-400">FILE</div>
+                        <div v-for="(file, index) in inputAttachments" :key="file.id" class="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 pl-2.5 pr-1.5 py-1 text-[11px] font-medium text-slate-700 shadow-xs max-w-[160px]">
+                          <span class="material-symbols-outlined text-[14px] shrink-0 text-slate-400">attach_file</span>
+                          <span class="truncate">{{ file.name || 'Tệp đính kèm' }}</span>
+                          <button type="button" class="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300 ml-0.5" aria-label="Xóa tệp" @click="removeAttachment(index)">
+                            <span class="material-symbols-outlined text-[12px] leading-none">close</span>
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -343,7 +346,7 @@ function renderMessage(content) {
                     <button 
                       @click="handleContentSubmit"
                       class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-700 hover:shadow-md disabled:opacity-50 outline-none"
-                      :disabled="!inputDescription.trim() || !inputPhone.trim()"
+                      :disabled="!inputDescription.trim()"
                     >
                       Tiếp tục
                     </button>
@@ -388,7 +391,11 @@ function renderMessage(content) {
                 </div>
                 <div class="flex flex-wrap justify-end gap-2">
                   <div v-for="file in msg.attachments" :key="file.id" class="relative size-20 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xs">
-                    <img v-if="file.url" :src="file.url" class="absolute inset-0 size-full object-cover" />
+                    <img v-if="file.url && !file.error" :src="toAbsoluteUrl(file.url)" class="absolute inset-0 size-full object-cover" @error="file.error = true" />
+                    <div v-if="file.error || !file.url" class="flex size-full flex-col items-center justify-center bg-slate-100 p-1 text-center text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer" :title="file.name">
+                      <span class="material-symbols-outlined text-[18px] mb-0.5">description</span>
+                      <span class="truncate w-full text-[9px] font-medium px-1">{{ file.name || 'Lỗi ảnh' }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
