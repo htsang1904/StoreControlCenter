@@ -21,7 +21,6 @@ export function useTicketCreateChat() {
     store_name: '',
     responsible_department_id: '',
     department_name: '',
-    phone: '',
     title: '',
     description: '',
     attachments_media: []
@@ -47,7 +46,6 @@ export function useTicketCreateChat() {
     formData.store_name = ''
     formData.responsible_department_id = ''
     formData.department_name = ''
-    formData.phone = ''
     formData.title = ''
     formData.description = ''
     formData.attachments_media = []
@@ -86,13 +84,12 @@ export function useTicketCreateChat() {
     addMessage('bot', 'action_content', 'Vui lòng nhập nội dung chi tiết và đính kèm hình ảnh (nếu có).')
   }
 
-  function submitContent(phone, description, attachments) {
+  function submitContent(description, attachments) {
     formData.title = formData.store_name || 'Yêu cầu hỗ trợ'
-    formData.phone = phone
     formData.description = description
     formData.attachments_media = attachments
     
-    addMessage('user', 'text', `**Số điện thoại:** ${phone}\n**Nội dung:**\n${description}`)
+    addMessage('user', 'text', `**Nội dung:**\n${description}`)
     if (attachments && attachments.length) {
       addMessage('user', 'attachment_preview', 'Đã đính kèm ảnh', { attachments })
     }

@@ -30,6 +30,10 @@ const props = defineProps({
   iconOnly: {
     type: Boolean,
     default: false,
+  },
+  hidePreviews: {
+    type: Boolean,
+    default: false,
   }
 })
 
@@ -99,6 +103,15 @@ const removeModelFile = (dropzoneFile) => {
 const syncModelToDropzone = () => {
   const dropzone = dropzoneRef.value
   if (!dropzone) return
+
+  const modelIds = new Set(normalizeModelFiles(props.modelValue).map(f => f.id))
+
+  // Remove files from dropzone that are not in modelValue
+  const filesToRemove = dropzone.files.filter(f => {
+    const fileId = normalizeFileId(f.__uploadedId || f.id)
+    return fileId && !modelIds.has(fileId)
+  })
+  filesToRemove.forEach(f => dropzone.removeFile(f))
 
   const existingIds = new Set(
     (dropzone.files || [])
@@ -327,6 +340,6 @@ watch(
         </div>
     </div>
 
-  <div class="mt-4 space-y-2 empty:mt-0" data-hs-file-upload-previews=""></div>
+  <div v-show="!hidePreviews" class="mt-4 space-y-2 empty:mt-0" data-hs-file-upload-previews=""></div>
 </div>
 </template>

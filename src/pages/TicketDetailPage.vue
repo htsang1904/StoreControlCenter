@@ -356,8 +356,10 @@ function formatFileSize(size) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function isImageFile(mime) {
-  return String(mime || '').startsWith('image/')
+function isImageFile(mime, url = '') {
+  if (String(mime || '').startsWith('image/')) return true
+  if (url && /\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i.test(String(url))) return true
+  return false
 }
 
 function openImagePreview(url, name = '') {
@@ -809,7 +811,7 @@ watch(
   <div :class="isEmbedded ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'page-stack h-full min-h-0 overflow-hidden mx-2 tablet:mx-3 pc:mx-0 flex flex-col'">
     <section
       class="flex flex-col flex-1 min-h-0 overflow-hidden"
-      :class="isEmbedded ? 'bg-transparent' : 'rounded-xl border border-slate-200 bg-white'"
+      :class="isEmbedded ? 'bg-transparent' : 'border border-slate-200 bg-white pc:border-x pc:border-y-0'"
       v-loading="loading"
     >
       <div v-if="errorMessage" class="p-5 tablet:p-6">
@@ -839,7 +841,7 @@ watch(
         </div>
       </div>
 
-      <div v-else class="min-h-0 flex-1 flex flex-col" :class="!isEmbedded ? 'pc:grid pc:grid-cols-[minmax(0,1fr)_320px] pc:flex-none' : ''">
+      <div v-else class="min-h-0 flex-1 flex flex-col" :class="!isEmbedded ? 'pc:grid pc:grid-cols-[minmax(0,1fr)_320px]' : ''">
         <aside v-if="!isEmbedded" class="hidden border-b border-slate-200 pc:order-2 pc:flex pc:flex-col pc:h-full pc:border-b-0 pc:border-slate-200 bg-white">
           <section class="flex-1 overflow-y-auto px-4 py-4 tablet:px-5 tablet:py-5 ticket-detail-scrollbar">
             <div class="space-y-4">
@@ -1077,7 +1079,7 @@ watch(
                           <div v-if="item.attachments.length" class="mt-3">
                             <div class="flex flex-wrap gap-2">
                               <template v-for="attachment in item.attachments" :key="attachment.id">
-                                <div v-if="isImageFile(attachment.mime)" class="relative size-16 tablet:size-24 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-pointer shadow-xs transition-opacity hover:opacity-90" @click="openImagePreview(attachment.url, attachment.name)">
+                                <div v-if="isImageFile(attachment.mime, attachment.url)" class="relative size-16 tablet:size-24 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-pointer shadow-xs transition-opacity hover:opacity-90" @click="openImagePreview(attachment.url, attachment.name)">
                                   <img :src="toAbsoluteUrl(attachment.url)" :alt="attachment.name" class="absolute inset-0 size-full object-cover" />
                                 </div>
                                 <a
