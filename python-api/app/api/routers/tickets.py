@@ -11,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep, CurrentUser
 from app.core.datetime_utils import utc_now_naive
+from app.models.org import Store
 from app.models.ticket import Ticket, TicketLog
 from app.models.user import User
 from app.schemas.ticket import TicketResponse, TicketCreate, TicketDetailResponse, TicketLogResponse, TicketUpdate
 from app.schemas.user import UserResponse
+from app.services.realtime import realtime_manager
 from app.services.ticket_policy import (
     can_access_ticket,
     can_assign_handler,
@@ -30,6 +32,16 @@ router = APIRouter()
 def _utcnow_naive() -> datetime:
     return utc_now_naive()
 
+async def _emit_ticket_event(ticket_id: int, event: str, ticket_payload: TicketResponse) -> None:
+    await realtime_manager.emit_ticket_event(
+        ticket_id,
+        event,
+        {
+            "ticket_id": ticket_id,
+            "ticket": ticket_payload.model_dump(mode="json"),
+        },
+    )
+
 async def _get_ticket_with_details(session: AsyncSession, ticket_id: int) -> Optional[Ticket]:
     """Helper to fetch a ticket with all nested relationships for rich responses."""
     query = select(Ticket).options(
@@ -44,6 +56,25 @@ async def _get_ticket_with_details(session: AsyncSession, ticket_id: int) -> Opt
 
 def _get_user_store_ids(current_user: CurrentUser) -> set[int]:
     return {s.id for s in current_user.stores if getattr(s, "id", None) is not None}
+
+async def _resolve_store_entity(session: AsyncSession, store_ref: object) -> Optional[Store]:
+    raw_ref = str(store_ref or "").strip()
+    if not raw_ref:
+        return None
+
+    # Prefer external StoreID for boundary API compatibility.
+    result = await session.execute(select(Store).where(Store.storeId == raw_ref).limit(1))
+    store = result.scalar_one_or_none()
+    if store:
+        return store
+
+    try:
+        internal_id = int(raw_ref)
+    except (TypeError, ValueError):
+        return None
+
+    result = await session.execute(select(Store).where(Store.id == internal_id).limit(1))
+    return result.scalar_one_or_none()
 
 async def _can_access_ticket(session: AsyncSession, ticket: Ticket, current_user: CurrentUser) -> bool:
     is_assignee = False
@@ -164,15 +195,21 @@ async def create_ticket(
 ) -> Any:
     """Create a new ticket."""
     data = ticket_in.model_dump()
+
+    resolved_store = await _resolve_store_entity(session, data.get("store_id"))
+    if not resolved_store:
+        raise HTTPException(status_code=400, detail="store_id/storeId không hợp lệ hoặc không tồn tại")
     
     # Gap 5: Store role scoping — only allow creating tickets for assigned stores
     if current_user.role == "store":
-        user_store_ids = [s.id for s in current_user.stores]
-        if data["store_id"] not in user_store_ids:
+        user_store_ids = _get_user_store_ids(current_user)
+        if resolved_store.id not in user_store_ids:
             raise HTTPException(
                 status_code=403,
                 detail="Không có quyền tạo ticket cho cửa hàng này"
             )
+
+    data["store_id"] = resolved_store.id
     
     incoming_handler_id = data.get("handler_id") or data.pop("initialHandler", None)
     if incoming_handler_id is not None:
@@ -201,7 +238,9 @@ async def create_ticket(
     await session.commit()
     
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
-    return {"success": True, "message": "Tạo phiếu thành công", "data": TicketResponse.model_validate(updated_ticket)}
+    serialized_ticket = TicketResponse.model_validate(updated_ticket)
+    await _emit_ticket_event(ticket.id, "ticket.created", serialized_ticket)
+    return {"success": True, "message": "Tạo phiếu thành công", "data": serialized_ticket}
 
 @router.post("/upload-attachments", response_model=dict)
 async def upload_ticket_attachments(
@@ -291,11 +330,18 @@ async def update_ticket(
     
     update_data = ticket_in.model_dump(exclude_unset=True)
 
-    # Invariant: store role chỉ được sửa ticket trong danh sách store được gán
-    if current_user.role == "store" and "store_id" in update_data:
-        user_store_ids = _get_user_store_ids(current_user)
-        if update_data["store_id"] not in user_store_ids:
-            raise HTTPException(status_code=403, detail="Không có quyền sửa ticket sang cửa hàng này")
+    if "store_id" in update_data:
+        resolved_store = await _resolve_store_entity(session, update_data.get("store_id"))
+        if not resolved_store:
+            raise HTTPException(status_code=400, detail="store_id/storeId không hợp lệ hoặc không tồn tại")
+
+        # Invariant: store role chỉ được sửa ticket trong danh sách store được gán
+        if current_user.role == "store":
+            user_store_ids = _get_user_store_ids(current_user)
+            if resolved_store.id not in user_store_ids:
+                raise HTTPException(status_code=403, detail="Không có quyền sửa ticket sang cửa hàng này")
+
+        update_data["store_id"] = resolved_store.id
 
     if "status" in update_data:
         is_allowed, err = validate_direct_status_update(
@@ -320,7 +366,9 @@ async def update_ticket(
     await session.commit()
     
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
-    return {"success": True, "message": "Cập nhật phiếu thành công", "data": TicketResponse.model_validate(updated_ticket)}
+    serialized_ticket = TicketResponse.model_validate(updated_ticket)
+    await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    return {"success": True, "message": "Cập nhật phiếu thành công", "data": serialized_ticket}
 
 @router.get("/{id}/assignees", response_model=dict)
 async def list_ticket_assignees(
@@ -415,7 +463,9 @@ async def assign_handler(
     await session.commit()
     
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
-    return {"success": True, "message": "Phân công thành công", "data": TicketResponse.model_validate(updated_ticket)}
+    serialized_ticket = TicketResponse.model_validate(updated_ticket)
+    await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    return {"success": True, "message": "Phân công thành công", "data": serialized_ticket}
 
 @router.post("/{id}/resolve", response_model=dict)
 async def resolve_ticket(
@@ -447,7 +497,9 @@ async def resolve_ticket(
     await session.commit()
     
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
-    return {"success": True, "message": "Đã giải quyết phiếu", "data": TicketResponse.model_validate(updated_ticket)}
+    serialized_ticket = TicketResponse.model_validate(updated_ticket)
+    await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    return {"success": True, "message": "Đã giải quyết phiếu", "data": serialized_ticket}
 
 @router.post("/{id}/reopen", response_model=dict)
 async def reopen_ticket(
@@ -475,7 +527,9 @@ async def reopen_ticket(
     await session.commit()
     
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
-    return {"success": True, "message": "Đã mở lại phiếu", "data": TicketResponse.model_validate(updated_ticket)}
+    serialized_ticket = TicketResponse.model_validate(updated_ticket)
+    await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    return {"success": True, "message": "Đã mở lại phiếu", "data": serialized_ticket}
 
 @router.post("/{id}/reject", response_model=dict)
 async def reject_ticket(
@@ -501,7 +555,9 @@ async def reject_ticket(
     await session.commit()
     
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
-    return {"success": True, "message": "Đã từ chối phiếu", "data": TicketResponse.model_validate(updated_ticket)}
+    serialized_ticket = TicketResponse.model_validate(updated_ticket)
+    await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    return {"success": True, "message": "Đã từ chối phiếu", "data": serialized_ticket}
 
 @router.post("/{id}/assignees/me", response_model=dict)
 async def assign_ticket_to_me(
@@ -535,7 +591,9 @@ async def assign_ticket_to_me(
         await session.commit()
         
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
-    return {"success": True, "message": "Đã nhận xử lý", "data": TicketResponse.model_validate(updated_ticket)}
+    serialized_ticket = TicketResponse.model_validate(updated_ticket)
+    await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    return {"success": True, "message": "Đã nhận xử lý", "data": serialized_ticket}
 
 @router.get("/{id}/logs", response_model=dict)
 async def read_ticket_logs(
@@ -572,5 +630,12 @@ async def delete_ticket(
     
     await session.delete(ticket)
     await session.commit()
+    await realtime_manager.emit_ticket_event(
+        id,
+        "ticket.deleted",
+        {
+            "ticket_id": id,
+        },
+    )
     
     return {"success": True, "message": "Đã xóa phiếu thành công"}

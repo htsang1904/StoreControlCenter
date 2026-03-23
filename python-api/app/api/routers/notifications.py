@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import SessionDep, CurrentUser
 from app.models.notification import Notification
 from app.schemas.notification import NotificationResponse
+from app.services.notification_service import emit_notification_unread_count_event
 
 router = APIRouter()
 
@@ -85,6 +86,8 @@ async def mark_notification_as_read(
     )
     unread_result = await session.execute(unread_query)
     unread_count = unread_result.scalar() or 0
+
+    await emit_notification_unread_count_event(current_user.id, int(unread_count))
     
     return {"success": True, "unread_count": unread_count}
 
@@ -104,5 +107,7 @@ async def mark_all_notifications_as_read(
     )
     await session.execute(stmt)
     await session.commit()
+
+    await emit_notification_unread_count_event(current_user.id, 0)
     
     return {"success": True, "unread_count": 0, "message": "Đã đánh dấu tất cả đã đọc"}

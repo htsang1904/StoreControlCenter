@@ -36,13 +36,14 @@ const errors = reactive({
 })
 
 function normalizeStoreOption(rawStore) {
-  const storeId = Number(
+  const storeId = String(
     rawStore?.storeId ||
     rawStore?.store_id ||
     rawStore?.id ||
-    rawStore?.value
-  )
-  if (!Number.isInteger(storeId) || storeId <= 0) return null
+    rawStore?.value ||
+    ''
+  ).trim()
+  if (!storeId) return null
 
   const label = String(
     rawStore?.shortAddress ||
@@ -56,7 +57,7 @@ function normalizeStoreOption(rawStore) {
   ).trim()
 
   return {
-    value: String(storeId),
+    value: storeId,
     label: label || `Cửa hàng ${storeId}`,
   }
 }
@@ -76,11 +77,11 @@ const availableStores = computed(() => {
     return normalized
   }
 
-  const fallbackId = Number(state.userInfo?.store_id || import.meta.env.VITE_DEFAULT_STORE_ID || 0)
-  if (Number.isInteger(fallbackId) && fallbackId > 0) {
+  const fallbackId = String(state.userInfo?.store_id || import.meta.env.VITE_DEFAULT_STORE_ID || '').trim()
+  if (fallbackId) {
     return [
       {
-        value: String(fallbackId),
+        value: fallbackId,
         label: state.userInfo?.store_name || import.meta.env.VITE_DEFAULT_STORE_NAME || `Cửa hàng ${fallbackId}`,
       },
     ]
@@ -165,7 +166,7 @@ async function fetchTicketForEdit() {
 
   formData.title = ticket.title || ''
   formData.description = ticket.description || ''
-  formData.store_id = ticket.store_id ? String(ticket.store_id) : ''
+  formData.store_id = String(ticket?.store?.storeId || ticket?.store_id || '').trim()
   formData.responsible_department_id = ticket.responsible_department?.id ? String(ticket.responsible_department.id) : ''
   formData.type = ticket.type || ''
   formData.attachments_media = Array.isArray(ticket.attachments_media) ? ticket.attachments_media : []
@@ -200,7 +201,7 @@ async function submitTicket() {
     const payload = {
       title: formData.title.trim(),
       description: formData.description.trim(),
-      store_id: Number(formData.store_id),
+      store_id: String(formData.store_id || '').trim(),
       responsible_department_id: Number(formData.responsible_department_id),
       type: formData.type || null,
       attachments_media: Array.isArray(formData.attachments_media)

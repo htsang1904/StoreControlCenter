@@ -7,6 +7,11 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import SessionDep, CurrentUser
 from app.models.ticket import Ticket, TicketLog
 from app.schemas.ticket import TicketLogCreate, TicketLogResponse
+from app.services.notification_service import (
+    build_ticket_reply_notifications,
+    emit_notification_created_events,
+)
+from app.services.realtime import realtime_manager
 from app.services.ticket_policy import OPEN_TICKET_STATUSES, can_access_ticket
 
 router = APIRouter()
@@ -49,7 +54,12 @@ async def create_ticket_log(
     data = log_in.model_dump()
     
     # Validate ticket exists
-    ticket = await session.get(Ticket, data["ticket_id"])
+    ticket_result = await session.execute(
+        select(Ticket)
+        .options(selectinload(Ticket.assignees))
+        .where(Ticket.id == data["ticket_id"])
+    )
+    ticket = ticket_result.scalar_one_or_none()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket không tồn tại")
 
@@ -62,11 +72,36 @@ async def create_ticket_log(
             detail=f"Ticket đã ở trạng thái '{ticket.status}', không thể phản hồi"
         )
     
-    data["sender_type"] = "handler" if current_user.role in {"handler", "admin", "qc"} else "store"
+    user_role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    data["sender_type"] = "handler" if user_role in {"handler", "admin", "qc"} else "store"
     data["sender_id"] = current_user.id
     
     log = TicketLog(**data)
     session.add(log)
+    await session.flush()
+
+    message_preview = " ".join(str(log.message or "").split())
+    if len(message_preview) > 120:
+        message_preview = f"{message_preview[:117]}..."
+
+    notification_recipients = [
+        ticket.requester_id,
+        ticket.handler_id,
+        *[assignee.id for assignee in ticket.assignees],
+    ]
+    notifications = build_ticket_reply_notifications(
+        recipient_ids=notification_recipients,
+        actor_id=current_user.id,
+        actor_name=current_user.name or "",
+        ticket_id=ticket.id,
+        ticket_code=ticket.ticket_code,
+        log_id=log.id,
+        message_preview=message_preview or "(không có nội dung)",
+        include_actor=True,
+    )
+    if notifications:
+        session.add_all(notifications)
+
     await session.commit()
     
     # Reload with sender details
@@ -75,5 +110,16 @@ async def create_ticket_log(
     ).where(TicketLog.id == log.id)
     result = await session.execute(query)
     log = result.scalar_one()
-    
-    return {"success": True, "message": "Phản hồi thành công", "data": TicketLogResponse.model_validate(log)}
+
+    serialized_log = TicketLogResponse.model_validate(log)
+    await realtime_manager.emit_ticket_event(
+        ticket.id,
+        "ticket.log.created",
+        {
+            "ticket_id": ticket.id,
+            "log": serialized_log.model_dump(mode="json"),
+        },
+    )
+    await emit_notification_created_events(session, notifications)
+
+    return {"success": True, "message": "Phản hồi thành công", "data": serialized_log}

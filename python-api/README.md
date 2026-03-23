@@ -133,3 +133,28 @@ Ensure your frontend `.env` is updated:
 ```env
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+## ⚡ Realtime WebSocket Channels
+
+Backend now exposes WebSocket channels for ticket conversations and notification bell updates:
+
+- `ws://<host>/api/realtime/ws/notifications?token=<access_token>`
+- `ws://<host>/api/realtime/ws/tickets/{ticket_id}?token=<access_token>`
+
+### Event envelope
+All pushed events use the same envelope:
+
+```json
+{
+  "event": "ticket.log.created",
+  "data": {},
+  "timestamp": "2026-03-23T10:00:00"
+}
+```
+
+### Key events
+- `ticket.log.created`: New reply in a ticket room.
+- `ticket.updated`: Ticket status/assignee metadata changed.
+- `ticket.deleted`: Ticket removed.
+- `notification.created`: New notification for current user channel.
+- `notification.unread_count.updated`: Unread count changed (multi-tab sync).

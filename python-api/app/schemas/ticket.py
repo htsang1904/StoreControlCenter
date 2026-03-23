@@ -27,7 +27,7 @@ class TicketBase(BaseModel):
     status: Literal["new", "assigned", "in_progress", "resolved", "closed", "rejected"] = "new"
     type: Optional[str] = None
     
-    store_id: int
+    store_id: int | str
     responsible_department_id: int
     ticket_category_id: Optional[int] = None
 
@@ -44,7 +44,7 @@ class TicketUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[Literal["new", "assigned", "in_progress", "resolved", "closed", "rejected"]] = None
     type: Optional[str] = None
-    store_id: Optional[int] = None
+    store_id: Optional[int | str] = None
     handler_id: Optional[int] = None
     responsible_department_id: Optional[int] = None
     ticket_category_id: Optional[int] = None
@@ -54,6 +54,7 @@ class TicketUpdate(BaseModel):
 class TicketResponse(TicketBase):
     id: int
     ticket_code: str
+    store_id: int
     requester_id: Optional[int] = None
     requester: Optional[UserMinimalResponse] = None
     handler_id: Optional[int] = None

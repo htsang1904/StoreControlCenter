@@ -8,6 +8,7 @@ from . import (
     notifications,
     qc,
     qc_findings,
+    realtime,
     stores,
     ticket_logs,
     tickets,

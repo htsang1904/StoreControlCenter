@@ -19,7 +19,7 @@ reusable_oauth2 = OAuth2PasswordBearer(
 TokenDep = Annotated[str, Depends(reusable_oauth2)]
 SessionDep = Annotated[AsyncSession, Depends(get_db)]
 
-async def get_current_user(session: SessionDep, token: TokenDep) -> User:
+async def get_user_from_token(session: AsyncSession, token: str) -> User:
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
@@ -58,5 +58,8 @@ async def get_current_user(session: SessionDep, token: TokenDep) -> User:
             )
     
     return user
+
+async def get_current_user(session: SessionDep, token: TokenDep) -> User:
+    return await get_user_from_token(session, token)
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

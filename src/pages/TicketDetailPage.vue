@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CommonModal from '@/components/CommonModal.vue'
 import { useApp } from '@/plugins/app'
+import { createRealtimeConnection } from '@/services/realtime_service'
 import {
   assignTicketHandler,
   claimTicket,
@@ -65,6 +66,56 @@ const imagePreview = ref({
   name: '',
 })
 const conversationViewportRef = ref(null)
+let ticketRealtimeConnection = null
+
+const normalizeTicketPayload = (item) => {
+  if (!item || typeof item !== 'object') return null
+
+  return {
+    ...item,
+    createdAt: item?.createdAt || item?.created_at || null,
+    updatedAt: item?.updatedAt || item?.updated_at || null,
+    start_date: item?.start_date || item?.startDate || null,
+    processing_started_at: item?.processing_started_at || item?.processingStartedAt || null,
+    resolved_at: item?.resolved_at || item?.resolvedAt || null,
+  }
+}
+
+const normalizeTicketLogPayload = (item) => {
+  if (!item || typeof item !== 'object') return null
+
+  return {
+    ...item,
+    createdAt: item?.createdAt || item?.created_at || null,
+    updatedAt: item?.updatedAt || item?.updated_at || null,
+  }
+}
+
+const upsertTicketLog = (incoming) => {
+  const logItem = normalizeTicketLogPayload(incoming)
+  if (!logItem) return
+
+  const incomingId = Number(logItem?.id || 0)
+  if (incomingId <= 0) {
+    logs.value = [...logs.value, logItem]
+    return
+  }
+
+  const existingIndex = logs.value.findIndex((item) => Number(item?.id || 0) === incomingId)
+  if (existingIndex >= 0) {
+    const nextItems = [...logs.value]
+    nextItems[existingIndex] = {
+      ...nextItems[existingIndex],
+      ...logItem,
+    }
+    logs.value = nextItems
+    return
+  }
+
+  logs.value = [...logs.value, logItem]
+}
+
+const getRealtimeToken = () => localStorage.getItem('token') || state?.token || null
 
 const ticketId = computed(() => Number(props.id || 0))
 const isEmbedded = computed(() => props.embedded === true)
@@ -455,6 +506,71 @@ function removeReplyFile(index) {
   replyFiles.value = replyFiles.value.filter((_, idx) => idx !== index)
 }
 
+function applyIncomingTicket(nextTicket) {
+  const normalizedTicket = normalizeTicketPayload(nextTicket)
+  if (!normalizedTicket?.id) return
+
+  ticket.value = normalizedTicket
+  assignees.value = Array.isArray(normalizedTicket.assignees) ? normalizedTicket.assignees : assignees.value
+  if (canAdminAssignHandler.value) {
+    void fetchAssignableHandlers()
+  }
+}
+
+function handleTicketRealtimeEvent(payload = {}) {
+  const event = String(payload?.event || '')
+  const data = payload?.data || {}
+  const incomingTicketId = Number(data?.ticket_id || data?.ticket?.id || 0)
+
+  if (event === 'ticket.log.created') {
+    if (!incomingTicketId || incomingTicketId !== ticketId.value) return
+    if (data?.log) {
+      upsertTicketLog(data.log)
+    }
+    return
+  }
+
+  if (event === 'ticket.updated' || event === 'ticket.created') {
+    if (!incomingTicketId || incomingTicketId !== ticketId.value) return
+    if (data?.ticket) {
+      applyIncomingTicket(data.ticket)
+    }
+    return
+  }
+
+  if (event === 'ticket.deleted') {
+    if (!incomingTicketId || incomingTicketId !== ticketId.value) return
+    errorMessage.value = 'Ticket đã bị xóa hoặc không còn khả dụng.'
+    ticket.value = null
+    logs.value = []
+    assignees.value = []
+  }
+}
+
+function startTicketRealtime() {
+  const resolvedTicketId = Number(ticketId.value || 0)
+  if (!state?.token || !Number.isInteger(resolvedTicketId) || resolvedTicketId <= 0) return
+  if (ticketRealtimeConnection) return
+
+  ticketRealtimeConnection = createRealtimeConnection({
+    path: `/api/realtime/ws/tickets/${resolvedTicketId}`,
+    getToken: getRealtimeToken,
+    onEvent: handleTicketRealtimeEvent,
+    shouldReconnect: (closeEvent) => {
+      if (!state?.token) return false
+      return Number(closeEvent?.code || 0) !== 1008
+    },
+  })
+
+  ticketRealtimeConnection.connect()
+}
+
+function stopTicketRealtime() {
+  if (!ticketRealtimeConnection) return
+  ticketRealtimeConnection.close()
+  ticketRealtimeConnection = null
+}
+
 async function fetchTicketDetail() {
   loading.value = true
   errorMessage.value = ''
@@ -472,7 +588,7 @@ async function fetchTicketDetail() {
       throw new Error('Không tìm thấy dữ liệu yêu cầu.')
     }
 
-    ticket.value = detail
+    ticket.value = normalizeTicketPayload(detail)
   } catch (err) {
     errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể tải chi tiết yêu cầu.'
   } finally {
@@ -489,7 +605,9 @@ async function fetchTicketLogs() {
   try {
     const result = await listTicketLogs(ticket.value.id)
     const records = result?.data || []
-    logs.value = Array.isArray(records) ? records : []
+    logs.value = Array.isArray(records)
+      ? records.map((record) => normalizeTicketLogPayload(record)).filter(Boolean)
+      : []
   } catch (err) {
     logs.value = []
     logsError.value = err?.response?.data?.message || err?.message || 'Không thể tải trao đổi.'
@@ -567,7 +685,7 @@ async function handleAssignHandler() {
       const result = await assignTicketHandler(ticket.value.id, handlerId)
       const updatedTicket = result?.data || null
       if (updatedTicket?.id) {
-        ticket.value = updatedTicket
+        ticket.value = normalizeTicketPayload(updatedTicket)
         assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
       }
     }
@@ -622,7 +740,7 @@ async function handleClaimTicket() {
     const result = await claimTicket(ticket.value.id)
     const updatedTicket = result?.data || null
     if (updatedTicket?.id) {
-      ticket.value = updatedTicket
+      ticket.value = normalizeTicketPayload(updatedTicket)
       assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
     } else {
       await fetchTicketAssignees()
@@ -645,7 +763,7 @@ async function handleResolveTicket() {
     const result = await resolveTicket(ticket.value.id)
     const updatedTicket = result?.data || null
     if (updatedTicket?.id) {
-      ticket.value = updatedTicket
+      ticket.value = normalizeTicketPayload(updatedTicket)
       assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
     } else {
       await fetchTicketDetail()
@@ -674,7 +792,7 @@ async function handleReopenTicket() {
     const result = await reopenTicket(ticket.value.id)
     const updatedTicket = result?.data || null
     if (updatedTicket?.id) {
-      ticket.value = updatedTicket
+      ticket.value = normalizeTicketPayload(updatedTicket)
       assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
     } else {
       await fetchTicketDetail()
@@ -741,7 +859,7 @@ async function submitReply() {
 
     const createdLog = result?.data || null
     if (createdLog?.id) {
-      logs.value.push(createdLog)
+      upsertTicketLog(createdLog)
     } else {
       await fetchTicketLogs()
     }
@@ -771,6 +889,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handleDocumentPointerDown)
+  stopTicketRealtime()
 })
 
 watch(
@@ -785,11 +904,24 @@ watch(
 watch(
   () => ticketId.value,
   async (nextId, previousId) => {
+    stopTicketRealtime()
     if (!nextId || nextId === previousId) return
     closeActionMenu()
     await fetchAllData()
+    startTicketRealtime()
   },
   { immediate: true }
+)
+
+watch(
+  () => state?.token,
+  (token) => {
+    if (!token) {
+      stopTicketRealtime()
+      return
+    }
+    startTicketRealtime()
+  }
 )
 
 watch(
