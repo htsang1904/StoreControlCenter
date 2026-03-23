@@ -165,20 +165,6 @@ const goToPage = async (page) => {
   await loadQcForms(page)
 }
 
-const applyFilters = async () => {
-  closeActionMenu()
-  if (currentPage.value !== 1) {
-    await loadQcForms(1)
-  }
-}
-
-const resetFilters = async () => {
-  searchInput.value = ''
-  statusFilter.value = ''
-  closeActionMenu()
-  await loadQcForms(1)
-}
-
 onMounted(async () => {
   document.addEventListener('click', handleDocumentClick)
   await loadQcForms()
@@ -191,22 +177,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="page-stack space-y-4 p-3">
-    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-      <h2 class="text-xl font-semibold tracking-tight text-slate-900">Quản lý biểu mẫu QC</h2>
-      <p class="mt-2 text-sm leading-6 text-slate-500">
-        Danh sách biểu mẫu hiện có của hệ thống.
-      </p>
-    </section>
-
     <section class="rounded-xl border border-slate-200 bg-white">
       <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
         <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
           <div>
             <h3 class="text-base font-semibold text-slate-900">Danh sách biểu mẫu QC</h3>
-            <p class="mt-1 text-sm text-slate-500">
-              Bấm vào từng dòng để mở trang chi tiết biểu mẫu.
-              <span class="ml-1 text-slate-400">Hiển thị {{ rangeStart }}-{{ rangeEnd }} / {{ summaryTotalForms }} biểu mẫu.</span>
-            </p>
           </div>
 
           <button
@@ -218,43 +193,24 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div class="flex flex-col gap-3 pc:flex-row pc:items-center pc:justify-between">
-          <div class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:flex-1">
-            <input
-              v-model="searchInput"
-              type="text"
-              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
-              placeholder="Tìm theo mã, tên, mô tả..."
-            />
+        <div class="grid grid-cols-1 gap-3 tablet:grid-cols-2">
+          <input
+            v-model="searchInput"
+            type="text"
+            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            placeholder="Tìm theo mã, tên, mô tả..."
+          />
 
-            <select
-              v-model="statusFilter"
-              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
-            >
-              <option value="">Tất cả trạng thái</option>
-              <option value="draft">Bản nháp</option>
-              <option value="published">Đang phát hành</option>
-              <option value="archived">Lưu trữ</option>
-              <option value="no_version">Chưa có version</option>
-            </select>
-          </div>
-
-          <div class="flex w-full gap-2 pc:w-auto">
-            <button
-              type="button"
-              class="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 pc:min-w-24"
-              @click="applyFilters"
-            >
-              Lọc
-            </button>
-            <button
-              type="button"
-              class="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 pc:min-w-24"
-              @click="resetFilters"
-            >
-              Reset
-            </button>
-          </div>
+          <select
+            v-model="statusFilter"
+            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="draft">Bản nháp</option>
+            <option value="published">Đang phát hành</option>
+            <option value="archived">Lưu trữ</option>
+            <option value="no_version">Chưa có version</option>
+          </select>
         </div>
 
         <p v-if="hasLocalFilters" class="text-xs text-slate-400">

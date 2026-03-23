@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useToast } from '@/plugins/toast'
 import {
   createAdminStore,
@@ -88,15 +88,15 @@ const loadStores = async (page = currentPage.value) => {
   }
 }
 
-const applyFilters = async () => {
-  await loadStores(1)
-}
-
-const resetFilters = async () => {
-  searchInput.value = ''
-  statusFilter.value = ''
-  await loadStores(1)
-}
+let filterDebounceTimer = null
+watch([searchInput, statusFilter], () => {
+  if (filterDebounceTimer) {
+    window.clearTimeout(filterDebounceTimer)
+  }
+  filterDebounceTimer = window.setTimeout(() => {
+    void loadStores(1)
+  }, 250)
+})
 
 const goToPage = async (page) => {
   if (loadingStores.value) return
@@ -194,21 +194,11 @@ onMounted(async () => {
 
 <template>
   <div class="page-stack space-y-4 p-3">
-    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-      <h2 class="text-xl font-semibold tracking-tight text-slate-900">Quản lý cửa hàng</h2>
-      <p class="mt-2 text-sm leading-6 text-slate-500">
-        Quản trị danh mục cửa hàng dùng cho toàn bộ luồng ticket và QC của hệ thống.
-      </p>
-    </section>
-
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
         <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
           <div>
             <h3 class="text-base font-semibold text-slate-900">Danh sách cửa hàng</h3>
-            <p class="mt-1 text-sm text-slate-500">
-              Hiển thị {{ rangeStart }}-{{ rangeEnd }} / {{ totalStores }} cửa hàng
-            </p>
           </div>
 
           <div class="flex w-full flex-col gap-2 tablet:w-auto tablet:flex-row">
@@ -230,41 +220,22 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-3 pc:flex-row pc:items-center pc:justify-between">
-          <div class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:flex-1">
-            <input
-              v-model="searchInput"
-              type="text"
-              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
-              placeholder="Tìm theo mã, tên, địa chỉ, storeId..."
-            />
+        <div class="grid grid-cols-1 gap-3 tablet:grid-cols-2">
+          <input
+            v-model="searchInput"
+            type="text"
+            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            placeholder="Tìm theo mã, tên, địa chỉ, storeId..."
+          />
 
-            <select
-              v-model="statusFilter"
-              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
-            >
-              <option value="">Tất cả trạng thái</option>
-              <option value="active">Đang hoạt động</option>
-              <option value="inactive">Tạm khóa</option>
-            </select>
-          </div>
-
-          <div class="flex w-full gap-2 pc:w-auto">
-            <button
-              type="button"
-              class="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 pc:min-w-24"
-              @click="applyFilters"
-            >
-              Lọc
-            </button>
-            <button
-              type="button"
-              class="inline-flex h-9 flex-1 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 pc:min-w-24"
-              @click="resetFilters"
-            >
-              Reset
-            </button>
-          </div>
+          <select
+            v-model="statusFilter"
+            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+          >
+            <option value="">Tất cả trạng thái</option>
+            <option value="active">Đang hoạt động</option>
+            <option value="inactive">Tạm khóa</option>
+          </select>
         </div>
 
         <div v-if="lastSyncSummary" class="grid grid-cols-2 gap-3 tablet:grid-cols-4">

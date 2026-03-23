@@ -92,7 +92,7 @@ onMounted(async () => {
   <div class="page-stack space-y-4 p-3">
     <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
       <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
-        <div class="max-w-3xl">
+        <div class="min-w-0 max-w-3xl tablet:flex-1">
           <button
             type="button"
             class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
@@ -107,7 +107,7 @@ onMounted(async () => {
           </p>
         </div>
 
-        <div class="flex w-full flex-col gap-2 tablet:w-auto tablet:flex-row tablet:flex-wrap tablet:justify-end">
+        <div class="flex w-full flex-col gap-2 tablet:w-auto tablet:shrink-0 tablet:flex-row tablet:flex-wrap tablet:justify-end">
           <button
             type="button"
             class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
@@ -150,14 +150,14 @@ onMounted(async () => {
     <template v-else-if="formDetail">
       <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
         <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
-          <div class="max-w-3xl">
+          <div class="min-w-0 max-w-3xl tablet:flex-1">
             <p class="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">{{ formDetail.code }}</p>
             <h3 class="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{{ formDetail.name }}</h3>
             <p class="mt-3 text-sm leading-6 text-slate-500">{{ formDetail.description || 'Không có mô tả cho biểu mẫu này.' }}</p>
             <p class="mt-3 text-sm leading-6 text-slate-500">{{ latestVersionNote }}</p>
           </div>
 
-          <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(formDetail.latestVersion?.status)">
+          <span class="app-badge inline-flex items-center self-start rounded-lg px-2.5 py-1 text-xs font-semibold tablet:shrink-0" :class="statusClass(formDetail.latestVersion?.status)">
             {{ statusLabel(formDetail.latestVersion?.status) }}
           </span>
         </div>
