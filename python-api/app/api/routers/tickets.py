@@ -411,6 +411,14 @@ async def assign_handler(
     if handler not in ticket.assignees:
         ticket.assignees.append(handler)
         
+        system_log = TicketLog(
+            ticket_id=ticket.id,
+            message=f"{current_user.name} đã phân công cho {handler.name} xử lý yêu cầu.",
+            sender_type="system",
+            sender_id=current_user.id
+        )
+        session.add(system_log)
+        
     session.add(ticket)
     await session.commit()
     
@@ -443,6 +451,14 @@ async def resolve_ticket(
     ticket.status = "resolved"
     ticket.resolved_at = _utcnow_naive()
     
+    system_log = TicketLog(
+        ticket_id=ticket.id,
+        message=f"{current_user.name} đã đánh dấu yêu cầu được xử lý xong.",
+        sender_type="system",
+        sender_id=current_user.id
+    )
+    session.add(system_log)
+    
     session.add(ticket)
     await session.commit()
     
@@ -470,6 +486,14 @@ async def reopen_ticket(
         
     ticket.status = "in_progress"
     ticket.resolved_at = None
+    
+    system_log = TicketLog(
+        ticket_id=ticket.id,
+        message=f"{current_user.name} đã mở lại yêu cầu.",
+        sender_type="system",
+        sender_id=current_user.id
+    )
+    session.add(system_log)
     
     session.add(ticket)
     await session.commit()
@@ -531,6 +555,14 @@ async def assign_ticket_to_me(
             ticket.status = "in_progress"
             ticket.processing_started_at = _utcnow_naive()
             
+        system_log = TicketLog(
+            ticket_id=ticket.id,
+            message=f"{current_user.name} đã nhận xử lý yêu cầu.",
+            sender_type="system",
+            sender_id=current_user.id
+        )
+        session.add(system_log)
+        
         session.add(ticket)
         await session.commit()
         

@@ -66,6 +66,8 @@ const imagePreview = ref({
 })
 const conversationViewportRef = ref(null)
 
+const filesSidebarOpen = ref(false)
+
 const ticketId = computed(() => Number(props.id || 0))
 const isEmbedded = computed(() => props.embedded === true)
 const hasTicket = computed(() => Boolean(ticket.value?.id))
@@ -181,6 +183,29 @@ const conversationItems = computed(() => {
   }))
 
   return [rootCard, ...logCards]
+})
+
+const exchangedFiles = computed(() => {
+  const files = []
+  if (!hasTicket.value) return files
+
+  for (const item of conversationItems.value) {
+    if (item.attachments && item.attachments.length) {
+      for (const att of item.attachments) {
+        files.push({
+          ...att,
+          senderName: item.sender_name,
+          createdAt: item.createdAt,
+          messageId: item.id
+        })
+      }
+    }
+  }
+  return files.sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return timeB - timeA;
+  })
 })
 
 function normalizeStatusKey(status) {
@@ -388,6 +413,14 @@ function closeActionMenu() {
   actionMenuOpen.value = false
 }
 
+function toggleFilesSidebar() {
+  filesSidebarOpen.value = !filesSidebarOpen.value
+}
+
+function closeFilesSidebar() {
+  filesSidebarOpen.value = false
+}
+
 function handleDocumentPointerDown(event) {
   if (!actionMenuOpen.value) return
   const target = event?.target
@@ -577,6 +610,8 @@ async function handleAssignHandler() {
       await fetchTicketAssignees()
     }
 
+    await fetchTicketLogs()
+
     selectedAssignableHandlerIds.value = []
     assignPanelOpen.value = false
     await fetchAssignableHandlers()
@@ -627,6 +662,7 @@ async function handleClaimTicket() {
     } else {
       await fetchTicketAssignees()
     }
+    await fetchTicketLogs()
     await fetchAssignableHandlers()
   } catch (err) {
     assigneesError.value = err?.response?.data?.message || err?.message || 'Không thể nhận xử lý ticket.'
@@ -651,6 +687,7 @@ async function handleResolveTicket() {
       await fetchTicketDetail()
       await fetchTicketAssignees()
     }
+    await fetchTicketLogs()
     await fetchAssignableHandlers()
   } catch (err) {
     assigneesError.value = err?.response?.data?.message || err?.message || 'Không thể chuyển trạng thái đã xử lý.'
@@ -680,6 +717,7 @@ async function handleReopenTicket() {
       await fetchTicketDetail()
       await fetchTicketAssignees()
     }
+    await fetchTicketLogs()
     await fetchAssignableHandlers()
   } catch (err) {
     replyError.value = err?.response?.data?.message || err?.message || 'Không thể mở lại yêu cầu.'
@@ -787,6 +825,7 @@ watch(
   async (nextId, previousId) => {
     if (!nextId || nextId === previousId) return
     closeActionMenu()
+    closeFilesSidebar()
     await fetchAllData()
   },
   { immediate: true }
@@ -924,7 +963,7 @@ watch(
           </section>
         </aside>
 
-        <div class="min-h-0 flex-1 flex flex-col relative" :class="!isEmbedded ? 'pc:order-1 pc:border-r pc:border-slate-200' : ''">
+        <div class="min-h-0 flex-1 flex flex-col relative overflow-hidden" :class="!isEmbedded ? 'pc:order-1 pc:border-r pc:border-slate-200' : ''">
           <section class="flex flex-1 min-h-0 flex-col">
             <div class="shrink-0 border-b border-slate-200 bg-white px-3 py-2 tablet:px-4">
               <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1023,7 +1062,17 @@ watch(
                     </div>
                   </Transition>
                 </div>
-              </div>
+
+                  <button
+                    type="button"
+                    class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                    aria-label="Danh sách tệp đính kèm"
+                    title="Danh sách tệp đính kèm"
+                    @click="toggleFilesSidebar"
+                  >
+                    <span class="material-symbols-outlined text-[18px]">format_list_bulleted</span>
+                  </button>
+                </div>
             </div>
             </div>
 
@@ -1214,6 +1263,70 @@ watch(
             </section>
           </section>
 
+          <!-- Files Sidebar -->
+          <Transition name="slide-right">
+            <aside
+              v-if="filesSidebarOpen"
+              class="absolute inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-slate-200 bg-slate-50 shadow-2xl"
+            >
+              <div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
+                <h3 class="text-sm font-semibold text-slate-800">Tệp đính kèm</h3>
+                <button
+                  type="button"
+                  class="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
+                  @click="closeFilesSidebar"
+                >
+                  <span class="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+
+              <div class="ticket-detail-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
+                <div v-if="!exchangedFiles.length" class="py-10 text-center text-sm text-slate-500">
+                  Chưa có tệp đính kèm nào được chia sẻ.
+                </div>
+                
+                <div v-else class="space-y-3">
+                  <div
+                    v-for="file in exchangedFiles"
+                    :key="`${file.id}-${file.messageId}`"
+                    class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xs transition-colors hover:border-slate-300"
+                  >
+                    <div
+                      v-if="isImageFile(file.mime, file.url)"
+                      class="relative size-12 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-slate-100 bg-slate-100"
+                      @click="openImagePreview(file.url, file.name)"
+                    >
+                      <img :src="toAbsoluteUrl(file.url)" :alt="file.name" class="absolute inset-0 size-full object-cover" />
+                      <div class="absolute inset-x-0 bottom-0 bg-black/40 py-0.5 text-center text-[9px] font-bold text-white backdrop-blur-xs">Ảnh</div>
+                    </div>
+                    <div
+                      v-else
+                      class="flex size-12 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-100 text-slate-400"
+                    >
+                      <span class="material-symbols-outlined text-[20px]">description</span>
+                    </div>
+
+                    <div class="min-w-0 flex-1">
+                      <a
+                        :href="toAbsoluteUrl(file.url)"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="block truncate text-sm font-semibold text-slate-800 transition-colors hover:text-blue-600 hover:underline"
+                        :title="file.name"
+                      >
+                        {{ file.name }}
+                      </a>
+                      <div class="mt-1 flex flex-col gap-0.5 text-[11px] text-slate-500">
+                        <span class="truncate font-medium">{{ file.senderName }}</span>
+                        <span>{{ formatDateTime(file.createdAt) }} • {{ formatFileSize(file.size) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </Transition>
+
           <CommonModal
             v-model="assignPanelOpen"
             title="Phân công handler"
@@ -1313,6 +1426,15 @@ watch(
 </template>
 
 <style scoped>
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+
 .inbox-reply-textarea:focus-visible {
   outline: none;
   box-shadow: none;
