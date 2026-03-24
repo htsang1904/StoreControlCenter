@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from '@/plugins/toast'
 import { useApp } from '@/plugins/app'
+import { createRealtimeConnection } from '@/services/realtime_service'
 import {
   listNotifications,
   markAllNotificationsRead,
@@ -23,6 +24,87 @@ const notifications = ref([])
 const unreadCount = ref(0)
 const markingAllRead = ref(false)
 let pollingTimer = null
+let notificationsConnection = null
+
+const normalizeNotificationItem = (item = {}) => {
+  const normalized = {
+    ...item,
+    createdAt: item?.createdAt || item?.created_at || null,
+    updatedAt: item?.updatedAt || item?.updated_at || null,
+    read_at: item?.read_at || item?.readAt || null,
+    ticket_id: Number(item?.ticket_id || item?.ticket?.id || item?.meta?.ticket_id || item?.meta_info?.ticket_id || 0) || null,
+    meta: item?.meta || item?.meta_info || {},
+  }
+
+  if (!normalized.ticket && normalized.ticket_id) {
+    normalized.ticket = { id: normalized.ticket_id }
+  }
+
+  return normalized
+}
+
+const normalizeNotificationList = (items = []) => {
+  if (!Array.isArray(items)) return []
+  return items.map((item) => normalizeNotificationItem(item))
+}
+
+const getRealtimeToken = () => localStorage.getItem('token') || state?.token || null
+
+const upsertNotification = (incoming) => {
+  const notification = normalizeNotificationItem(incoming)
+  const incomingId = Number(notification?.id || 0)
+  if (incomingId <= 0) {
+    notifications.value = [notification, ...notifications.value].slice(0, NOTIFICATION_PAGE_SIZE)
+    return
+  }
+
+  const existingIndex = notifications.value.findIndex((item) => Number(item?.id || 0) === incomingId)
+  if (existingIndex >= 0) {
+    const nextItems = [...notifications.value]
+    nextItems[existingIndex] = {
+      ...nextItems[existingIndex],
+      ...notification,
+    }
+    notifications.value = nextItems
+    return
+  }
+
+  notifications.value = [notification, ...notifications.value].slice(0, NOTIFICATION_PAGE_SIZE)
+}
+
+const handleNotificationRealtimeEvent = (payload = {}) => {
+  const event = String(payload?.event || '')
+  const data = payload?.data || {}
+
+  if (event === 'realtime.connected') {
+    const nextUnreadCount = Number(data?.unread_count)
+    if (Number.isInteger(nextUnreadCount) && nextUnreadCount >= 0) {
+      unreadCount.value = nextUnreadCount
+    }
+    return
+  }
+
+  if (event === 'notification.created') {
+    if (data?.notification) {
+      upsertNotification(data.notification)
+    }
+
+    const nextUnreadCount = Number(data?.unread_count)
+    if (Number.isInteger(nextUnreadCount) && nextUnreadCount >= 0) {
+      unreadCount.value = nextUnreadCount
+    } else {
+      unreadCount.value += 1
+    }
+    return
+  }
+
+  if (event === 'notification.unread_count.updated') {
+    const nextUnreadCount = Number(data?.unread_count)
+    if (Number.isInteger(nextUnreadCount) && nextUnreadCount >= 0) {
+      unreadCount.value = nextUnreadCount
+    }
+  }
+}
 
 const formatNotificationTime = (value) => {
   if (!value) return '--'
@@ -64,7 +146,7 @@ const fetchNotifications = async ({ silent = false } = {}) => {
       page: 1,
       pageSize: NOTIFICATION_PAGE_SIZE,
     })
-    notifications.value = Array.isArray(result?.data) ? result.data : []
+    notifications.value = normalizeNotificationList(result?.data)
     unreadCount.value = Number(result?.unread_count || 0)
   } catch (error) {
     if (!silent) {
@@ -92,7 +174,8 @@ const handleClickOutside = (event) => {
 }
 
 const handleOpenNotification = async (notification) => {
-  const notificationId = Number(notification?.id || 0)
+  const normalizedNotification = normalizeNotificationItem(notification)
+  const notificationId = Number(normalizedNotification?.id || 0)
   if (notificationId <= 0) return
 
   try {
@@ -108,7 +191,13 @@ const handleOpenNotification = async (notification) => {
   } catch (_error) {}
 
   notificationOpen.value = false
-  const ticketId = Number(notification?.ticket?.id || notification?.meta?.ticket_id || 0)
+  const ticketId = Number(
+    normalizedNotification?.ticket?.id ||
+    normalizedNotification?.ticket_id ||
+    normalizedNotification?.meta?.ticket_id ||
+    normalizedNotification?.meta_info?.ticket_id ||
+    0
+  )
   if (ticketId > 0) {
     await router.push(`/ticket/${ticketId}`)
   }
@@ -144,6 +233,28 @@ function stopNotificationPolling() {
   pollingTimer = null
 }
 
+function startNotificationRealtime() {
+  if (notificationsConnection || !state?.token) return
+
+  notificationsConnection = createRealtimeConnection({
+    path: '/api/realtime/ws/notifications',
+    getToken: getRealtimeToken,
+    onEvent: handleNotificationRealtimeEvent,
+    onClose: () => {
+      if (!state?.token) return
+      void fetchNotifications({ silent: true })
+    },
+  })
+
+  notificationsConnection.connect()
+}
+
+function stopNotificationRealtime() {
+  if (!notificationsConnection) return
+  notificationsConnection.close()
+  notificationsConnection = null
+}
+
 watch(
   () => state?.token,
   async (token) => {
@@ -151,11 +262,13 @@ watch(
       notifications.value = []
       unreadCount.value = 0
       stopNotificationPolling()
+      stopNotificationRealtime()
       return
     }
 
     await fetchNotifications({ silent: true })
     startNotificationPolling()
+    startNotificationRealtime()
   },
   { immediate: true }
 )
@@ -167,6 +280,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleClickOutside)
   stopNotificationPolling()
+  stopNotificationRealtime()
 })
 </script>
 

@@ -23,13 +23,6 @@ const openTool = (path) => {
 
 <template>
   <div class="page-stack space-y-4 p-3">
-    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-      <h2 class="text-xl font-semibold tracking-tight text-slate-900">Công cụ quản trị</h2>
-      <p class="mt-2 text-sm leading-6 text-slate-500">
-        Tập trung các công cụ vận hành hệ thống dành cho tài khoản admin.
-      </p>
-    </section>
-
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
         <h3 class="text-base font-semibold text-slate-900">Danh sách công cụ</h3>

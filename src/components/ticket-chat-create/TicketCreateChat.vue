@@ -40,8 +40,9 @@ const availableStores = computed(() => {
 
   const normalized = userStores
     .map(s => {
-      const id = Number(s?.storeId || s?.store_id || s?.id || s?.value)
-      if (!Number.isInteger(id) || id <= 0) return null
+      const rawValue = s?.storeId || s?.store_id || s?.id || s?.value
+      const id = String(rawValue || '').trim()
+      if (!id) return null
       const label = String(s?.shortAddress || s?.short_address || s?.store_name || s?.name || s?.address || s?.code || s?.label || '').trim()
       return { value: id, label: label || `Cửa hàng ${id}` }
     })
@@ -49,8 +50,8 @@ const availableStores = computed(() => {
 
   if (normalized.length > 0) return normalized
 
-  const fallbackId = Number(state.userInfo?.store_id || import.meta.env.VITE_DEFAULT_STORE_ID || 0)
-  if (Number.isInteger(fallbackId) && fallbackId > 0) {
+  const fallbackId = String(state.userInfo?.store_id || import.meta.env.VITE_DEFAULT_STORE_ID || '').trim()
+  if (fallbackId) {
     return [{ value: fallbackId, label: state.userInfo?.store_name || import.meta.env.VITE_DEFAULT_STORE_NAME || `Cửa hàng ${fallbackId}` }]
   }
   return []
@@ -156,7 +157,7 @@ async function handleConfirm() {
     const payload = {
       title: formData.title.trim(),
       description: descText,
-      store_id: Number(formData.store_id),
+      store_id: String(formData.store_id || '').trim(),
       responsible_department_id: Number(formData.responsible_department_id),
       type: formData.type || null,
       attachments_media: Array.isArray(formData.attachments_media)

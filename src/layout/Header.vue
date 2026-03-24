@@ -155,8 +155,8 @@ function navigateTo(path) {
     class="stitch-shell z-40 border-b border-slate-200 bg-white"
   >
     <div class="px-3 py-3.5 tablet:px-5 tablet:py-4 pc:px-8">
-      <div :class="showHeaderDateFilter ? 'flex flex-col gap-3.5 pc:flex-row pc:items-center pc:justify-between' : 'flex items-center justify-between gap-3'">
-        <div class="flex min-w-0 items-center gap-3">
+      <div :class="showHeaderDateFilter ? 'flex items-center justify-between gap-3 tablet:gap-4' : 'flex items-center justify-between gap-3'">
+        <div class="flex min-w-0 flex-1 items-center gap-3">
           <button
             v-if="props.drawerMode"
             type="button"
@@ -198,7 +198,7 @@ function navigateTo(path) {
           </div>
         </div>
 
-        <div class="flex min-w-0 items-center justify-end gap-2 tablet:gap-3">
+        <div class="flex shrink-0 items-center justify-end gap-2 tablet:gap-3">
           <HeaderDateControls v-if="showHeaderDateFilter" />
           <HeaderNotifications />
         </div>
