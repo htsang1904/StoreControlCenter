@@ -441,8 +441,8 @@ async function loadOverview() {
       .map((store) => Number(store?.id || 0))
       .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
     const targetPageSize = storeIds.length > 0
-      ? Math.min(Math.max(stores.value.length, 100), 1000)
-      : 5000
+      ? Math.min(Math.max(stores.value.length, 100), 500)
+      : 500
 
     const remote = await getQcStoresOverviewApi({
       from: dateFrom.value,

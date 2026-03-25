@@ -394,7 +394,7 @@ async function loadDashboard() {
       from: dashboardRange.value.from,
       to: dashboardRange.value.to,
       page: 1,
-      pageSize: 5000,
+      pageSize: 500,
       storeIds,
     }),
     listTickets({
