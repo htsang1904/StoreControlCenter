@@ -1,9 +1,9 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
+import draggable from 'vuedraggable'
 import { useRoute } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
-import StatSummaryCard from '@/components/StatSummaryCard.vue'
 import { useApp } from '@/plugins/app'
 import { getDashboardOverview, listTickets } from '@/services/ticket_service'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
@@ -156,15 +156,17 @@ const kpiCards = computed(() => [
     value: numberFormatter.format(Number(ticketSummary.value.total_ticket || 0)),
     meta: 'Trong kỳ',
     icon: 'list_alt',
-    tone: 'sky',
+    bgClass: 'bg-sky-100',
+    textClass: 'text-sky-600',
   },
   {
     key: 'avg_processing_time',
     label: 'TB Thời gian xử lý',
-    value: `${mockAvgProcessingTime.value} giờ`,
+    value: `${Number((mockAvgProcessingTime.value * (chartMultiplier?.value || 1)).toFixed(1))} giờ`,
     meta: 'Trên mỗi ticket',
     icon: 'schedule',
-    tone: 'indigo',
+    bgClass: 'bg-indigo-100',
+    textClass: 'text-indigo-600',
   },
   {
     key: 'in_progress',
@@ -172,7 +174,8 @@ const kpiCards = computed(() => [
     value: numberFormatter.format(Number(ticketSummary.value.in_progress || 0)),
     meta: 'Cần theo dõi',
     icon: 'pending',
-    tone: 'amber',
+    bgClass: 'bg-amber-100',
+    textClass: 'text-amber-600',
   },
   {
     key: 'qc_pass_rate',
@@ -180,7 +183,8 @@ const kpiCards = computed(() => [
     value: `${Number(qcSummary.value.passRate || 0)}%`,
     meta: 'Mục tiêu 95%',
     icon: 'check_circle',
-    tone: 'emerald',
+    bgClass: 'bg-emerald-100',
+    textClass: 'text-emerald-600',
   },
   {
     key: 'overdue',
@@ -188,9 +192,43 @@ const kpiCards = computed(() => [
     value: numberFormatter.format(Number(ticketSummary.value.overdue || 0)),
     meta: 'Sát SLA',
     icon: 'timer',
-    tone: 'rose',
+    bgClass: 'bg-rose-100',
+    textClass: 'text-rose-600',
   },
 ])
+
+const sparklineCommonOptions = {
+  chart: { type: 'area', sparkline: { enabled: true }, animations: { enabled: false } },
+  stroke: { curve: 'smooth', width: 2 },
+  fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0, stops: [0, 100] } },
+  tooltip: { fixed: { enabled: false }, x: { show: false }, y: { title: { formatter: () => '' } }, marker: { show: false } }
+}
+
+const sparklineData = computed(() => {
+  const mult = chartMultiplier.value === 0 ? 0.1 : chartMultiplier.value
+  return {
+    total_ticket: {
+      series: [{ data: [12, 14, 18, 15, 21, 19, 25].map(v => Math.round(v * mult)) }],
+      options: { ...sparklineCommonOptions, colors: ['#0EA5E9'] }
+    },
+    avg_processing_time: {
+      series: [{ data: [2.5, 2.3, 2.6, 2.4, 2.1, 1.9, 2.2].map(v => Number((v * mult).toFixed(1))) }],
+      options: { ...sparklineCommonOptions, colors: ['#6366F1'] }
+    },
+    in_progress: {
+      series: [{ data: [5, 7, 4, 8, 6, 9, 5].map(v => Math.round(v * mult)) }],
+      options: { ...sparklineCommonOptions, colors: ['#F59E0B'] }
+    },
+    qc_pass_rate: {
+      series: [{ data: [92, 94, 91, 95, 96, 94, 97].map(v => Math.min(100, Math.round(v + (mult - 1) * 5))) }],
+      options: { ...sparklineCommonOptions, colors: ['#10B981'] }
+    },
+    overdue: {
+      series: [{ data: [2, 3, 1, 4, 2, 5, 1].map(v => Math.round(v * mult)) }],
+      options: { ...sparklineCommonOptions, colors: ['#F43F5E'] }
+    }
+  }
+})
 
 const topStoreStats = computed(() => {
   const storesData = Array.isArray(ticketTopStores.value) ? ticketTopStores.value : []
@@ -217,14 +255,83 @@ const chartPeriodOptions = [
   { value: 'year', label: 'Cả Năm' }
 ]
 
-const chartStoreFilter = ref('all')
+const dashboardWidgets = ref([
+  { id: 'kpi_table', type: 'kpi_table', span: 12, minSpan: 12 },
+  { id: 'main_chart', type: 'main_chart', span: 12, minSpan: 6 },
+  { id: 'top_ticket_chart', type: 'top_ticket_chart', span: 6, minSpan: 6 },
+  { id: 'top_qc_chart', type: 'top_qc_chart', span: 6, minSpan: 6 }
+])
+
+const showStoreFilterPopup = ref(false)
+const storeSearchQuery = ref('')
+const chartStoreFilter = ref([])
+
+const selectedStoreText = computed(() => {
+  if (chartStoreFilter.value.length === stores.value.length && stores.value.length > 0) {
+    return 'Tất cả cửa hàng'
+  }
+  if (chartStoreFilter.value.length === 1) {
+    const store = stores.value.find(s => s.id === chartStoreFilter.value[0])
+    return store?.name || store?.address || `Store #${store?.id}` || '1 cửa hàng'
+  }
+  if (chartStoreFilter.value.length === 0) {
+    return 'Chưa chọn cửa hàng'
+  }
+  return `${chartStoreFilter.value.length} cửa hàng`
+})
+
+const filteredStores = computed(() => {
+  if (!storeSearchQuery.value) return stores.value
+  const q = storeSearchQuery.value.toLowerCase()
+  return stores.value.filter(s => {
+    const name = (s.name || s.address || `Store #${s.id}`).toLowerCase()
+    return name.includes(q)
+  })
+})
+
+function toggleStoreSelection(storeId) {
+  const index = chartStoreFilter.value.indexOf(storeId)
+  if (index > -1) {
+    chartStoreFilter.value.splice(index, 1)
+  } else {
+    chartStoreFilter.value.push(storeId)
+  }
+}
+
+function selectAllStores() {
+  chartStoreFilter.value = stores.value.map(s => s.id)
+}
+
+function clearStoreSelection() {
+  chartStoreFilter.value = []
+}
+
+function isStoreSelected(storeId) {
+  return chartStoreFilter.value.includes(storeId)
+}
+
+watch(stores, (newStores) => {
+  if (newStores.length > 0 && chartStoreFilter.value.length === 0) {
+    chartStoreFilter.value = newStores.map(s => s.id)
+  }
+}, { immediate: true })
+
 const chartMultiplier = computed(() => {
-  if (chartStoreFilter.value === 'all') return 1
-  return (String(chartStoreFilter.value).charCodeAt(0) % 3 + 1) * 0.4 + 0.2
+  if (chartStoreFilter.value.length === 0) return 0
+  if (chartStoreFilter.value.length === stores.value.length && stores.value.length > 0) return 1
+  const sum = chartStoreFilter.value.reduce((acc, id) => acc + id, 0)
+  return Math.max(0.1, (sum % 3 + 1) * 0.3)
 })
 
 const ticketChartData = computed(() => {
   const mult = chartMultiplier.value
+  if (mult === 0) {
+    return {
+      categories: ['-'],
+      tickets: [0],
+      supportTime: [0]
+    }
+  }
   if (chartPeriod.value === 'week') {
     return {
       categories: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
@@ -242,29 +349,6 @@ const ticketChartData = computed(() => {
     categories: ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'],
     tickets: [45, 60, 55, 70].map(v => Math.round(v * mult)),
     supportTime: [2.2, 2.0, 2.5, 1.9].map(v => Number((v * (1.5 - mult * 0.5)).toFixed(1)))
-  }
-})
-
-const qcChartData = computed(() => {
-  const mult = chartMultiplier.value
-  const scoreMod = (mult - 1) * 5
-  if (chartPeriod.value === 'week') {
-    return {
-      categories: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
-      scores: [90, 92, 88, 95, 96, 91, 94].map(v => Math.min(100, Math.max(0, Math.round(v + scoreMod)))),
-      passRates: [95, 98, 90, 100, 100, 92, 97].map(v => Math.min(100, Math.max(0, Math.round(v + scoreMod * 1.2))))
-    }
-  } else if (chartPeriod.value === 'year') {
-    return {
-      categories: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'],
-      scores: [88, 90, 92, 95, 94, 96, 93, 91, 95, null, null, null].map(v => v ? Math.min(100, Math.max(0, Math.round(v + scoreMod))) : null),
-      passRates: [90, 95, 96, 98, 97, 100, 96, 94, 98, null, null, null].map(v => v ? Math.min(100, Math.max(0, Math.round(v + scoreMod * 1.2))) : null)
-    }
-  }
-  return {
-    categories: ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'],
-    scores: [92, 95, 90, 96].map(v => Math.min(100, Math.max(0, Math.round(v + scoreMod)))),
-    passRates: [95, 98, 92, 100].map(v => Math.min(100, Math.max(0, Math.round(v + scoreMod * 1.2))))
   }
 })
 
@@ -319,68 +403,40 @@ const ticketChartSeries = computed(() => [
   { name: 'Thời gian IT Xử lý (giờ)', type: 'line', data: ticketChartData.value.supportTime }
 ])
 
-const qcChartOptions = computed(() => ({
+const topStoreTicketBarOptions = computed(() => ({
   ...commonChartOptions,
-  chart: { ...commonChartOptions.chart, type: 'line' },
-  stroke: { width: 4, curve: 'smooth' },
-  colors: ['#34D399', '#F43F5E'],
-  xaxis: {
-    categories: qcChartData.value.categories,
-    labels: { style: { colors: '#64748b', fontWeight: 600 } },
-    axisBorder: { show: false },
-    axisTicks: { show: false }
-  },
-  yaxis: {
-    min: 0,
-    max: 100,
-    labels: {
-      style: { colors: '#64748b' },
-      formatter: (val) => `${val}%`
-    }
-  },
-  legend: { position: 'top', horizontalAlign: 'right', fontWeight: 600 }
+  chart: { ...commonChartOptions.chart, type: 'bar' },
+  plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true } },
+  colors: ['#6366F1', '#8B5CF6', '#EC4899', '#F43F5E', '#F59E0B'],
+  dataLabels: { enabled: true, style: { colors: ['#fff'] } },
+  xaxis: { categories: mockStoreTicketStats.value.map(s => s.name) },
+  legend: { show: false }
 }))
 
-const qcChartSeries = computed(() => [
-  { name: 'Điểm QC', data: qcChartData.value.scores },
-  { name: 'Tỉ lệ đạt', data: qcChartData.value.passRates }
+const topStoreTicketBarSeries = computed(() => [
+  { name: 'Số yêu cầu', data: mockStoreTicketStats.value.map(s => s.ticketCount) }
 ])
 
-const qcInsight = computed(() => {
-  const passRate = Number(qcSummary.value.passRate || 0)
+const topStoreQcBarOptions = computed(() => ({
+  ...commonChartOptions,
+  chart: { ...commonChartOptions.chart, type: 'bar' },
+  plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true } },
+  colors: ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0'],
+  dataLabels: { enabled: true, style: { colors: ['#064E3B'] } },
+  xaxis: { categories: mockTopQcStores.value.map(s => s.name), max: 100 },
+  legend: { show: false }
+}))
 
-  if (passRate >= 90) {
-    return {
-      panelClass: 'border-emerald-200 bg-emerald-50/70',
-      iconClass: 'bg-emerald-100 text-emerald-700',
-      title: 'Chất lượng QC đang ổn định',
-      body: `Tỉ lệ QC đạt hiện ở mức ${passRate}%. Có thể tiếp tục giữ nhịp kiểm tra như hiện tại và theo dõi các cửa hàng đang tăng ticket.`,
-    }
-  }
-
-  if (passRate >= 75) {
-    return {
-      panelClass: 'border-amber-200 bg-amber-50/75',
-      iconClass: 'bg-amber-100 text-amber-700',
-      title: 'Có tín hiệu cần theo dõi thêm',
-      body: `Tỉ lệ QC đạt đang là ${passRate}%. Nên rà soát nhóm cửa hàng có nhiều ticket hoặc đang có kết quả QC không ổn định.`,
-    }
-  }
-
-  return {
-    panelClass: 'border-rose-200 bg-rose-50/80',
-    iconClass: 'bg-rose-100 text-rose-700',
-    title: 'Ưu tiên siết lại chất lượng vận hành',
-    body: `Tỉ lệ QC đạt hiện chỉ còn ${passRate}%. Nên tập trung vào các cửa hàng có ticket tăng nhanh và kết quả QC dưới chuẩn.`,
-  }
-})
+const topStoreQcBarSeries = computed(() => [
+  { name: 'Tỉ lệ đạt (%)', data: mockTopQcStores.value.map(s => s.passRate) }
+])
 
 async function loadDashboard() {
   loading.value = true
   errorMessage.value = ''
 
-  const storeIds = stores.value
-    .map((store) => Number(store?.id || 0))
+  const storeIds = chartStoreFilter.value
+    .map((id) => Number(id || 0))
     .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
 
   const [ticketOverviewResult, qcOverviewResult, recentTicketsResult] = await Promise.allSettled([
@@ -464,7 +520,7 @@ async function loadDashboard() {
 
 watch(
   [
-    stores,
+    chartStoreFilter,
     () => dashboardRange.value.from,
     () => dashboardRange.value.to,
   ],
@@ -481,37 +537,20 @@ watch(
       {{ errorMessage }}
     </p>
 
-    <section class="grid grid-cols-1 gap-4 tablet:grid-cols-2 pc:grid-cols-5">
-      <StatSummaryCard
-        v-for="card in kpiCards"
-        :key="card.key"
-        :label="card.label"
-        :value="card.value"
-        :meta="card.meta"
-        :icon="card.icon"
-        :tone="card.tone"
-      />
-    </section>
-
-    <!-- NEW: BỘ LỌC + BIỂU ĐỒ -->
-    <div class="mt-8 flex flex-col gap-4 tablet:flex-row tablet:items-center tablet:justify-between">
+    <!-- BỘ LỌC + BIỂU ĐỒ -->
+    <div class="mb-4 flex flex-col gap-4 tablet:flex-row tablet:items-center tablet:justify-between">
        <h2 class="ml-2 text-xl font-black tracking-tight text-slate-800">Biểu đồ Tổng quan</h2>
        
        <div class="flex max-w-full flex-wrap items-center gap-3">
           <!-- BỘ LỌC CỬA HÀNG -->
           <div class="relative shrink-0">
-             <select
-               v-model="chartStoreFilter"
-               class="max-w-[200px] appearance-none truncate rounded-full border border-white/60 bg-white/40 pb-2 pl-4 pr-10 pt-2 text-[12px] font-bold uppercase tracking-wider text-slate-700 shadow-[0_4px_16px_rgb(0,0,0,0.03)] outline-none backdrop-blur-xl transition-all focus:border-indigo-400 focus:bg-white/80"
+             <button
+               @click="showStoreFilterPopup = true"
+               class="flex max-w-[250px] items-center justify-between gap-2 appearance-none truncate rounded-full border border-white/60 bg-white/40 pb-2 pl-4 pr-3 pt-2 text-[12px] font-bold uppercase tracking-wider text-slate-700 shadow-[0_4px_16px_rgb(0,0,0,0.03)] outline-none backdrop-blur-xl transition-all hover:bg-white/80 focus:border-indigo-400 focus:bg-white/80"
              >
-               <option value="all">Tất cả cửa hàng</option>
-               <option v-for="store in stores" :key="store.id" :value="store.id">
-                 {{ store.name || store.address || `Store #${store.id}` }}
-               </option>
-             </select>
-             <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
-                <span class="material-symbols-outlined text-[16px]">expand_more</span>
-             </span>
+               <span class="truncate">{{ selectedStoreText }}</span>
+               <span class="material-symbols-outlined shrink-0 text-[16px] text-slate-500">expand_more</span>
+             </button>
           </div>
 
           <!-- BỘ LỌC THỜI GIAN -->
@@ -529,267 +568,223 @@ watch(
        </div>
     </div>
 
-    <section class="grid grid-cols-1 gap-6 pc:grid-cols-2 mt-4">
-      <!-- Biểu đồ Ticket -->
-      <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
-        <div class="pointer-events-none absolute inset-0 -z-10">
-          <div class="absolute -left-20 -top-20 h-48 w-48 rounded-full bg-indigo-300/20 blur-3xl"></div>
-          <div class="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-sky-300/20 blur-3xl"></div>
-        </div>
-        <div class="mb-4 ml-2">
-           <h3 class="text-base font-black tracking-tight text-slate-800">Tần suất Báo lỗi (Ticket) & Thời gian IT Xử lý</h3>
-        </div>
-        <div class="flex-1 -ml-4 -mt-2">
-           <VueApexCharts
-             type="line"
-             height="300"
-             :options="ticketChartOptions"
-             :series="ticketChartSeries"
-           />
-        </div>
-      </article>
+    <!-- CÁC WIDGETS CÓ THỂ KÉO THẢ, ĐỔI CHIỀU, THU PHÓNG BẰNG CSS GRID -->
+    <draggable 
+      v-model="dashboardWidgets" 
+      item-key="id" 
+      handle=".drag-handle" 
+      class="mt-4 grid grid-cols-12 gap-6 items-stretch"
+      ghost-class="sortable-ghost-widget"
+      drag-class="cursor-grabbing"
+      :animation="200"
+    >
+      <template #item="{ element }">
+         <div 
+           class="relative group transition-all duration-300 ease-in-out h-full"
+           :class="{
+             'col-span-12': element.span === 12,
+             'col-span-12 tablet:col-span-6': element.span === 6,
+           }"
+         >
+           <!-- Control Toolbox -->
+           <div class="drag-handle absolute -left-2 tablet:-left-4 top-1/2 -translate-y-1/2 cursor-grab text-slate-400/30 opacity-0 transition-opacity hover:text-indigo-500 group-hover:opacity-100 z-50 p-2 hidden tablet:block active:cursor-grabbing">
+             <span class="material-symbols-outlined text-[28px]">drag_indicator</span>
+           </div>
 
-      <!-- Biểu đồ QC -->
-      <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
-        <div class="pointer-events-none absolute inset-0 -z-10">
-          <div class="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-emerald-300/20 blur-3xl"></div>
-          <div class="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-rose-300/20 blur-3xl"></div>
-        </div>
-        <div class="mb-4 ml-2">
-           <h3 class="text-base font-black tracking-tight text-slate-800">Biến động điểm QC</h3>
-        </div>
-        <div class="flex-1 -ml-4 -mt-2">
-           <VueApexCharts
-             type="line"
-             height="300"
-             :options="qcChartOptions"
-             :series="qcChartSeries"
-           />
-        </div>
-      </article>
-    </section>
-
-    <!-- Hàng Ticket Gần đây / QC Tổng quan (Tháng này) -->
-    <section class="grid grid-cols-1 gap-6 pc:grid-cols-3 mt-6">
-      <article class="overflow-hidden rounded-xl border border-slate-200 bg-white pc:col-span-2">
-        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h3 class="text-sm font-bold text-slate-800">Ticket gần đây</h3>
-          <router-link to="/ticket" class="text-sm font-medium text-slate-600 transition-colors hover:text-slate-900">Xem tất cả</router-link>
-        </div>
-
-        <div class="pc:hidden">
-          <div v-if="recentTickets.length" class="divide-y divide-slate-100">
-            <article
-              v-for="ticket in recentTickets"
-              :key="ticket.id"
-              class="px-5 py-4"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0 flex-1">
-                  <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                    {{ ticket.ticket_code || `#${ticket.id}` }}
-                  </p>
-                  <p class="mt-1 text-sm font-semibold text-slate-900">
-                    {{ ticket.title || 'Không có tiêu đề' }}
-                  </p>
-                </div>
-
-                <span
-                  class="app-badge inline-flex shrink-0 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider"
-                  :class="statusClass(ticket.status)"
-                >
-                  {{ statusLabel(ticket.status) }}
-                </span>
+           <div v-if="element.minSpan !== 12" class="absolute right-4 top-3 z-[60] flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 bg-white/80 rounded-lg p-1 backdrop-blur-md shadow-sm border border-white/60">
+             <button title="50% Chiều rộng" @click="element.span = 6" :class="element.span === 6 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-700'" class="px-2 py-0.5 text-xs font-bold rounded">50%</button>
+             <button title="100% Chiều rộng" @click="element.span = 12" :class="element.span === 12 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-700'" class="px-2 py-0.5 text-xs font-bold rounded">100%</button>
+           </div>
+           
+           <!-- WIDGET 1: KPI TABLE -->
+           <template v-if="element.type === 'kpi_table'">
+              <div class="overflow-x-auto overflow-y-hidden rounded-[24px] border border-white/60 bg-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
+                <table class="w-full min-w-[600px] text-left text-sm text-slate-600 h-full">
+                  <thead class="border-b border-white/40 bg-white/20 text-xs uppercase text-slate-500">
+                    <tr>
+                      <th scope="col" class="px-5 py-4 font-black tracking-wider text-slate-700">Chỉ số thống kê</th>
+                      <th scope="col" class="px-5 py-4 font-black tracking-wider text-slate-700 text-right">Giá trị hiện tại</th>
+                      <th scope="col" class="px-5 py-4 font-black tracking-wider text-slate-700">Ghi chú</th>
+                      <th scope="col" class="px-5 py-4 font-black tracking-wider text-slate-700 text-center w-[180px] pc:w-[250px]">Biến động</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-white/40">
+                    <tr v-for="card in kpiCards" :key="card.key" class="transition-colors hover:bg-white/50">
+                      <td class="px-5 py-3">
+                        <div class="flex items-center gap-4">
+                          <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl shadow-sm" :class="[card.bgClass, card.textClass]">
+                            <span class="material-symbols-outlined text-[20px]">{{ card.icon }}</span>
+                          </div>
+                          <span class="font-bold text-slate-800">{{ card.label }}</span>
+                        </div>
+                      </td>
+                      <td class="px-5 py-3 whitespace-nowrap text-right">
+                        <span class="text-[18px] font-black tracking-tight text-slate-800">{{ card.value }}</span>
+                      </td>
+                      <td class="px-5 py-3">
+                        <span class="app-badge rounded-full border border-white/50 bg-white/50 px-2.5 py-1 text-[11px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md" :class="card.textClass">
+                          {{ card.meta }}
+                        </span>
+                      </td>
+                      <td class="px-5 py-1 w-[180px] pc:w-[250px]">
+                         <div class="mx-auto h-12 w-[160px] pc:w-[220px] opacity-80 mix-blend-multiply pointer-events-none">
+                           <VueApexCharts
+                              type="area"
+                              height="100%"
+                              :options="sparklineData[card.key].options"
+                              :series="sparklineData[card.key].series"
+                           />
+                         </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
+           </template>
 
-              <div class="mt-3 grid grid-cols-1 gap-3 tablet:grid-cols-2">
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Cửa hàng</p>
-                  <p class="mt-1 text-sm font-medium text-slate-700">{{ storeDisplay(ticket) }}</p>
+           <!-- WIDGET 2: MAIN CHART -->
+           <template v-else-if="element.type === 'main_chart'">
+              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
+                <div class="pointer-events-none absolute inset-0 -z-10">
+                  <div class="absolute -left-20 -top-20 h-48 w-48 rounded-full bg-indigo-300/20 blur-3xl"></div>
+                  <div class="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-sky-300/20 blur-3xl"></div>
                 </div>
-
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Thời gian</p>
-                  <p class="mt-1 text-sm font-medium text-slate-700">{{ formatRelativeTime(ticket.createdAt) }}</p>
+                <div class="mb-4 ml-2 pr-20 border-b border-transparent pb-1">
+                   <h3 class="text-base font-black tracking-tight text-slate-800 truncate">Tần suất Báo lỗi (Ticket) & Thời gian IT Xử lý</h3>
                 </div>
-              </div>
-            </article>
-          </div>
-
-          <div v-else-if="!loading" class="px-5 py-5">
-            <div class="app-state-panel app-state-panel--compact">
-              <div class="app-state-stack mx-auto">
-                <div class="app-state-icon mx-auto">
-                  <span class="material-symbols-outlined text-[24px]">inbox</span>
+                <div class="flex-1 -ml-4 -mt-2">
+                   <VueApexCharts
+                     type="line"
+                     height="300"
+                     :options="ticketChartOptions"
+                     :series="ticketChartSeries"
+                     class="w-full"
+                   />
                 </div>
-                <p class="app-state-title">Chưa có ticket trong giai đoạn này.</p>
-                <p class="app-state-body">Thay đổi khoảng thời gian hoặc quay lại sau khi có hoạt động mới.</p>
-              </div>
-            </div>
-          </div>
-        </div>
+              </article>
+           </template>
 
-        <div class="hidden overflow-x-auto pc:block">
-          <table class="w-full text-left text-sm">
-            <thead>
-              <tr class="bg-slate-50 text-slate-500">
-                <th class="px-5 py-3 font-medium">Mã Ticket</th>
-                <th class="px-5 py-3 font-medium">Vấn đề</th>
-                <th class="px-5 py-3 font-medium">Cửa hàng</th>
-                <th class="px-5 py-3 font-medium">Trạng thái</th>
-                <th class="px-5 py-3 font-medium">Thời gian</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-              <tr v-for="ticket in recentTickets" :key="ticket.id" class="transition-colors hover:bg-slate-50">
-                <td class="px-5 py-4 font-medium text-slate-500">{{ ticket.ticket_code || `#${ticket.id}` }}</td>
-                <td class="px-5 py-4 text-slate-700">{{ ticket.title || 'Không có tiêu đề' }}</td>
-                <td class="px-5 py-4 text-slate-700">{{ storeDisplay(ticket) }}</td>
-                <td class="px-5 py-4">
-                  <span
-                    class="app-badge rounded-full px-2 py-1 text-[10px] font-bold tracking-wider uppercase"
-                    :class="statusClass(ticket.status)"
-                  >
-                    {{ statusLabel(ticket.status) }}
-                  </span>
-                </td>
-                <td class="px-5 py-4 text-slate-500">{{ formatRelativeTime(ticket.createdAt) }}</td>
-              </tr>
-              <tr v-if="!recentTickets.length && !loading">
-                <td colspan="5" class="px-5 py-5">
-                  <div class="app-state-panel app-state-panel--compact">
-                    <div class="app-state-stack mx-auto">
-                      <div class="app-state-icon mx-auto">
-                        <span class="material-symbols-outlined text-[24px]">inbox</span>
-                      </div>
-                      <p class="app-state-title">Chưa có ticket trong giai đoạn này.</p>
-                      <p class="app-state-body">Thay đổi khoảng thời gian hoặc quay lại sau khi có hoạt động mới.</p>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </article>
+           <!-- WIDGET 3: TOP TICKET BAR CHART -->
+           <template v-else-if="element.type === 'top_ticket_chart'">
+              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
+                <div class="pointer-events-none absolute inset-0 -z-10">
+                  <div class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-blue-300/20 blur-3xl"></div>
+                  <div class="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-violet-300/20 blur-3xl"></div>
+                </div>
+                <div class="mb-4 ml-2 pr-20 border-b border-transparent pb-1">
+                   <h3 class="text-base font-black tracking-tight text-slate-800 truncate">Top Cửa hàng Yêu cầu Hỗ trợ</h3>
+                </div>
+                <div class="flex-1 -ml-4 -mt-2">
+                   <VueApexCharts
+                     type="bar"
+                     height="250"
+                     :options="topStoreTicketBarOptions"
+                     :series="topStoreTicketBarSeries"
+                     class="w-full"
+                   />
+                </div>
+              </article>
+           </template>
 
-      <!-- Tổng quan chấm điểm cửa hàng Tháng/Năm -->
-      <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
-        <div class="pointer-events-none absolute inset-0 -z-10">
-          <div class="absolute -left-10 -top-10 h-32 w-32 rounded-full bg-sky-400/20 blur-3xl"></div>
-          <div class="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-indigo-400/20 blur-3xl"></div>
-        </div>
+           <!-- WIDGET 4: TOP QC BAR CHART -->
+           <template v-else-if="element.type === 'top_qc_chart'">
+              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
+                <div class="pointer-events-none absolute inset-0 -z-10">
+                  <div class="absolute left-0 top-0 h-40 w-40 rounded-full bg-emerald-300/20 blur-3xl"></div>
+                  <div class="absolute bottom-0 right-0 h-40 w-40 rounded-full bg-teal-300/20 blur-3xl"></div>
+                </div>
+                <div class="mb-4 ml-2 pr-20 border-b border-transparent pb-1">
+                   <h3 class="text-base font-black tracking-tight text-slate-800 truncate">Xếp hạng Điểm QC Tốt nhất</h3>
+                </div>
+                <div class="flex-1 -ml-4 -mt-2">
+                   <VueApexCharts
+                     type="bar"
+                     height="250"
+                     :options="topStoreQcBarOptions"
+                     :series="topStoreQcBarSeries"
+                     class="w-full"
+                   />
+                </div>
+              </article>
+           </template>
 
-        <div class="mb-6">
-          <p class="text-[12px] font-bold uppercase tracking-wider text-slate-500/80">Chất lượng vận hành</p>
-          <h3 class="mt-1 flex items-baseline gap-2 text-lg font-black tracking-tight text-slate-800">Tổng quan QC <span class="text-sm font-semibold text-slate-500">(Tháng này)</span></h3>
-        </div>
+         </div>
+      </template>
+    </draggable>
 
-        <div class="flex-1 space-y-4">
-          <div class="rounded-[24px] border border-white/50 bg-white/60 p-5 text-center shadow-sm backdrop-blur-lg">
-             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Điểm QC Trung Bình</p>
-             <p class="mt-2 text-4xl font-black text-slate-800">{{ qcSummary.avgScoreRate || 92 }}<span class="text-lg font-bold text-slate-500">%</span></p>
+    <!-- STORE FILTER MODAL -->
+    <Teleport to="body">
+      <div v-if="showStoreFilterPopup" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" @click.self="showStoreFilterPopup = false">
+        <div class="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-[24px] bg-white shadow-2xl transition-all">
+          <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+            <h3 class="text-base font-black tracking-tight text-slate-800">Chọn cửa hàng hiển thị</h3>
+            <button @click="showStoreFilterPopup = false" class="text-slate-400 transition-colors hover:text-slate-600">
+              <span class="material-symbols-outlined">close</span>
+            </button>
           </div>
           
-          <div class="grid grid-cols-2 gap-3">
-             <div class="rounded-[20px] border border-white/60 bg-gradient-to-br from-emerald-50/80 to-emerald-100/40 px-3 py-4 text-center shadow-sm backdrop-blur-md">
-                <p class="text-2xl font-black text-emerald-600">{{ qcSummary.passRate || 95 }}<span class="text-sm">%</span></p>
-                <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700/70">Tỉ lệ đạt</p>
-             </div>
-             <div class="rounded-[20px] border border-white/60 bg-gradient-to-br from-rose-50/80 to-rose-100/40 px-3 py-4 text-center shadow-sm backdrop-blur-md">
-                <p class="text-2xl font-black text-rose-600">{{ qcSummary.failed || 5 }}</p>
-                <p class="mt-1 text-[10px] font-bold uppercase tracking-wider text-rose-700/70">Phiên rớt</p>
-             </div>
+          <div class="border-b border-slate-100 bg-slate-50/50 p-3">
+            <div class="relative flex items-center">
+              <span class="material-symbols-outlined pointer-events-none absolute left-3 text-[20px] text-slate-400">search</span>
+              <input 
+                v-model="storeSearchQuery" 
+                type="text" 
+                placeholder="Tìm kiếm cửa hàng..." 
+                class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-medium text-slate-700 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              />
+            </div>
           </div>
-        </div>
-      </article>
-    </section>
 
-    <!-- NEW SECTION: TABLES -->
-    <section class="grid grid-cols-1 gap-6 pc:grid-cols-3">
-      <!-- Bảng Ticket & Support Time -->
-      <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
-        <div class="pointer-events-none absolute inset-0 -z-10">
-          <div class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-blue-300/20 blur-3xl"></div>
-          <div class="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-violet-300/20 blur-3xl"></div>
-        </div>
-
-        <div class="mb-6 flex items-center justify-between">
-           <h3 class="text-base font-black tracking-tight text-slate-800">Top Cửa hàng Yêu cầu Hỗ trợ (Báo lỗi)</h3>
-           <span class="app-badge app-badge--neutral rounded-full border border-white/50 bg-white/50 px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md">Top 5</span>
-        </div>
-        <div class="flex-1 space-y-3">
-          <div v-for="(store, index) in mockStoreTicketStats" :key="store.id" class="flex items-center justify-between rounded-[20px] border border-white/40 bg-white/40 p-3 shadow-sm backdrop-blur-md transition-all hover:-translate-y-0.5 hover:bg-white/70 hover:shadow-md">
-             <div class="flex items-center gap-3">
-                <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/80 text-xs font-black text-slate-600 shadow-sm">{{ index + 1 }}</span>
-                <div class="min-w-0">
-                   <p class="truncate text-sm font-bold text-slate-700">{{ store.name }}</p>
-                   <p class="text-[11px] font-medium text-slate-500">{{ store.ticketCount }} yêu cầu xử lý</p>
+          <div class="min-h-0 flex-1 overflow-y-auto p-2">
+            <div v-if="filteredStores.length === 0" class="p-8 text-center text-sm text-slate-500">
+              Không tìm thấy cửa hàng nào.
+            </div>
+            <div v-else class="space-y-1">
+              <label 
+                v-for="store in filteredStores" 
+                :key="store.id" 
+                class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50"
+              >
+                <div class="relative flex items-center">
+                  <input 
+                    type="checkbox" 
+                    :checked="isStoreSelected(store.id)"
+                    @change="toggleStoreSelection(store.id)"
+                    class="peer size-5 cursor-pointer appearance-none rounded-md border-2 border-slate-300 bg-white transition-all checked:border-indigo-500 checked:bg-indigo-500 hover:border-indigo-400"
+                  />
+                  <span class="material-symbols-outlined pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[14px] text-white opacity-0 transition-opacity peer-checked:opacity-100">check</span>
                 </div>
-             </div>
-             <div class="text-right shrink-0 ml-2">
-                <p class="text-sm font-black text-indigo-600">{{ store.avgSupportTime }}h</p>
-                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">IT xử lý</p>
-             </div>
+                <span class="select-none text-sm font-semibold text-slate-700">
+                  {{ store.name || store.address || `Store #${store.id}` }}
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 p-4">
+            <div class="flex items-center gap-2">
+               <button @click="selectAllStores" class="rounded-lg px-2 py-1 text-xs font-bold uppercase tracking-wide text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700">Chọn tất cả</button>
+               <button @click="clearStoreSelection" class="rounded-lg px-2 py-1 text-xs font-bold uppercase tracking-wide text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700">Bỏ chọn</button>
+            </div>
+            <button 
+              @click="showStoreFilterPopup = false" 
+              class="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-indigo-700"
+            >
+              Cập nhật
+            </button>
           </div>
         </div>
-      </article>
-
-      <!-- Xếp hạng QC -->
-      <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
-        <div class="pointer-events-none absolute inset-0 -z-10">
-          <div class="absolute left-0 top-0 h-40 w-40 rounded-full bg-emerald-300/20 blur-3xl"></div>
-          <div class="absolute bottom-0 right-0 h-40 w-40 rounded-full bg-teal-300/20 blur-3xl"></div>
-        </div>
-
-        <div class="mb-6 flex items-center justify-between">
-           <h3 class="text-base font-black tracking-tight text-slate-800">Xếp hạng QC (Cao)</h3>
-           <span class="app-badge app-badge--success rounded-full border border-white/50 bg-white/50 px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md">Top 4</span>
-        </div>
-        <div class="flex-1 space-y-3">
-          <div v-for="(store, index) in mockTopQcStores" :key="store.id" class="flex items-center justify-between rounded-[20px] border border-white/50 bg-gradient-to-br from-white/40 to-emerald-50/40 p-3 shadow-sm backdrop-blur-md transition-all hover:-translate-y-0.5 hover:to-emerald-50/70 hover:shadow-md">
-             <div class="flex items-center gap-3">
-                <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/80 text-xs font-black text-emerald-600 shadow-sm">{{ index + 1 }}</span>
-                <div class="min-w-0">
-                   <p class="truncate text-sm font-bold text-slate-700">{{ store.name }}</p>
-                   <p class="text-[11px] font-medium text-slate-500">Tỉ lệ đạt: <strong class="text-emerald-700">{{ store.passRate }}%</strong></p>
-                </div>
-             </div>
-             <div class="text-right shrink-0 ml-2">
-                <p class="text-sm font-black text-emerald-600">{{ store.qcScore }}</p>
-                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Điểm TB</p>
-             </div>
-          </div>
-        </div>
-      </article>
-
-      <!-- Gặp nhiều lỗi nhất -->
-      <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl">
-        <div class="pointer-events-none absolute inset-0 -z-10">
-          <div class="absolute right-0 top-1/2 h-40 w-40 -translate-y-1/2 rounded-full bg-rose-400/20 blur-3xl"></div>
-          <div class="absolute bottom-0 left-0 h-32 w-32 rounded-full bg-orange-300/20 blur-3xl"></div>
-        </div>
-
-        <div class="mb-6 flex items-center justify-between">
-           <h3 class="text-base font-black tracking-tight text-slate-800">Cửa hàng cần theo dõi</h3>
-           <span class="app-badge app-badge--danger rounded-full border border-white/50 bg-white/50 px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md">Cảnh báo</span>
-        </div>
-        <div class="flex-1 space-y-3">
-          <div v-for="(store, index) in mockStoreErrors" :key="store.id" class="flex items-center justify-between rounded-[20px] border border-white/50 bg-gradient-to-br from-white/40 to-rose-50/40 p-3 shadow-sm backdrop-blur-md transition-all hover:-translate-y-0.5 hover:to-rose-50/70 hover:shadow-md">
-             <div class="flex items-center gap-3">
-                <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/80 text-xs font-black text-rose-600 shadow-sm">{{ index + 1 }}</span>
-                <div class="min-w-0">
-                   <p class="truncate text-sm font-bold text-slate-700">{{ store.name }}</p>
-                   <p class="text-[11px] font-medium text-rose-600/80">{{ store.errorCount }} issue / fail</p>
-                </div>
-             </div>
-             <div class="text-right shrink-0 ml-2">
-                <p class="text-sm font-black text-rose-600">{{ store.failRate }}%</p>
-                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tỉ lệ rớt</p>
-             </div>
-          </div>
-        </div>
-      </article>
-    </section>
+      </div>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+:deep(.sortable-ghost-widget) {
+  opacity: 0.5 !important;
+  border-radius: 32px !important;
+  overflow: hidden !important;
+  transform: scale(0.98) !important;
+  box-shadow: 0 0 0 2px #6366f1 !important;
+}
+</style>

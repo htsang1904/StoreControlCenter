@@ -6,12 +6,12 @@ const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
     routes: [
         {
-            name: 'default',
             path: '/',
             component: () => import('@/layout/default.vue'),
             children: [
                 {
                     path: '',
+                    name: 'default',
                     redirect: '/ticket'
                 },
                 {
