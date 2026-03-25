@@ -3,11 +3,15 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci
 
 COPY . .
+COPY scripts/docker-frontend-entrypoint.sh /usr/local/bin/docker-frontend-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-frontend-entrypoint.sh
 
 EXPOSE 5173
+
+ENTRYPOINT ["/usr/local/bin/docker-frontend-entrypoint.sh"]
 
 # Run the Vite dev server exposing it to the docker network
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

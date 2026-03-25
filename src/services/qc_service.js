@@ -2,6 +2,8 @@ import getClient from './http'
 
 const DEFAULT_PASS_THRESHOLD = 40
 const INTERNAL_DEFAULT_TEMPLATE = { id: 'default', name: 'QC Form', version: '1.0' }
+const QC_STORES_OVERVIEW_MAX_PAGE_SIZE = 500
+const QC_STORES_OVERVIEW_DEFAULT_PAGE_SIZE = 500
 const http = getClient()
 
 const toNumber = (value, fallback = 0) => {
@@ -748,9 +750,16 @@ export const getQcTemplateById = async (formId) => {
 }
 
 export const getQcStoresOverviewApi = async (params = {}) => {
+  const normalizedPage = Math.max(toNumber(params.page, 1), 1)
+  const normalizedPageSize = clamp(
+    Math.trunc(toNumber(params.pageSize, QC_STORES_OVERVIEW_DEFAULT_PAGE_SIZE)),
+    1,
+    QC_STORES_OVERVIEW_MAX_PAGE_SIZE
+  )
+
   const queryString = toQueryString({
-    page: params.page ?? 1,
-    pageSize: params.pageSize ?? 1000,
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
     date_from: params.from || '',
     date_to: params.to || '',
     q: params.q || '',
