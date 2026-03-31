@@ -199,6 +199,7 @@ function navigateTo(path) {
         </div>
 
         <div class="flex shrink-0 items-center justify-end gap-2 tablet:gap-3">
+          <div id="dashboard-header-actions" class="flex items-center gap-2 tablet:gap-3 empty:hidden"></div>
           <HeaderDateControls v-if="showHeaderDateFilter" />
           <HeaderNotifications />
         </div>

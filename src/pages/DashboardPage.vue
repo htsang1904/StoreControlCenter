@@ -4,15 +4,22 @@ import VueApexCharts from 'vue3-apexcharts'
 import draggable from 'vuedraggable'
 import { useRoute } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
+import StoreFilterButton from '@/components/StoreFilterButton.vue'
 import { useApp } from '@/plugins/app'
 import { getDashboardOverview, listTickets } from '@/services/ticket_service'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
+import { onMounted } from 'vue'
 
 const route = useRoute()
 const { state } = useApp()
 
 const loading = ref(false)
 const errorMessage = ref('')
+const isMounted = ref(false)
+
+onMounted(() => {
+  isMounted.value = true
+})
 
 const ticketSummary = ref({
   total_ticket: 0,
@@ -248,12 +255,14 @@ const topStoreStats = computed(() => {
   })
 })
 
-const chartPeriod = ref('month')
-const chartPeriodOptions = [
-  { value: 'week', label: '7 ngày qua' },
-  { value: 'month', label: 'Trong Tháng' },
-  { value: 'year', label: 'Cả Năm' }
-]
+const chartPeriod = computed(() => {
+  const f = new Date(dashboardRange.value.from)
+  const t = new Date(dashboardRange.value.to)
+  const diff = (t - f) / (1000 * 3600 * 24)
+  if (diff <= 8) return 'week'
+  if (diff > 40) return 'year'
+  return 'month'
+})
 
 const dashboardWidgets = ref([
   { id: 'kpi_table', type: 'kpi_table', span: 12, minSpan: 12 },
@@ -262,53 +271,7 @@ const dashboardWidgets = ref([
   { id: 'top_qc_chart', type: 'top_qc_chart', span: 6, minSpan: 6 }
 ])
 
-const showStoreFilterPopup = ref(false)
-const storeSearchQuery = ref('')
 const chartStoreFilter = ref([])
-
-const selectedStoreText = computed(() => {
-  if (chartStoreFilter.value.length === stores.value.length && stores.value.length > 0) {
-    return 'Tất cả cửa hàng'
-  }
-  if (chartStoreFilter.value.length === 1) {
-    const store = stores.value.find(s => s.id === chartStoreFilter.value[0])
-    return store?.name || store?.address || `Store #${store?.id}` || '1 cửa hàng'
-  }
-  if (chartStoreFilter.value.length === 0) {
-    return 'Chưa chọn cửa hàng'
-  }
-  return `${chartStoreFilter.value.length} cửa hàng`
-})
-
-const filteredStores = computed(() => {
-  if (!storeSearchQuery.value) return stores.value
-  const q = storeSearchQuery.value.toLowerCase()
-  return stores.value.filter(s => {
-    const name = (s.name || s.address || `Store #${s.id}`).toLowerCase()
-    return name.includes(q)
-  })
-})
-
-function toggleStoreSelection(storeId) {
-  const index = chartStoreFilter.value.indexOf(storeId)
-  if (index > -1) {
-    chartStoreFilter.value.splice(index, 1)
-  } else {
-    chartStoreFilter.value.push(storeId)
-  }
-}
-
-function selectAllStores() {
-  chartStoreFilter.value = stores.value.map(s => s.id)
-}
-
-function clearStoreSelection() {
-  chartStoreFilter.value = []
-}
-
-function isStoreSelected(storeId) {
-  return chartStoreFilter.value.includes(storeId)
-}
 
 watch(stores, (newStores) => {
   if (newStores.length > 0 && chartStoreFilter.value.length === 0) {
@@ -537,35 +500,9 @@ watch(
       {{ errorMessage }}
     </p>
 
-    <!-- BỘ LỌC + BIỂU ĐỒ -->
-    <div class="mb-4 flex flex-col gap-4 tablet:flex-row tablet:items-center tablet:justify-between">
-       <h2 class="ml-2 text-xl font-black tracking-tight text-slate-800">Biểu đồ Tổng quan</h2>
-       
-       <div class="flex max-w-full flex-wrap items-center gap-3">
-          <!-- BỘ LỌC CỬA HÀNG -->
-          <div class="relative shrink-0">
-             <button
-               @click="showStoreFilterPopup = true"
-               class="flex max-w-[250px] items-center justify-between gap-2 appearance-none truncate rounded-full border border-white/60 bg-white/40 pb-2 pl-4 pr-3 pt-2 text-[12px] font-bold uppercase tracking-wider text-slate-700 shadow-[0_4px_16px_rgb(0,0,0,0.03)] outline-none backdrop-blur-xl transition-all hover:bg-white/80 focus:border-indigo-400 focus:bg-white/80"
-             >
-               <span class="truncate">{{ selectedStoreText }}</span>
-               <span class="material-symbols-outlined shrink-0 text-[16px] text-slate-500">expand_more</span>
-             </button>
-          </div>
-
-          <!-- BỘ LỌC THỜI GIAN -->
-          <div class="flex items-center gap-2 rounded-full border border-white/60 bg-white/40 p-1.5 shadow-[0_4px_16px_rgb(0,0,0,0.03)] backdrop-blur-xl">
-             <button
-                v-for="opt in chartPeriodOptions"
-                :key="opt.value"
-                @click="chartPeriod = opt.value"
-                class="rounded-full px-5 py-2 text-[12px] font-bold uppercase tracking-wider transition-all"
-                :class="chartPeriod === opt.value ? 'bg-indigo-500 text-white shadow-md' : 'text-slate-600 hover:bg-white/80'"
-             >
-                {{ opt.label }}
-             </button>
-          </div>
-       </div>
+    <!-- BỘ LỌC CỬA HÀNG -->
+    <div class="mb-2 flex items-center justify-end">
+       <StoreFilterButton v-model="chartStoreFilter" />
     </div>
 
     <!-- CÁC WIDGETS CÓ THỂ KÉO THẢ, ĐỔI CHIỀU, THU PHÓNG BẰNG CSS GRID -->
@@ -598,47 +535,52 @@ watch(
            
            <!-- WIDGET 1: KPI TABLE -->
            <template v-if="element.type === 'kpi_table'">
-              <div class="overflow-x-auto overflow-y-hidden rounded-[24px] border border-white/60 bg-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
-                <table class="w-full min-w-[600px] text-left text-sm text-slate-600 h-full">
-                  <thead class="border-b border-white/40 bg-white/20 text-xs uppercase text-slate-500">
-                    <tr>
-                      <th scope="col" class="px-5 py-4 font-black tracking-wider text-slate-700">Chỉ số thống kê</th>
-                      <th scope="col" class="px-5 py-4 font-black tracking-wider text-slate-700 text-right">Giá trị hiện tại</th>
-                      <th scope="col" class="px-5 py-4 font-black tracking-wider text-slate-700">Ghi chú</th>
-                      <th scope="col" class="px-5 py-4 font-black tracking-wider text-slate-700 text-center w-[180px] pc:w-[250px]">Biến động</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-white/40">
-                    <tr v-for="card in kpiCards" :key="card.key" class="transition-colors hover:bg-white/50">
-                      <td class="px-5 py-3">
-                        <div class="flex items-center gap-4">
-                          <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl shadow-sm" :class="[card.bgClass, card.textClass]">
-                            <span class="material-symbols-outlined text-[20px]">{{ card.icon }}</span>
+              <div class="flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
+                <div class="px-6 py-5 border-b border-white/50 shrink-0 bg-white/20">
+                   <h3 class="text-base font-black tracking-tight text-slate-800 truncate">Chỉ số Thống kê Tổng quan</h3>
+                </div>
+                <div class="flex-1 w-full overflow-x-auto overflow-y-hidden">
+                  <table class="w-full min-w-[600px] text-left text-sm text-slate-600 h-full">
+                    <thead class="border-b border-white/40 bg-white/20 text-xs uppercase text-slate-500">
+                      <tr>
+                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-slate-700">Chỉ số thống kê</th>
+                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-slate-700 text-right">Giá trị hiện tại</th>
+                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-slate-700">Ghi chú</th>
+                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-slate-700 text-center w-[180px] pc:w-[250px]">Biến động</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/40">
+                      <tr v-for="card in kpiCards" :key="card.key" class="transition-colors hover:bg-white/50">
+                        <td class="px-6 py-3">
+                          <div class="flex items-center gap-4">
+                            <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl shadow-sm" :class="[card.bgClass, card.textClass]">
+                              <span class="material-symbols-outlined text-[20px]">{{ card.icon }}</span>
+                            </div>
+                            <span class="font-bold text-slate-800">{{ card.label }}</span>
                           </div>
-                          <span class="font-bold text-slate-800">{{ card.label }}</span>
-                        </div>
-                      </td>
-                      <td class="px-5 py-3 whitespace-nowrap text-right">
-                        <span class="text-[18px] font-black tracking-tight text-slate-800">{{ card.value }}</span>
-                      </td>
-                      <td class="px-5 py-3">
-                        <span class="app-badge rounded-full border border-white/50 bg-white/50 px-2.5 py-1 text-[11px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md" :class="card.textClass">
-                          {{ card.meta }}
-                        </span>
-                      </td>
-                      <td class="px-5 py-1 w-[180px] pc:w-[250px]">
-                         <div class="mx-auto h-12 w-[160px] pc:w-[220px] opacity-80 mix-blend-multiply pointer-events-none">
-                           <VueApexCharts
-                              type="area"
-                              height="100%"
-                              :options="sparklineData[card.key].options"
-                              :series="sparklineData[card.key].series"
-                           />
-                         </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                        </td>
+                        <td class="px-6 py-3 whitespace-nowrap text-right">
+                          <span class="text-[18px] font-black tracking-tight text-slate-800">{{ card.value }}</span>
+                        </td>
+                        <td class="px-6 py-3">
+                          <span class="app-badge rounded-full border border-white/50 bg-white/50 px-2.5 py-1 text-[11px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md" :class="card.textClass">
+                            {{ card.meta }}
+                          </span>
+                        </td>
+                        <td class="px-6 py-1 w-[180px] pc:w-[250px]">
+                           <div class="mx-auto h-12 w-[160px] pc:w-[220px] opacity-80 mix-blend-multiply pointer-events-none">
+                             <VueApexCharts
+                                type="area"
+                                height="100%"
+                                :options="sparklineData[card.key].options"
+                                :series="sparklineData[card.key].series"
+                             />
+                           </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
            </template>
 
