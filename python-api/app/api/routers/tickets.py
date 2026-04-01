@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
-from sqlalchemy import func, or_, and_
+from sqlalchemy import func, or_, and_, delete as sa_delete, update as sa_update
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import SessionDep, CurrentUser
 from app.core.datetime_utils import utc_now_naive
 from app.models.org import Store
-from app.models.ticket import Ticket, TicketLog
+from app.models.notification import Notification
+from app.models.ticket import Ticket, TicketLog, ticket_assignees
 from app.models.user import User
 from app.schemas.ticket import TicketResponse, TicketCreate, TicketDetailResponse, TicketLogResponse, TicketUpdate
 from app.schemas.user import UserResponse
@@ -659,7 +660,17 @@ async def delete_ticket(
     # Only admin or the requester can delete
     if current_user.role != "admin" and ticket.requester_id != current_user.id:
         raise HTTPException(status_code=403, detail="Không có quyền xóa phiếu này")
-    
+
+    # Keep notification history while preventing FK violations on old schemas.
+    await session.execute(
+        sa_update(Notification)
+        .where(Notification.ticket_id == id)
+        .values(ticket_id=None)
+    )
+    # Defensive cleanup for schemas without ON DELETE CASCADE.
+    await session.execute(sa_delete(TicketLog).where(TicketLog.ticket_id == id))
+    await session.execute(sa_delete(ticket_assignees).where(ticket_assignees.c.ticket_id == id))
+
     await session.delete(ticket)
     await session.commit()
     await realtime_manager.emit_ticket_event(

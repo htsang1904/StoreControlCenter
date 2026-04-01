@@ -2,6 +2,8 @@ import getClient from './http'
 
 const DEFAULT_PASS_THRESHOLD = 40
 const INTERNAL_DEFAULT_TEMPLATE = { id: 'default', name: 'QC Form', version: '1.0' }
+const QC_SESSIONS_OVERVIEW_MAX_PAGE_SIZE = 100
+const QC_SESSIONS_OVERVIEW_DEFAULT_PAGE_SIZE = 100
 const QC_STORES_OVERVIEW_MAX_PAGE_SIZE = 500
 const QC_STORES_OVERVIEW_DEFAULT_PAGE_SIZE = 500
 const http = getClient()
@@ -540,13 +542,20 @@ export const listQcSessionsApi = async ({
   to = '',
   templateId = '',
   page = 1,
-  pageSize = 100,
+  pageSize = QC_SESSIONS_OVERVIEW_DEFAULT_PAGE_SIZE,
   fetchAll = false,
 } = {}) => {
+  const normalizedPage = Math.max(toNumber(page, 1), 1)
+  const normalizedPageSize = clamp(
+    Math.trunc(toNumber(pageSize, QC_SESSIONS_OVERVIEW_DEFAULT_PAGE_SIZE)),
+    1,
+    QC_SESSIONS_OVERVIEW_MAX_PAGE_SIZE
+  )
+
   const buildEndpoint = (nextPage) => {
     const queryString = toQueryString({
       page: nextPage,
-      pageSize,
+      pageSize: normalizedPageSize,
       store_id: storeId || '',
       q,
       status: toApiSessionStatus(status),
@@ -562,7 +571,7 @@ export const listQcSessionsApi = async ({
 
   const allSessions = []
   let firstPayload = null
-  let currentPage = Math.max(toNumber(page, 1), 1)
+  let currentPage = normalizedPage
   let pageCount = 1
 
   while (currentPage <= pageCount) {
@@ -595,7 +604,7 @@ export const listQcSessionsApi = async ({
     },
     pagination: {
       page: 1,
-      pageSize,
+      pageSize: normalizedPageSize,
       total: 0,
       pageCount: 0,
     },
@@ -607,7 +616,7 @@ export const listQcSessionsApi = async ({
     pagination: {
       ...base.pagination,
       page: 1,
-      pageSize: toNumber(pageSize, 100),
+      pageSize: normalizedPageSize,
       total: toNumber(base?.pagination?.total, allSessions.length),
       pageCount: toNumber(base?.pagination?.pageCount, allSessions.length > 0 ? 1 : 0),
     },
@@ -623,7 +632,7 @@ export const getQcStoreOverviewApi = async (storeId, options = {}) => {
     to: options.to || '',
     templateId: options.templateId || '',
     page: options.page ?? 1,
-    pageSize: options.pageSize ?? 200,
+    pageSize: options.pageSize ?? QC_SESSIONS_OVERVIEW_DEFAULT_PAGE_SIZE,
     fetchAll: Boolean(options.fetchAll),
   })
 

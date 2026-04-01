@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useToast } from '@/plugins/toast'
 import {
   listAdminDepartments,
@@ -43,6 +43,56 @@ const roleOptions = [
   { value: 'store', label: 'Store' },
 ]
 
+const roleFilterSelectConfig = JSON.stringify({
+  placeholder: 'Tất cả role',
+  toggleTag: '<button type="button" aria-expanded="false"></button>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-slate-900" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+})
+
+const statusFilterSelectConfig = JSON.stringify({
+  placeholder: 'Tất cả trạng thái',
+  toggleTag: '<button type="button" aria-expanded="false"></button>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-slate-900" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+})
+
+const editRoleSelectConfig = JSON.stringify({
+  placeholder: 'Chọn role',
+  toggleTag: '<button type="button" aria-expanded="false"></button>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-slate-900" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+})
+
+const editStatusSelectConfig = JSON.stringify({
+  placeholder: 'Chọn trạng thái',
+  toggleTag: '<button type="button" aria-expanded="false"></button>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-slate-900" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+})
+
+const editDepartmentSelectConfig = JSON.stringify({
+  placeholder: 'Chưa gán bộ phận',
+  toggleTag: '<button type="button" aria-expanded="false"></button>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-slate-900" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+})
+
 const rangeStart = computed(() => {
   if (!users.value.length) return 0
   return (currentPage.value - 1) * pageSize.value + 1
@@ -81,6 +131,32 @@ const normalizeStoreIds = (source = []) => {
       .map((item) => Number(item))
       .filter((id) => Number.isInteger(id) && id > 0)
   )]
+}
+
+const syncPrelineSelectValue = (elementId, value) => {
+  const selectElement = document.getElementById(elementId)
+  if (!selectElement) return
+
+  const normalizedValue = value === undefined || value === null ? '' : String(value)
+  selectElement.value = normalizedValue
+
+  const hsSelect = window.HSSelect?.getInstance?.(selectElement, true)
+  if (hsSelect?.element?.setValue) {
+    hsSelect.element.setValue(normalizedValue)
+  }
+}
+
+const initAdminSelects = async ({ includeModal = false } = {}) => {
+  await nextTick()
+  if (window.HSStaticMethods?.autoInit) {
+    window.HSStaticMethods.autoInit()
+  }
+  syncPrelineSelectValue('admin-users-role-filter', roleFilter.value)
+  syncPrelineSelectValue('admin-users-status-filter', statusFilter.value)
+  if (!includeModal) return
+  syncPrelineSelectValue('admin-users-edit-role', editForm.role)
+  syncPrelineSelectValue('admin-users-edit-status', editForm.isActive)
+  syncPrelineSelectValue('admin-users-edit-department', editForm.departmentId)
 }
 
 const loadUsers = async (page = currentPage.value) => {
@@ -147,6 +223,7 @@ const openEditModal = (user) => {
   editForm.isActive = user?.isActive === true
   editForm.departmentId = user?.departmentId ? String(user.departmentId) : ''
   editForm.storeIds = normalizeStoreIds(user?.storeIds || [])
+  void initAdminSelects({ includeModal: true })
 }
 
 const closeEditModal = () => {
@@ -184,6 +261,7 @@ onMounted(async () => {
     loadReferences(),
     loadUsers(),
   ])
+  await initAdminSelects()
 })
 </script>
 
@@ -191,36 +269,40 @@ onMounted(async () => {
   <div class="page-stack space-y-4 p-3">
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
-        <div class="flex flex-col gap-3 tablet:flex-row tablet:items-end tablet:justify-between">
+        <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
           <div>
             <h3 class="text-base font-semibold text-slate-900">Danh sách nhân viên</h3>
           </div>
-        </div>
 
-        <div class="grid grid-cols-1 gap-3 tablet:grid-cols-3">
-          <input
-            v-model="searchInput"
-            type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
-            placeholder="Tìm theo tên, email, SĐT..."
-          />
+          <div class="grid w-full grid-cols-1 gap-3 tablet:w-auto tablet:grid-cols-[minmax(280px,1fr)_180px_180px] tablet:justify-end">
+            <input
+              v-model="searchInput"
+              type="text"
+              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+              placeholder="Tìm theo tên, email, SĐT..."
+            />
 
-          <select
-            v-model="roleFilter"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
-          >
-            <option value="">Tất cả role</option>
-            <option v-for="option in roleOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-          </select>
+            <select
+              id="admin-users-role-filter"
+              v-model="roleFilter"
+              class="hidden"
+              :data-hs-select="roleFilterSelectConfig"
+            >
+              <option value="">Tất cả role</option>
+              <option v-for="option in roleOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
 
-          <select
-            v-model="statusFilter"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="active">Đang hoạt động</option>
-            <option value="inactive">Tạm khóa</option>
-          </select>
+            <select
+              id="admin-users-status-filter"
+              v-model="statusFilter"
+              class="hidden"
+              :data-hs-select="statusFilterSelectConfig"
+            >
+              <option value="">Tất cả trạng thái</option>
+              <option value="active">Đang hoạt động</option>
+              <option value="inactive">Tạm khóa</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -237,12 +319,16 @@ onMounted(async () => {
               <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Bộ phận</th>
               <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Cửa hàng</th>
               <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Trạng thái</th>
-              <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-slate-500">Thao tác</th>
             </tr>
           </thead>
 
           <tbody v-if="users.length" class="divide-y divide-slate-100">
-            <tr v-for="user in users" :key="user.id" class="transition-colors hover:bg-slate-50/70">
+            <tr
+              v-for="user in users"
+              :key="user.id"
+              class="cursor-pointer transition-colors hover:bg-slate-50/70"
+              @click="openEditModal(user)"
+            >
               <td class="px-4 py-3 align-top">
                 <p class="text-sm font-semibold text-slate-900">{{ user.name || user.email }}</p>
                 <p class="text-xs text-slate-500">{{ user.email }}</p>
@@ -257,21 +343,12 @@ onMounted(async () => {
               <td class="px-4 py-3">
                 <span :class="statusClass(user.isActive)">{{ statusLabel(user.isActive) }}</span>
               </td>
-              <td class="px-4 py-3 text-end">
-                <button
-                  type="button"
-                  class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                  @click="openEditModal(user)"
-                >
-                  Chỉnh sửa
-                </button>
-              </td>
             </tr>
           </tbody>
 
           <tbody v-else>
             <tr>
-              <td colspan="6" class="px-4 py-12">
+              <td colspan="5" class="px-4 py-12">
                 <div class="app-state-panel app-state-panel--compact">
                   <div class="app-state-stack mx-auto">
                     <div class="app-state-icon mx-auto">
@@ -353,8 +430,10 @@ onMounted(async () => {
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Role</label>
           <select
+            id="admin-users-edit-role"
             v-model="editForm.role"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="hidden"
+            :data-hs-select="editRoleSelectConfig"
           >
             <option v-for="option in roleOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
           </select>
@@ -363,8 +442,10 @@ onMounted(async () => {
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Trạng thái</label>
           <select
+            id="admin-users-edit-status"
             v-model="editForm.isActive"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="hidden"
+            :data-hs-select="editStatusSelectConfig"
           >
             <option :value="true">Đang hoạt động</option>
             <option :value="false">Tạm khóa</option>
@@ -374,8 +455,10 @@ onMounted(async () => {
         <div class="tablet:col-span-2">
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Bộ phận</label>
           <select
+            id="admin-users-edit-department"
             v-model="editForm.departmentId"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="hidden"
+            :data-hs-select="editDepartmentSelectConfig"
           >
             <option value="">Chưa gán bộ phận</option>
             <option v-for="department in departmentOptions" :key="department.id" :value="String(department.id)">

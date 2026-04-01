@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listAdminQcForms } from '@/services/admin_service'
 
@@ -14,7 +14,16 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const totalForms = ref(0)
 const pageCount = ref(1)
-const activeActionMenuId = ref(null)
+
+const statusFilterSelectConfig = JSON.stringify({
+  placeholder: 'Tất cả trạng thái',
+  toggleTag: '<button type="button" aria-expanded="false"></button>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-slate-900" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+})
 
 const normalizedSearch = computed(() => String(searchInput.value || '').trim().toLowerCase())
 const hasLocalFilters = computed(() => Boolean(normalizedSearch.value || statusFilter.value))
@@ -71,6 +80,27 @@ const visiblePageItems = computed(() => {
 
   return [1, 'start-ellipsis', page - 1, page, page + 1, 'end-ellipsis', total]
 })
+
+const syncPrelineSelectValue = (elementId, value) => {
+  const selectElement = document.getElementById(elementId)
+  if (!selectElement) return
+
+  const normalizedValue = value === undefined || value === null ? '' : String(value)
+  selectElement.value = normalizedValue
+
+  const hsSelect = window.HSSelect?.getInstance?.(selectElement, true)
+  if (hsSelect?.element?.setValue) {
+    hsSelect.element.setValue(normalizedValue)
+  }
+}
+
+const initAdminFilterSelects = async () => {
+  await nextTick()
+  if (window.HSStaticMethods?.autoInit) {
+    window.HSStaticMethods.autoInit()
+  }
+  syncPrelineSelectValue('admin-qc-forms-status-filter', statusFilter.value)
+}
 
 const formatDisplayDate = (value) => {
   if (!value) return '--'
@@ -129,49 +159,23 @@ const openCreatePage = () => {
 
 const openFormDetail = (formId) => {
   if (!formId) return
-  activeActionMenuId.value = null
   router.push(`/tools/qc-forms/${formId}`)
 }
 
 const openEditPage = (formId) => {
   if (!formId) return
-  activeActionMenuId.value = null
   router.push(`/tools/qc-forms/${formId}/edit`)
-}
-
-const toggleActionMenu = (formId) => {
-  if (!formId) return
-  activeActionMenuId.value = activeActionMenuId.value === formId ? null : formId
-}
-
-const closeActionMenu = () => {
-  activeActionMenuId.value = null
-}
-
-const handleDocumentClick = (event) => {
-  if (!(event.target instanceof Element)) {
-    closeActionMenu()
-    return
-  }
-
-  if (event.target.closest('[data-qc-form-action-menu]')) return
-  closeActionMenu()
 }
 
 const goToPage = async (page) => {
   if (loadingForms.value) return
   if (page < 1 || page > pageCount.value || page === currentPage.value) return
-  closeActionMenu()
   await loadQcForms(page)
 }
 
 onMounted(async () => {
-  document.addEventListener('click', handleDocumentClick)
   await loadQcForms()
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener('click', handleDocumentClick)
+  await initAdminFilterSelects()
 })
 </script>
 
@@ -179,38 +183,40 @@ onBeforeUnmount(() => {
   <div class="page-stack space-y-4 p-3">
     <section class="rounded-xl border border-slate-200 bg-white">
       <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
-        <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
+        <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
           <div>
             <h3 class="text-base font-semibold text-slate-900">Danh sách biểu mẫu QC</h3>
           </div>
 
-          <button
-            type="button"
-            class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
-            @click="openCreatePage"
-          >
-            Tạo biểu mẫu
-          </button>
-        </div>
+          <div class="grid w-full grid-cols-1 gap-3 tablet:w-auto tablet:grid-cols-[minmax(280px,1fr)_190px_auto] tablet:items-center tablet:justify-end">
+            <input
+              v-model="searchInput"
+              type="text"
+              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+              placeholder="Tìm theo mã, tên, mô tả..."
+            />
 
-        <div class="grid grid-cols-1 gap-3 tablet:grid-cols-2">
-          <input
-            v-model="searchInput"
-            type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
-            placeholder="Tìm theo mã, tên, mô tả..."
-          />
+            <select
+              id="admin-qc-forms-status-filter"
+              v-model="statusFilter"
+              class="hidden"
+              :data-hs-select="statusFilterSelectConfig"
+            >
+              <option value="">Tất cả trạng thái</option>
+              <option value="draft">Bản nháp</option>
+              <option value="published">Đang phát hành</option>
+              <option value="archived">Lưu trữ</option>
+              <option value="no_version">Chưa có version</option>
+            </select>
 
-          <select
-            v-model="statusFilter"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
-          >
-            <option value="">Tất cả trạng thái</option>
-            <option value="draft">Bản nháp</option>
-            <option value="published">Đang phát hành</option>
-            <option value="archived">Lưu trữ</option>
-            <option value="no_version">Chưa có version</option>
-          </select>
+            <button
+              type="button"
+              class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
+              @click="openCreatePage"
+            >
+              Tạo biểu mẫu
+            </button>
+          </div>
         </div>
 
         <p v-if="hasLocalFilters" class="text-xs text-slate-400">
@@ -254,40 +260,14 @@ onBeforeUnmount(() => {
                 </span>
               </td>
               <td class="px-4 py-3 text-sm text-slate-500">{{ formatDisplayDate(form.updatedAt) }}</td>
-              <td class="px-4 py-3">
-                <div class="relative flex items-center justify-end" data-qc-form-action-menu>
-                  <button
-                    type="button"
-                    class="inline-flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
-                    aria-label="Mở menu thao tác"
-                    :aria-expanded="activeActionMenuId === form.id"
-                    @click.stop="toggleActionMenu(form.id)"
-                  >
-                    <span class="material-symbols-outlined text-[18px]">more_horiz</span>
-                  </button>
-
-                  <div
-                    v-if="activeActionMenuId === form.id"
-                    class="absolute right-0 top-full z-20 mt-2 min-w-36 overflow-hidden rounded-xl border border-slate-200 bg-white py-1"
-                  >
-                    <button
-                      type="button"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
-                      @click.stop="openFormDetail(form.id)"
-                    >
-                      <span class="material-symbols-outlined text-[18px] text-slate-400">visibility</span>
-                      Xem
-                    </button>
-                    <button
-                      type="button"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
-                      @click.stop="openEditPage(form.id)"
-                    >
-                      <span class="material-symbols-outlined text-[18px] text-slate-400">edit</span>
-                      Chỉnh sửa
-                    </button>
-                  </div>
-                </div>
+              <td class="px-4 py-3 text-end">
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  @click.stop="openEditPage(form.id)"
+                >
+                  Chỉnh sửa
+                </button>
               </td>
             </tr>
           </tbody>

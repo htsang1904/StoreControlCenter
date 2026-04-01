@@ -8,7 +8,7 @@ from app.db.types import UTCNaiveDateTime
 ticket_assignees = Table(
     'ticket_assignees',
     Base.metadata,
-    Column('ticket_id', Integer, ForeignKey('tickets.id'), primary_key=True),
+    Column('ticket_id', Integer, ForeignKey('tickets.id', ondelete="CASCADE"), primary_key=True),
     Column('user_id', Integer, ForeignKey('users.id', ondelete="CASCADE"), primary_key=True)
 )
 
@@ -65,7 +65,7 @@ class TicketLog(Base):
     # Enum: "store", "handler", "system"
     sender_type = Column(String(50), default="store", nullable=False)
     
-    ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False, index=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False, index=True)
     sender_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())

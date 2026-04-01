@@ -297,7 +297,7 @@ const applyFilters = async () => {
       status: filters.status,
       from: filters.from,
       to: filters.to,
-      pageSize: 200,
+      pageSize: 100,
       fetchAll: true,
     })
 
