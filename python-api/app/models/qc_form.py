@@ -50,6 +50,7 @@ class QCCriterion(Base):
     # Enum: "pass_fail", "point"
     default_mode = Column(String(50), default="point", nullable=False)
     default_max_score = Column(Numeric(10, 2), default=0)
+    default_min_pass_score = Column(Numeric(10, 2), default=0)
     is_active = Column(Boolean, default=True)
     
     parent_id = Column(Integer, ForeignKey("qc_criteria.id"), nullable=True)

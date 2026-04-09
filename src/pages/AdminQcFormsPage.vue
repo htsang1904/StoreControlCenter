@@ -180,7 +180,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-stack space-y-4 p-3">
+  <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
     <section class="rounded-xl border border-slate-200 bg-white">
       <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
         <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">

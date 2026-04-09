@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import SessionDep, CurrentUser
-from app.core.datetime_utils import utc_now_naive
+from app.core.datetime_utils import parse_datetime_to_utc_naive, utc_now_naive
 from app.models.org import Store
 from app.models.notification import Notification
 from app.models.ticket import Ticket, TicketLog, ticket_assignees
@@ -120,7 +120,10 @@ async def read_tickets(
     page: int = Query(1, ge=1),
     pageSize: int = Query(10, ge=1, le=100),
     q: Optional[str] = Query(None),
-    status: Optional[str] = Query(None)
+    status: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    store_ids: Optional[str] = Query(None)
 ) -> Any:
     """Read tickets with RBAC, pagination and filtering."""
     skip = (page - 1) * pageSize
@@ -160,6 +163,27 @@ async def read_tickets(
         status_list = [s.strip() for s in status.split(",") if s.strip()]
         if status_list:
             filters.append(Ticket.status.in_(status_list))
+
+    # Date Filters
+    if date_from:
+        try:
+            date_from_dt = parse_datetime_to_utc_naive(date_from).replace(hour=0, minute=0, second=0, microsecond=0)
+            filters.append(Ticket.created_at >= date_from_dt)
+        except ValueError:
+            pass
+
+    if date_to:
+        try:
+            date_to_dt = parse_datetime_to_utc_naive(date_to).replace(hour=23, minute=59, second=59, microsecond=999999)
+            filters.append(Ticket.created_at <= date_to_dt)
+        except ValueError:
+            pass
+
+    # Global Store IDs Filter
+    if store_ids and current_user.role != "store":
+        ids = [int(i.strip()) for i in store_ids.split(",") if i.strip().isdigit()]
+        if ids:
+            filters.append(Ticket.store_id.in_(ids))
             
     if filters:
         query = query.where(and_(*filters))
@@ -233,6 +257,11 @@ async def create_ticket(
     
     data["requester_id"] = current_user.id
     data["ticket_code"] = f"TCK-{uuid.uuid4().hex[:8].upper()}"
+    
+    # Explicitly set timestamps since Strapi schema might lack DB-level defaults
+    now = _utcnow_naive()
+    data["created_at"] = now
+    data["updated_at"] = now
     
     ticket = Ticket(**data)
     session.add(ticket)

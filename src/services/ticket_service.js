@@ -2,16 +2,9 @@ import getClient from './http'
 
 const http = getClient()
 
-export const getDashboardOverview = (params = {}) => {
-  const searchParams = new URLSearchParams()
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && String(value) !== '') {
-      searchParams.append(key, String(value))
-    }
-  })
-
-  return http.get(`/api/dashboard/overview?${searchParams.toString()}`)
+export const getDashboardOverview = async (params = {}) => {
+  const response = await http.post(`/api/dashboard/overview`, params)
+  return response.data || response
 }
 
 export const getActiveDepartments = () => {

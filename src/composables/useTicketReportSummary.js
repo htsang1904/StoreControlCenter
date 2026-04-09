@@ -54,10 +54,13 @@ export function useTicketReportSummary() {
     },
   ])
 
+  const storeIdsFilter = ref('')
+
   function syncReportRangeFromRoute(query = {}) {
     const range = normalizeDateRangeFromQuery(query, getDefaultDateRange())
     reportDateFrom.value = range.from
     reportDateTo.value = range.to
+    storeIdsFilter.value = query.store_ids || ''
   }
 
   async function fetchTicketReports() {
@@ -65,12 +68,25 @@ export function useTicketReportSummary() {
       const result = await getDashboardOverview({
         date_from: reportDateFrom.value,
         date_to: reportDateTo.value,
+        store_ids: storeIdsFilter.value || undefined,
         top_stores_limit: 20,
         activity_limit: 12,
       })
-      const payload = result?.data || result || {}
-      reportSummary.value = payload?.summary || createEmptySummary()
-    } catch {
+      
+      // Defensive recursive unwrap to handle arbitrary axios interceptor structures
+      const rootData = result?.data?.data || result?.data || result || {}
+      console.log('[DEBUG] TicketManagement Overview Payload:', rootData)
+      
+      const summaryPayload = rootData?.summary || {}
+      
+      reportSummary.value = {
+        total_ticket: Number(summaryPayload.total_ticket || 0),
+        in_progress: Number(summaryPayload.in_progress || 0),
+        resolved: Number(summaryPayload.resolved || 0),
+        overdue: Number(summaryPayload.overdue || 0)
+      }
+    } catch (err) {
+      console.error('[DEBUG] TicketManagement Overview Error:', err)
       reportSummary.value = createEmptySummary()
     }
   }

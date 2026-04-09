@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/app/test_db.py", line 2, in <module>
+    from app.db.session import SessionLocal
+ModuleNotFoundError: No module named 'app.db.session'

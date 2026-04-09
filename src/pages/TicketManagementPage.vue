@@ -62,6 +62,36 @@ const {
   syncReportRangeFromRoute,
 } = useTicketReportSummary()
 
+const selectedStores = ref([])
+watch(
+  () => route.query.store_ids,
+  (newVal) => {
+    if (typeof newVal === 'string' && newVal.trim() !== '') {
+      const parsed = newVal.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
+      if (parsed.join(',') !== selectedStores.value.join(',')) {
+        selectedStores.value = parsed
+      }
+    } else {
+       selectedStores.value = []
+    }
+  },
+  { immediate: true }
+)
+
+watch(selectedStores, (newVal) => {
+  const currentQ = String(route.query.store_ids || '')
+  const newQ = newVal.join(',')
+  if (currentQ !== newQ) {
+    if (newQ === '') {
+      const q = { ...route.query }
+      delete q.store_ids
+      router.replace({ query: q })
+    } else {
+      router.replace({ query: { ...route.query, store_ids: newQ } })
+    }
+  }
+})
+
 function goToTicketDetail(id) {
   router.push(`/ticket/${id}`)
 }
@@ -78,15 +108,14 @@ function goToEditTicket(id) {
   router.push(`/ticket/${id}/edit`)
 }
 
-onMounted(async () => {
-  await fetchTickets()
-})
-
 watch(
-  () => [route.query.date_from, route.query.date_to],
+  () => [route.query.date_from, route.query.date_to, route.query.store_ids],
   async () => {
     syncReportRangeFromRoute(route.query || {})
-    await fetchTicketReports()
+    await Promise.allSettled([
+      fetchTicketReports(),
+      fetchTickets()
+    ])
   },
   { immediate: true }
 )
@@ -94,8 +123,8 @@ watch(
 </script>
 
 <template>
-  <div class="h-full bg-slate-50/50 p-4">
-    <div class="page-stack mx-3 space-y-3 tablet:mx-4 pc:mx-auto pt-3">
+  <div class="h-full bg-slate-50/50 p-4 tablet:p-5 pc:p-6">
+    <div class="page-stack overflow-visible space-y-4">
       <!-- Mảng thẻ Overview Stats -->
       <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard

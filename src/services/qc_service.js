@@ -183,7 +183,7 @@ const normalizeTemplate = (payload = {}) => {
   }
 }
 
-const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD }) => {
+const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD, passScore = 0 }) => {
   const normalizedCriteria = normalizeCriteria(criteria)
   const threshold = normalizePassThreshold(passThreshold)
 
@@ -250,7 +250,12 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
   const reasons = []
   if (metrics.incompleteCount > 0) reasons.push('incomplete')
   if (metrics.failedCount > 0) reasons.push('failed')
-  if (isBelowPassThreshold({ totalScore: metrics.totalScore, maxScore: metrics.maxScore, passThreshold: threshold })) {
+  
+  const isBelowGlobalPass = passScore > 0 
+    ? metrics.totalScore < passScore
+    : isBelowPassThreshold({ totalScore: metrics.totalScore, maxScore: metrics.maxScore, passThreshold: threshold })
+
+  if (isBelowGlobalPass) {
     reasons.push('threshold')
   }
 
@@ -260,6 +265,7 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
     ...metrics,
     evaluationMode: 'mixed',
     passThreshold: threshold,
+    passScore,
     reasons,
     status,
   }
@@ -623,6 +629,19 @@ export const listQcSessionsApi = async ({
   }
 }
 
+export const deleteQcSession = async (sessionId) => {
+  if (!sessionId) return null
+  const response = await http.delete(`/api/qc/sessions/${encodeURIComponent(String(sessionId))}`)
+  return response?.data
+}
+
+export const getQcSessionApi = async (sessionId) => {
+  if (!sessionId) return null
+  const response = await http.get(`/api/qc/sessions/${encodeURIComponent(String(sessionId))}`)
+  const rawSession = response?.data || {}
+  return normalizeSessionFromApi(rawSession)
+}
+
 export const getQcStoreOverviewApi = async (storeId, options = {}) => {
   const payload = await listQcSessionsApi({
     storeId,
@@ -723,6 +742,7 @@ export const getQcTemplateById = async (formId) => {
       parentId: criterion.parentId || null,
       mode: criterion.mode,
       maxScore: toNumber(criterion.maxScore),
+      passScore: toNumber(criterion.minPassScore, 0),
       sortOrder: criterion.sortOrder,
     }))
     : []
@@ -753,6 +773,7 @@ export const getQcTemplateById = async (formId) => {
     activeVersionId: toNumber(formData.activeVersionId) || null,
     version: String(formData.version || ''),
     passThreshold: normalizePassThreshold(formData.passThreshold),
+    passScore: toNumber(formData.passScore, 0),
     criteriaTree: buildTree(flattened),
     flatCriteria: flattened // Kept for legacy compatibility in some parts
   }

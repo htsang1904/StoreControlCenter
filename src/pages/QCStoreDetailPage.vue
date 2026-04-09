@@ -5,6 +5,8 @@ import { useApp } from '@/plugins/app'
 import {
   createQcDraftSession,
   deleteQcDraftSession,
+  deleteQcSession,
+  getQcSessionApi,
   getQcStoreOverviewApi,
   listQcDraftSessions,
   listQcTemplates,
@@ -13,10 +15,13 @@ import {
 import CreateQcDraftModal from '@/components/CreateQcDraftModal.vue'
 import DateRangePicker from '@/components/DateRangePicker.vue'
 import StatSummaryCard from '@/components/StatSummaryCard.vue'
+import CommonModal from '@/components/CommonModal.vue'
+import { useToast } from '@/plugins/toast'
 
 const route = useRoute()
 const router = useRouter()
 const { state } = useApp()
+const toast = useToast()
 
 const loading = ref(false)
 const searchInput = ref('')
@@ -25,6 +30,12 @@ let searchDebounce = null
 
 const creatingDraft = ref(false)
 const isDraftModalOpen = ref(false)
+const isDeleteModalOpen = ref(false)
+const isDeleteSessionModalOpen = ref(false)
+const deletingDraftId = ref(null)
+const deletingSessionId = ref(null)
+const deletingDraft = ref(false)
+const deletingSession = ref(false)
 const draftSessions = ref([])
 const draftModalError = ref('')
 const draftLoadError = ref('')
@@ -47,7 +58,9 @@ const summary = ref({
   passRate: 0,
 })
 const sessions = ref([])
-const expandedSessionId = ref(null)
+const selectedSessionForModal = ref(null)
+const isSessionDetailModalOpen = ref(false)
+const loadingSessionDetail = ref(false)
 const hasRows = computed(() => tableRows.value.length > 0)
 
 const resultOptions = [
@@ -130,7 +143,7 @@ const summaryCards = computed(() => [
   {
     key: 'failed',
     label: 'Cần khắc phục',
-    value: filteredSummary.value.failed,
+    value: `${filteredSummary.value.failed}`,
     meta: `Toàn kỳ ${summary.value.failed}`,
     icon: 'warning',
     tone: 'rose',
@@ -272,12 +285,36 @@ const tableRows = computed(() => {
 
 const isDraftRow = (row) => row?.rowType === 'draft'
 
+const viewSessionDetailModal = async (session) => {
+  selectedSessionForModal.value = session
+  isSessionDetailModalOpen.value = true
+  
+  if (session && !isDraftRow(session)) {
+    loadingSessionDetail.value = true
+    try {
+      const fullSession = await getQcSessionApi(session.id)
+      if (fullSession && selectedSessionForModal.value?.id === session.id) {
+        selectedSessionForModal.value = fullSession
+      }
+    } catch (error) {
+      toast.error('Không tải được tiêu chí của phiên này.')
+    } finally {
+      loadingSessionDetail.value = false
+    }
+  }
+}
+
+const closeSessionDetailModal = () => {
+  isSessionDetailModalOpen.value = false
+  selectedSessionForModal.value = null
+}
+
 const handleRowAction = (row) => {
   if (isDraftRow(row)) {
     continueDraftSession(row.id)
     return
   }
-  toggleSessionDetail(row.id)
+  viewSessionDetailModal(row)
 }
 
 function toLocalDateTimeInput(value) {
@@ -303,10 +340,6 @@ const applyFilters = async () => {
 
     summary.value = overview.summary
     sessions.value = overview.sessions
-
-    if (!sessions.value.some((item) => item.id === expandedSessionId.value)) {
-      expandedSessionId.value = null
-    }
   } catch (error) {
     sessions.value = []
     summary.value = {
@@ -380,23 +413,61 @@ const createDraftAndOpen = async (payload = {}) => {
   }
 }
 
-const removeDraftSession = async (draftId) => {
+const confirmRemoveDraftSession = (draftId) => {
   if (!draftId) return
-  const confirmed = window.confirm('Xóa phiếu nháp này?')
-  if (!confirmed) return
+  deletingDraftId.value = draftId
+  isDeleteModalOpen.value = true
+}
+
+const executeRemoveDraftSession = async () => {
+  if (!deletingDraftId.value) return
+  deletingDraft.value = true
   try {
-    await deleteQcDraftSession(draftId)
+    await deleteQcDraftSession(deletingDraftId.value)
+    toast.success('Xóa phiếu nháp thành công')
+    isDeleteModalOpen.value = false
     await loadDraftSessions()
   } catch (error) {
-    draftLoadError.value = error?.response?.data?.message || error?.message || 'Không xóa được phiếu nháp.'
+    toast.error(error?.response?.data?.message || error?.message || 'Không xóa được phiếu nháp.')
+  } finally {
+    deletingDraft.value = false
+    deletingDraftId.value = null
   }
 }
 
-const toggleSessionDetail = (sessionId) => {
-  expandedSessionId.value = expandedSessionId.value === sessionId ? null : sessionId
+const cancelRemoveDraftSession = () => {
+  if (deletingDraft.value) return
+  isDeleteModalOpen.value = false
+  deletingDraftId.value = null
 }
 
-const isSessionExpanded = (sessionId) => expandedSessionId.value === sessionId
+const confirmRemoveSession = (sessionId) => {
+  if (!sessionId) return
+  deletingSessionId.value = sessionId
+  isDeleteSessionModalOpen.value = true
+}
+
+const executeRemoveSession = async () => {
+  if (!deletingSessionId.value) return
+  deletingSession.value = true
+  try {
+    await deleteQcSession(deletingSessionId.value)
+    toast.success('Xóa phiên QC thành công')
+    isDeleteSessionModalOpen.value = false
+    await loadStoreData()
+  } catch (error) {
+    toast.error(error?.response?.data?.message || error?.message || 'Không xóa được phiên QC này.')
+  } finally {
+    deletingSession.value = false
+    deletingSessionId.value = null
+  }
+}
+
+const cancelRemoveSession = () => {
+  if (deletingSession.value) return
+  isDeleteSessionModalOpen.value = false
+  deletingSessionId.value = null
+}
 
 const loadTemplates = async () => {
   try {
@@ -447,7 +518,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="px-3 py-3">
+  <div class="p-4 tablet:p-5 pc:p-6">
     <div class="page-stack space-y-4">
       <div class="flex min-w-0 items-start gap-3">
         <button
@@ -614,34 +685,14 @@ onBeforeUnmount(() => {
 
                   <div class="mt-4 flex flex-col gap-2 tablet:flex-row">
                     <button type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 tablet:flex-1" @click="handleRowAction(session)">
-                      {{ isDraftRow(session) ? 'Tiếp tục' : (isSessionExpanded(session.id) ? 'Thu gọn' : 'Chi tiết') }}
+                      {{ isDraftRow(session) ? 'Tiếp tục' : 'Chi tiết' }}
                     </button>
-                    <button v-if="isDraftRow(session)" type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 tablet:flex-1" @click="removeDraftSession(session.id)">
-                      Xóa
+                    <button v-if="isDraftRow(session)" type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 tablet:flex-1" @click="confirmRemoveDraftSession(session.id)">
+                      Xóa nháp
                     </button>
-                  </div>
-
-                  <div v-if="!isDraftRow(session) && isSessionExpanded(session.id)" class="mt-4 space-y-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <span v-for="reason in sessionReasons(session)" :key="`${session.id}-${reason}`" class="inline-flex rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">{{ reason }}</span>
-                      <span v-if="sessionReasons(session).length === 0" class="inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Trong sạch, không phát hiện lỗi quan trọng</span>
-                    </div>
-                    <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú phiên</p>
-                      <p class="mt-1 text-sm text-slate-700">{{ session.note || '--' }}</p>
-                    </div>
-                    <div v-if="sessionFailedItems(session).length > 0" class="space-y-2">
-                      <p class="text-xs font-semibold uppercase text-slate-500">Tiêu chí không đạt ({{ sessionFailedItems(session).length }})</p>
-                      <div class="grid gap-2 tablet:grid-cols-2">
-                        <div v-for="item in sessionFailedItems(session)" :key="`${session.id}-${item.id}`" class="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
-                          <div class="mb-1 flex items-center gap-2">
-                            <p class="text-sm font-semibold text-rose-800">{{ item.name }}</p>
-                            <span class="app-badge inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase" :class="criterionStatusClass(item.status)">{{ criterionStatusLabel(item.status) }}</span>
-                          </div>
-                          <p class="text-xs text-rose-700">{{ item.note || '--' }}</p>
-                        </div>
-                      </div>
-                    </div>
+                    <button v-else type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 tablet:flex-1" @click="confirmRemoveSession(session.id)">
+                      Xóa phiên lỗi
+                    </button>
                   </div>
                 </article>
               </div>
@@ -698,40 +749,14 @@ onBeforeUnmount(() => {
                       <td class="px-4 py-2 text-sm text-gray-600">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</td>
                       <td class="px-4 py-2 text-end flex gap-2 justify-end">
                         <button type="button" class="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50" @click="handleRowAction(session)">
-                          {{ isDraftRow(session) ? 'Tiếp tục' : (isSessionExpanded(session.id) ? 'Thu gọn' : 'Chi tiết') }}
+                          {{ isDraftRow(session) ? 'Tiếp tục' : 'Chi tiết' }}
                         </button>
-                        <button v-if="isDraftRow(session)" type="button" class="cursor-pointer rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100" @click="removeDraftSession(session.id)">
+                        <button v-if="isDraftRow(session)" type="button" class="cursor-pointer rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100" @click="confirmRemoveDraftSession(session.id)">
                           Xóa
                         </button>
-                      </td>
-                    </tr>
-                    <tr v-if="!isDraftRow(session) && isSessionExpanded(session.id)" class="bg-slate-50/50">
-                      <td colspan="7" class="px-4 py-3">
-                        <!-- Details Content (reused from original) -->
-                        <div class="space-y-2.5 rounded-lg border border-slate-200 bg-white p-3">
-                          <!-- Reasons & Note Content Same as Before -->
-                          <div class="flex flex-wrap items-center gap-2">
-                             <span v-for="reason in sessionReasons(session)" :key="`${session.id}-${reason}`" class="inline-flex rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">{{ reason }}</span>
-                             <span v-if="sessionReasons(session).length === 0" class="inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Trong sạch, không phát hiện lỗi quan trọng</span>
-                          </div>
-                          <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghi chú phiên</p>
-                            <p class="mt-1 text-sm text-slate-700">{{ session.note || '--' }}</p>
-                          </div>
-                          <!-- Failed Items -->
-                          <div v-if="sessionFailedItems(session).length > 0" class="space-y-2">
-                            <p class="text-xs font-semibold uppercase text-slate-500">Tiêu chí không đạt ({{ sessionFailedItems(session).length }})</p>
-                            <div class="grid gap-2 tablet:grid-cols-2">
-                               <div v-for="item in sessionFailedItems(session)" :key="`${session.id}-${item.id}`" class="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
-                                  <div class="flex items-center gap-2 mb-1">
-                                     <p class="text-sm font-semibold text-rose-800">{{ item.name }}</p>
-                                     <span class="app-badge inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase" :class="criterionStatusClass(item.status)">{{ criterionStatusLabel(item.status) }}</span>
-                                  </div>
-                                  <p class="text-xs text-rose-700">{{ item.note || '--' }}</p>
-                               </div>
-                            </div>
-                          </div>
-                        </div>
+                        <button v-else type="button" class="cursor-pointer rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100" @click="confirmRemoveSession(session.id)">
+                          Xóa
+                        </button>
                       </td>
                     </tr>
                   </template>
@@ -770,5 +795,192 @@ onBeforeUnmount(() => {
       @submit="createDraftAndOpen"
       @close="closeCreateDraftModal"
     />
+
+    <CommonModal
+      v-model="isDeleteModalOpen"
+      max-width-class="max-w-[360px]"
+      :close-disabled="deletingDraft"
+      :show-close="false"
+      @close="cancelRemoveDraftSession"
+    >
+      <div class="flex flex-col items-center pt-6 pb-2 text-center focus:outline-none">
+        <div class="mb-5 flex size-14 items-center justify-center rounded-full bg-rose-100 text-rose-600 ring-8 ring-rose-50">
+          <span class="material-symbols-outlined text-[28px]">delete</span>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900 tracking-tight">Xóa phiếu nháp?</h3>
+        <p class="mt-2 text-[14px] font-medium text-slate-500 leading-relaxed px-2">
+          Dữ liệu đã chấm sẽ bị mất hoàn toàn và chức năng này <span class="text-rose-600 font-semibold underline decoration-rose-200 underline-offset-2">không thể khôi phục</span>.
+        </p>
+
+        <div class="mt-8 flex items-center gap-3 w-full">
+          <button
+            type="button"
+            class="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-100 px-4 py-3 text-[15px] font-bold text-slate-700 transition hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            :disabled="deletingDraft"
+            @click="cancelRemoveDraftSession"
+          >
+            Giữ lại
+          </button>
+          <button
+            type="button"
+            class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-[15px] font-bold text-white transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 shadow-sm shadow-rose-200"
+            :disabled="deletingDraft"
+            @click="executeRemoveDraftSession"
+          >
+            <span v-if="deletingDraft" class="inline-block size-4 animate-spin rounded-full border-2 border-rose-200 border-t-white"></span>
+            <span v-else>Xóa vĩnh viễn</span>
+          </button>
+        </div>
+      </div>
+    </CommonModal>
+
+    <CommonModal
+      v-model="isDeleteSessionModalOpen"
+      max-width-class="max-w-[360px]"
+      :close-disabled="deletingSession"
+      :show-close="false"
+      @close="cancelRemoveSession"
+    >
+      <div class="flex flex-col items-center pt-6 pb-2 text-center focus:outline-none">
+        <div class="mb-5 flex size-14 items-center justify-center rounded-full bg-rose-100 text-rose-600 ring-8 ring-rose-50">
+          <span class="material-symbols-outlined text-[28px]">delete_forever</span>
+        </div>
+        <h3 class="text-lg font-bold text-slate-900 tracking-tight">Xóa phiên QC đã chốt?</h3>
+        <p class="mt-2 text-[14px] font-medium text-slate-500 leading-relaxed px-2">
+          Hành động này sẽ xóa hoàn toàn kết quả chấm QC cùng với hình ảnh đính kèm và không thể khôi phục.
+        </p>
+
+        <div class="mt-8 flex items-center gap-3 w-full">
+          <button
+            type="button"
+            class="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-100 px-4 py-3 text-[15px] font-bold text-slate-700 transition hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            :disabled="deletingSession"
+            @click="cancelRemoveSession"
+          >
+            Giữ lại
+          </button>
+          <button
+            type="button"
+            class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-[15px] font-bold text-white transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 shadow-sm shadow-rose-200"
+            :disabled="deletingSession"
+            @click="executeRemoveSession"
+          >
+            <span v-if="deletingSession" class="inline-block size-4 animate-spin rounded-full border-2 border-rose-200 border-t-white"></span>
+            <span v-else>Xóa vĩnh viễn</span>
+          </button>
+        </div>
+      </div>
+    </CommonModal>
+
+    <!-- Session Details Modal -->
+    <CommonModal
+      v-model="isSessionDetailModalOpen"
+      max-width-class="max-w-[760px]"
+      :show-close="false"
+      @close="closeSessionDetailModal"
+    >
+      <div v-if="selectedSessionForModal" class="flex flex-col focus:outline-none">
+        <div class="border-b border-slate-200 px-4 py-4 tablet:px-6">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900 tracking-tight">Chi tiết phiên QC - {{ selectedSessionForModal.code }}</h3>
+              <p class="mt-1 text-sm text-slate-500 font-medium">Mẫu: {{ selectedSessionForModal.templateName }} • Auditor: {{ selectedSessionForModal.auditorName }}</p>
+            </div>
+            <button
+              class="inline-flex size-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 focus:outline-none"
+              @click="closeSessionDetailModal"
+            >
+              <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="max-h-[65vh] overflow-y-auto bg-slate-50/50 p-4 tablet:p-6">
+          <div class="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="grid grid-cols-2 gap-4 tablet:grid-cols-4">
+              <div>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Điểm số</p>
+                <p class="mt-1 font-semibold text-slate-900">{{ selectedSessionForModal.totalScore }} / {{ selectedSessionForModal.maxScore }}</p>
+              </div>
+              <div>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Tỷ lệ</p>
+                <p class="mt-1 font-semibold text-slate-900">{{ sessionScoreRate(selectedSessionForModal) }}%</p>
+              </div>
+              <div>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Kết quả</p>
+                <span class="mt-1 app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold" :class="resultClass(selectedSessionForModal.result)">
+                  {{ resultLabel(selectedSessionForModal.result) }}
+                </span>
+              </div>
+              <div>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Ghi chú</p>
+                <p class="mt-1 text-sm text-slate-700 truncate" :title="selectedSessionForModal.note">{{ selectedSessionForModal.note || '--' }}</p>
+              </div>
+            </div>
+            
+            <div class="mt-4 flex flex-wrap gap-2">
+               <span v-for="reason in sessionReasons(selectedSessionForModal)" :key="reason" class="inline-flex rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-rose-700 border border-rose-200">{{ reason }}</span>
+               <span v-if="sessionReasons(selectedSessionForModal).length === 0" class="inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 border border-emerald-200">Không phát hiện lỗi quan trọng</span>
+            </div>
+          </div>
+
+          <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div v-if="loadingSessionDetail" class="flex flex-col items-center justify-center py-10">
+              <span class="mb-3 inline-block size-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-800"></span>
+              <p class="text-sm text-slate-500 font-medium">Đang tải biểu mẫu chi tiết...</p>
+            </div>
+            <table v-else class="w-full text-left">
+              <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Tiêu chí</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500 hidden tablet:table-cell">Danh mục</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500 text-center">Điểm</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500 text-right">Tình trạng</th>
+                </tr>
+              </thead>
+              <tbody v-if="selectedSessionForModal.criteria && selectedSessionForModal.criteria.length > 0" class="divide-y divide-slate-100">
+                <tr v-for="criterion in selectedSessionForModal.criteria" :key="criterion.id" class="transition-colors hover:bg-slate-50/50">
+                  <td class="px-4 py-3">
+                    <p class="text-sm font-semibold text-slate-900">{{ criterion.name }}</p>
+                    <p class="mt-1 text-xs text-slate-500 tablet:hidden">{{ criterion.category }}</p>
+                    <p v-if="criterion.note" class="mt-1.5 text-xs text-slate-600 bg-slate-100 p-2 rounded-lg border border-slate-200">{{ criterion.note }}</p>
+                  </td>
+                  <td class="px-4 py-3 text-sm text-slate-700 hidden tablet:table-cell align-top">{{ criterion.category }}</td>
+                  <td class="px-4 py-3 text-sm font-medium text-slate-700 text-center align-top whitespace-nowrap">
+                    <template v-if="criterion.status === 'na' || criterion.status === 'skipped_weekly'">
+                      <span class="text-slate-400">--</span>
+                    </template>
+                    <template v-else-if="criterion.mode === 'pass_fail'">
+                       {{ criterion.status === 'pass' ? '1' : '0' }} / 1
+                    </template>
+                    <template v-else>
+                      {{ criterion.score ?? '--' }} / {{ criterion.maxScore }}
+                    </template>
+                  </td>
+                  <td class="px-4 py-3 text-right align-top whitespace-nowrap">
+                    <span class="app-badge inline-flex rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wide" :class="criterionStatusClass(criterion.status)">
+                      {{ criterionStatusLabel(criterion.status) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+              <tbody v-else>
+                <tr>
+                  <td colspan="4" class="px-4 py-8 text-center">
+                    <p class="text-sm text-slate-500">Bảng tiêu chí trống.</p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div class="border-t border-slate-200 px-4 py-4 tablet:px-6 flex justify-end bg-white rounded-b-xl">
+          <button type="button" class="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white transition-colors hover:bg-slate-800" @click="closeSessionDetailModal">
+            Đóng
+          </button>
+        </div>
+      </div>
+    </CommonModal>
   </div>
 </template>

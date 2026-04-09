@@ -19,6 +19,7 @@ from app.schemas.qc import (
     QCDraftUpdateRequest,
     QCSessionCreateRequest,
     QCSessionResponse,
+    QCSessionDetailResponse,
     SuccessMessageResponse,
 )
 from app.services.qc_service import (
@@ -54,6 +55,7 @@ def _serialize_qc_form_detail(form: QCForm) -> dict:
                     "parentId": criterion.parent_id,
                     "mode": criterion.default_mode,
                     "maxScore": float(criterion.default_max_score or 0),
+                    "minPassScore": float(criterion.default_min_pass_score or 0),
                     "sortOrder": criterion.id,
                 }
             )
@@ -66,6 +68,7 @@ def _serialize_qc_form_detail(form: QCForm) -> dict:
         "activeVersionId": active_version.id if active_version else None,
         "version": active_version.version_no if active_version else None,
         "passThreshold": (active_version.pass_rule or {}).get("passThreshold", 40) if active_version else 40,
+        "passScore": (active_version.pass_rule or {}).get("passScore", 0) if active_version else 0,
         "criteria": criteria,
     }
 
@@ -323,6 +326,38 @@ async def read_qc_sessions_overview(
         }
     }
 
+@router.get("/sessions/{id}", response_model=dict)
+async def read_qc_session(
+    id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> dict[str, object]:
+    """Read a specific QC session with its items."""
+    query = (
+        select(QCSession)
+        .where(QCSession.id == id)
+        .options(
+            selectinload(QCSession.store),
+            selectinload(QCSession.auditor),
+            selectinload(QCSession.form_version).selectinload(QCFormVersion.form),
+            selectinload(QCSession.items),
+            selectinload(QCSession.findings)
+        )
+    )
+    result = await session.execute(query)
+    qc_session = result.scalar_one_or_none()
+    
+    if not qc_session:
+        raise HTTPException(status_code=404, detail="Phiên QC không tồn tại")
+        
+    # Additional access check: if user is store role, they must be assigned to this store.
+    if current_user.role != "admin" and qc_session.store_id:
+        store_ids = [s.id for s in current_user.stores]
+        if qc_session.store_id not in store_ids:
+            raise HTTPException(status_code=403, detail="Không có quyền truy cập phiên QC này")
+            
+    return {"success": True, "data": QCSessionDetailResponse.model_validate(qc_session)}
+
 @router.post("/sessions/create", response_model=dict)
 async def create_qc_session(
     *,
@@ -348,6 +383,7 @@ async def create_qc_session(
             criterion_name=str(item_in.get("name") or ""),
             mode_snapshot=item_in.get("mode", "point"),
             max_score_snapshot=item_in.get("max_score", 0),
+            min_pass_score_snapshot=item_in.get("min_pass_score", 0),
             result=status,
             score=item_in.get("score"),
             applicable=item_in.get("applicable", status not in {"na", "skipped_weekly"}),
@@ -359,16 +395,34 @@ async def create_qc_session(
         
     await session.commit()
     
-    # Reload with details
-    query = select(QCSession).options(
-        selectinload(QCSession.store),
-        selectinload(QCSession.auditor),
-        selectinload(QCSession.form_version).selectinload(QCFormVersion.form)
-    ).where(QCSession.id == qc_session.id)
+    # Process calculated score and submit immediately
+    return await submit_qc_session(
+        id=qc_session.id,
+        session=session,
+        current_user=current_user
+    )
+@router.delete("/sessions/{id}", response_model=dict)
+async def delete_qc_session(
+    id: int,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> dict[str, object]:
+    """Delete a QC session (temporary for cleanup)."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Chỉ admin mới có quyền xóa phiên QC")
+        
+    query = select(QCSession).where(QCSession.id == id)
     result = await session.execute(query)
-    qc_session = result.scalar_one()
+    qc_session = result.scalar_one_or_none()
+    
+    if not qc_session:
+        raise HTTPException(status_code=404, detail="Phiên QC không tồn tại")
+        
+    await session.delete(qc_session)
+    await session.commit()
+    
+    return {"success": True, "message": "Xóa phiên QC thành công"}
 
-    return {"success": True, "data": QCSessionResponse.model_validate(qc_session)}
 
 @router.get("/stores/overview", response_model=dict)
 async def read_qc_stores_overview(
@@ -577,11 +631,16 @@ async def submit_qc_session(
             
     # Determine result based on threshold (default 40% as per Strapi)
     pass_threshold = 40
+    pass_score = 0
     if qc_session.form_version and qc_session.form_version.pass_rule:
         pass_threshold = qc_session.form_version.pass_rule.get("passThreshold", 40)
+        pass_score = qc_session.form_version.pass_rule.get("passScore", 0)
         
     score_rate = (total_score / max_score * 100) if max_score > 0 else 0
-    is_pass = (failed_count == 0) and (score_rate >= pass_threshold)
+    if pass_score > 0:
+        is_pass = (failed_count == 0) and (total_score >= pass_score)
+    else:
+        is_pass = (failed_count == 0) and (score_rate >= pass_threshold)
     
     qc_session.total_score = total_score
     qc_session.max_score = max_score

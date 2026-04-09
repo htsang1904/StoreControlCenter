@@ -1,0 +1,8 @@
+Latest tickets in DB:
+  (8, '17 Đ. Mạc Đĩnh Chi, Quận 1', None)
+  (7, '139 Lý Chính Thắng, Quận 3', None)
+  (6, '17 Đ. Mạc Đĩnh Chi, Quận 1', None)
+  (5, '17 Đ. Mạc Đĩnh Chi, Quận 1', None)
+  (4, '126 Đ. Nguyễn Thị Minh Khai, Quận 3', None)
+
+Filtered tickets:

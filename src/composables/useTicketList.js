@@ -1,5 +1,6 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { deleteTicket as deleteTicketApi, listTickets, reopenTicket } from '@/services/ticket_service'
+import { useRoute } from 'vue-router'
 
 function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 10, fallbackTotal = 0) {
   const currentPage = Number(payload.page || payload.currentPage || fallbackPage || 1)
@@ -31,7 +32,24 @@ export function useTicketList(userInfo) {
   const filters = reactive({
     q: '',
     statuses: [],
+    dateFrom: '',
+    dateTo: '',
+    storeIds: '',
   })
+
+  const route = useRoute()
+
+  watch(
+    () => [route.query.date_from, route.query.date_to, route.query.store_ids],
+    ([newFrom, newTo, newStoreIds]) => {
+      filters.dateFrom = newFrom || ''
+      filters.dateTo = newTo || ''
+      filters.storeIds = newStoreIds || ''
+      // Only auto-fetch if we're not initially setting up, but you can also leave it passive
+      // or handle the trigger in components, which we do anyway on route changes.
+    },
+    { immediate: true }
+  )
 
   const pagination = reactive({
     page: 1,
@@ -104,6 +122,9 @@ export function useTicketList(userInfo) {
         pageSize: pagination.pageSize,
         q: filters.q,
         status: filters.statuses.join(','),
+        date_from: filters.dateFrom || undefined,
+        date_to: filters.dateTo || undefined,
+        store_ids: filters.storeIds || undefined,
       }
 
       const result = await listTickets(params)

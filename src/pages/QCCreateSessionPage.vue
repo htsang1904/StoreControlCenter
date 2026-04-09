@@ -437,6 +437,7 @@ const criteriaPayload = computed(() => {
       mode: criterion.mode,
       score: state.score,
       maxScore: criterion.maxScore,
+      min_pass_score: criterion.passScore,
       applicable: status !== 'na',
       status: status,
       note: String(state.note || '').trim(),
@@ -449,6 +450,7 @@ const sessionEvaluation = computed(() => {
   return qcHelpers.evaluateSession({
     criteria: criteriaPayload.value,
     passThreshold: selectedTemplate.value.passThreshold,
+    passScore: selectedTemplate.value.passScore || 0,
   })
 })
 
@@ -614,6 +616,7 @@ const submitSession = async () => {
       }
     }
 
+    activeDraftId.value = ''
     router.push(`/QC/store/${storeId.value}`)
   } catch (error) {
     errorMessage.value = error?.response?.data?.message || error?.message || 'Không thể tạo phiếu QC.'
@@ -636,7 +639,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
-    <div class="page-stack space-y-3 pb-24 pc:pb-0">
+    <div class="page-stack space-y-3 p-4 tablet:p-5 pc:p-6 pb-24 pc:pb-0">
       <div class="flex min-w-0 items-center gap-3">
         <button
           @click="goBack"
@@ -663,15 +666,15 @@ onBeforeUnmount(() => {
 
       <section class="grid gap-4 pc:grid-cols-[minmax(0,1fr)_320px]">
         <div class="space-y-4">
-          <section class="rounded-[24px] border border-slate-200 bg-white">
-            <div class="border-b border-slate-200 px-4 py-3">
+          <section class="rounded-[24px] border border-indigo-100 bg-white shadow-sm shadow-indigo-100/50 overflow-hidden">
+            <div class="border-b border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-white to-blue-50/50 px-4 py-4">
               <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-base font-semibold text-slate-900">{{ qcFormTitle }}</p>
                   <div class="mt-1 flex flex-wrap items-center gap-2">
                     <span
                       class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
-                      :class="activeDraftId ? 'bg-slate-100 text-slate-700' : 'bg-slate-100 text-slate-500'"
+                      :class="activeDraftId ? 'bg-indigo-100 text-indigo-700 font-semibold' : 'bg-slate-100 text-slate-500'"
                     >
                       {{ draftStatusLabel }}
                     </span>
@@ -685,7 +688,7 @@ onBeforeUnmount(() => {
                     :key="filter.id"
                     type="button"
                     class="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition"
-                    :class="activeCriterionFilter === filter.id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'"
+                    :class="activeCriterionFilter === filter.id ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm shadow-indigo-200' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700'"
                     @click="setCriterionFilter(filter.id)"
                   >
                     {{ filter.label }}
@@ -740,14 +743,14 @@ onBeforeUnmount(() => {
         </div>
 
         <aside>
-          <section class="sticky top-16 rounded-[24px] border border-slate-200 bg-white">
-            <div class="border-b border-slate-200 px-4 py-3">
+          <section class="sticky top-16 rounded-[24px] border border-indigo-100 bg-white shadow-sm shadow-indigo-100/50 overflow-hidden">
+            <div class="border-b border-indigo-100 bg-gradient-to-r from-slate-50/50 to-indigo-50/30 px-4 py-4">
               <div class="flex items-center justify-between gap-3">
                 <p class="text-sm font-semibold text-slate-900">Tóm tắt</p>
-                <p class="text-[11px] font-medium text-slate-500">{{ completedCriteria }}/{{ scorableCriteria.length }} đã chấm</p>
+                <p class="text-[11px] font-medium text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">{{ completedCriteria }}/{{ scorableCriteria.length }} đã chấm</p>
               </div>
-              <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
-                <div class="h-full rounded-full bg-slate-900 transition-all duration-300" :style="progressBarStyle"></div>
+              <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 border border-slate-200/50">
+                <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-300" :style="progressBarStyle"></div>
               </div>
               <div class="mt-2 flex items-center justify-between text-xs text-slate-500">
                 <span>{{ remainingCriteria }} mục còn lại</span>
@@ -757,17 +760,17 @@ onBeforeUnmount(() => {
 
             <div class="space-y-4 px-4 py-4">
               <div class="grid grid-cols-3 gap-3 text-center">
-                <div>
-                  <p class="text-lg font-semibold text-slate-900">{{ sessionEvaluation.passedCount }}</p>
-                  <p class="text-[11px] text-slate-500">Đạt</p>
+                <div class="rounded-xl bg-emerald-50/50 p-2 border border-emerald-100/50">
+                  <p class="text-lg font-bold text-emerald-700">{{ sessionEvaluation.passedCount }}</p>
+                  <p class="text-[11px] font-medium text-emerald-600">Đạt</p>
                 </div>
-                <div>
-                  <p class="text-lg font-semibold text-slate-900">{{ sessionEvaluation.failedCount }}</p>
-                  <p class="text-[11px] text-slate-500">Lỗi</p>
+                <div class="rounded-xl bg-rose-50/50 p-2 border border-rose-100/50">
+                  <p class="text-lg font-bold text-rose-700">{{ sessionEvaluation.failedCount }}</p>
+                  <p class="text-[11px] font-medium text-rose-600">Lỗi</p>
                 </div>
-                <div>
-                  <p class="text-lg font-semibold text-slate-900">{{ sessionEvaluation.totalScore }}/{{ sessionEvaluation.maxScore }}</p>
-                  <p class="text-[11px] text-slate-500">Điểm</p>
+                <div class="rounded-xl bg-blue-50/50 p-2 border border-blue-100/50">
+                  <p class="text-lg font-bold text-blue-700">{{ sessionEvaluation.totalScore }}/{{ sessionEvaluation.maxScore }}</p>
+                  <p class="text-[11px] font-medium text-blue-600">Điểm</p>
                 </div>
               </div>
 

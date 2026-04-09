@@ -75,6 +75,7 @@ const createCriterionNode = (overrides = {}) => {
     description: overrides.description || '',
     mode: overrides.mode || 'point',
     maxScore: overrides.maxScore ?? 10,
+    minPassScore: overrides.minPassScore ?? 0,
     children: [],
   }
 }
@@ -110,6 +111,7 @@ const qcForm = reactive({
   name: '',
   description: '',
   passThreshold: 40,
+  passScore: 0,
   isActive: true,
   criteriaTree: createStarterTree(),
 })
@@ -175,6 +177,9 @@ const flattenCriteriaTreeForReview = (nodes = [], path = []) => {
       maxScore: node.nodeType === 'criterion'
         ? (String(node.mode || 'point') === 'pass_fail' ? 1 : Number(node.maxScore || 0))
         : 0,
+      minPassScore: node.nodeType === 'criterion'
+        ? (String(node.mode || 'point') === 'pass_fail' ? 1 : Number(node.minPassScore || 0))
+        : 0,
       childCount: Array.isArray(node.children) ? node.children.length : 0,
     }
 
@@ -184,6 +189,7 @@ const flattenCriteriaTreeForReview = (nodes = [], path = []) => {
 }
 
 const reviewRows = computed(() => flattenCriteriaTreeForReview(qcForm.criteriaTree))
+const totalMaxScoreComputed = computed(() => reviewRows.value.reduce((acc, row) => acc + (row.maxScore || 0), 0))
 const expandedReviewGroupOrderings = ref(new Set())
 
 const isReviewGroupExpanded = (ordering) => expandedReviewGroupOrderings.value.has(String(ordering))
@@ -243,12 +249,20 @@ const getMetadataValidationErrors = () => {
     errors.name = 'Tên biểu mẫu là bắt buộc'
   }
 
-  if (rawThreshold === '' || rawThreshold === null || rawThreshold === undefined) {
-    errors.passThreshold = 'Ngưỡng đạt là bắt buộc'
-  } else {
+  if (rawThreshold !== '' && rawThreshold !== null && rawThreshold !== undefined) {
     const threshold = Number(rawThreshold)
     if (!Number.isFinite(threshold) || threshold < 0 || threshold > 100) {
       errors.passThreshold = 'Ngưỡng đạt phải nằm trong khoảng từ 0 đến 100'
+    }
+  }
+
+  const rawPassScore = qcForm.passScore
+  if (rawPassScore !== '' && rawPassScore !== null && rawPassScore !== undefined) {
+    const passScore = Number(rawPassScore)
+    if (!Number.isFinite(passScore) || passScore < 0) {
+      errors.passScore = 'Điểm đạt tối thiểu phải là số dương'
+    } else if (passScore > totalMaxScoreComputed.value) {
+      errors.passScore = `Điểm đạt tối thiểu không được lớn hơn tổng điểm tối đa (${totalMaxScoreComputed.value})`
     }
   }
 
@@ -378,6 +392,7 @@ const serializeCriteriaTree = (nodes = []) => (
       description: String(node.description || '').trim(),
       mode: String(node.mode || 'point'),
       maxScore: node.mode === 'pass_fail' ? 1 : Number(node.maxScore || 0),
+      minPassScore: node.mode === 'pass_fail' ? 1 : Number(node.minPassScore || 0),
     }
   })
 )
@@ -478,6 +493,7 @@ const collectTreeValidation = (nodes = [], parentLabel = 'Mục gốc') => {
 
     if (mode === 'point') {
       const maxScore = Number(node.maxScore)
+      const minPassScore = Number(node.minPassScore || 0)
       if (!Number.isFinite(maxScore) || maxScore <= 0) {
         pushTreeValidationError(
           nodeErrors,
@@ -485,6 +501,24 @@ const collectTreeValidation = (nodes = [], parentLabel = 'Mục gốc') => {
           node.id,
           'maxScore',
           `Tiêu chí "${nodeName || positionLabel}" cần điểm tối đa lớn hơn 0`,
+        )
+      }
+      if (!Number.isFinite(minPassScore) || minPassScore < 0) {
+        pushTreeValidationError(
+          nodeErrors,
+          messages,
+          node.id,
+          'minPassScore',
+          `Tiêu chí "${nodeName || positionLabel}" cần điểm tối thiểu không âm`,
+        )
+      }
+      if (minPassScore > maxScore) {
+        pushTreeValidationError(
+          nodeErrors,
+          messages,
+          node.id,
+          'minPassScore',
+          `Tiêu chí "${nodeName || positionLabel}": Điểm tối thiểu (${minPassScore}) không được lớn hơn Điểm tối đa (${maxScore})`,
         )
       }
     }
@@ -557,6 +591,7 @@ const submitForm = async (targetStatus) => {
       name: String(qcForm.name || '').trim(),
       description: String(qcForm.description || '').trim(),
       passThreshold: Number(qcForm.passThreshold || 0),
+      passScore: Number(qcForm.passScore || 0),
       isActive: qcForm.isActive,
       status: targetStatus,
       criteria: serializeCriteriaTree(qcForm.criteriaTree),
@@ -664,7 +699,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-stack mx-auto max-w-6xl space-y-4 p-3">
+  <div class="page-stack mx-auto max-w-6xl space-y-4 p-4 tablet:p-5 pc:p-6">
     <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
       <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
         <div class="flex min-w-0 items-start gap-3">
@@ -875,6 +910,37 @@ onMounted(async () => {
                         <span class="material-symbols-outlined text-[18px]">playlist_add</span>
                         Thêm tiêu chí
                       </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-5 border-t border-slate-200 pt-5 text-slate-800">
+                  <div class="rounded-xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
+                    <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+                      <div>
+                         <p class="text-sm font-semibold text-slate-900">Điểm đánh giá của phiên</p>
+                         <p class="text-xs text-slate-600 mt-1">Tổng điểm tối đa (Tự động): <strong class="text-blue-700">{{ totalMaxScoreComputed }} điểm</strong></p>
+                      </div>
+                      <div class="min-w-[200px]">
+                        <label class="space-y-1 block">
+                          <span class="text-sm font-semibold text-slate-700 block text-right">Tổng điểm đạt tối thiểu</span>
+                          <div class="relative flex justify-end">
+                            <input
+                              v-model.number="qcForm.passScore"
+                              type="number"
+                              min="0"
+                              :max="totalMaxScoreComputed"
+                              step="0.1"
+                              :class="[customInputClass, 'no-spin pl-4 text-right font-medium max-w-[150px]', showMetadataValidation && metadataValidationErrors.passScore ? validationInputClass : '']"
+                              placeholder="..."
+                            />
+                          </div>
+                          <p v-if="showMetadataValidation && metadataValidationErrors.passScore" :class="[validationMessageClass, 'text-right mt-1']">
+                            {{ metadataValidationErrors.passScore }}
+                          </p>
+                          <p v-else class="text-[11px] text-slate-500 text-right mt-1">Phiếu dưới điểm này sẽ KHÔNG ĐẠT</p>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>

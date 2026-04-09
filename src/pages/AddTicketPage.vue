@@ -308,7 +308,7 @@ watch(
 
   <!-- Edit Ticket Form (Standard Page Stack Layout) -->
   <template v-else>
-    <div class="page-stack mx-2 overflow-visible space-y-4 tablet:mx-3 pc:mx-0">
+    <div class="page-stack overflow-visible space-y-4 p-4 tablet:p-5 pc:p-6">
       <div class="flex min-w-0 items-start gap-3">
         <button
           type="button"

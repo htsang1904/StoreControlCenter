@@ -360,6 +360,22 @@ watch(
             <p v-if="node.mode === 'pass_fail'" class="text-xs text-slate-400">Kiểu này luôn quy đổi về 1 điểm.</p>
           </label>
 
+          <label class="space-y-2">
+            <span class="text-sm font-semibold text-slate-700">Điểm đạt tối thiểu</span>
+            <input
+              v-model.number="node.minPassScore"
+              type="number"
+              min="0"
+              :max="node.maxScore"
+              step="0.1"
+              :disabled="node.mode === 'pass_fail'"
+              :class="[customInputClass, 'no-spin', fieldErrors.minPassScore ? validationInputClass : '']"
+            />
+            <p v-if="fieldErrors.minPassScore" :class="validationMessageClass">{{ fieldErrors.minPassScore }}</p>
+            <p v-if="node.mode === 'pass_fail'" class="text-xs text-slate-400">Mặc định tính là 1 điểm.</p>
+            <p v-else class="text-xs text-slate-400">Dưới điểm này sẽ bị tính Không Đạt.</p>
+          </label>
+
         </div>
       </div>
 

@@ -51,6 +51,7 @@ class QCSessionItem(Base):
     # Enums: "pass_fail", "point"
     mode_snapshot = Column(String(50), nullable=False)
     max_score_snapshot = Column(Numeric(10, 2), default=0)
+    min_pass_score_snapshot = Column(Numeric(10, 2), default=0)
     
     # Enums: "pending", "pass", "fail", "na", "skipped_weekly"
     result = Column(String(50), default="pending", nullable=False)

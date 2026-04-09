@@ -148,7 +148,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div :class="bodyClasses">
+        <div v-if="$slots.default" :class="bodyClasses">
           <slot />
         </div>
 

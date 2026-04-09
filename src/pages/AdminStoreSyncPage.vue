@@ -32,7 +32,7 @@ const goBack = () => {
 </script>
 
 <template>
-  <div class="page-stack space-y-4 p-3">
+  <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
     <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
       <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
         <div>

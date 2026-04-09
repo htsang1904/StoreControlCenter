@@ -59,18 +59,17 @@ const resolveCriterionStatus = (criterion, criterionState = {}) => {
 const currentStatus = computed(() => resolveCriterionStatus(props.criterion, state.value))
 
 const cardToneClass = computed(() => {
-  if (props.criterion.mode === 'point') return 'border-slate-200'
-  if (currentStatus.value === 'pass') return 'border-emerald-200'
-  if (currentStatus.value === 'fail') return 'border-rose-200'
-  if (currentStatus.value === 'na') return 'border-slate-300'
-  return 'border-slate-200'
+  if (currentStatus.value === 'pass') return 'border-emerald-200 bg-emerald-50/30 shadow-sm shadow-emerald-100/50'
+  if (currentStatus.value === 'fail') return 'border-rose-200 bg-rose-50/30 shadow-sm shadow-rose-100/50'
+  if (currentStatus.value === 'na') return 'border-slate-200 bg-slate-50 opacity-75'
+  return 'border-slate-200 hover:border-indigo-200 hover:shadow-sm hover:shadow-indigo-100/50 transition-all'
 })
 
 const statusBadgeClass = computed(() => {
-  if (currentStatus.value === 'pass') return 'bg-emerald-600 text-white'
-  if (currentStatus.value === 'fail') return 'bg-rose-600 text-white'
+  if (currentStatus.value === 'pass') return 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
+  if (currentStatus.value === 'fail') return 'bg-rose-600 text-white shadow-sm shadow-rose-200'
   if (currentStatus.value === 'na') return 'bg-slate-200 text-slate-700'
-  return 'bg-slate-100 text-slate-600'
+  return 'bg-indigo-100 text-indigo-700 font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.05)] ring-1 ring-inset ring-indigo-200/50'
 })
 
 const statusLabel = computed(() => {
@@ -128,33 +127,33 @@ const detailToggleLabel = computed(() => (
 
 const sectionHeaderClass = computed(() => {
   if (props.level === 1) {
-    return 'rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4'
+    return 'rounded-2xl border border-indigo-100/50 bg-gradient-to-r from-indigo-50/80 via-white to-sky-50/30 px-5 py-4 shadow-sm shadow-indigo-100/20'
   }
 
   if (props.level === 2) {
-    return 'rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3'
+    return 'rounded-xl border border-indigo-50 bg-indigo-50/40 px-4 py-3'
   }
 
-  return 'rounded-xl border border-slate-200 bg-slate-50 px-3 py-3'
+  return 'rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2'
 })
 
 const sectionTagClass = computed(() => {
   if (props.level <= 2) {
-    return 'bg-white text-slate-600'
+    return 'bg-white text-indigo-700 font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.05)] ring-1 ring-inset ring-indigo-100/50'
   }
 
   return 'bg-slate-100 text-slate-600'
 })
 
 const sectionTitleClass = computed(() => {
-  if (props.level === 1) return 'text-base font-semibold text-slate-900'
-  if (props.level === 2) return 'text-[15px] font-semibold text-slate-900'
-  return 'text-sm font-semibold text-slate-900'
+  if (props.level === 1) return 'text-base font-bold text-indigo-950 tracking-tight'
+  if (props.level === 2) return 'text-[15px] font-bold text-indigo-900 tracking-tight'
+  return 'text-sm font-semibold text-slate-800 tracking-tight'
 })
 
 const sectionChildrenLaneClass = computed(() => {
-  if (props.level === 1) return 'ml-5 space-y-1 border-l-2 border-slate-200 pl-5'
-  return 'ml-4 space-y-1 border-l border-slate-200 pl-4'
+  if (props.level === 1) return 'ml-4 space-y-1 border-l-2 border-slate-200 pl-4'
+  return 'ml-3 space-y-1 border-l border-slate-200 pl-3'
 })
 
 const collectLeafCriteria = (criterion) => {
@@ -246,8 +245,8 @@ const toggleDetails = () => {
 </script>
 
 <template>
-  <div :class="['qc-criterion-item', level > 1 ? 'mt-2' : 'mt-4']">
-    <div v-if="hasChildren" class="border-b border-slate-200 last:border-b-0">
+  <div :class="['qc-criterion-item', level > 1 ? 'mt-1' : 'mt-2']">
+    <div v-if="hasChildren" class="border-b border-transparent">
       <button
         type="button"
         class="cursor-pointer flex w-full items-start gap-3 text-left transition"
@@ -310,7 +309,7 @@ const toggleDetails = () => {
     <div
       v-else
       :id="criterionDomId"
-      :class="['scroll-mt-24 border-b bg-white py-4 last:border-b-0 transition-colors', cardToneClass]"
+      :class="['scroll-mt-24 border-b bg-white py-2.5 last:border-b-0 transition-colors', cardToneClass]"
     >
       <div class="flex flex-col gap-3 pc:flex-row pc:items-start pc:justify-between">
         <div class="min-w-0 flex-1">
@@ -355,7 +354,7 @@ const toggleDetails = () => {
           </div>
 
           <div v-else class="space-y-3">
-            <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 transition focus-within:border-slate-300 focus-within:bg-white">
+            <div class="rounded-2xl border border-indigo-50/80 bg-indigo-50/40 p-3 transition focus-within:border-indigo-200 focus-within:bg-white focus-within:shadow-sm">
               <div class="flex items-center gap-3">
                 <input
                   type="number"
@@ -408,7 +407,7 @@ const toggleDetails = () => {
         </div>
       </div>
 
-      <div v-if="canShowDetails" class="mt-3 border-t border-slate-200 pt-3">
+      <div v-if="canShowDetails" class="mt-2.5 border-t border-slate-200 pt-2.5">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p class="text-xs font-medium text-slate-500">Ghi chú & ảnh</p>

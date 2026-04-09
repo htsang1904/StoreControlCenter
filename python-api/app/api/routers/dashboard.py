@@ -1,7 +1,8 @@
 from datetime import timedelta
-from typing import Any, Optional
+from typing import Any, Optional, List
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, or_, and_
+from sqlalchemy import func, or_, and_, case
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
@@ -19,17 +20,20 @@ def normalize_dashboard_status(status: str) -> str:
         return "in_progress"
     return val
 
-@router.get("/overview", response_model=dict)
-@router.get("/overview/", response_model=dict)
+class DashboardOverviewRequest(BaseModel):
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    store_ids: Optional[str] = None
+    department_id: Optional[int] = None
+    top_stores_limit: int = 5
+    activity_limit: int = 8
+
+@router.post("/overview", response_model=dict)
+@router.post("/overview/", response_model=dict)
 async def get_dashboard_overview(
+    request: DashboardOverviewRequest,
     session: SessionDep,
     current_user: CurrentUser,
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
-    store_id: Optional[int] = Query(None),
-    department_id: Optional[int] = Query(None),
-    top_stores_limit: int = Query(5),
-    activity_limit: int = Query(8)
 ) -> Any:
     """
     Lấy dữ liệu tổng quan dashboard bao gồm thống kê ticket, cửa hàng hàng đầu và nhật ký hoạt động.
@@ -43,8 +47,8 @@ async def get_dashboard_overview(
     default_to = now.date().isoformat()
     default_from = (now - timedelta(days=6)).date().isoformat()
     
-    date_from_str = date_from or default_from
-    date_to_str = date_to or default_to
+    date_from_str = request.date_from or default_from
+    date_to_str = request.date_to or default_to
     
     try:
         # Chuyển về 00:00:00 cho ngày bắt đầu và 23:59:59 cho ngày kết thúc
@@ -65,10 +69,12 @@ async def get_dashboard_overview(
         Ticket.created_at <= date_to_dt
     ]
 
-    if store_id:
-        base_filters.append(Ticket.store_id == store_id)
-    if department_id:
-        base_filters.append(Ticket.responsible_department_id == department_id)
+    if request.store_ids:
+        ids = [int(i.strip()) for i in request.store_ids.split(",") if i.strip().isdigit()]
+        if ids:
+            base_filters.append(Ticket.store_id.in_(ids))
+    if request.department_id:
+        base_filters.append(Ticket.responsible_department_id == request.department_id)
 
     # 3. Phân quyền dữ liệu (RBAC)
     if current_user.role == "store":
@@ -106,7 +112,19 @@ async def get_dashboard_overview(
     total_ticket = sum(raw_status_counts.values())
     in_progress = status_counts["in_progress"]
     resolved = status_counts["resolved"]
-    
+
+    # 4b. Global average processing time
+    avg_support_time_expr = func.avg(
+        case(
+            (Ticket.status.in_(["resolved", "closed"]), func.extract('epoch', Ticket.resolved_at) - func.extract('epoch', Ticket.created_at)),
+            else_=None
+        )
+    )
+    avg_proc_query = select(avg_support_time_expr).where(and_(*base_filters))
+    avg_proc_res = await session.execute(avg_proc_query)
+    global_avg_sec = avg_proc_res.scalar()
+    global_avg_hours = round(float(global_avg_sec) / 3600.0, 1) if global_avg_sec else 0.0
+
     # 5. Ticket sắp quá hạn (Overdue Soon - trong vòng 48h)
     soon_threshold = now + timedelta(days=2)
     overdue_query = select(func.count(Ticket.id)).where(
@@ -123,21 +141,120 @@ async def get_dashboard_overview(
 
     # 6. Top Stores (Cửa hàng nhiều ticket nhất)
     top_stores_query = (
-        select(Store.id, Store.shortAddress, Store.address, Store.code, func.count(Ticket.id))
+        select(Store.id, Store.shortAddress, Store.address, Store.code, func.count(Ticket.id), avg_support_time_expr)
         .join(Store, Ticket.store_id == Store.id)
         .where(and_(*base_filters))
         .group_by(Store.id, Store.shortAddress, Store.address, Store.code)
         .order_by(func.count(Ticket.id).desc())
-        .limit(top_stores_limit)
+        .limit(request.top_stores_limit)
     )
     top_stores_res = await session.execute(top_stores_query)
     top_stores = []
-    for sid, sa, addr, code, count in top_stores_res.all():
+    for sid, sa, addr, code, count, avg_sec in top_stores_res.all():
+        avg_hours = round(float(avg_sec) / 3600.0, 1) if avg_sec else 0.0
         top_stores.append({
             "store_id": sid,
             "count": count,
+            "avgSupportTime": avg_hours,
             "name": sa or addr or code or f"Store #{sid}"
         })
+
+    # 6b. Chart Data
+    days_diff = (date_to_dt - date_from_dt).days
+    
+    if days_diff <= 14:
+        trunc_type = 'day'
+    elif days_diff > 45:
+        trunc_type = 'month'
+    else:
+        trunc_type = 'week'
+        
+    from sqlalchemy import text
+    period_expr = func.date_trunc(text(f"'{trunc_type}'"), Ticket.created_at)
+
+    chart_query = (
+        select(
+            period_expr.label('period'),
+            func.count(Ticket.id),
+            avg_support_time_expr
+        )
+        .where(and_(*base_filters))
+        .group_by(period_expr)
+        .order_by(period_expr.asc())
+    )
+    chart_res = await session.execute(chart_query)
+    
+    # Generate full categories to ensure chart has 0-values
+    full_categories = []
+    chart_tickets = []
+    chart_support_time = []
+    cat_map = {}
+    
+    if trunc_type == 'day':
+        for i in range(days_diff + 1):
+            d = date_from_dt + timedelta(days=i)
+            cat = d.strftime('%d/%m')
+            # For mapping later, store canonical date string
+            cat_map[d.date().isoformat()] = len(full_categories)
+            full_categories.append(cat)
+            chart_tickets.append(0)
+            chart_support_time.append(0.0)
+    elif trunc_type == 'month':
+        cur = date_from_dt.replace(day=1)
+        end = date_to_dt.date()
+        while cur.date() <= end:
+            cat = cur.strftime('%m/%Y')
+            cat_map[cur.strftime('%Y-%m')] = len(full_categories)
+            full_categories.append(cat)
+            chart_tickets.append(0)
+            chart_support_time.append(0.0)
+            m = cur.month + 1
+            y = cur.year
+            if m > 12:
+                m = 1
+                y += 1
+            cur = cur.replace(year=y, month=m)
+    else: # week
+        cur = date_from_dt
+        end = date_to_dt.date()
+        while cur.date() <= end:
+            week_num = cur.isocalendar()[1]
+            year_num = cur.isocalendar()[0]
+            cat = f"Tuần {week_num}/{year_num}"
+            if cat not in full_categories:
+                # Same week could trigger multiple days
+                cat_map[f"{year_num}-{week_num}"] = len(full_categories)
+                full_categories.append(cat)
+                chart_tickets.append(0)
+                chart_support_time.append(0.0)
+            cur += timedelta(days=7)
+            
+    # Fill actual data
+    for period_ts, count, avg_sec in chart_res.all():
+        if period_ts is None:
+            continue
+        try:
+            if trunc_type == 'day':
+                key = period_ts.date().isoformat()
+            elif trunc_type == 'month':
+                key = period_ts.strftime('%Y-%m')
+            else:
+                week_num = period_ts.isocalendar()[1]
+                year_num = period_ts.isocalendar()[0]
+                key = f"{year_num}-{week_num}"
+                
+            if key in cat_map:
+                idx = cat_map[key]
+                chart_tickets[idx] += count
+                chart_support_time[idx] = round(float(avg_sec) / 3600.0, 1) if avg_sec else 0.0
+        except Exception:
+            pass
+
+    chart_data = {
+        "categories": full_categories,
+        "tickets": chart_tickets,
+        "supportTime": chart_support_time
+    }
 
     # 7. Nhật ký hoạt động (Activity Feed)
     # Strapi lọc logs dựa trên filter của ticket
@@ -151,7 +268,7 @@ async def get_dashboard_overview(
             *base_filters # Kế thừa bộ lọc ticket cho hoạt động
         ))
         .order_by(TicketLog.created_at.desc())
-        .limit(activity_limit)
+        .limit(request.activity_limit)
     )
     activity_res = await session.execute(activity_query)
     activity_feed = []
@@ -185,6 +302,7 @@ async def get_dashboard_overview(
                 "in_progress": in_progress,
                 "resolved": resolved,
                 "overdue": overdue_soon,
+                "avg_processing_time": global_avg_hours,
             },
             "status": [
                 {"key": "new", "label": "Mới tạo", "value": status_counts["new"]},
@@ -193,6 +311,7 @@ async def get_dashboard_overview(
                 {"key": "rejected", "label": "Từ chối", "value": status_counts["rejected"]},
             ],
             "top_stores": top_stores,
-            "activity_feed": activity_feed
+            "activity_feed": activity_feed,
+            "chart_data": chart_data
         }
     }

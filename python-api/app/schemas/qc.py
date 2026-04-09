@@ -42,6 +42,10 @@ class QCSessionCriterionInput(BaseModel):
         default=Decimal(0),
         validation_alias=AliasChoices("max_score", "maxScore"),
     )
+    min_pass_score: Optional[Decimal] = Field(
+        default=None,
+        validation_alias=AliasChoices("min_pass_score", "minPassScore", "passScore"),
+    )
     status: str = "pending"
     score: Optional[Decimal] = None
     applicable: Optional[bool] = None
@@ -76,14 +80,41 @@ class QCSessionResponse(QCSessionBase):
     submitted_at: Optional[datetime] = None
     auditor: Optional[UserMinimalResponse] = None
     store: Optional[StoreResponse] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class QCSessionItemResponse(BaseModel):
+    id: int
+    session_id: int
+    criterion_id: Optional[int] = None
+    criterion_code: Optional[str] = None
+    criterion_name: str
+    mode_snapshot: str
+    max_score_snapshot: Decimal
+    min_pass_score_snapshot: Optional[Decimal] = None
+    result: str
+    score: Optional[Decimal] = None
+    applicable: bool
+    requires_fix: bool
+    note: Optional[str] = None
+    attachments: Optional[list[dict[str, object]]] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+    
+class QCFindingResponse(BaseModel):
+    id: int
+    finding_code: str
+    criterion_name: Optional[str] = None
+    severity: str
+    status: str
+    due_date: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 
 class QCSessionDetailResponse(QCSessionResponse):
-    # Will expand items and findings lists here
-    items: list[dict[str, object]] = Field(default_factory=list)
-    findings: list[dict[str, object]] = Field(default_factory=list)
+    items: list[QCSessionItemResponse] = Field(default_factory=list)
+    findings: list[QCFindingResponse] = Field(default_factory=list)
 
 
 class PaginationMeta(BaseModel):

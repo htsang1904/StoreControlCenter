@@ -216,7 +216,10 @@ def build_qc_session_create_payload(
     items_data = data.pop("criteria", [])
 
     data["auditor_id"] = current_user.id
-    data["code"] = f"QC-{utc_now_naive().strftime('%y%m')}-{uuid.uuid4().hex[:4].upper()}"
+    now = utc_now_naive()
+    data["code"] = f"QC-{now.strftime('%y%m')}-{uuid.uuid4().hex[:4].upper()}"
     data["audited_at"] = parse_iso_datetime(data.get("audited_at"))
+    data["created_at"] = now
+    data["updated_at"] = now
 
     return data, items_data

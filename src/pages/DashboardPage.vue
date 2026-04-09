@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import VueApexCharts from 'vue3-apexcharts'
 import draggable from 'vuedraggable'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
 import StoreFilterButton from '@/components/StoreFilterButton.vue'
 import { useApp } from '@/plugins/app'
@@ -11,6 +11,7 @@ import { getQcStoresOverviewApi } from '@/services/qc_service'
 import { onMounted } from 'vue'
 
 const route = useRoute()
+const router = useRouter()
 const { state } = useApp()
 
 const loading = ref(false)
@@ -39,27 +40,13 @@ const qcSummary = ref({
 })
 const recentTickets = ref([])
 
-// Mock Data
-const mockAvgProcessingTime = ref(2.5) 
-const mockStoreTicketStats = ref([
-  { id: 1, name: 'CH Nguyễn Trãi', ticketCount: 45, avgSupportTime: 2.1 },
-  { id: 2, name: 'CH Lê Duẩn', ticketCount: 38, avgSupportTime: 1.8 },
-  { id: 3, name: 'CH Phạm Văn Đồng', ticketCount: 30, avgSupportTime: 2.5 },
-  { id: 4, name: 'CH Hai Bà Trưng', ticketCount: 25, avgSupportTime: 3.2 },
-  { id: 5, name: 'CH Quận 7', ticketCount: 15, avgSupportTime: 1.5 },
-])
-const mockTopQcStores = ref([
-  { id: 1, name: 'CH Quận 7', qcScore: 98, passRate: 100 },
-  { id: 2, name: 'CH Lê Duẩn', qcScore: 95, passRate: 98 },
-  { id: 3, name: 'CH Nguyễn Trãi', qcScore: 92, passRate: 95 },
-  { id: 4, name: 'CH Gò Vấp', qcScore: 90, passRate: 90 },
-])
-const mockStoreErrors = ref([
-  { id: 4, name: 'CH Hai Bà Trưng', errorCount: 12, failRate: 15 },
-  { id: 5, name: 'CH Phạm Văn Đồng', errorCount: 8, failRate: 10 },
-  { id: 6, name: 'CH Quận 12', errorCount: 5, failRate: 8 },
-  { id: 7, name: 'CH Bình Tân', errorCount: 4, failRate: 5 },
-])
+const ticketAvgProcessingTime = ref(0)
+const ticketChartRawData = ref({
+  categories: [],
+  tickets: [],
+  supportTime: []
+})
+const qcTopStoresData = ref([])
 
 const dashboardRange = computed(() => {
   return normalizeDateRangeFromQuery(route.query || {}, getDefaultDateRange())
@@ -169,7 +156,7 @@ const kpiCards = computed(() => [
   {
     key: 'avg_processing_time',
     label: 'TB Thời gian xử lý',
-    value: `${Number((mockAvgProcessingTime.value * (chartMultiplier?.value || 1)).toFixed(1))} giờ`,
+    value: `${Number(ticketAvgProcessingTime.value.toFixed(1))} giờ`,
     meta: 'Trên mỗi ticket',
     icon: 'schedule',
     bgClass: 'bg-indigo-100',
@@ -273,11 +260,52 @@ const dashboardWidgets = ref([
 
 const chartStoreFilter = ref([])
 
+watch(
+  () => route.query.store_ids,
+  (newVal) => {
+    if (typeof newVal === 'string' && newVal.trim() !== '') {
+      const parsed = newVal.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
+      if (parsed.join(',') !== chartStoreFilter.value.join(',')) {
+        chartStoreFilter.value = parsed
+      }
+    } else if (!newVal && stores.value.length > 0) {
+      // If no query parameter, assume ALL stores are selected
+      const allIds = stores.value.map(s => s.id)
+      if (allIds.join(',') !== chartStoreFilter.value.join(',')) {
+         chartStoreFilter.value = allIds
+      }
+    }
+  },
+  { immediate: true }
+)
+
 watch(stores, (newStores) => {
-  if (newStores.length > 0 && chartStoreFilter.value.length === 0) {
+  // Only auto-select all stores if there is no store_ids query and no current selection (first load)
+  if (newStores.length > 0 && chartStoreFilter.value.length === 0 && !route.query.store_ids) {
+    chartStoreFilter.value = newStores.map(s => s.id)
+  } else if (newStores.length > 0 && !route.query.store_ids) {
     chartStoreFilter.value = newStores.map(s => s.id)
   }
 }, { immediate: true })
+
+watch(chartStoreFilter, (newVal) => {
+  const currentQ = String(route.query.store_ids || '')
+  let newQ = newVal.join(',')
+  
+  if (stores.value.length > 0 && newVal.length === stores.value.length) {
+    newQ = '' // Clear from URL if all selected
+  }
+
+  if (currentQ !== newQ && newVal.length > 0) {
+    const query = { ...route.query }
+    if (newQ) {
+      query.store_ids = newQ
+    } else {
+      delete query.store_ids
+    }
+    router.replace({ query })
+  }
+}, { deep: true })
 
 const chartMultiplier = computed(() => {
   if (chartStoreFilter.value.length === 0) return 0
@@ -287,32 +315,14 @@ const chartMultiplier = computed(() => {
 })
 
 const ticketChartData = computed(() => {
-  const mult = chartMultiplier.value
-  if (mult === 0) {
+  if (ticketChartRawData.value.categories.length === 0) {
     return {
       categories: ['-'],
       tickets: [0],
       supportTime: [0]
     }
   }
-  if (chartPeriod.value === 'week') {
-    return {
-      categories: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
-      tickets: [12, 19, 15, 22, 18, 30, 25].map(v => Math.round(v * mult)),
-      supportTime: [2.1, 1.8, 2.5, 2.0, 1.5, 3.2, 2.8].map(v => Number((v * (1.5 - mult * 0.5)).toFixed(1)))
-    }
-  } else if (chartPeriod.value === 'year') {
-    return {
-      categories: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'],
-      tickets: [120, 150, 180, 130, 200, 250, 220, 190, 210, null, null, null].map(v => v ? Math.round(v * mult) : null),
-      supportTime: [2.5, 2.3, 2.1, 2.0, 2.8, 3.1, 2.4, 2.1, 1.9, null, null, null].map(v => v ? Number((v * (1.5 - mult * 0.5)).toFixed(1)) : null)
-    }
-  }
-  return {
-    categories: ['Tuần 1', 'Tuần 2', 'Tuần 3', 'Tuần 4'],
-    tickets: [45, 60, 55, 70].map(v => Math.round(v * mult)),
-    supportTime: [2.2, 2.0, 2.5, 1.9].map(v => Number((v * (1.5 - mult * 0.5)).toFixed(1)))
-  }
+  return ticketChartRawData.value
 })
 
 const commonChartOptions = {
@@ -372,12 +382,12 @@ const topStoreTicketBarOptions = computed(() => ({
   plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true } },
   colors: ['#6366F1', '#8B5CF6', '#EC4899', '#F43F5E', '#F59E0B'],
   dataLabels: { enabled: true, style: { colors: ['#fff'] } },
-  xaxis: { categories: mockStoreTicketStats.value.map(s => s.name) },
+  xaxis: { categories: ticketTopStores.value.map(s => s.name || `Store #${s.store_id}`), labels: { trim: true, style: { fontWeight: 600 } } },
   legend: { show: false }
 }))
 
 const topStoreTicketBarSeries = computed(() => [
-  { name: 'Số yêu cầu', data: mockStoreTicketStats.value.map(s => s.ticketCount) }
+  { name: 'Số yêu cầu', data: ticketTopStores.value.map(s => s.count || 0) }
 ])
 
 const topStoreQcBarOptions = computed(() => ({
@@ -386,12 +396,12 @@ const topStoreQcBarOptions = computed(() => ({
   plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true } },
   colors: ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0'],
   dataLabels: { enabled: true, style: { colors: ['#064E3B'] } },
-  xaxis: { categories: mockTopQcStores.value.map(s => s.name), max: 100 },
+  xaxis: { categories: qcTopStoresData.value.map(s => s.storeName || s.name || `Store #${s.storeId || s.store_id}`), max: 100, labels: { trim: true, style: { fontWeight: 600 } } },
   legend: { show: false }
 }))
 
 const topStoreQcBarSeries = computed(() => [
-  { name: 'Tỉ lệ đạt (%)', data: mockTopQcStores.value.map(s => s.passRate) }
+  { name: 'Tỉ lệ đạt (%)', data: qcTopStoresData.value.map(s => s.passRate || 0) }
 ])
 
 async function loadDashboard() {
@@ -402,10 +412,15 @@ async function loadDashboard() {
     .map((id) => Number(id || 0))
     .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
 
+  const isAllSelected = stores.value.length > 0 && storeIds.length === stores.value.length
+  const apiStoreIdsStr = isAllSelected ? undefined : storeIds.join(',') || undefined
+  const apiStoreIdsArr = isAllSelected ? undefined : storeIds
+
   const [ticketOverviewResult, qcOverviewResult, recentTicketsResult] = await Promise.allSettled([
     getDashboardOverview({
       date_from: dashboardRange.value.from,
       date_to: dashboardRange.value.to,
+      store_ids: apiStoreIdsStr,
       top_stores_limit: 8,
       activity_limit: 8,
     }),
@@ -414,11 +429,14 @@ async function loadDashboard() {
       to: dashboardRange.value.to,
       page: 1,
       pageSize: 500,
-      storeIds,
+      storeIds: apiStoreIdsArr,
     }),
     listTickets({
       page: 1,
       pageSize: 6,
+      date_from: dashboardRange.value.from,
+      date_to: dashboardRange.value.to,
+      store_ids: apiStoreIdsStr,
     }),
   ])
 
@@ -430,6 +448,8 @@ async function loadDashboard() {
       resolved: Number(ticketPayload?.summary?.resolved || 0),
       overdue: Number(ticketPayload?.summary?.overdue || 0),
     }
+    ticketAvgProcessingTime.value = Number(ticketPayload?.summary?.avg_processing_time || 0)
+    ticketChartRawData.value = ticketPayload?.chart_data || { categories: [], tickets: [], supportTime: [] }
     ticketTopStores.value = Array.isArray(ticketPayload?.top_stores) ? ticketPayload.top_stores : []
   } else {
     ticketSummary.value = {
@@ -439,6 +459,8 @@ async function loadDashboard() {
       overdue: 0,
     }
     ticketTopStores.value = []
+    ticketAvgProcessingTime.value = 0
+    ticketChartRawData.value = { categories: [], tickets: [], supportTime: [] }
     errorMessage.value = ticketOverviewResult.reason?.response?.data?.message || ticketOverviewResult.reason?.message || 'Không thể tải dữ liệu ticket.'
   }
 
@@ -453,6 +475,10 @@ async function loadDashboard() {
       avgScoreRate: Number(remoteSummary.avgScoreRate || 0),
       passRate: Number(remoteSummary.passRate || 0),
     }
+    
+    // Sort logic to take top 5 QC stores with highest passRate
+    const storeStats = Array.isArray(qcOverviewResult.value?.data?.storeStats) ? qcOverviewResult.value.data.storeStats : []
+    qcTopStoresData.value = [...storeStats].sort((a,b) => b.passRate - a.passRate).slice(0, 5)
   } else {
     qcSummary.value = {
       totalSessions: 0,
@@ -463,6 +489,7 @@ async function loadDashboard() {
       avgScoreRate: 0,
       passRate: 0,
     }
+    qcTopStoresData.value = []
     if (!errorMessage.value) {
       errorMessage.value = qcOverviewResult.reason?.response?.data?.message || qcOverviewResult.reason?.message || 'Không thể tải dữ liệu QC.'
     }
@@ -490,12 +517,12 @@ watch(
   () => {
     loadDashboard()
   },
-  { immediate: true }
+  { immediate: true, deep: true }
 )
 </script>
 
 <template>
-  <div class="page-stack space-y-4 px-3 py-3">
+  <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
     <p v-if="errorMessage" class="app-state-banner text-xs">
       {{ errorMessage }}
     </p>
@@ -654,70 +681,7 @@ watch(
       </template>
     </draggable>
 
-    <!-- STORE FILTER MODAL -->
-    <Teleport to="body">
-      <div v-if="showStoreFilterPopup" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" @click.self="showStoreFilterPopup = false">
-        <div class="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-[24px] bg-white shadow-2xl transition-all">
-          <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-            <h3 class="text-base font-black tracking-tight text-slate-800">Chọn cửa hàng hiển thị</h3>
-            <button @click="showStoreFilterPopup = false" class="text-slate-400 transition-colors hover:text-slate-600">
-              <span class="material-symbols-outlined">close</span>
-            </button>
-          </div>
-          
-          <div class="border-b border-slate-100 bg-slate-50/50 p-3">
-            <div class="relative flex items-center">
-              <span class="material-symbols-outlined pointer-events-none absolute left-3 text-[20px] text-slate-400">search</span>
-              <input 
-                v-model="storeSearchQuery" 
-                type="text" 
-                placeholder="Tìm kiếm cửa hàng..." 
-                class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm font-medium text-slate-700 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-              />
-            </div>
-          </div>
 
-          <div class="min-h-0 flex-1 overflow-y-auto p-2">
-            <div v-if="filteredStores.length === 0" class="p-8 text-center text-sm text-slate-500">
-              Không tìm thấy cửa hàng nào.
-            </div>
-            <div v-else class="space-y-1">
-              <label 
-                v-for="store in filteredStores" 
-                :key="store.id" 
-                class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-slate-50"
-              >
-                <div class="relative flex items-center">
-                  <input 
-                    type="checkbox" 
-                    :checked="isStoreSelected(store.id)"
-                    @change="toggleStoreSelection(store.id)"
-                    class="peer size-5 cursor-pointer appearance-none rounded-md border-2 border-slate-300 bg-white transition-all checked:border-indigo-500 checked:bg-indigo-500 hover:border-indigo-400"
-                  />
-                  <span class="material-symbols-outlined pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[14px] text-white opacity-0 transition-opacity peer-checked:opacity-100">check</span>
-                </div>
-                <span class="select-none text-sm font-semibold text-slate-700">
-                  {{ store.name || store.address || `Store #${store.id}` }}
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <div class="flex items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/80 p-4">
-            <div class="flex items-center gap-2">
-               <button @click="selectAllStores" class="rounded-lg px-2 py-1 text-xs font-bold uppercase tracking-wide text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700">Chọn tất cả</button>
-               <button @click="clearStoreSelection" class="rounded-lg px-2 py-1 text-xs font-bold uppercase tracking-wide text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700">Bỏ chọn</button>
-            </div>
-            <button 
-              @click="showStoreFilterPopup = false" 
-              class="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-indigo-700"
-            >
-              Cập nhật
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 

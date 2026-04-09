@@ -42,6 +42,36 @@ const summary = ref({
 const storeStats = ref([])
 const loadError = ref('')
 
+const selectedStores = ref([])
+watch(
+  () => route.query.store_ids,
+  (newVal) => {
+    if (typeof newVal === 'string' && newVal.trim() !== '') {
+      const parsed = newVal.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
+      if (parsed.join(',') !== selectedStores.value.join(',')) {
+        selectedStores.value = parsed
+      }
+    } else {
+       selectedStores.value = []
+    }
+  },
+  { immediate: true }
+)
+
+watch(selectedStores, (newVal) => {
+  const currentQ = String(route.query.store_ids || '')
+  const newQ = newVal.join(',')
+  if (currentQ !== newQ) {
+    const q = { ...route.query }
+    if (newQ === '') {
+      delete q.store_ids
+    } else {
+      q.store_ids = newQ
+    }
+    router.replace({ query: q })
+  }
+})
+
 function syncRangeFromRoute() {
   const range = normalizeDateRangeFromQuery(route.query || {}, getDefaultDateRange())
   dateFrom.value = range.from
@@ -437,12 +467,14 @@ async function loadOverview() {
   loadError.value = ''
 
   try {
-    const storeIds = stores.value
-      .map((store) => Number(store?.id || 0))
-      .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
-    const targetPageSize = storeIds.length > 0
-      ? Math.min(Math.max(stores.value.length, 100), 500)
-      : 500
+    const queryStoreIds = route.query.store_ids 
+      ? route.query.store_ids.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
+      : []
+    const storeIds = queryStoreIds.length > 0
+      ? queryStoreIds
+      : stores.value.map((store) => Number(store?.id || 0)).filter((id) => Number.isInteger(id) && id > 0)
+      
+    const targetPageSize = 500
 
     const remote = await getQcStoresOverviewApi({
       from: dateFrom.value,
@@ -488,6 +520,7 @@ watch(
     stores,
     () => route.query.date_from,
     () => route.query.date_to,
+    () => route.query.store_ids,
   ],
   async () => {
     syncRangeFromRoute()
@@ -526,7 +559,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="px-3 py-3">
+  <div class="p-4 tablet:p-5 pc:p-6">
     <div class="page-stack overflow-visible space-y-4">
       <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard
