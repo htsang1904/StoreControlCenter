@@ -44,8 +44,8 @@ const sessionLoadError = ref('')
 const filters = reactive({
   q: '',
   status: '',
-  from: '',
-  to: '',
+  from: String(route.query.date_from || ''),
+  to: String(route.query.date_to || ''),
 })
 
 const summary = ref({
@@ -484,7 +484,10 @@ const loadStoreData = async () => {
 }
 
 const goBack = () => {
-  router.push('/QC')
+  const query = {}
+  if (route.query.date_from) query.date_from = route.query.date_from
+  if (route.query.date_to) query.date_to = route.query.date_to
+  router.push({ path: '/QC', query })
 }
 
 watch(searchInput, (value) => {

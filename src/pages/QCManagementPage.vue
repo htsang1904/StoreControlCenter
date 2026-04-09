@@ -432,7 +432,10 @@ function nextPage() {
 
 function openStoreDetail(storeId) {
   if (!storeId) return
-  router.push(`/QC/store/${storeId}`)
+  const query = {}
+  if (route.query.date_from) query.date_from = route.query.date_from
+  if (route.query.date_to) query.date_to = route.query.date_to
+  router.push({ path: `/QC/store/${storeId}`, query })
 }
 
 async function handleRefresh() {
