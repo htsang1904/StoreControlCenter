@@ -82,7 +82,7 @@ function applySelection() {
 
     <!-- STORE FILTER MODAL -->
     <Teleport to="body">
-      <div v-if="showStoreFilterPopup" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" @click.self="showStoreFilterPopup = false">
+      <div v-if="showStoreFilterPopup" class="fixed inset-0 z-[100] flex items-center justify-center bg-blue-600/40 p-4 backdrop-blur-sm" @click.self="showStoreFilterPopup = false">
         <div class="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-[24px] bg-white shadow-2xl transition-all">
           <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
             <h3 class="text-base font-black tracking-tight text-slate-800">Chọn cửa hàng hiển thị</h3>

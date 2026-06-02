@@ -19,17 +19,27 @@ import loading from '@/directives/loading'
 import { useApp } from '@/plugins/app'
 import router from './router';
 const { initializeAuth, state } = useApp()
+import { defineElement } from "@lordicon/element"
+defineElement()
+await initializeAuth()
+
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token')
+  const hasToken = Boolean(state.token)
+
+  if (to.path === '/login' && hasToken) {
+      next('/ticket')
+      return
+  }
+
   if (to.meta) {
-      if (to.meta.auth && !token) {
+      if (to.meta.auth && !hasToken) {
           next('/login')
           return
       }
 
       if (Array.isArray(to.meta.roles) && to.meta.roles.length > 0) {
           const currentRole = String(state.userInfo?.role || '').toLowerCase()
-          if (!to.meta.roles.includes(currentRole)) {
+          if (!currentRole || !to.meta.roles.includes(currentRole)) {
               next('/ticket')
               return
           }
@@ -37,9 +47,7 @@ router.beforeEach((to, from, next) => {
   }
   next()
 })
-import { defineElement } from "@lordicon/element"
-defineElement()
-await initializeAuth()
+
 const app = createApp(App)
 app.directive('loading',loading)
 app.use(router)

@@ -86,7 +86,7 @@ onBeforeUnmount(() => {
         :key="option.key"
         type="button"
         class="w-full rounded-md px-2.5 py-2 text-left text-xs font-medium transition-colors"
-        :class="option.key === activeKey ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-50'"
+        :class="option.key === activeKey ? 'bg-slate-100 text-blue-950' : 'text-slate-700 hover:bg-slate-50'"
         @click="selectPeriod(option.key)"
       >
         {{ option.label }}

@@ -325,7 +325,7 @@ const toggleDetails = () => {
             </span>
           </div>
 
-          <h4 class="mt-2 text-sm font-semibold leading-6 text-slate-900">
+          <h4 class="mt-2 text-sm font-semibold leading-6 text-blue-950">
             {{ criterion.name }}
           </h4>
           <p v-if="criterion.description" class="mt-1 text-sm leading-6 text-slate-600">
@@ -363,7 +363,7 @@ const toggleDetails = () => {
                   :max="criterion.maxScore"
                   step="0.5"
                   placeholder="Điểm"
-                  class="score-input h-10 min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 text-2xl font-semibold tracking-tight text-slate-900 placeholder:text-slate-300 focus:border-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  class="score-input h-10 min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 text-2xl font-semibold tracking-tight text-blue-950 placeholder:text-slate-300 focus:border-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                   @input="handleScoreChange"
                 />
                 <span class="inline-flex shrink-0 items-center rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-500">

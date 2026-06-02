@@ -292,7 +292,7 @@ onBeforeUnmount(() => {
       aria-label="Thông báo"
       @click="handleToggleNotification"
     >
-      <span v-if="unreadCount > 0" class="absolute right-1.5 top-1.5 inline-flex size-2.5 rounded-full border border-white bg-slate-900"></span>
+      <span v-if="unreadCount > 0" class="absolute right-1.5 top-1.5 inline-flex size-2.5 rounded-full border border-white bg-blue-600"></span>
       <span class="material-symbols-outlined text-[20px]">notifications</span>
     </button>
 
@@ -304,7 +304,7 @@ onBeforeUnmount(() => {
         <p class="text-sm font-semibold text-slate-800">Thông báo</p>
         <button
           type="button"
-          class="text-xs font-semibold text-slate-600 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+          class="text-xs font-semibold text-slate-600 hover:text-blue-950 disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="markingAllRead || unreadCount === 0"
           @click="handleMarkAllRead"
         >
@@ -325,7 +325,7 @@ onBeforeUnmount(() => {
         >
           <div class="flex items-start justify-between gap-2">
             <p class="text-sm font-semibold text-slate-800">{{ item.title || 'Thông báo' }}</p>
-            <span v-if="!item.is_read" class="mt-1 inline-flex size-2 rounded-full bg-slate-900"></span>
+            <span v-if="!item.is_read" class="mt-1 inline-flex size-2 rounded-full bg-blue-600"></span>
           </div>
           <p class="mt-1 line-clamp-2 text-xs text-slate-600">{{ item.message }}</p>
           <p class="mt-1 text-[11px] text-slate-400">{{ formatNotificationTime(item.createdAt) }}</p>

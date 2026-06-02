@@ -713,7 +713,7 @@ onMounted(async () => {
           </button>
 
           <div class="min-w-0">
-            <h1 class="truncate text-lg font-semibold text-slate-900 tablet:text-xl">
+            <h1 class="truncate text-lg font-semibold text-blue-950 tablet:text-xl">
               {{ isEditMode ? (qcForm.name || pageTitle) : pageTitle }}
             </h1>
             <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
@@ -762,12 +762,12 @@ onMounted(async () => {
             >
               <span
                 class="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-                :class="step.isActive || step.isCompleted ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'"
+                :class="step.isActive || step.isCompleted ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'"
               >
                 {{ step.id }}
               </span>
               <span class="min-w-0">
-                <span class="block text-sm font-semibold text-slate-900">{{ step.title }}</span>
+                <span class="block text-sm font-semibold text-blue-950">{{ step.title }}</span>
                 <span class="mt-1 block text-xs leading-5 text-slate-500">{{ step.description }}</span>
               </span>
             </button>
@@ -778,7 +778,7 @@ onMounted(async () => {
           <section v-if="activeStep === 1" class="space-y-6">
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bước 1</p>
-              <h3 class="mt-2 text-lg font-semibold text-slate-900">Thiết lập biểu mẫu</h3>
+              <h3 class="mt-2 text-lg font-semibold text-blue-950">Thiết lập biểu mẫu</h3>
               <p class="mt-2 text-sm leading-6 text-slate-500">
                 Chốt định danh và thông tin nền trước khi đi sang bước dựng cây tiêu chí.
               </p>
@@ -831,7 +831,7 @@ onMounted(async () => {
               </label>
 
               <label class="flex items-center gap-3 tablet:col-span-1 tablet:pt-8">
-                <input v-model="qcForm.isActive" type="checkbox" class="size-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300" />
+                <input v-model="qcForm.isActive" type="checkbox" class="size-4 rounded border-slate-300 text-blue-950 focus:ring-slate-300" />
                 <span class="text-sm font-medium text-slate-700">Kích hoạt biểu mẫu sau khi lưu</span>
               </label>
 
@@ -853,12 +853,12 @@ onMounted(async () => {
           <section v-else-if="activeStep === 2" class="space-y-5">
             <div class="max-w-3xl">
               <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bước 2</p>
-              <h3 class="mt-2 text-lg font-semibold text-slate-900">Dựng cây tiêu chí</h3>
+              <h3 class="mt-2 text-lg font-semibold text-blue-950">Dựng cây tiêu chí</h3>
             </div>
 
             <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
               <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
-                <p class="text-base font-semibold text-slate-900">Cấu trúc biểu mẫu</p>
+                <p class="text-base font-semibold text-blue-950">Cấu trúc biểu mẫu</p>
               </div>
 
               <div v-if="qcForm.criteriaTree.length" class="px-4 py-4 tablet:px-5">
@@ -890,7 +890,7 @@ onMounted(async () => {
                 <div class="mt-5 border-t border-slate-200 pt-4">
                   <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
                     <div>
-                      <p class="text-sm font-semibold text-slate-900">Thêm ở cấp gốc</p>
+                      <p class="text-sm font-semibold text-blue-950">Thêm ở cấp gốc</p>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
@@ -918,7 +918,7 @@ onMounted(async () => {
                   <div class="rounded-xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
                     <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
                       <div>
-                         <p class="text-sm font-semibold text-slate-900">Điểm đánh giá của phiên</p>
+                         <p class="text-sm font-semibold text-blue-950">Điểm đánh giá của phiên</p>
                          <p class="text-xs text-slate-600 mt-1">Tổng điểm tối đa (Tự động): <strong class="text-blue-700">{{ totalMaxScoreComputed }} điểm</strong></p>
                       </div>
                       <div class="min-w-[200px]">
@@ -988,7 +988,7 @@ onMounted(async () => {
           <section v-else class="space-y-6">
             <div class="max-w-3xl">
               <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bước 3</p>
-              <h3 class="mt-2 text-lg font-semibold text-slate-900">Rà soát và phát hành</h3>
+              <h3 class="mt-2 text-lg font-semibold text-blue-950">Rà soát và phát hành</h3>
               <p class="mt-2 text-sm leading-6 text-slate-500">
                 Kiểm tra nhanh metadata và cấu trúc cây trước khi phát hành version làm việc hiện tại.
               </p>
@@ -996,25 +996,25 @@ onMounted(async () => {
 
             <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
               <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
-                <h4 class="text-base font-semibold text-slate-900">Thông tin chuẩn bị phát hành</h4>
+                <h4 class="text-base font-semibold text-blue-950">Thông tin chuẩn bị phát hành</h4>
               </div>
 
               <dl class="grid gap-x-8 gap-y-5 px-4 py-4 tablet:grid-cols-2 pc:grid-cols-3 tablet:px-5">
                 <div class="min-w-0">
                   <dt class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Mã biểu mẫu</dt>
-                  <dd class="mt-2 break-words text-sm font-semibold text-slate-900">{{ String(qcForm.code || '').trim() || '--' }}</dd>
+                  <dd class="mt-2 break-words text-sm font-semibold text-blue-950">{{ String(qcForm.code || '').trim() || '--' }}</dd>
                 </div>
                 <div class="min-w-0">
                   <dt class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Tên biểu mẫu</dt>
-                  <dd class="mt-2 break-words text-sm font-semibold text-slate-900">{{ String(qcForm.name || '').trim() || '--' }}</dd>
+                  <dd class="mt-2 break-words text-sm font-semibold text-blue-950">{{ String(qcForm.name || '').trim() || '--' }}</dd>
                 </div>
                 <div class="min-w-0">
                   <dt class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Phiên bản làm việc</dt>
-                  <dd class="mt-2 break-words text-sm font-semibold text-slate-900">{{ currentWorkingVersion }}</dd>
+                  <dd class="mt-2 break-words text-sm font-semibold text-blue-950">{{ currentWorkingVersion }}</dd>
                 </div>
                 <div class="min-w-0">
                   <dt class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Ngưỡng đạt</dt>
-                  <dd class="mt-2 break-words text-sm font-semibold text-slate-900">{{ Number(qcForm.passThreshold || 0) }}%</dd>
+                  <dd class="mt-2 break-words text-sm font-semibold text-blue-950">{{ Number(qcForm.passThreshold || 0) }}%</dd>
                 </div>
               </dl>
             </section>
@@ -1023,7 +1023,7 @@ onMounted(async () => {
               <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h4 class="text-base font-semibold text-slate-900">Preview cây tiêu chí</h4>
+                    <h4 class="text-base font-semibold text-blue-950">Preview cây tiêu chí</h4>
                     <p class="mt-1 text-sm leading-6 text-slate-500">
                       Xem lại thứ tự hiển thị, nhóm cha và các tiêu chí lá sẽ xuất hiện ở màn chấm QC.
                     </p>
@@ -1064,7 +1064,7 @@ onMounted(async () => {
                             </span>
                           </div>
 
-                          <p class="text-sm font-semibold text-slate-900">{{ row.name }}</p>
+                          <p class="text-sm font-semibold text-blue-950">{{ row.name }}</p>
                           <p v-if="row.description" class="text-xs leading-5 text-slate-500">{{ row.description }}</p>
                         </div>
 
@@ -1095,7 +1095,7 @@ onMounted(async () => {
                             </span>
                           </div>
 
-                          <p class="text-sm font-semibold text-slate-900">{{ row.name }}</p>
+                          <p class="text-sm font-semibold text-blue-950">{{ row.name }}</p>
                           <p v-if="row.description" class="text-xs leading-5 text-slate-500">{{ row.description }}</p>
                         </div>
                       </div>
@@ -1126,7 +1126,7 @@ onMounted(async () => {
             <button
               v-if="activeStep < 3"
               type="button"
-              class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
+              class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 tablet:w-auto"
               @click="goToNextStep"
             >
               {{ activeStep === 1 ? 'Tạo cây tiêu chí' : 'Rà soát' }}
@@ -1136,7 +1136,7 @@ onMounted(async () => {
             <button
               v-else
               type="button"
-              class="inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
+              class="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
               :disabled="isSaving"
               @click="submitForm('published')"
             >

@@ -147,10 +147,10 @@ watch(
           <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
             
             <div class="flex items-center gap-3">
-              <h2 class="text-lg font-semibold text-slate-900 tracking-tight hidden pc:block">Tất cả Tickets</h2>
+              <h2 class="text-lg font-semibold text-blue-950 tracking-tight hidden pc:block">Tất cả Tickets</h2>
               <button
                 type="button"
-                class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-50 border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors focus:ring-2 focus:ring-slate-200 focus:outline-none"
+                class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-slate-50 border border-slate-200 px-4 text-sm font-medium text-slate-700 hover:bg-slate-100 hover:text-blue-950 transition-colors focus:ring-2 focus:ring-slate-200 focus:outline-none"
                 @click="goToTicketInbox"
               >
                 <svg class="size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -160,12 +160,12 @@ watch(
               </button>
             </div>
 
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div class="relative w-full sm:w-64">
+            <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center">
+              <div class="relative w-full tablet:w-64">
                 <input
                   v-model="searchInput"
                   type="text"
-                  class="peer h-9 w-full rounded-lg border border-slate-200 bg-slate-50/50 pl-9 pr-3 text-sm text-slate-900 placeholder-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  class="peer h-9 w-full rounded-lg border border-slate-200 bg-slate-50/50 pl-9 pr-3 text-sm text-blue-950 placeholder-slate-400 transition-colors hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                   placeholder="Tìm mã vé hoặc tiêu đề..."
                   @keyup.enter="applySearch"
                 />
@@ -176,11 +176,11 @@ watch(
                 </div>
               </div>
 
-              <div class="hs-dropdown [--auto-close:inside] relative inline-block w-full sm:w-auto">
+              <div class="hs-dropdown [--auto-close:inside] relative inline-block w-full tablet:w-auto">
                 <button
                   id="ticket-status-filter"
                   type="button"
-                  class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-100 sm:w-auto sm:justify-center"
+                  class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-100 tablet:w-auto tablet:justify-center"
                   aria-haspopup="menu"
                   aria-expanded="false"
                 >
@@ -223,7 +223,7 @@ watch(
 
               <button
                 type="button"
-                class="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900/20 sm:w-auto"
+                class="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-sm font-medium text-white shadow-sm transition-all hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600/20 tablet:w-auto"
                 @click="goToAddTicket"
               >
                 <svg class="size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -272,7 +272,7 @@ watch(
                     </span>
                   </td>
                   <td class="px-4 py-3">
-                    <p class="text-sm font-semibold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-1">{{ ticket.title || '--' }}</p>
+                    <p class="text-sm font-semibold text-blue-950 group-hover:text-blue-600 transition-colors line-clamp-1">{{ ticket.title || '--' }}</p>
                     <p class="mt-1 text-xs text-slate-500 line-clamp-1 truncate max-w-md">{{ ticketSubline(ticket) }}</p>
                   </td>
                   <td class="px-4 py-3 align-top">
@@ -315,7 +315,7 @@ watch(
                           <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 1 0-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375Z" />
                         </svg>
                       </div>
-                      <h3 class="text-sm font-semibold text-slate-900">Không tìm thấy vé nào</h3>
+                      <h3 class="text-sm font-semibold text-blue-950">Không tìm thấy vé nào</h3>
                       <p class="mt-1 text-sm text-slate-500 max-w-sm">Không có dữ liệu khớp với bộ lọc hiện tại của bạn. Thử thay đổi từ khoá hoặc dùng trợ lý tạo vé.</p>
                       <button
                         type="button"
@@ -349,7 +349,7 @@ watch(
                       <span class="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-slate-600 mb-2 font-mono">
                         {{ ticket.ticket_code || `#${ticket.id}` }}
                       </span>
-                      <h3 class="text-base font-semibold text-slate-900 leading-tight group-hover:text-blue-600 transition-colors">{{ ticket.title || '--' }}</h3>
+                      <h3 class="text-base font-semibold text-blue-950 leading-tight group-hover:text-blue-600 transition-colors">{{ ticket.title || '--' }}</h3>
                       <p class="mt-1 text-sm text-slate-500 line-clamp-2">{{ ticketSubline(ticket) }}</p>
                     </div>
                     <span class="inline-flex shrink-0 items-center justify-center rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-inset whitespace-nowrap" :class="ticketStatusClass(ticket.status)">
@@ -425,20 +425,20 @@ watch(
                   <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 6v.75m0 3v.75m0 3v.75m0 3V18m-9-5.25h5.25M7.5 15h3M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 0 1 0 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 0 1 0-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375Z" />
                 </svg>
               </div>
-              <h3 class="text-sm font-semibold text-slate-900">Trống</h3>
+              <h3 class="text-sm font-semibold text-blue-950">Trống</h3>
               <p class="mt-1 text-sm text-slate-500">Chưa có ticket nào phù hợp.</p>
             </div>
           </div>
         </div>
 
         <!-- Pagination Footer -->
-        <div class="border-t border-slate-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <p class="text-xs text-slate-700 text-center sm:text-left">
-              Đang xem <span class="font-medium text-slate-900">{{ paginationStart }}</span> đến <span class="font-medium text-slate-900">{{ paginationEnd }}</span> trên tổng <span class="font-medium text-slate-900">{{ pagination.total }}</span> vé
+        <div class="border-t border-slate-200 bg-white px-3 py-2.5 tablet:px-4 tablet:py-3">
+          <div class="flex flex-col tablet:flex-row tablet:items-center tablet:justify-between gap-3">
+            <p class="text-xs text-slate-700 text-center tablet:text-left">
+              Đang xem <span class="font-medium text-blue-950">{{ paginationStart }}</span> đến <span class="font-medium text-blue-950">{{ paginationEnd }}</span> trên tổng <span class="font-medium text-blue-950">{{ pagination.total }}</span> vé
             </p>
 
-            <nav class="flex items-center justify-center sm:justify-end gap-1" aria-label="Pagination">
+            <nav class="flex items-center justify-center tablet:justify-end gap-1" aria-label="Pagination">
               <button
                 type="button"
                 class="relative inline-flex items-center rounded-lg p-2 text-slate-600 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed focus:z-20 focus:outline-offset-0 transition-colors"
@@ -451,13 +451,13 @@ watch(
                 </svg>
               </button>
               
-              <div class="hidden sm:flex items-center gap-1 mx-2">
+              <div class="hidden tablet:flex items-center gap-1 mx-2">
                 <template v-for="item in visiblePageItems" :key="String(item)">
                   <button
                     v-if="typeof item === 'number'"
                     type="button"
                     class="relative inline-flex min-w-[32px] items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                    :class="item === pagination.page ? 'bg-slate-900 text-white focus-visible:outline-slate-900' : 'text-slate-900 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:outline-offset-0'"
+                    :class="item === pagination.page ? 'bg-blue-600 text-white focus-visible:outline-blue-600' : 'text-blue-950 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus:outline-offset-0'"
                     :disabled="item === pagination.page || loading"
                     @click="goToPage(item)"
                   >

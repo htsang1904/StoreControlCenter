@@ -223,7 +223,7 @@ watch(
   <div class="page-stack h-full min-h-0 overflow-hidden">
     <section class="flex h-full min-h-0 flex-col overflow-hidden bg-white pc:grid pc:grid-cols-[360px_minmax(0,1fr)]">
       <aside
-        class="relative min-h-0 border-b border-slate-200 bg-white text-slate-900 pc:border-b-0 pc:border-r pc:border-slate-200"
+        class="relative min-h-0 border-b border-slate-200 bg-white text-blue-950 pc:border-b-0 pc:border-r pc:border-slate-200"
         :class="showSidebarPane ? 'flex flex-col' : 'hidden pc:flex pc:flex-col'"
       >
         <div class="relative flex h-full min-h-0 flex-col">
@@ -239,7 +239,7 @@ watch(
                 >
                   <span class="material-symbols-outlined text-[18px]">arrow_back</span>
                 </button>
-                <h2 class="min-w-0 truncate text-lg font-semibold text-slate-900">Danh sách ticket</h2>
+                <h2 class="min-w-0 truncate text-lg font-semibold text-blue-950">Danh sách ticket</h2>
               </div>
 
               <div class="flex shrink-0 items-center gap-2">
@@ -247,7 +247,7 @@ watch(
                 <div class="group relative">
                   <button
                     type="button"
-                    class="inline-flex size-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 focus:outline-hidden"
+                    class="inline-flex size-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-950 focus:bg-slate-100 focus:text-blue-950 focus:outline-hidden"
                     title="Tạo vé mới"
                     aria-label="Tạo vé mới"
                     @click="goToAddTicket"
@@ -266,7 +266,7 @@ watch(
                       <path d="M5 12h14" />
                     </svg>
                   </button>
-                  <span class="pointer-events-none absolute right-0 top-full z-10 mt-2 hidden whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white group-hover:block group-focus-within:block">
+                  <span class="pointer-events-none absolute right-0 top-full z-10 mt-2 hidden whitespace-nowrap rounded-md bg-blue-600 px-2 py-1 text-[11px] font-medium text-white group-hover:block group-focus-within:block">
                     Tạo vé mới
                   </span>
                 </div>
@@ -305,7 +305,7 @@ watch(
                 :key="status.value || 'all'"
                 type="button"
                 class="inline-flex shrink-0 items-center rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
-                :class="selectedStatusValue === status.value ? 'border border-slate-900 bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
+                :class="selectedStatusValue === status.value ? 'border border-blue-600 bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'"
                 @click="applyQuickStatus(status.value)"
               >
                 {{ status.label }}
@@ -350,7 +350,7 @@ watch(
                     <p class="truncate text-[11px] font-bold uppercase tracking-wide text-slate-400">
                       {{ ticket.ticket_code || `#${ticket.id}` }}
                     </p>
-                    <p class="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-slate-900">{{ ticket.title || '--' }}</p>
+                    <p class="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-blue-950">{{ ticket.title || '--' }}</p>
                   </div>
 
                   <div class="flex min-h-7 min-w-0 shrink-0 flex-wrap items-center justify-end gap-1.5 tablet:min-w-[9.5rem]">
@@ -392,7 +392,7 @@ watch(
                       </span>
                       <span
                         v-if="ticketAssigneeOverflowCount(ticket)"
-                        class="inline-flex size-6 items-center justify-center rounded-full border border-white bg-slate-900 text-[10px] font-semibold text-white"
+                        class="inline-flex size-6 items-center justify-center rounded-full border border-white bg-blue-600 text-[10px] font-semibold text-white"
                       >
                         +{{ ticketAssigneeOverflowCount(ticket) }}
                       </span>
@@ -457,7 +457,7 @@ watch(
               <span class="material-symbols-outlined text-[40px]">forum</span>
             </div>
 
-            <p class="mt-8 text-4xl font-semibold tracking-tight text-slate-900 pc:text-5xl">
+            <p class="mt-8 text-4xl font-semibold tracking-tight text-blue-950 pc:text-5xl">
               Chọn ticket để bắt đầu theo dõi
             </p>
             <p class="mt-4 max-w-xl text-base leading-7 text-slate-600">

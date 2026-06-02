@@ -43,7 +43,7 @@ const toneClass = computed(() => {
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">
         <p class="app-metric-card__eyebrow">{{ label }}</p>
-        <p class="mt-4 text-3xl font-semibold tracking-tight text-slate-950 tablet:text-[2rem]">{{ value }}</p>
+        <p class="mt-4 text-3xl font-semibold tracking-tight text-blue-950 tablet:text-[2rem]">{{ value }}</p>
       </div>
 
       <div

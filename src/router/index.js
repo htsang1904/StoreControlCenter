@@ -130,15 +130,6 @@ const router = createRouter({
             component: () => import('@/pages/LoginPage.vue'),
             meta: {
                 title: 'Suite App'
-            },
-
-            beforeEnter: (to, from, next) => {
-                const token = localStorage.getItem('token')
-                if (token) {
-                    next({ path: '/ticket' });
-                } else {
-                    next();
-                }
             }
         },
     ],

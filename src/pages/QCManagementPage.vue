@@ -664,14 +664,14 @@ onBeforeUnmount(() => {
                 >
                   <td class="px-4 py-3">
                     <div class="min-w-0">
-                      <p class="text-sm font-semibold text-slate-900">{{ store.name }}</p>
+                      <p class="text-sm font-semibold text-blue-950">{{ store.name }}</p>
                       <p class="text-xs text-slate-500">
                         {{ store.code || store.storeId || '--' }} • {{ store.region }} • Phụ trách: {{ store.managerName }}
                       </p>
                     </div>
                   </td>
                   <td class="px-4 py-3">
-                    <p class="text-sm font-semibold text-slate-900">{{ store.totalSessionsLabel }} phiên</p>
+                    <p class="text-sm font-semibold text-blue-950">{{ store.totalSessionsLabel }} phiên</p>
                   </td>
                   <td class="px-4 py-3">
                     <span class="app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium app-badge--success">
@@ -790,7 +790,7 @@ onBeforeUnmount(() => {
                   v-if="typeof item === 'number'"
                   type="button"
                   class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold transition-colors"
-                  :class="item === currentPage ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'"
+                  :class="item === currentPage ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'"
                   @click="goToPage(item)"
                 >
                   {{ item }}

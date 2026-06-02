@@ -562,7 +562,7 @@ watch(
            
            <!-- WIDGET 1: KPI TABLE -->
            <template v-if="element.type === 'kpi_table'">
-              <div class="flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
+              <div class="flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 shadow-[0_8px_30px_rgba(29,125,226,0.08)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgba(29,125,226,0.14)] h-full w-full">
                 <div class="px-6 py-5 border-b border-white/50 shrink-0 bg-white/20">
                    <h3 class="text-base font-black tracking-tight text-slate-800 truncate">Chỉ số Thống kê Tổng quan</h3>
                 </div>
@@ -613,7 +613,7 @@ watch(
 
            <!-- WIDGET 2: MAIN CHART -->
            <template v-else-if="element.type === 'main_chart'">
-              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
+              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgba(29,125,226,0.08)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgba(29,125,226,0.14)] h-full w-full">
                 <div class="pointer-events-none absolute inset-0 -z-10">
                   <div class="absolute -left-20 -top-20 h-48 w-48 rounded-full bg-indigo-300/20 blur-3xl"></div>
                   <div class="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-sky-300/20 blur-3xl"></div>
@@ -635,7 +635,7 @@ watch(
 
            <!-- WIDGET 3: TOP TICKET BAR CHART -->
            <template v-else-if="element.type === 'top_ticket_chart'">
-              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
+              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgba(29,125,226,0.08)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgba(29,125,226,0.14)] h-full w-full">
                 <div class="pointer-events-none absolute inset-0 -z-10">
                   <div class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-blue-300/20 blur-3xl"></div>
                   <div class="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-violet-300/20 blur-3xl"></div>
@@ -657,7 +657,7 @@ watch(
 
            <!-- WIDGET 4: TOP QC BAR CHART -->
            <template v-else-if="element.type === 'top_qc_chart'">
-              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] h-full w-full">
+              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgba(29,125,226,0.08)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgba(29,125,226,0.14)] h-full w-full">
                 <div class="pointer-events-none absolute inset-0 -z-10">
                   <div class="absolute left-0 top-0 h-40 w-40 rounded-full bg-emerald-300/20 blur-3xl"></div>
                   <div class="absolute bottom-0 right-0 h-40 w-40 rounded-full bg-teal-300/20 blur-3xl"></div>

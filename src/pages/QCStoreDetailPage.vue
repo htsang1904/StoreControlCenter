@@ -535,7 +535,7 @@ onBeforeUnmount(() => {
 
         <div class="min-w-0 flex-1">
           <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Chi tiết QC cửa hàng</p>
-          <h1 class="mt-1 truncate text-lg font-semibold text-slate-900 tablet:text-xl" :title="storeTitle">{{ storeTitle }}</h1>
+          <h1 class="mt-1 truncate text-lg font-semibold text-blue-950 tablet:text-xl" :title="storeTitle">{{ storeTitle }}</h1>
           <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
         </div>
       </div>
@@ -571,7 +571,7 @@ onBeforeUnmount(() => {
                     </svg>
                     <span
                       v-if="selectedResultCount > 0"
-                      class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                      class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
                     >
                       {{ selectedResultCount }}
                     </span>
@@ -591,7 +591,7 @@ onBeforeUnmount(() => {
                         v-model="filters.status"
                         :value="result.value"
                         type="radio"
-                        class="mt-0.5 shrink-0 border-slate-300 text-slate-900 focus:ring-slate-300"
+                        class="mt-0.5 shrink-0 border-slate-300 text-blue-950 focus:ring-slate-300"
                         @change="applyFilters"
                       >
                       <span>{{ result.label }}</span>
@@ -618,7 +618,7 @@ onBeforeUnmount(() => {
 
                 <button
                   type="button"
-                  class="inline-flex h-9 w-full shrink-0 whitespace-nowrap items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
+                  class="inline-flex h-9 w-full shrink-0 whitespace-nowrap items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 tablet:w-auto"
                   @click="openCreateDraftModal"
                 >
                   Tạo phiếu QC
@@ -648,7 +648,7 @@ onBeforeUnmount(() => {
                         @click="handleRowAction(session)"
                       >
                         <p class="text-[11px] font-bold uppercase tracking-wide text-slate-600">{{ session.code }}</p>
-                        <p class="mt-1 text-sm font-semibold text-slate-900">{{ session.templateName || '--' }}</p>
+                        <p class="mt-1 text-sm font-semibold text-blue-950">{{ session.templateName || '--' }}</p>
                       </button>
                       <p class="mt-1 text-xs text-slate-500">{{ session.templateVersion || '--' }}</p>
                     </div>
@@ -675,7 +675,7 @@ onBeforeUnmount(() => {
                         <p class="mt-1 text-sm font-semibold text-slate-500">--</p>
                       </template>
                       <template v-else>
-                        <p class="mt-1 text-sm font-semibold text-slate-900">{{ session.totalScore }}/{{ session.maxScore }}</p>
+                        <p class="mt-1 text-sm font-semibold text-blue-950">{{ session.totalScore }}/{{ session.maxScore }}</p>
                         <p class="mt-1 text-xs text-slate-500">{{ sessionScoreRate(session) }}%</p>
                       </template>
                     </div>
@@ -729,7 +729,7 @@ onBeforeUnmount(() => {
                 <tbody v-if="hasRows" class="divide-y divide-gray-200">
                   <template v-for="session in tableRows" :key="session.rowKey">
                     <tr class="bg-white hover:bg-gray-50">
-                      <td class="cursor-pointer px-4 py-2 text-sm font-medium text-slate-900 hover:text-slate-700 hover:underline" @click="handleRowAction(session)">{{ session.code }}</td>
+                      <td class="cursor-pointer px-4 py-2 text-sm font-medium text-blue-950 hover:text-slate-700 hover:underline" @click="handleRowAction(session)">{{ session.code }}</td>
                       <td class="px-4 py-2 text-sm text-gray-700">
                         <p class="font-medium text-slate-700">{{ session.templateName || '--' }}</p>
                         <p class="text-xs text-slate-500">{{ session.templateVersion || '--' }}</p>
@@ -810,7 +810,7 @@ onBeforeUnmount(() => {
         <div class="mb-5 flex size-14 items-center justify-center rounded-full bg-rose-100 text-rose-600 ring-8 ring-rose-50">
           <span class="material-symbols-outlined text-[28px]">delete</span>
         </div>
-        <h3 class="text-lg font-bold text-slate-900 tracking-tight">Xóa phiếu nháp?</h3>
+        <h3 class="text-lg font-bold text-blue-950 tracking-tight">Xóa phiếu nháp?</h3>
         <p class="mt-2 text-[14px] font-medium text-slate-500 leading-relaxed px-2">
           Dữ liệu đã chấm sẽ bị mất hoàn toàn và chức năng này <span class="text-rose-600 font-semibold underline decoration-rose-200 underline-offset-2">không thể khôi phục</span>.
         </p>
@@ -848,7 +848,7 @@ onBeforeUnmount(() => {
         <div class="mb-5 flex size-14 items-center justify-center rounded-full bg-rose-100 text-rose-600 ring-8 ring-rose-50">
           <span class="material-symbols-outlined text-[28px]">delete_forever</span>
         </div>
-        <h3 class="text-lg font-bold text-slate-900 tracking-tight">Xóa phiên QC đã chốt?</h3>
+        <h3 class="text-lg font-bold text-blue-950 tracking-tight">Xóa phiên QC đã chốt?</h3>
         <p class="mt-2 text-[14px] font-medium text-slate-500 leading-relaxed px-2">
           Hành động này sẽ xóa hoàn toàn kết quả chấm QC cùng với hình ảnh đính kèm và không thể khôi phục.
         </p>
@@ -886,7 +886,7 @@ onBeforeUnmount(() => {
         <div class="border-b border-slate-200 px-4 py-4 tablet:px-6">
           <div class="flex items-center justify-between gap-4">
             <div>
-              <h3 class="text-lg font-bold text-slate-900 tracking-tight">Chi tiết phiên QC - {{ selectedSessionForModal.code }}</h3>
+              <h3 class="text-lg font-bold text-blue-950 tracking-tight">Chi tiết phiên QC - {{ selectedSessionForModal.code }}</h3>
               <p class="mt-1 text-sm text-slate-500 font-medium">Mẫu: {{ selectedSessionForModal.templateName }} • Auditor: {{ selectedSessionForModal.auditorName }}</p>
             </div>
             <button
@@ -903,11 +903,11 @@ onBeforeUnmount(() => {
             <div class="grid grid-cols-2 gap-4 tablet:grid-cols-4">
               <div>
                 <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Điểm số</p>
-                <p class="mt-1 font-semibold text-slate-900">{{ selectedSessionForModal.totalScore }} / {{ selectedSessionForModal.maxScore }}</p>
+                <p class="mt-1 font-semibold text-blue-950">{{ selectedSessionForModal.totalScore }} / {{ selectedSessionForModal.maxScore }}</p>
               </div>
               <div>
                 <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Tỷ lệ</p>
-                <p class="mt-1 font-semibold text-slate-900">{{ sessionScoreRate(selectedSessionForModal) }}%</p>
+                <p class="mt-1 font-semibold text-blue-950">{{ sessionScoreRate(selectedSessionForModal) }}%</p>
               </div>
               <div>
                 <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Kết quả</p>
@@ -944,7 +944,7 @@ onBeforeUnmount(() => {
               <tbody v-if="selectedSessionForModal.criteria && selectedSessionForModal.criteria.length > 0" class="divide-y divide-slate-100">
                 <tr v-for="criterion in selectedSessionForModal.criteria" :key="criterion.id" class="transition-colors hover:bg-slate-50/50">
                   <td class="px-4 py-3">
-                    <p class="text-sm font-semibold text-slate-900">{{ criterion.name }}</p>
+                    <p class="text-sm font-semibold text-blue-950">{{ criterion.name }}</p>
                     <p class="mt-1 text-xs text-slate-500 tablet:hidden">{{ criterion.category }}</p>
                     <p v-if="criterion.note" class="mt-1.5 text-xs text-slate-600 bg-slate-100 p-2 rounded-lg border border-slate-200">{{ criterion.note }}</p>
                   </td>
@@ -979,7 +979,7 @@ onBeforeUnmount(() => {
         </div>
         
         <div class="border-t border-slate-200 px-4 py-4 tablet:px-6 flex justify-end bg-white rounded-b-xl">
-          <button type="button" class="inline-flex h-10 items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white transition-colors hover:bg-slate-800" @click="closeSessionDetailModal">
+          <button type="button" class="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-blue-700" @click="closeSessionDetailModal">
             Đóng
           </button>
         </div>

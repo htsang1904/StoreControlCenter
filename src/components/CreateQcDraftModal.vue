@@ -150,7 +150,7 @@ watch(
     <div class="space-y-4">
       <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
         <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Cửa hàng đang thao tác</p>
-        <p class="mt-1 text-sm font-semibold text-slate-900">{{ storeName || '--' }}</p>
+        <p class="mt-1 text-sm font-semibold text-blue-950">{{ storeName || '--' }}</p>
       </div>
 
       <section>
@@ -166,7 +166,7 @@ watch(
               "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-10 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-xl border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden",
               "dropdownClasses": "mt-2 z-[80] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-xl overflow-hidden overflow-y-auto",
               "optionClasses": "py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-lg focus:outline-hidden",
-              "optionTemplate": "<div class=\"flex justify-between items-center w-full gap-3\"><span data-title class=\"truncate\"></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-slate-900\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
+              "optionTemplate": "<div class=\"flex justify-between items-center w-full gap-3\"><span data-title class=\"truncate\"></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-blue-950\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
               "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-slate-500\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
             }'
           >
@@ -233,7 +233,7 @@ watch(
         </button>
         <button
           type="button"
-          class="inline-flex h-10 w-full items-center justify-center rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
+          class="inline-flex h-10 w-full items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
           :disabled="!canSubmit"
           @click="submitModal"
         >

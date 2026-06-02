@@ -125,7 +125,7 @@ onBeforeUnmount(() => {
         >
           <slot name="header">
             <div class="min-w-0 flex-1">
-              <h3 v-if="title" :id="titleId" class="text-base font-semibold text-slate-900">
+              <h3 v-if="title" :id="titleId" class="text-base font-semibold text-blue-950">
                 {{ title }}
               </h3>
               <p v-if="description" class="mt-1 text-sm leading-6 text-slate-500">

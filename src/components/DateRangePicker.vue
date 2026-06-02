@@ -188,13 +188,13 @@ function dayClass(day) {
   if (!day.isCurrentMonth) {
     classes.push('text-slate-300', 'border-transparent')
   } else if (isStart || isEnd) {
-    classes.push('bg-slate-900', 'border-slate-900', 'text-white', 'font-semibold')
+    classes.push('bg-blue-600', 'border-blue-600', 'text-white', 'font-semibold')
   } else if (inRange) {
     classes.push('bg-transparent', 'border-transparent', 'text-slate-700')
   } else if (day.isToday) {
-    classes.push('border-slate-300', 'text-slate-900', 'hover:border-slate-400')
+    classes.push('border-slate-300', 'text-blue-950', 'hover:border-slate-400')
   } else {
-    classes.push('border-transparent', 'text-slate-700', 'hover:border-slate-300', 'hover:text-slate-900')
+    classes.push('border-transparent', 'text-slate-700', 'hover:border-slate-300', 'hover:text-blue-950')
   }
 
   return classes.join(' ')
@@ -315,7 +315,7 @@ onBeforeUnmount(() => {
         </button>
         <button
           type="button"
-          class="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+          class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
           @click="applyPicker"
         >
           Áp dụng

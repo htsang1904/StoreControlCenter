@@ -46,7 +46,7 @@ const statusFilterSelectConfig = JSON.stringify({
   toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
   dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
   optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-slate-900" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
   extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
@@ -56,7 +56,7 @@ const editStatusSelectConfig = JSON.stringify({
   toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
   dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
   optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-slate-900" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
   extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
@@ -244,7 +244,7 @@ onMounted(async () => {
       <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
         <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
           <div>
-            <h3 class="text-base font-semibold text-slate-900">Danh sách cửa hàng</h3>
+            <h3 class="text-base font-semibold text-blue-950">Danh sách cửa hàng</h3>
           </div>
 
           <div class="grid w-full grid-cols-1 gap-3 tablet:w-auto tablet:grid-cols-[minmax(260px,1fr)_180px_auto_auto] tablet:items-center tablet:justify-end">
@@ -276,7 +276,7 @@ onMounted(async () => {
             </button>
             <button
               type="button"
-              class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+              class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
               @click="openCreateModal"
             >
               Tạo cửa hàng
@@ -287,19 +287,19 @@ onMounted(async () => {
         <div v-if="lastSyncSummary" class="grid grid-cols-2 gap-3 tablet:grid-cols-4">
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <p class="text-[11px] uppercase tracking-wide text-slate-400">Synced</p>
-            <p class="mt-1 text-base font-semibold text-slate-900">{{ Number(lastSyncSummary.synced || 0) }}</p>
+            <p class="mt-1 text-base font-semibold text-blue-950">{{ Number(lastSyncSummary.synced || 0) }}</p>
           </div>
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <p class="text-[11px] uppercase tracking-wide text-slate-400">Created</p>
-            <p class="mt-1 text-base font-semibold text-slate-900">{{ Number(lastSyncSummary.created || 0) }}</p>
+            <p class="mt-1 text-base font-semibold text-blue-950">{{ Number(lastSyncSummary.created || 0) }}</p>
           </div>
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <p class="text-[11px] uppercase tracking-wide text-slate-400">Updated</p>
-            <p class="mt-1 text-base font-semibold text-slate-900">{{ Number(lastSyncSummary.updated || 0) }}</p>
+            <p class="mt-1 text-base font-semibold text-blue-950">{{ Number(lastSyncSummary.updated || 0) }}</p>
           </div>
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <p class="text-[11px] uppercase tracking-wide text-slate-400">Skipped</p>
-            <p class="mt-1 text-base font-semibold text-slate-900">{{ Number(lastSyncSummary.skipped || 0) }}</p>
+            <p class="mt-1 text-base font-semibold text-blue-950">{{ Number(lastSyncSummary.skipped || 0) }}</p>
           </div>
         </div>
       </div>
@@ -323,9 +323,9 @@ onMounted(async () => {
 
           <tbody v-if="stores.length" class="divide-y divide-slate-100">
             <tr v-for="store in stores" :key="store.id" class="transition-colors hover:bg-slate-50/70">
-              <td class="px-4 py-3 text-sm font-semibold text-slate-900">{{ store.code || '--' }}</td>
+              <td class="px-4 py-3 text-sm font-semibold text-blue-950">{{ store.code || '--' }}</td>
               <td class="px-4 py-3">
-                <p class="text-sm font-semibold text-slate-900">{{ store.name || 'Chưa đặt tên' }}</p>
+                <p class="text-sm font-semibold text-blue-950">{{ store.name || 'Chưa đặt tên' }}</p>
                 <p class="text-xs text-slate-500">{{ store.shortAddress || store.address || '--' }}</p>
               </td>
               <td class="px-4 py-3 text-sm text-slate-700">{{ store.storeId || '--' }}</td>
@@ -389,12 +389,12 @@ onMounted(async () => {
 
   <div
     v-if="isModalOpen"
-    class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/40 px-4"
+    class="fixed inset-0 z-[90] flex items-center justify-center bg-blue-600/40 px-4"
     @click.self="closeModal"
   >
     <div class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl tablet:p-6">
       <div class="flex items-center justify-between gap-4">
-        <h3 class="text-lg font-semibold text-slate-900">{{ modalTitle }}</h3>
+        <h3 class="text-lg font-semibold text-blue-950">{{ modalTitle }}</h3>
         <button
           type="button"
           class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100"
@@ -483,7 +483,7 @@ onMounted(async () => {
         </button>
         <button
           type="button"
-          class="inline-flex h-9 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="savingStore"
           @click="submitStore"
         >

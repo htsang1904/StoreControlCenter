@@ -223,14 +223,14 @@ function renderMessage(content) {
           <span class="material-symbols-outlined text-[20px]">auto_awesome</span>
         </div>
         <div>
-          <h2 class="text-sm font-semibold text-slate-900">Trợ lý tạo vé</h2>
+          <h2 class="text-sm font-semibold text-blue-950">Trợ lý tạo vé</h2>
           <p class="text-xs text-slate-500">Đang hoạt động</p>
         </div>
       </div>
       
       <button
         type="button"
-        class="inline-flex size-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:bg-slate-100 focus:text-slate-900 focus:outline-hidden"
+        class="inline-flex size-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-950 focus:bg-slate-100 focus:text-blue-950 focus:outline-hidden"
         title="Huỷ và quay lại"
         aria-label="Huỷ và quay lại"
         @click="handleCancel"
@@ -384,10 +384,10 @@ function renderMessage(content) {
           <!-- User Message -->
           <div v-else class="flex gap-3 justify-end">
             <div class="flex flex-col gap-2 max-w-[85%] tablet:max-w-[75%] items-end">
-              <div v-if="msg.type === 'text'" class="rounded-2xl rounded-tr-none bg-slate-900 p-3.5 shadow-xs text-sm text-white leading-relaxed" v-html="renderMessage(msg.content)">
+              <div v-if="msg.type === 'text'" class="rounded-2xl rounded-tr-none bg-blue-600 p-3.5 shadow-xs text-sm text-white leading-relaxed" v-html="renderMessage(msg.content)">
               </div>
               <div v-if="msg.type === 'attachment_preview'" class="flex flex-col items-end gap-2">
-                <div class="rounded-2xl rounded-tr-none bg-slate-900 p-3.5 shadow-xs text-sm text-white">
+                <div class="rounded-2xl rounded-tr-none bg-blue-600 p-3.5 shadow-xs text-sm text-white">
                   {{ msg.content }}
                 </div>
                 <div class="flex flex-wrap justify-end gap-2">

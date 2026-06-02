@@ -178,7 +178,7 @@ const processingDurationMeta = computed(() => {
   if (!hasTicket.value) {
     return {
       value: '--',
-      className: 'text-slate-900',
+      className: 'text-blue-950',
       note: '',
     }
   }
@@ -186,7 +186,7 @@ const processingDurationMeta = computed(() => {
   const reason = String(ticket.value?.processing_alert_reason || '')
   return {
     value: ticket.value?.processing_duration_label || (ticket.value?.start_date || ticket.value?.createdAt ? '0 phút' : '--'),
-    className: ticket.value?.processing_alert_level === 'danger' ? 'text-rose-600' : 'text-slate-900',
+    className: ticket.value?.processing_alert_level === 'danger' ? 'text-rose-600' : 'text-blue-950',
     note:
       reason === 'unconfirmed_over_2h'
         ? 'Quá 2 giờ chưa xác nhận'
@@ -359,7 +359,7 @@ function conversationContentClass(item) {
 function conversationBubbleClass(item) {
   if (isSystemConversationItem(item)) return 'rounded-2xl border border-slate-200 bg-slate-100/90'
   return isOwnConversationItem(item)
-    ? 'rounded-2xl rounded-tr-md bg-slate-900 text-white'
+    ? 'rounded-2xl rounded-tr-md bg-blue-600 text-white'
     : 'rounded-2xl rounded-tl-md border border-slate-200 bg-white'
 }
 
@@ -1035,7 +1035,7 @@ watch(
                     {{ item.value }}
                   </span>
                   <template v-else>
-                    <p class="mt-2 break-words text-sm font-semibold leading-6" :class="item.className || 'text-slate-900'">{{ item.value }}</p>
+                    <p class="mt-2 break-words text-sm font-semibold leading-6" :class="item.className || 'text-blue-950'">{{ item.value }}</p>
                     <p v-if="item.note" class="mt-1 text-xs font-medium text-rose-600">{{ item.note }}</p>
                   </template>
                 </div>
@@ -1047,7 +1047,7 @@ watch(
             <div>
               <div class="flex items-start justify-between gap-3">
                 <div>
-                  <h3 class="text-sm font-semibold text-slate-900">Người xử lý</h3>
+                  <h3 class="text-sm font-semibold text-blue-950">Người xử lý</h3>
                   <p class="mt-1 text-xs text-slate-500">Danh sách đang phụ trách ticket hiện tại.</p>
                 </div>
 
@@ -1114,7 +1114,7 @@ watch(
                     <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
                       {{ String(ticketCode).startsWith('#') ? ticketCode : `#${ticketCode}` }}
                     </p>
-                    <h2 class="mt-1 truncate text-base font-semibold text-slate-900">{{ ticket.title || 'Trao đổi' }}</h2>
+                    <h2 class="mt-1 truncate text-base font-semibold text-blue-950">{{ ticket.title || 'Trao đổi' }}</h2>
                   </div>
                 </div>
 
@@ -1134,7 +1134,7 @@ watch(
                     <Transition name="action-modal">
                       <div
                         v-if="actionMenuOpen"
-                        class="fixed inset-0 z-[100] flex flex-col justify-end overflow-hidden bg-slate-900/40 tablet:absolute tablet:z-[60] tablet:items-center tablet:justify-center tablet:p-6"
+                        class="fixed inset-0 z-[100] flex flex-col justify-end overflow-hidden bg-blue-600/40 tablet:absolute tablet:z-[60] tablet:items-center tablet:justify-center tablet:p-6"
                       >
                         <div class="absolute inset-0" @click.stop="closeActionMenu"></div>
                         
@@ -1491,7 +1491,7 @@ watch(
                     />
                   </div>
                   <div class="ml-3 flex flex-col">
-                    <span class="block text-sm font-semibold text-slate-900">{{ member.name || `#${member.id}` }}</span>
+                    <span class="block text-sm font-semibold text-blue-950">{{ member.name || `#${member.id}` }}</span>
                     <p class="mt-0.5 text-xs text-slate-500">{{ member.department_name || departmentDisplay }}</p>
                   </div>
                 </label>
@@ -1532,7 +1532,7 @@ watch(
 
     <div
       v-if="imagePreview.open"
-      class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/85 p-3 tablet:p-6"
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-blue-600/85 p-3 tablet:p-6"
       @click.self="closeImagePreview"
     >
       <div class="relative w-full max-w-5xl">

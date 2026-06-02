@@ -39,7 +39,7 @@ async function submitData() {
             <path fill="currentColor" fill-rule="evenodd" d="M47.2426 24L24 47.2426L0.757355 24L24 0.757355L47.2426 24ZM12.2426 21H35.7574L24 9.24264L12.2426 21Z" clip-rule="evenodd" />
           </svg>
         </span>
-        <h1 class="text-lg font-bold tracking-tight text-slate-900">Trung tâm Điều hành Cửa hàng</h1>
+        <h1 class="text-lg font-bold tracking-tight text-blue-950">Trung tâm Điều hành Cửa hàng</h1>
       </div>
       <span class="text-sm font-medium text-slate-500">{{ appVersion }}</span>
     </header>
@@ -55,7 +55,7 @@ async function submitData() {
               <path d="M9 13h6" />
             </svg>
           </div>
-          <h2 class="mb-1.5 text-2xl font-bold text-slate-900">Đăng nhập</h2>
+          <h2 class="mb-1.5 text-2xl font-bold text-blue-950">Đăng nhập</h2>
           <p class="text-sm text-slate-500">Truy cập vào hệ thống quản trị cửa hàng của bạn</p>
         </div>
 
@@ -70,7 +70,7 @@ async function submitData() {
               id="username"
               v-model="formData.username"
               type="text"
-              class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 text-slate-900 outline-none transition-all"
+              class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 text-blue-950 outline-none transition-all"
               placeholder="Nhập tên đăng nhập của bạn"
               autocomplete="username"
             />
@@ -86,7 +86,7 @@ async function submitData() {
                 id="password"
                 v-model="formData.password"
                 :type="showPassword ? 'text' : 'password'"
-                class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 pr-12 text-slate-900 outline-none transition-all"
+                class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 pr-12 text-blue-950 outline-none transition-all"
                 placeholder="••••••••"
                 autocomplete="current-password"
               />

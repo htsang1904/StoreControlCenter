@@ -44,7 +44,7 @@ const goBack = () => {
             <span class="material-symbols-outlined text-[18px]">arrow_back</span>
             Quay lại công cụ
           </button>
-          <h2 class="mt-4 text-xl font-semibold tracking-tight text-slate-900">Đồng bộ danh mục cửa hàng</h2>
+          <h2 class="mt-4 text-xl font-semibold tracking-tight text-blue-950">Đồng bộ danh mục cửa hàng</h2>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
             Chạy đồng bộ thủ công từ nguồn chính về backend để cập nhật danh sách cửa hàng hiện hành.
           </p>
@@ -52,7 +52,7 @@ const goBack = () => {
 
         <button
           type="button"
-          class="inline-flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
+          class="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
           :disabled="syncingStores"
           @click="handleSyncStoresNow"
         >
@@ -64,7 +64,7 @@ const goBack = () => {
 
     <section class="grid grid-cols-1 gap-4 pc:grid-cols-[minmax(0,1.1fr)_320px]">
       <article class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-        <h3 class="text-base font-semibold text-slate-900">Kết quả lần chạy gần nhất</h3>
+        <h3 class="text-base font-semibold text-blue-950">Kết quả lần chạy gần nhất</h3>
 
         <div
           v-if="syncResult"
@@ -72,19 +72,19 @@ const goBack = () => {
         >
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Synced</p>
-            <p class="mt-2 text-2xl font-semibold text-slate-900">{{ Number(syncResult.synced || 0) }}</p>
+            <p class="mt-2 text-2xl font-semibold text-blue-950">{{ Number(syncResult.synced || 0) }}</p>
           </div>
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Created</p>
-            <p class="mt-2 text-2xl font-semibold text-slate-900">{{ Number(syncResult.created || 0) }}</p>
+            <p class="mt-2 text-2xl font-semibold text-blue-950">{{ Number(syncResult.created || 0) }}</p>
           </div>
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Updated</p>
-            <p class="mt-2 text-2xl font-semibold text-slate-900">{{ Number(syncResult.updated || 0) }}</p>
+            <p class="mt-2 text-2xl font-semibold text-blue-950">{{ Number(syncResult.updated || 0) }}</p>
           </div>
           <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Skipped</p>
-            <p class="mt-2 text-2xl font-semibold text-slate-900">{{ Number(syncResult.skipped || 0) }}</p>
+            <p class="mt-2 text-2xl font-semibold text-blue-950">{{ Number(syncResult.skipped || 0) }}</p>
           </div>
         </div>
 
@@ -105,7 +105,7 @@ const goBack = () => {
       </article>
 
       <aside class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-        <h3 class="text-base font-semibold text-slate-900">Lưu ý vận hành</h3>
+        <h3 class="text-base font-semibold text-blue-950">Lưu ý vận hành</h3>
         <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-500">
           <li>Chỉ chạy khi cần cập nhật danh mục mới từ nguồn chính.</li>
           <li>Không cần chạy liên tục nếu dữ liệu store không thay đổi.</li>

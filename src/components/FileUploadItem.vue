@@ -331,7 +331,7 @@ watch(
             <span class="pe-1 font-medium text-gray-800 dark:text-neutral-200">
             Kéo thả ảnh vào đây hoặc
             </span>
-            <span class="rounded-lg bg-white font-semibold text-slate-700 decoration-2 hover:underline hover:text-slate-900 focus-within:outline-hidden focus-within:ring-2 focus-within:ring-slate-400 focus-within:ring-offset-2 dark:bg-neutral-800 dark:text-slate-200 dark:hover:text-white">tải ảnh lên</span>
+            <span class="rounded-lg bg-white font-semibold text-slate-700 decoration-2 hover:underline hover:text-blue-950 focus-within:outline-hidden focus-within:ring-2 focus-within:ring-slate-400 focus-within:ring-offset-2 dark:bg-neutral-800 dark:text-slate-200 dark:hover:text-white">tải ảnh lên</span>
         </div>
 
         <p class="mt-1 text-xs text-gray-400 dark:text-neutral-400">

@@ -21,7 +21,7 @@ const statusFilterSelectConfig = JSON.stringify({
   toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
   dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
   optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-slate-900" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
   extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
@@ -185,7 +185,7 @@ onMounted(async () => {
       <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
         <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
           <div>
-            <h3 class="text-base font-semibold text-slate-900">Danh sách biểu mẫu QC</h3>
+            <h3 class="text-base font-semibold text-blue-950">Danh sách biểu mẫu QC</h3>
           </div>
 
           <div class="grid w-full grid-cols-1 gap-3 tablet:w-auto tablet:grid-cols-[minmax(280px,1fr)_190px_auto] tablet:items-center tablet:justify-end">
@@ -211,7 +211,7 @@ onMounted(async () => {
 
             <button
               type="button"
-              class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 tablet:w-auto"
+              class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 tablet:w-auto"
               @click="openCreatePage"
             >
               Tạo biểu mẫu
@@ -248,9 +248,9 @@ onMounted(async () => {
               class="cursor-pointer transition-colors hover:bg-slate-50/80"
               @click="openFormDetail(form.id)"
             >
-              <td class="px-4 py-3 text-sm font-semibold text-slate-900">{{ form.code }}</td>
+              <td class="px-4 py-3 text-sm font-semibold text-blue-950">{{ form.code }}</td>
               <td class="px-4 py-3">
-                <p class="text-sm font-medium text-slate-900">{{ form.name }}</p>
+                <p class="text-sm font-medium text-blue-950">{{ form.name }}</p>
                 <p class="text-xs text-slate-500">{{ form.description || 'Không có mô tả' }}</p>
               </td>
               <td class="px-4 py-3 text-sm text-slate-600">{{ form.latestVersionNo || '--' }}</td>
@@ -317,7 +317,7 @@ onMounted(async () => {
                 v-if="typeof item === 'number'"
                 type="button"
                 class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold transition-colors"
-                :class="item === currentPage ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-200'"
+                :class="item === currentPage ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'"
                 :disabled="item === currentPage || loadingForms"
                 @click="goToPage(item)"
               >

@@ -25,7 +25,7 @@ const openTool = (path) => {
   <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
       <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
-        <h3 class="text-base font-semibold text-slate-900">Danh sách công cụ</h3>
+        <h3 class="text-base font-semibold text-blue-950">Danh sách công cụ</h3>
       </div>
 
       <article
@@ -39,7 +39,7 @@ const openTool = (path) => {
               <span class="material-symbols-outlined text-[22px]">{{ tool.icon }}</span>
             </div>
             <div class="min-w-0">
-              <h3 class="text-base font-semibold text-slate-900">{{ tool.title }}</h3>
+              <h3 class="text-base font-semibold text-blue-950">{{ tool.title }}</h3>
               <p class="mt-1 text-sm leading-6 text-slate-500">{{ tool.description }}</p>
             </div>
           </div>
