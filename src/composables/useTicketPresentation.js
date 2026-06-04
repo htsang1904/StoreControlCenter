@@ -80,7 +80,7 @@ export function ticketProcessingDurationLabel(ticket) {
 }
 
 export function ticketProcessingDurationClass(ticket) {
-  return ticket?.processing_alert_level === 'danger' ? 'text-rose-600' : 'text-slate-700'
+  return ticket?.processing_alert_level === 'danger' ? 'text-[var(--danger-text)]' : 'text-[var(--text-secondary)]'
 }
 
 export function ticketProcessingAlertHint(ticket) {

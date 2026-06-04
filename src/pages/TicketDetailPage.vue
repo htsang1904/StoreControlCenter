@@ -178,7 +178,7 @@ const processingDurationMeta = computed(() => {
   if (!hasTicket.value) {
     return {
       value: '--',
-      className: 'text-blue-950',
+      className: 'text-[var(--text-primary)]',
       note: '',
     }
   }
@@ -186,7 +186,7 @@ const processingDurationMeta = computed(() => {
   const reason = String(ticket.value?.processing_alert_reason || '')
   return {
     value: ticket.value?.processing_duration_label || (ticket.value?.start_date || ticket.value?.createdAt ? '0 phút' : '--'),
-    className: ticket.value?.processing_alert_level === 'danger' ? 'text-rose-600' : 'text-blue-950',
+    className: ticket.value?.processing_alert_level === 'danger' ? 'text-[var(--danger-text)]' : 'text-[var(--text-primary)]',
     note:
       reason === 'unconfirmed_over_2h'
         ? 'Quá 2 giờ chưa xác nhận'
@@ -307,7 +307,7 @@ function avatarInitial(name) {
 
 function avatarClass(senderType) {
   const type = String(senderType || '').toLowerCase()
-  if (type === 'system') return 'bg-slate-300 text-slate-700'
+  if (type === 'system') return 'bg-[var(--stroke-strong)] text-[var(--text-secondary)]'
   return 'app-avatar-neutral'
 }
 
@@ -357,29 +357,29 @@ function conversationContentClass(item) {
 }
 
 function conversationBubbleClass(item) {
-  if (isSystemConversationItem(item)) return 'rounded-2xl border border-slate-200 bg-slate-100/90'
+  if (isSystemConversationItem(item)) return 'rounded-2xl border border-[var(--stroke)] bg-[var(--primary-softer)]/90'
   return isOwnConversationItem(item)
-    ? 'rounded-2xl rounded-tr-md bg-blue-600 text-white'
-    : 'rounded-2xl rounded-tl-md border border-slate-200 bg-white'
+    ? 'rounded-2xl rounded-tr-md bg-[var(--primary)] text-white'
+    : 'rounded-2xl rounded-tl-md border border-[var(--stroke)] bg-white'
 }
 
 function conversationMessageClass(item) {
   return isOwnConversationItem(item) && !isSystemConversationItem(item)
     ? 'whitespace-pre-line break-words text-sm leading-relaxed text-white'
-    : 'whitespace-pre-line break-words text-sm leading-relaxed text-slate-700'
+    : 'whitespace-pre-line break-words text-sm leading-relaxed text-[var(--text-secondary)]'
 }
 
 function conversationAttachmentLinkClass(item) {
   return isOwnConversationItem(item)
     ? 'inline-flex max-w-full cursor-pointer break-all text-sm font-semibold text-white underline-offset-2 hover:underline'
-    : 'inline-flex max-w-full cursor-pointer break-all text-sm font-semibold text-slate-700 underline-offset-2 hover:underline'
+    : 'inline-flex max-w-full cursor-pointer break-all text-sm font-semibold text-[var(--text-secondary)] underline-offset-2 hover:underline'
 }
 
 function conversationTimestampClass(item) {
-  if (isSystemConversationItem(item)) return 'mt-2 self-center text-[11px] text-slate-400'
+  if (isSystemConversationItem(item)) return 'mt-2 self-center text-[11px] text-[var(--text-muted)]'
   return isOwnConversationItem(item)
-    ? 'mt-2 self-end text-[11px] text-slate-300'
-    : 'mt-2 self-end text-[11px] text-slate-400'
+    ? 'mt-2 self-end text-[11px] text-[var(--text-muted)]'
+    : 'mt-2 self-end text-[11px] text-[var(--text-muted)]'
 }
 
 function scrollConversationToBottom() {
@@ -979,10 +979,10 @@ watch(
 </script>
 
 <template>
-  <div :class="isEmbedded ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'page-stack h-full min-h-0 overflow-hidden flex flex-col'">
+  <div :class="isEmbedded ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'h-full min-h-0 overflow-hidden flex flex-col'">
     <section
       class="flex flex-col flex-1 min-h-0 overflow-hidden"
-      :class="isEmbedded ? 'bg-transparent' : 'border border-slate-200 bg-white pc:border-x pc:border-y-0'"
+      :class="isEmbedded ? 'bg-transparent' : 'border border-[var(--stroke)] bg-white pc:border-x pc:border-y-0'"
       v-loading="loading"
     >
       <div v-if="errorMessage" class="p-5 tablet:p-6">
@@ -992,7 +992,7 @@ watch(
         <div class="mt-4">
           <button
             type="button"
-            class="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-hidden"
+            class="cursor-pointer rounded-lg border border-[var(--stroke)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] focus:outline-hidden"
             @click="fetchAllData"
           >
             Thử lại
@@ -1012,21 +1012,21 @@ watch(
         </div>
       </div>
 
-      <div v-else class="min-h-0 flex-1 flex flex-col" :class="!isEmbedded ? 'pc:grid pc:grid-cols-[minmax(0,1fr)_320px]' : ''">
-        <aside v-if="!isEmbedded" class="hidden border-b border-slate-200 pc:order-2 pc:flex pc:flex-col pc:h-full pc:border-b-0 pc:border-slate-200 bg-white">
+      <div v-else class="min-h-0 flex-1 flex flex-col" :class="!isEmbedded ? 'app-split-shell' : ''">
+        <aside v-if="!isEmbedded" class="hidden border-b border-[var(--stroke)] pc:order-2 pc:flex pc:flex-col pc:h-full pc:border-b-0 pc:border-[var(--stroke)] bg-white">
           <section class="flex-1 overflow-y-auto px-4 py-4 tablet:px-5 tablet:py-5 ticket-detail-scrollbar">
             <div class="space-y-4">
               <div>
-                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Thông tin ticket</p>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Thông tin ticket</p>
               </div>
 
               <div class="space-y-4">
                 <div
                   v-for="item in overviewItems"
                   :key="item.key"
-                  class="min-w-0 border-b border-slate-200 pb-4 last:border-b-0 last:pb-0"
+                  class="min-w-0 border-b border-[var(--stroke)] pb-4 last:border-b-0 last:pb-0"
                 >
-                  <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">{{ item.label }}</p>
+                  <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">{{ item.label }}</p>
                   <span
                     v-if="item.kind === 'status'"
                     class="app-badge mt-2 inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold"
@@ -1035,26 +1035,26 @@ watch(
                     {{ item.value }}
                   </span>
                   <template v-else>
-                    <p class="mt-2 break-words text-sm font-semibold leading-6" :class="item.className || 'text-blue-950'">{{ item.value }}</p>
-                    <p v-if="item.note" class="mt-1 text-xs font-medium text-rose-600">{{ item.note }}</p>
+                    <p class="mt-2 break-words text-sm font-semibold leading-6" :class="item.className || 'text-[var(--text-primary)]'">{{ item.value }}</p>
+                    <p v-if="item.note" class="mt-1 text-xs font-medium text-[var(--danger-text)]">{{ item.note }}</p>
                   </template>
                 </div>
               </div>
             </div>
           </section>
 
-          <section class="shrink-0 border-t border-slate-200 bg-white px-4 py-4 tablet:px-5 tablet:py-5">
+          <section class="shrink-0 border-t border-[var(--stroke)] bg-white px-4 py-4 tablet:px-5 tablet:py-5">
             <div>
               <div class="flex items-start justify-between gap-3">
                 <div>
-                  <h3 class="text-sm font-semibold text-blue-950">Người xử lý</h3>
-                  <p class="mt-1 text-xs text-slate-500">Danh sách đang phụ trách ticket hiện tại.</p>
+                  <h3 class="text-sm font-semibold text-[var(--text-primary)]">Người xử lý</h3>
+                  <p class="mt-1 text-xs text-[var(--text-secondary)]">Danh sách đang phụ trách ticket hiện tại.</p>
                 </div>
 
                 <button
                   v-if="canAdminAssignHandler"
                   type="button"
-                  class="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  class="app-button-secondary inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold disabled:opacity-50"
                   aria-label="Phân công handler"
                   :disabled="assigningHandler || assignableHandlersLoading"
                   @click="toggleAssignPanel"
@@ -1065,20 +1065,20 @@ watch(
               </div>
 
               <p v-if="assigneesError" class="app-field-error mt-3 tablet:text-sm">{{ assigneesError }}</p>
-              <p v-else-if="assigneesLoading" class="mt-3 text-xs tablet:text-sm text-slate-500">Đang tải người xử lý...</p>
+              <p v-else-if="assigneesLoading" class="mt-3 text-xs tablet:text-sm text-[var(--text-secondary)]">Đang tải người xử lý...</p>
 
               <div class="mt-4 flex flex-wrap gap-2">
                 <span
                   v-for="member in assignees"
                   :key="member.id"
-                  class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700"
+                  class="inline-flex items-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)]"
                 >
                   <span class="app-avatar-neutral inline-flex size-5 items-center justify-center rounded-full text-[10px] font-bold uppercase">
                     {{ avatarInitial(member.name || `#${member.id}`) }}
                   </span>
                   {{ member.name || `#${member.id}` }}
                 </span>
-                <span v-if="!assignees.length" class="text-xs tablet:text-sm text-slate-500">Chưa có người xử lý.</span>
+                <span v-if="!assignees.length" class="text-xs tablet:text-sm text-[var(--text-secondary)]">Chưa có người xử lý.</span>
               </div>
 
               <div v-if="canClaimTicket" class="mt-4">
@@ -1095,15 +1095,15 @@ watch(
           </section>
         </aside>
 
-        <div class="min-h-0 flex-1 flex flex-col relative overflow-hidden" :class="!isEmbedded ? 'pc:order-1 pc:border-r pc:border-slate-200' : ''">
+        <div class="min-h-0 flex-1 flex flex-col relative overflow-hidden" :class="!isEmbedded ? 'pc:order-1 pc:border-r pc:border-[var(--stroke)]' : ''">
           <section class="flex flex-1 min-h-0 flex-col">
-            <div class="shrink-0 border-b border-slate-200 bg-white px-3 py-2 tablet:px-4">
+            <div class="shrink-0 border-b border-[var(--stroke)] bg-white px-3 py-2.5 tablet:px-4">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-3">
                   <button
                     v-if="!isEmbedded"
                     type="button"
-                    class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+                    class="app-button-secondary inline-flex size-9 shrink-0 items-center justify-center rounded-lg"
                     aria-label="Quay lại danh sách ticket"
                     @click="goBack"
                   >
@@ -1111,10 +1111,10 @@ watch(
                   </button>
 
                   <div class="min-w-0">
-                    <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
                       {{ String(ticketCode).startsWith('#') ? ticketCode : `#${ticketCode}` }}
                     </p>
-                    <h2 class="mt-1 truncate text-base font-semibold text-blue-950">{{ ticket.title || 'Trao đổi' }}</h2>
+                    <h2 class="mt-1 truncate text-base font-semibold text-[var(--text-primary)]">{{ ticket.title || 'Trao đổi' }}</h2>
                   </div>
                 </div>
 
@@ -1123,7 +1123,7 @@ watch(
                     <button
                       v-if="showHeaderActionMenu"
                       type="button"
-                      class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-soft)]"
                       aria-label="Tùy chọn thao tác"
                       @click="toggleActionMenu"
                     >
@@ -1134,16 +1134,16 @@ watch(
                     <Transition name="action-modal">
                       <div
                         v-if="actionMenuOpen"
-                        class="fixed inset-0 z-[100] flex flex-col justify-end overflow-hidden bg-blue-600/40 tablet:absolute tablet:z-[60] tablet:items-center tablet:justify-center tablet:p-6"
+                        class="fixed inset-0 z-[100] flex flex-col justify-end overflow-hidden bg-[var(--primary)]/40 tablet:absolute tablet:z-[60] tablet:items-center tablet:justify-center tablet:p-6"
                       >
                         <div class="absolute inset-0" @click.stop="closeActionMenu"></div>
                         
                         <div class="modal-panel relative flex h-[50dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl focus:outline-none tablet:h-auto tablet:max-h-[80%] tablet:max-w-sm tablet:rounded-2xl">
-                          <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
-                            <h3 class="text-base font-semibold text-slate-800">Tùy chọn thao tác</h3>
+                          <div class="flex shrink-0 items-center justify-between border-b border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
+                            <h3 class="text-base font-semibold text-[var(--text-primary)]">Tùy chọn thao tác</h3>
                             <button
                               type="button"
-                              class="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-200/50 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                              class="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)]/50 text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--text-secondary)]"
                               @click.stop="closeActionMenu"
                             >
                               <span class="material-symbols-outlined text-[18px]">close</span>
@@ -1154,11 +1154,11 @@ watch(
                           <button
                             v-if="canClaimTicket"
                             type="button"
-                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-700 transition-all hover:bg-blue-50 hover:text-blue-700 disabled:opacity-50"
+                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-all hover:bg-blue-50 hover:text-[var(--primary-strong)] disabled:opacity-50"
                             :disabled="assigning || resolving"
                             @click="actionMenuOpen = false; handleClaimTicket()"
                           >
-                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
                               <span class="material-symbols-outlined text-[20px]">{{ assigning ? 'hourglass_empty' : 'how_to_reg' }}</span>
                             </span>
                             <span class="flex-1">{{ assigning ? 'Đang nhận xử lý...' : 'Nhận xử lý việc này' }}</span>
@@ -1167,11 +1167,11 @@ watch(
                           <button
                             v-if="canAdminAssignHandler"
                             type="button"
-                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-700 transition-all hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
+                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-all hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
                             :disabled="assigningHandler || assignableHandlersLoading"
                             @click="openAssignPanelFromMenu"
                           >
-                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
+                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
                               <span class="material-symbols-outlined text-[20px]">person_add</span>
                             </span>
                             <span class="flex-1">Giao việc cho nhân viên khác</span>
@@ -1180,11 +1180,11 @@ watch(
                           <button
                             v-if="canResolveTicket"
                             type="button"
-                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-700 transition-all hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-all hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
                             :disabled="assigning || resolving"
                             @click="handleResolveFromMenu"
                           >
-                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--success-bg)] text-[var(--success-text)]">
                               <span class="material-symbols-outlined text-[20px]" :class="resolving ? 'animate-spin' : ''">{{ resolving ? 'autorenew' : 'task_alt' }}</span>
                             </span>
                             <span class="flex-1">{{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý xong' }}</span>
@@ -1197,7 +1197,7 @@ watch(
 
                   <button
                     type="button"
-                    class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                    class="app-button-secondary inline-flex size-9 shrink-0 items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-soft)]"
                     aria-label="Danh sách tệp đính kèm"
                     title="Danh sách tệp đính kèm"
                     @click="toggleFilesSidebar"
@@ -1208,10 +1208,10 @@ watch(
             </div>
             </div>
 
-            <div class="min-h-0 flex-1 bg-slate-50/60">
+            <div class="min-h-0 flex-1 bg-[var(--surface-muted)]/60">
               <div
                 ref="conversationViewportRef"
-                class="ticket-detail-scrollbar h-full overflow-y-auto px-3 py-4 tablet:px-4 tablet:py-5"
+                class="ticket-detail-scrollbar h-full overflow-y-auto p-3 tablet:p-4"
               >
                 <p v-if="logsError" class="app-state-banner text-xs tablet:text-sm">
                   {{ logsError }}
@@ -1244,10 +1244,10 @@ watch(
                         :class="conversationContentClass(item)"
                       >
                         <div
-                          class="mb-1.5 flex flex-col gap-0.5 text-xs text-slate-500"
+                          class="mb-1.5 flex flex-col gap-0.5 text-xs text-[var(--text-secondary)]"
                           :class="conversationMetaClass(item)"
                         >
-                          <span class="font-semibold text-slate-700">{{ item.sender_name }}</span>
+                          <span class="font-semibold text-[var(--text-secondary)]">{{ item.sender_name }}</span>
                           <span>{{ item.sender_role }}</span>
                         </div>
 
@@ -1260,7 +1260,7 @@ watch(
                           <div v-if="item.attachments.length" class="mt-3">
                             <div class="flex flex-wrap gap-2">
                               <template v-for="attachment in item.attachments" :key="attachment.id">
-                                <div v-if="isImageFile(attachment.mime, attachment.url)" class="relative size-16 tablet:size-24 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-pointer shadow-xs transition-opacity hover:opacity-90" @click="openImagePreview(attachment.url, attachment.name)">
+                                <div v-if="isImageFile(attachment.mime, attachment.url)" class="relative size-16 tablet:size-24 overflow-hidden rounded-lg border border-[var(--stroke)] bg-[var(--primary-softer)] cursor-pointer shadow-xs transition-opacity hover:opacity-90" @click="openImagePreview(attachment.url, attachment.name)">
                                   <img :src="toAbsoluteUrl(attachment.url)" :alt="attachment.name" class="absolute inset-0 size-full object-cover" />
                                 </div>
                                 <a
@@ -1289,7 +1289,7 @@ watch(
                   v-else
                   class="flex h-full min-h-[240px] items-center justify-center px-6"
                 >
-                  <div class="app-state-panel app-state-panel--compact w-full max-w-sm border-dashed border-slate-300 bg-white/80">
+                  <div class="app-state-panel app-state-panel--compact w-full max-w-sm border-dashed border-[var(--stroke-strong)] bg-white/80">
                     <div class="app-state-stack mx-auto">
                       <div class="app-state-icon mx-auto">
                         <span class="material-symbols-outlined text-[28px]">chat</span>
@@ -1302,7 +1302,7 @@ watch(
               </div>
             </div>
 
-            <section class="shrink-0 border-t border-slate-200 bg-white px-3 py-3 tablet:px-4">
+            <section class="shrink-0 border-t border-[var(--stroke)] bg-white p-3 tablet:p-4">
               <div class="space-y-2">
 
                 <template v-if="!isResolvedTicket">
@@ -1320,7 +1320,7 @@ watch(
                         <span class="max-w-[180px] truncate">{{ file.name }}</span>
                         <button
                           type="button"
-                          class="inline-flex size-4 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                          class="inline-flex size-4 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--text-secondary)]"
                           aria-label="Xóa tệp"
                           @click="removeReplyFile(index)"
                         >
@@ -1340,7 +1340,7 @@ watch(
                         />
                        <button
                           type="button"
-                          class="shrink-0 flex items-center justify-center size-[46px] rounded-full text-slate-500 hover:bg-slate-100 transition-colors"
+                          class="shrink-0 flex items-center justify-center size-[46px] rounded-full text-[var(--text-secondary)] hover:bg-[var(--primary-softer)] transition-colors"
                           title="Đính kèm ảnh"
                           @click="openReplyFilePicker"
                           :disabled="!canReply || submittingReply"
@@ -1348,10 +1348,10 @@ watch(
                          <svg class="size-[22px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                        </button>
 
-                       <div class="flex-1 relative rounded-[20px] border border-slate-200 bg-white focus-within:border-slate-400 transition-colors">
+                       <div class="flex-1 relative rounded-[20px] border border-[var(--stroke)] bg-white focus-within:border-[var(--primary)] transition-colors">
                          <textarea
                             v-model="replyMessage"
-                            class="block w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-0"
+                            class="block w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-0"
                             placeholder="Nhập nội dung phản hồi..."
                             rows="1"
                             style="min-height: 46px; max-height: 120px;"
@@ -1376,7 +1376,7 @@ watch(
                 </template>
 
                 <template v-else>
-                  <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+                  <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] px-3 py-3 text-sm text-[var(--text-secondary)]">
                     Ticket đã được đánh dấu xử lý xong. Nếu cửa hàng chưa hài lòng với kết quả, bạn có thể gửi lại yêu cầu để bộ phận phụ trách tiếp tục xử lý.
                   </div>
                   <p v-if="replyError" class="app-field-error mt-3 tablet:text-sm">{{ replyError }}</p>
@@ -1399,13 +1399,13 @@ watch(
           <Transition name="slide-right">
             <aside
               v-if="filesSidebarOpen"
-              class="absolute inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-slate-200 bg-slate-50 shadow-2xl"
+              class="absolute inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-[var(--stroke)] bg-[var(--surface-muted)] shadow-2xl"
             >
-              <div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-                <h3 class="text-sm font-semibold text-slate-800">Tệp đính kèm</h3>
+              <div class="flex shrink-0 items-center justify-between border-b border-[var(--stroke)] bg-white px-4 py-3">
+                <h3 class="text-sm font-semibold text-[var(--text-primary)]">Tệp đính kèm</h3>
                 <button
                   type="button"
-                  class="flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-800"
+                  class="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-softer)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--text-primary)]"
                   @click="closeFilesSidebar"
                 >
                   <span class="material-symbols-outlined text-[18px]">close</span>
@@ -1413,7 +1413,7 @@ watch(
               </div>
 
               <div class="ticket-detail-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
-                <div v-if="!exchangedFiles.length" class="py-10 text-center text-sm text-slate-500">
+                <div v-if="!exchangedFiles.length" class="py-10 text-center text-sm text-[var(--text-secondary)]">
                   Chưa có tệp đính kèm nào được chia sẻ.
                 </div>
                 
@@ -1421,11 +1421,11 @@ watch(
                   <div
                     v-for="file in exchangedFiles"
                     :key="`${file.id}-${file.messageId}`"
-                    class="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-xs transition-colors hover:border-slate-300"
+                    class="flex items-start gap-3 rounded-xl border border-[var(--stroke)] bg-white p-3 shadow-xs transition-colors hover:border-[var(--stroke-strong)]"
                   >
                     <div
                       v-if="isImageFile(file.mime, file.url)"
-                      class="relative size-12 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-slate-100 bg-slate-100"
+                      class="relative size-12 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[var(--stroke)] bg-[var(--primary-softer)]"
                       @click="openImagePreview(file.url, file.name)"
                     >
                       <img :src="toAbsoluteUrl(file.url)" :alt="file.name" class="absolute inset-0 size-full object-cover" />
@@ -1433,7 +1433,7 @@ watch(
                     </div>
                     <div
                       v-else
-                      class="flex size-12 shrink-0 items-center justify-center rounded-lg border border-slate-100 bg-slate-100 text-slate-400"
+                      class="flex size-12 shrink-0 items-center justify-center rounded-lg border border-[var(--stroke)] bg-[var(--primary-softer)] text-[var(--text-muted)]"
                     >
                       <span class="material-symbols-outlined text-[20px]">description</span>
                     </div>
@@ -1443,12 +1443,12 @@ watch(
                         :href="toAbsoluteUrl(file.url)"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="block truncate text-sm font-semibold text-slate-800 transition-colors hover:text-blue-600 hover:underline"
+                        class="block truncate text-sm font-semibold text-[var(--text-primary)] transition-colors hover:text-[var(--primary)] hover:underline"
                         :title="file.name"
                       >
                         {{ file.name }}
                       </a>
-                      <div class="mt-1 flex flex-col gap-0.5 text-[11px] text-slate-500">
+                      <div class="mt-1 flex flex-col gap-0.5 text-[11px] text-[var(--text-secondary)]">
                         <span class="truncate font-medium">{{ file.senderName }}</span>
                         <span>{{ formatDateTime(file.createdAt) }} • {{ formatFileSize(file.size) }}</span>
                       </div>
@@ -1470,8 +1470,8 @@ watch(
             @close="closeAssignModal"
           >
             <div class="space-y-4">
-              <div v-if="assignableHandlersLoading" class="text-sm text-slate-500">Đang tải danh sách handler...</div>
-              <div v-else-if="assignableHandlersError" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+              <div v-if="assignableHandlersLoading" class="text-sm text-[var(--text-secondary)]">Đang tải danh sách handler...</div>
+              <div v-else-if="assignableHandlersError" class="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-bg)] px-4 py-3 text-sm text-[var(--danger-text)]">
                 {{ assignableHandlersError }}
               </div>
 
@@ -1479,25 +1479,25 @@ watch(
                 <label
                   v-for="member in availableAssignableHandlers"
                   :key="member.id"
-                  class="group relative flex cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-xs transition-colors hover:border-blue-500 hover:bg-slate-50"
-                  :class="selectedAssignableHandlerIds.includes(String(member.id)) ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-600' : ''"
+                  class="group relative flex cursor-pointer overflow-hidden rounded-xl border border-[var(--stroke)] bg-white p-4 shadow-xs transition-colors hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
+                  :class="selectedAssignableHandlerIds.includes(String(member.id)) ? 'border-[var(--primary)] bg-blue-50/50 ring-1 ring-blue-600' : ''"
                 >
                   <div class="flex h-6 items-center">
                     <input
                       v-model="selectedAssignableHandlerIds"
                       :value="String(member.id)"
                       type="checkbox"
-                      class="size-5 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                      class="size-5 rounded border-[var(--stroke-strong)] text-[var(--primary)] focus:ring-blue-600"
                     />
                   </div>
                   <div class="ml-3 flex flex-col">
-                    <span class="block text-sm font-semibold text-blue-950">{{ member.name || `#${member.id}` }}</span>
-                    <p class="mt-0.5 text-xs text-slate-500">{{ member.department_name || departmentDisplay }}</p>
+                    <span class="block text-sm font-semibold text-[var(--text-primary)]">{{ member.name || `#${member.id}` }}</span>
+                    <p class="mt-0.5 text-xs text-[var(--text-secondary)]">{{ member.department_name || departmentDisplay }}</p>
                   </div>
                 </label>
               </div>
 
-              <div v-else class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+              <div v-else class="rounded-2xl border border-dashed border-[var(--stroke-strong)] bg-[var(--surface-muted)] px-4 py-5 text-sm text-[var(--text-secondary)]">
                 Không còn handler khả dụng trong bộ phận này.
               </div>
             </div>
@@ -1532,7 +1532,7 @@ watch(
 
     <div
       v-if="imagePreview.open"
-      class="fixed inset-0 z-[120] flex items-center justify-center bg-blue-600/85 p-3 tablet:p-6"
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-[var(--primary)]/85 p-3 tablet:p-6"
       @click.self="closeImagePreview"
     >
       <div class="relative w-full max-w-5xl">
@@ -1574,7 +1574,7 @@ watch(
 
 .ticket-detail-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: #b8d7f4 transparent;
 }
 
 .ticket-detail-scrollbar::-webkit-scrollbar {
@@ -1587,7 +1587,7 @@ watch(
 
 .ticket-detail-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 9999px;
-  background-color: #cbd5e1;
+  background-color: #b8d7f4;
 }
 
 .action-modal-enter-active,

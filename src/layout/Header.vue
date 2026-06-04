@@ -152,7 +152,7 @@ function navigateTo(path) {
 
 <template>
   <header
-    class="stitch-shell z-40 border-b border-slate-200 bg-white"
+    class="stitch-shell z-40 border-b border-[var(--stroke)] bg-white"
   >
     <div class="px-3 py-3.5 tablet:px-5 tablet:py-4 pc:px-8">
       <div :class="showHeaderDateFilter ? 'flex items-center justify-between gap-3 tablet:gap-4' : 'flex items-center justify-between gap-3'">
@@ -160,7 +160,7 @@ function navigateTo(path) {
           <button
             v-if="props.drawerMode"
             type="button"
-            class="inline-flex size-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            class="inline-flex size-9 items-center justify-center rounded-xl text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] hover:text-[var(--text-primary)]"
             aria-label="Mở sidebar"
             @click="emit('open-sidebar')"
           >
@@ -170,30 +170,30 @@ function navigateTo(path) {
           <div class="min-w-0">
             <div
               v-if="showHeaderBreadcrumb"
-              class="flex min-w-0 items-center gap-2 text-sm text-slate-500"
+              class="flex min-w-0 items-center gap-2 text-sm text-[var(--text-secondary)]"
             >
-              <span class="h-4 w-px shrink-0 rounded-full bg-slate-300"></span>
+              <span class="h-4 w-px shrink-0 rounded-full bg-[var(--stroke-strong)]"></span>
               <template v-for="(item, index) in breadcrumbItems" :key="`${item.label}-${index}`">
                 <button
                   v-if="item.to"
                   type="button"
-                  class="shrink-0 cursor-pointer transition-colors hover:text-slate-700"
+                  class="shrink-0 cursor-pointer transition-colors hover:text-[var(--text-secondary)]"
                   @click="navigateTo(item.to)"
                 >
                   {{ item.label }}
                 </button>
-                <span v-else class="truncate font-medium text-slate-700" aria-current="page">{{ item.label }}</span>
+                <span v-else class="truncate font-medium text-[var(--text-secondary)]" aria-current="page">{{ item.label }}</span>
                 <span
                   v-if="index < breadcrumbItems.length - 1"
-                  class="material-symbols-outlined shrink-0 text-[16px] text-slate-400"
+                  class="material-symbols-outlined shrink-0 text-[16px] text-[var(--text-muted)]"
                 >
                   chevron_right
                 </span>
               </template>
             </div>
             <template v-else>
-              <h1 class="truncate text-base font-semibold text-slate-900 tablet:text-lg">{{ visibleTitle }}</h1>
-              <p v-if="visibleSubtitle" class="mt-0.5 line-clamp-1 text-xs text-slate-500">{{ visibleSubtitle }}</p>
+              <h1 class="truncate text-base font-semibold text-[var(--text-primary)] tablet:text-lg">{{ visibleTitle }}</h1>
+              <p v-if="visibleSubtitle" class="mt-0.5 line-clamp-1 text-xs text-[var(--text-secondary)]">{{ visibleSubtitle }}</p>
             </template>
           </div>
         </div>

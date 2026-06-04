@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import 'preline'
+import { initPreline } from '@/utils/preline'
 
 const router = createRouter({
     base: import.meta.env.BASE_URL || '/',
@@ -139,9 +139,7 @@ const router = createRouter({
 router.afterEach(async (to, from, failure) => {
   if (!failure) {
     setTimeout(() => {
-      if (window.HSStaticMethods?.autoInit) {
-        window.HSStaticMethods.autoInit()
-      }
+      initPreline().catch(() => {})
     }, 100)
   }
 })

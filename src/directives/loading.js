@@ -8,8 +8,8 @@ export default {
 
     overlay.innerHTML = `
       <div class="flex flex-col items-center gap-2">
-        <div class="h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-slate-700"></div>
-        <p class="text-xs font-medium text-slate-600">Đang tải...</p>
+        <div class="h-10 w-10 animate-spin rounded-full border-4 border-[var(--stroke-strong)] border-t-[var(--primary)]"></div>
+        <p class="text-xs font-medium text-[var(--text-secondary)]">Đang tải...</p>
       </div>
     `
 

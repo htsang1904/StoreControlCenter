@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { useApp } from '@/plugins/app'
 import { useResponsive } from '@/composables/useResponsive'
+import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
 
@@ -47,7 +48,7 @@ watch(
 </script>
 
 <template>
-  <div class="app-shell h-dvh overflow-hidden bg-[#f6f7f8]">
+  <div class="app-shell h-dvh overflow-hidden bg-[var(--app-bg)]">
     <Sidebar
       :desktop-open="desktopSidebarOpen"
       :drawer-mode="drawerMode"
@@ -70,5 +71,7 @@ watch(
         <RouterView />
       </main>
     </div>
+
+    <AppConfirmDialog />
   </div>
 </template>

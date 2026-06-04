@@ -22,7 +22,7 @@ export function useTicketReportSummary() {
   const reportSummaryCards = computed(() => [
     {
       key: 'total_ticket',
-      label: 'Tổng vé hôm nay',
+      label: 'Tổng ticket',
       value: numberFormatter.format(Number(reportSummary.value?.total_ticket || 0)),
       meta: 'Theo bộ lọc',
       icon: 'list_alt',
@@ -73,9 +73,7 @@ export function useTicketReportSummary() {
         activity_limit: 12,
       })
       
-      // Defensive recursive unwrap to handle arbitrary axios interceptor structures
       const rootData = result?.data?.data || result?.data || result || {}
-      console.log('[DEBUG] TicketManagement Overview Payload:', rootData)
       
       const summaryPayload = rootData?.summary || {}
       
@@ -86,7 +84,6 @@ export function useTicketReportSummary() {
         overdue: Number(summaryPayload.overdue || 0)
       }
     } catch (err) {
-      console.error('[DEBUG] TicketManagement Overview Error:', err)
       reportSummary.value = createEmptySummary()
     }
   }

@@ -89,42 +89,42 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
-    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-      <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
+  <div class="app-page page-stack">
+    <section class="app-section app-section--padded">
+      <div class="app-page-header">
         <div class="min-w-0 max-w-3xl tablet:flex-1">
           <button
             type="button"
-            class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            class="inline-flex items-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
             @click="goBack"
           >
             <span class="material-symbols-outlined text-[18px]">arrow_back</span>
             Quay lại danh sách
           </button>
-          <h2 class="mt-4 text-xl font-semibold tracking-tight text-blue-950">Chi tiết biểu mẫu QC</h2>
-          <p class="mt-2 text-sm leading-6 text-slate-500">
+          <h2 class="mt-4 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Chi tiết biểu mẫu QC</h2>
+          <p class="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
             Màn hình này dành cho việc xem cấu trúc biểu mẫu, kiểm tra từng tiêu chí và mở rộng thêm preview hoặc lịch sử version sau này.
           </p>
         </div>
 
-        <div class="flex w-full flex-col gap-2 tablet:w-auto tablet:shrink-0 tablet:flex-row tablet:flex-wrap tablet:justify-end">
+        <div class="app-toolbar w-full tablet:w-auto tablet:shrink-0 tablet:flex-wrap tablet:justify-end">
           <button
             type="button"
-            class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
+            class="inline-flex w-full items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:w-auto"
             @click="showDeleteComingSoon"
           >
             Xóa
           </button>
           <button
             type="button"
-            class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
+            class="inline-flex w-full items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:w-auto"
             @click="openEditPage"
           >
             Chỉnh sửa
           </button>
           <button
             type="button"
-            class="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 tablet:w-auto"
+            class="inline-flex w-full items-center justify-center rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] tablet:w-auto"
             @click="openCreatePage"
           >
             Tạo biểu mẫu mới
@@ -148,13 +148,13 @@ onMounted(async () => {
     </div>
 
     <template v-else-if="formDetail">
-      <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-        <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
+      <section class="app-section app-section--padded">
+        <div class="app-page-header">
           <div class="min-w-0 max-w-3xl tablet:flex-1">
-            <p class="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-400">{{ formDetail.code }}</p>
-            <h3 class="mt-2 text-2xl font-semibold tracking-tight text-blue-950">{{ formDetail.name }}</h3>
-            <p class="mt-3 text-sm leading-6 text-slate-500">{{ formDetail.description || 'Không có mô tả cho biểu mẫu này.' }}</p>
-            <p class="mt-3 text-sm leading-6 text-slate-500">{{ latestVersionNote }}</p>
+            <p class="text-[11px] font-bold uppercase tracking-[0.22em] text-[var(--text-muted)]">{{ formDetail.code }}</p>
+            <h3 class="mt-2 text-2xl font-semibold tracking-tight text-[var(--text-primary)]">{{ formDetail.name }}</h3>
+            <p class="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{{ formDetail.description || 'Không có mô tả cho biểu mẫu này.' }}</p>
+            <p class="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{{ latestVersionNote }}</p>
           </div>
 
           <span class="app-badge inline-flex items-center self-start rounded-lg px-2.5 py-1 text-xs font-semibold tablet:shrink-0" :class="statusClass(formDetail.latestVersion?.status)">
@@ -163,61 +163,61 @@ onMounted(async () => {
         </div>
 
         <div class="mt-6 grid gap-4 tablet:grid-cols-2 pc:grid-cols-5">
-          <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Version hiện tại</p>
-            <p class="mt-2 text-lg font-semibold text-blue-950">{{ formDetail.latestVersion?.versionNo || '--' }}</p>
+          <div class="rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-4">
+            <p class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">Version hiện tại</p>
+            <p class="mt-2 text-lg font-semibold text-[var(--text-primary)]">{{ formDetail.latestVersion?.versionNo || '--' }}</p>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Ngưỡng đạt</p>
-            <p class="mt-2 text-lg font-semibold text-blue-950">{{ Number(formDetail.latestVersion?.passThreshold || 0) }}%</p>
+          <div class="rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-4">
+            <p class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">Ngưỡng đạt</p>
+            <p class="mt-2 text-lg font-semibold text-[var(--text-primary)]">{{ Number(formDetail.latestVersion?.passThreshold || 0) }}%</p>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Kích hoạt</p>
-            <p class="mt-2 text-lg font-semibold text-blue-950">{{ formDetail.isActive ? 'Đang bật' : 'Đã tắt' }}</p>
+          <div class="rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-4">
+            <p class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">Kích hoạt</p>
+            <p class="mt-2 text-lg font-semibold text-[var(--text-primary)]">{{ formDetail.isActive ? 'Đang bật' : 'Đã tắt' }}</p>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Tổng node</p>
-            <p class="mt-2 text-lg font-semibold text-blue-950">{{ formDetail.latestVersion?.criteriaCount || 0 }}</p>
+          <div class="rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-4">
+            <p class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">Tổng node</p>
+            <p class="mt-2 text-lg font-semibold text-[var(--text-primary)]">{{ formDetail.latestVersion?.criteriaCount || 0 }}</p>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <p class="text-xs uppercase tracking-wide text-slate-500">Node chấm điểm</p>
-            <p class="mt-2 text-lg font-semibold text-blue-950">{{ formDetail.latestVersion?.leafCriteriaCount || 0 }}</p>
+          <div class="rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-4">
+            <p class="text-xs uppercase tracking-wide text-[var(--text-secondary)]">Node chấm điểm</p>
+            <p class="mt-2 text-lg font-semibold text-[var(--text-primary)]">{{ formDetail.latestVersion?.leafCriteriaCount || 0 }}</p>
           </div>
         </div>
       </section>
 
-      <section class="rounded-xl border border-slate-200 bg-white">
-        <div class="border-b border-slate-200 px-4 py-4 tablet:px-5">
-          <h3 class="text-base font-semibold text-blue-950">Cấu trúc biểu mẫu</h3>
-          <p class="mt-1 text-sm text-slate-500">Preview theo đúng cây nhóm và tiêu chí sẽ xuất hiện trong màn chấm QC.</p>
+      <section class="app-section">
+        <div class="app-section-header">
+          <h3 class="text-base font-semibold text-[var(--text-primary)]">Cấu trúc biểu mẫu</h3>
+          <p class="mt-1 text-sm text-[var(--text-secondary)]">Preview theo đúng cây nhóm và tiêu chí sẽ xuất hiện trong màn chấm QC.</p>
         </div>
 
         <div v-if="criteriaRows.length" class="space-y-3 p-4 tablet:p-5">
           <article
             v-for="criterion in criteriaRows"
             :key="criterion.id"
-            class="rounded-xl border border-slate-200 bg-slate-50/40 p-4"
+            class="rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)]/40 p-4"
             :style="{ marginLeft: `${Math.max((criterion.level || 1) - 1, 0) * 18}px` }"
           >
             <div class="grid gap-3 pc:grid-cols-[minmax(0,1fr)_280px]">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]" :class="criterion.nodeType === 'group' ? 'bg-slate-200 text-slate-700' : 'bg-slate-100 text-slate-700'">
+                  <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]" :class="criterion.nodeType === 'group' ? 'bg-[var(--primary-soft)] text-[var(--text-secondary)]' : 'bg-[var(--primary-softer)] text-[var(--text-secondary)]'">
                     {{ criterion.nodeType === 'group' ? 'Nhóm' : 'Tiêu chí' }}
                   </span>
-                  <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <span class="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                     {{ criterion.ordering || '--' }}
                   </span>
                 </div>
-                <p class="mt-2 text-sm font-semibold text-blue-950">{{ criterion.name }}</p>
-                <p class="mt-2 text-sm leading-6 text-slate-500">{{ criterion.description || 'Không có mô tả' }}</p>
+                <p class="mt-2 text-sm font-semibold text-[var(--text-primary)]">{{ criterion.name }}</p>
+                <p class="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{{ criterion.description || 'Không có mô tả' }}</p>
               </div>
 
-              <div class="grid gap-2 text-sm text-slate-600 tablet:grid-cols-2 pc:grid-cols-1">
-                <p>Section: <span class="font-medium text-blue-950">{{ criterion.sectionName || 'Tổng quát' }}</span></p>
-                <p>Cấp cây: <span class="font-medium text-blue-950">{{ criterion.level || 1 }}</span></p>
-                <p>Kiểu chấm: <span class="font-medium text-blue-950">{{ criterion.nodeType === 'group' ? 'Node gom nhóm' : (criterion.mode === 'pass_fail' ? 'Đạt / Không đạt' : 'Chấm điểm') }}</span></p>
-                <p>Điểm tối đa: <span class="font-medium text-blue-950">{{ criterion.nodeType === 'group' ? '--' : (criterion.mode === 'pass_fail' ? 1 : criterion.maxScore) }}</span></p>
+              <div class="grid gap-2 text-sm text-[var(--text-secondary)] tablet:grid-cols-2 pc:grid-cols-1">
+                <p>Section: <span class="font-medium text-[var(--text-primary)]">{{ criterion.sectionName || 'Tổng quát' }}</span></p>
+                <p>Cấp cây: <span class="font-medium text-[var(--text-primary)]">{{ criterion.level || 1 }}</span></p>
+                <p>Kiểu chấm: <span class="font-medium text-[var(--text-primary)]">{{ criterion.nodeType === 'group' ? 'Node gom nhóm' : (criterion.mode === 'pass_fail' ? 'Đạt / Không đạt' : 'Chấm điểm') }}</span></p>
+                <p>Điểm tối đa: <span class="font-medium text-[var(--text-primary)]">{{ criterion.nodeType === 'group' ? '--' : (criterion.mode === 'pass_fail' ? 1 : criterion.maxScore) }}</span></p>
               </div>
             </div>
           </article>

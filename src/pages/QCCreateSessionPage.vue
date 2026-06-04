@@ -639,19 +639,19 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
-    <div class="page-stack space-y-3 p-4 tablet:p-5 pc:p-6 pb-24 pc:pb-0">
+    <div class="app-page page-stack pb-24 pc:pb-0">
       <div class="flex min-w-0 items-center gap-3">
         <button
           @click="goBack"
           type="button"
-          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
           aria-label="Quay lại chi tiết QC cửa hàng"
         >
           <span class="material-symbols-outlined text-[18px]">arrow_back</span>
         </button>
 
         <div class="min-w-0 flex-1">
-          <h1 class="truncate text-lg font-semibold text-blue-950 tablet:text-xl" :title="storeTitle">
+          <h1 class="truncate text-lg font-semibold text-[var(--text-primary)] tablet:text-xl" :title="storeTitle">
             {{ storeTitle }}
           </h1>
         </div>
@@ -664,21 +664,21 @@ onBeforeUnmount(() => {
         {{ errorMessage }}
       </p>
 
-      <section class="grid gap-4 pc:grid-cols-[minmax(0,1fr)_320px]">
+      <section class="grid gap-4 pc:grid-cols-[minmax(0,1fr)_20rem]">
         <div class="space-y-4">
-          <section class="rounded-[24px] border border-indigo-100 bg-white shadow-sm shadow-indigo-100/50 overflow-hidden">
-            <div class="border-b border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-white to-blue-50/50 px-4 py-4">
-              <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+          <section class="app-sticky-panel">
+            <div class="border-b border-[var(--stroke)] bg-[var(--surface)] px-4 py-4">
+              <div class="app-page-header">
                 <div class="min-w-0">
-                  <p class="truncate text-base font-semibold text-blue-950">{{ qcFormTitle }}</p>
+                  <p class="truncate text-base font-semibold text-[var(--text-primary)]">{{ qcFormTitle }}</p>
                   <div class="mt-1 flex flex-wrap items-center gap-2">
                     <span
                       class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
-                      :class="activeDraftId ? 'bg-indigo-100 text-indigo-700 font-semibold' : 'bg-slate-100 text-slate-500'"
+                      :class="activeDraftId ? 'bg-[var(--primary-soft)] text-[var(--primary-strong)] font-semibold' : 'bg-[var(--primary-softer)] text-[var(--text-secondary)]'"
                     >
                       {{ draftStatusLabel }}
                     </span>
-                    <span class="text-xs text-slate-500">{{ draftCreatedLabel }}</span>
+                    <span class="text-xs text-[var(--text-secondary)]">{{ draftCreatedLabel }}</span>
                   </div>
                 </div>
 
@@ -688,7 +688,7 @@ onBeforeUnmount(() => {
                     :key="filter.id"
                     type="button"
                     class="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition"
-                    :class="activeCriterionFilter === filter.id ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm shadow-indigo-200' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700'"
+                    :class="activeCriterionFilter === filter.id ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-sm' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:border-[var(--primary)] hover:bg-[var(--primary-softer)] hover:text-[var(--primary-strong)]'"
                     @click="setCriterionFilter(filter.id)"
                   >
                     {{ filter.label }}
@@ -743,16 +743,16 @@ onBeforeUnmount(() => {
         </div>
 
         <aside>
-          <section class="sticky top-16 rounded-[24px] border border-indigo-100 bg-white shadow-sm shadow-indigo-100/50 overflow-hidden">
-            <div class="border-b border-indigo-100 bg-gradient-to-r from-slate-50/50 to-indigo-50/30 px-4 py-4">
+          <section class="app-sticky-panel sticky top-16">
+            <div class="border-b border-[var(--stroke)] bg-[var(--surface)] px-4 py-4">
               <div class="flex items-center justify-between gap-3">
-                <p class="text-sm font-semibold text-blue-950">Tóm tắt</p>
-                <p class="text-[11px] font-medium text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">{{ completedCriteria }}/{{ scorableCriteria.length }} đã chấm</p>
+                <p class="text-sm font-semibold text-[var(--text-primary)]">Tóm tắt</p>
+                <p class="text-[11px] font-medium text-[var(--primary-strong)] bg-[var(--primary-soft)] px-2 py-0.5 rounded-full">{{ completedCriteria }}/{{ scorableCriteria.length }} đã chấm</p>
               </div>
-              <div class="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 border border-slate-200/50">
-                <div class="h-full rounded-full bg-gradient-to-r from-indigo-500 to-blue-500 transition-all duration-300" :style="progressBarStyle"></div>
+              <div class="mt-3 h-2 overflow-hidden rounded-full bg-[var(--primary-softer)] border border-[var(--stroke)]/50">
+                <div class="h-full rounded-full bg-[var(--primary)] transition-all duration-300" :style="progressBarStyle"></div>
               </div>
-              <div class="mt-2 flex items-center justify-between text-xs text-slate-500">
+              <div class="mt-2 flex items-center justify-between text-xs text-[var(--text-secondary)]">
                 <span>{{ remainingCriteria }} mục còn lại</span>
                 <span>{{ completionRate }}%</span>
               </div>
@@ -760,50 +760,50 @@ onBeforeUnmount(() => {
 
             <div class="space-y-4 px-4 py-4">
               <div class="grid grid-cols-3 gap-3 text-center">
-                <div class="rounded-xl bg-emerald-50/50 p-2 border border-emerald-100/50">
-                  <p class="text-lg font-bold text-emerald-700">{{ sessionEvaluation.passedCount }}</p>
-                  <p class="text-[11px] font-medium text-emerald-600">Đạt</p>
+                <div class="rounded-xl border border-[var(--success-border)] bg-[var(--success-bg)] p-2">
+                  <p class="text-lg font-bold text-[var(--success-text)]">{{ sessionEvaluation.passedCount }}</p>
+                  <p class="text-[11px] font-medium text-[var(--success-text)]">Đạt</p>
                 </div>
-                <div class="rounded-xl bg-rose-50/50 p-2 border border-rose-100/50">
-                  <p class="text-lg font-bold text-rose-700">{{ sessionEvaluation.failedCount }}</p>
-                  <p class="text-[11px] font-medium text-rose-600">Lỗi</p>
+                <div class="rounded-xl border border-[var(--danger-border)] bg-[var(--danger-bg)] p-2">
+                  <p class="text-lg font-bold text-[var(--danger-text)]">{{ sessionEvaluation.failedCount }}</p>
+                  <p class="text-[11px] font-medium text-[var(--danger-text)]">Lỗi</p>
                 </div>
-                <div class="rounded-xl bg-blue-50/50 p-2 border border-blue-100/50">
-                  <p class="text-lg font-bold text-blue-700">{{ sessionEvaluation.totalScore }}/{{ sessionEvaluation.maxScore }}</p>
-                  <p class="text-[11px] font-medium text-blue-600">Điểm</p>
+                <div class="rounded-xl border border-[var(--info-border)] bg-[var(--info-bg)] p-2">
+                  <p class="text-lg font-bold text-[var(--primary-strong)]">{{ sessionEvaluation.totalScore }}/{{ sessionEvaluation.maxScore }}</p>
+                  <p class="text-[11px] font-medium text-[var(--primary)]">Điểm</p>
                 </div>
               </div>
 
               <button
                 v-if="failedCriteria.length > 0"
                 type="button"
-                class="cursor-pointer w-full rounded-2xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                class="cursor-pointer w-full rounded-2xl border border-[var(--stroke)] px-3 py-2 text-xs font-medium text-[var(--text-secondary)] transition hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)]"
                 @click="jumpToFirstFailed"
               >
                 Xem {{ failedCriteria.length }} tiêu chí không đạt
               </button>
 
-              <label class="block text-sm text-slate-700 border-t border-slate-200 pt-4">
-                <span class="mb-1.5 block text-xs font-medium text-slate-500">Ghi chú tổng</span>
+              <label class="block text-sm text-[var(--text-secondary)] border-t border-[var(--stroke)] pt-4">
+                <span class="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]">Ghi chú tổng</span>
                 <textarea
                   v-model="form.note"
                   rows="4"
-                  class="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                  class="w-full rounded-2xl border border-[var(--stroke)] bg-white px-3 py-2 text-sm text-[var(--text-secondary)]"
                   placeholder="Ghi chú thêm"
                 ></textarea>
               </label>
 
-              <div class="flex justify-end gap-2 border-t border-slate-200 pt-4">
+              <div class="flex justify-end gap-2 border-t border-[var(--stroke)] pt-4">
                 <button
                   type="button"
-                  class="cursor-pointer rounded-2xl border border-gray-200 px-4 py-2.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                  class="app-button-secondary cursor-pointer rounded-2xl px-4 py-2.5 text-xs font-medium"
                   @click="goBack"
                 >
                   Huỷ
                 </button>
                 <button
                   type="button"
-                  class="cursor-pointer rounded-2xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  class="app-button-primary cursor-pointer rounded-2xl px-4 py-2.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
                   :disabled="submitDisabled"
                   @click="submitSession"
                 >
@@ -817,15 +817,15 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="fixed inset-x-4 bottom-4 z-20 pc:hidden">
-      <div class="rounded-[24px] border border-slate-200 bg-white px-4 py-3">
+      <div class="rounded-[24px] border border-[var(--stroke)] bg-white px-4 py-3 shadow-lg shadow-[rgba(29,125,226,0.12)]">
         <div class="flex items-center justify-between gap-4">
           <div class="min-w-0">
-            <p class="text-[11px] font-medium text-slate-500">Tiến độ</p>
-            <p class="mt-1 text-sm font-semibold text-blue-950">{{ completedCriteria }}/{{ scorableCriteria.length }} tiêu chí • {{ completionRate }}%</p>
+            <p class="text-[11px] font-medium text-[var(--text-secondary)]">Tiến độ</p>
+            <p class="mt-1 text-sm font-semibold text-[var(--text-primary)]">{{ completedCriteria }}/{{ scorableCriteria.length }} tiêu chí • {{ completionRate }}%</p>
           </div>
           <button
             type="button"
-            class="cursor-pointer rounded-2xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            class="app-button-primary cursor-pointer rounded-2xl px-4 py-2.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
             :disabled="submitDisabled"
             @click="submitSession"
           >

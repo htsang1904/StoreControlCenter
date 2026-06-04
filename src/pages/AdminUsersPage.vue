@@ -46,51 +46,51 @@ const roleOptions = [
 const roleFilterSelectConfig = JSON.stringify({
   placeholder: 'Tất cả role',
   toggleTag: '<button type="button" aria-expanded="false"></button>',
-  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
-  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
-  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
-  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-[var(--stroke)] bg-white ps-3 pe-9 text-start text-sm text-[var(--text-secondary)] focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
 const statusFilterSelectConfig = JSON.stringify({
   placeholder: 'Tất cả trạng thái',
   toggleTag: '<button type="button" aria-expanded="false"></button>',
-  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
-  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
-  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
-  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-[var(--stroke)] bg-white ps-3 pe-9 text-start text-sm text-[var(--text-secondary)] focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
 const editRoleSelectConfig = JSON.stringify({
   placeholder: 'Chọn role',
   toggleTag: '<button type="button" aria-expanded="false"></button>',
-  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
-  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
-  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
-  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-[var(--stroke)] bg-white ps-3 pe-9 text-start text-sm text-[var(--text-secondary)] focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
 const editStatusSelectConfig = JSON.stringify({
   placeholder: 'Chọn trạng thái',
   toggleTag: '<button type="button" aria-expanded="false"></button>',
-  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
-  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
-  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
-  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-[var(--stroke)] bg-white ps-3 pe-9 text-start text-sm text-[var(--text-secondary)] focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
 const editDepartmentSelectConfig = JSON.stringify({
   placeholder: 'Chưa gán bộ phận',
   toggleTag: '<button type="button" aria-expanded="false"></button>',
-  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
-  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
-  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
-  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-[var(--stroke)] bg-white ps-3 pe-9 text-start text-sm text-[var(--text-secondary)] focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
 const rangeStart = computed(() => {
@@ -266,19 +266,19 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
-    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
-        <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+  <div class="app-page page-stack">
+    <section class="app-section">
+      <div class="app-section-header space-y-4">
+        <div class="app-page-header">
           <div>
-            <h3 class="text-base font-semibold text-blue-950">Danh sách nhân viên</h3>
+            <h3 class="text-base font-semibold text-[var(--text-primary)]">Danh sách nhân viên</h3>
           </div>
 
           <div class="grid w-full grid-cols-1 gap-3 tablet:w-auto tablet:grid-cols-[minmax(280px,1fr)_180px_180px] tablet:justify-end">
             <input
               v-model="searchInput"
               type="text"
-              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+              class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
               placeholder="Tìm theo tên, email, SĐT..."
             />
 
@@ -310,15 +310,15 @@ onMounted(async () => {
         {{ loadError }}
       </p>
 
-      <div class="overflow-x-auto" v-loading="loadingUsers">
+      <div class="app-table-scroll" v-loading="loadingUsers">
         <table class="min-w-[960px] w-full border-collapse text-left">
           <thead>
-            <tr class="bg-slate-50">
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Nhân viên</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Role</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Bộ phận</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Cửa hàng</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Trạng thái</th>
+            <tr class="bg-[var(--surface-muted)]">
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Nhân viên</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Role</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Bộ phận</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Cửa hàng</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Trạng thái</th>
             </tr>
           </thead>
 
@@ -326,17 +326,17 @@ onMounted(async () => {
             <tr
               v-for="user in users"
               :key="user.id"
-              class="cursor-pointer transition-colors hover:bg-slate-50/70"
+              class="cursor-pointer transition-colors hover:bg-[var(--surface-muted)]"
               @click="openEditModal(user)"
             >
               <td class="px-4 py-3 align-top">
-                <p class="text-sm font-semibold text-blue-950">{{ user.name || user.email }}</p>
-                <p class="text-xs text-slate-500">{{ user.email }}</p>
-                <p class="text-xs text-slate-400">{{ user.phoneNumber || 'Chưa có SĐT' }}</p>
+                <p class="text-sm font-semibold text-[var(--text-primary)]">{{ user.name || user.email }}</p>
+                <p class="text-xs text-[var(--text-secondary)]">{{ user.email }}</p>
+                <p class="text-xs text-[var(--text-muted)]">{{ user.phoneNumber || 'Chưa có SĐT' }}</p>
               </td>
-              <td class="px-4 py-3 text-sm text-slate-700">{{ roleLabel(user.role) }}</td>
-              <td class="px-4 py-3 text-sm text-slate-700">{{ user.department?.name || 'Chưa gán' }}</td>
-              <td class="px-4 py-3 text-sm text-slate-700">
+              <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">{{ roleLabel(user.role) }}</td>
+              <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">{{ user.department?.name || 'Chưa gán' }}</td>
+              <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">
                 <p v-if="user.stores.length">{{ user.stores.length }} cửa hàng</p>
                 <p v-else>Chưa gán</p>
               </td>
@@ -364,12 +364,12 @@ onMounted(async () => {
         </table>
       </div>
 
-      <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50/70 px-4 py-3">
-        <p class="text-sm text-slate-500">Trang {{ currentPage }} / {{ pageCount }}</p>
+      <div class="app-pagination-bar flex items-center justify-between">
+        <p class="text-sm text-[var(--text-secondary)]">Trang {{ currentPage }} / {{ pageCount }}</p>
         <div class="flex gap-2">
           <button
             type="button"
-            class="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="currentPage <= 1"
             @click="goToPage(currentPage - 1)"
           >
@@ -377,7 +377,7 @@ onMounted(async () => {
           </button>
           <button
             type="button"
-            class="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="currentPage >= pageCount"
             @click="goToPage(currentPage + 1)"
           >
@@ -390,18 +390,18 @@ onMounted(async () => {
 
   <div
     v-if="editingUser"
-    class="fixed inset-0 z-[90] flex items-center justify-center bg-blue-600/40 px-4"
+    class="fixed inset-0 z-[90] flex items-center justify-center bg-[var(--primary)]/40 px-4"
     @click.self="closeEditModal"
   >
-    <div class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl tablet:p-6">
+    <div class="w-full max-w-2xl rounded-2xl border border-[var(--stroke)] bg-white p-5 shadow-xl tablet:p-6">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h3 class="text-lg font-semibold text-blue-950">Cập nhật nhân viên</h3>
-          <p class="mt-1 text-sm text-slate-500">{{ editingUser.email }}</p>
+          <h3 class="text-lg font-semibold text-[var(--text-primary)]">Cập nhật nhân viên</h3>
+          <p class="mt-1 text-sm text-[var(--text-secondary)]">{{ editingUser.email }}</p>
         </div>
         <button
           type="button"
-          class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100"
+          class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)]"
           @click="closeEditModal"
         >
           <span class="material-symbols-outlined text-[18px]">close</span>
@@ -410,25 +410,25 @@ onMounted(async () => {
 
       <div class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2">
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tên hiển thị</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tên hiển thị</label>
           <input
             v-model="editForm.name"
             type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
           />
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Số điện thoại</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Số điện thoại</label>
           <input
             v-model="editForm.phoneNumber"
             type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
           />
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Role</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Role</label>
           <select
             id="admin-users-edit-role"
             v-model="editForm.role"
@@ -440,7 +440,7 @@ onMounted(async () => {
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Trạng thái</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Trạng thái</label>
           <select
             id="admin-users-edit-status"
             v-model="editForm.isActive"
@@ -453,7 +453,7 @@ onMounted(async () => {
         </div>
 
         <div class="tablet:col-span-2">
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Bộ phận</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Bộ phận</label>
           <select
             id="admin-users-edit-department"
             v-model="editForm.departmentId"
@@ -468,31 +468,31 @@ onMounted(async () => {
         </div>
 
         <div class="tablet:col-span-2">
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Cửa hàng được gán</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Cửa hàng được gán</label>
           <select
             v-model="editForm.storeIds"
             multiple
-            class="min-h-40 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="min-h-40 w-full rounded-lg border border-[var(--stroke)] px-3 py-2 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
           >
             <option v-for="store in storeOptions" :key="store.id" :value="store.id">
               {{ store.code || store.storeId || `#${store.id}` }} - {{ store.name || store.shortAddress || 'Chưa đặt tên' }}
             </option>
           </select>
-          <p class="mt-1 text-xs text-slate-400">Giữ Ctrl/Cmd để chọn nhiều cửa hàng.</p>
+          <p class="mt-1 text-xs text-[var(--text-muted)]">Giữ Ctrl/Cmd để chọn nhiều cửa hàng.</p>
         </div>
       </div>
 
       <div class="mt-5 flex justify-end gap-2">
         <button
           type="button"
-          class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+          class="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-4 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
           @click="closeEditModal"
         >
           Hủy
         </button>
         <button
           type="button"
-          class="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex h-9 items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="savingUser"
           @click="submitUserUpdate"
         >

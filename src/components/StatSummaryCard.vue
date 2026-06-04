@@ -16,7 +16,7 @@ const props = defineProps({
   },
   metaClass: {
     type: String,
-    default: 'bg-slate-100 text-slate-600',
+    default: 'bg-[var(--primary-softer)] text-[var(--text-secondary)]',
   },
   icon: {
     type: String,
@@ -24,7 +24,7 @@ const props = defineProps({
   },
   iconClass: {
     type: String,
-    default: 'bg-slate-100 text-slate-600',
+    default: 'bg-[var(--primary-softer)] text-[var(--text-secondary)]',
   },
   tone: {
     type: String,
@@ -43,7 +43,7 @@ const toneClass = computed(() => {
     <div class="flex items-start justify-between gap-4">
       <div class="min-w-0">
         <p class="app-metric-card__eyebrow">{{ label }}</p>
-        <p class="mt-4 text-3xl font-semibold tracking-tight text-blue-950 tablet:text-[2rem]">{{ value }}</p>
+        <p class="mt-4 text-3xl font-semibold tracking-tight text-[var(--text-primary)] tablet:text-[2rem]">{{ value }}</p>
       </div>
 
       <div

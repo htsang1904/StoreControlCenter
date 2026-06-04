@@ -95,7 +95,7 @@ export function useTicketCreateChat() {
     }
 
     currentStep.value = CHAT_STEPS.CONFIRM
-    addMessage('bot', 'action_confirm', 'Tất cả thông tin đã đầy đủ. Bạn có muốn tạo vé ngay bây giờ không?')
+    addMessage('bot', 'action_confirm', 'Tất cả thông tin đã đầy đủ. Bạn có muốn tạo ticket ngay bây giờ không?')
   }
 
   return {

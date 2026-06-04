@@ -43,21 +43,21 @@ const modalTitle = computed(() => (modalMode.value === 'edit' ? 'Cập nhật c�
 const statusFilterSelectConfig = JSON.stringify({
   placeholder: 'Tất cả trạng thái',
   toggleTag: '<button type="button" aria-expanded="false"></button>',
-  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
-  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
-  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
-  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-[var(--stroke)] bg-white ps-3 pe-9 text-start text-sm text-[var(--text-secondary)] focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
 const editStatusSelectConfig = JSON.stringify({
   placeholder: 'Chọn trạng thái',
   toggleTag: '<button type="button" aria-expanded="false"></button>',
-  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
-  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
-  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
-  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-[var(--stroke)] bg-white ps-3 pe-9 text-start text-sm text-[var(--text-secondary)] focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[100] w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
 const rangeStart = computed(() => {
@@ -239,19 +239,19 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
-    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
-        <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+  <div class="app-page page-stack">
+    <section class="app-section">
+      <div class="app-section-header space-y-4">
+        <div class="app-page-header">
           <div>
-            <h3 class="text-base font-semibold text-blue-950">Danh sách cửa hàng</h3>
+            <h3 class="text-base font-semibold text-[var(--text-primary)]">Danh sách cửa hàng</h3>
           </div>
 
           <div class="grid w-full grid-cols-1 gap-3 tablet:w-auto tablet:grid-cols-[minmax(260px,1fr)_180px_auto_auto] tablet:items-center tablet:justify-end">
             <input
               v-model="searchInput"
               type="text"
-              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+              class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
               placeholder="Tìm theo mã, tên, địa chỉ, storeId..."
             />
 
@@ -268,7 +268,7 @@ onMounted(async () => {
 
             <button
               type="button"
-              class="inline-flex h-9 w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              class="inline-flex h-9 w-full items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-4 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="syncingStores"
               @click="handleSyncStores"
             >
@@ -276,7 +276,7 @@ onMounted(async () => {
             </button>
             <button
               type="button"
-              class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+              class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)]"
               @click="openCreateModal"
             >
               Tạo cửa hàng
@@ -285,21 +285,21 @@ onMounted(async () => {
         </div>
 
         <div v-if="lastSyncSummary" class="grid grid-cols-2 gap-3 tablet:grid-cols-4">
-          <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p class="text-[11px] uppercase tracking-wide text-slate-400">Synced</p>
-            <p class="mt-1 text-base font-semibold text-blue-950">{{ Number(lastSyncSummary.synced || 0) }}</p>
+          <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] p-3">
+            <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Synced</p>
+            <p class="mt-1 text-base font-semibold text-[var(--text-primary)]">{{ Number(lastSyncSummary.synced || 0) }}</p>
           </div>
-          <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p class="text-[11px] uppercase tracking-wide text-slate-400">Created</p>
-            <p class="mt-1 text-base font-semibold text-blue-950">{{ Number(lastSyncSummary.created || 0) }}</p>
+          <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] p-3">
+            <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Created</p>
+            <p class="mt-1 text-base font-semibold text-[var(--text-primary)]">{{ Number(lastSyncSummary.created || 0) }}</p>
           </div>
-          <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p class="text-[11px] uppercase tracking-wide text-slate-400">Updated</p>
-            <p class="mt-1 text-base font-semibold text-blue-950">{{ Number(lastSyncSummary.updated || 0) }}</p>
+          <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] p-3">
+            <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Updated</p>
+            <p class="mt-1 text-base font-semibold text-[var(--text-primary)]">{{ Number(lastSyncSummary.updated || 0) }}</p>
           </div>
-          <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <p class="text-[11px] uppercase tracking-wide text-slate-400">Skipped</p>
-            <p class="mt-1 text-base font-semibold text-blue-950">{{ Number(lastSyncSummary.skipped || 0) }}</p>
+          <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] p-3">
+            <p class="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Skipped</p>
+            <p class="mt-1 text-base font-semibold text-[var(--text-primary)]">{{ Number(lastSyncSummary.skipped || 0) }}</p>
           </div>
         </div>
       </div>
@@ -308,35 +308,35 @@ onMounted(async () => {
         {{ loadError }}
       </p>
 
-      <div class="overflow-x-auto" v-loading="loadingStores">
+      <div class="app-table-scroll" v-loading="loadingStores">
         <table class="min-w-[960px] w-full border-collapse text-left">
           <thead>
-            <tr class="bg-slate-50">
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Mã</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Thông tin cửa hàng</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Store ID</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Brand ID</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Trạng thái</th>
-              <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-slate-500">Thao tác</th>
+            <tr class="bg-[var(--surface-muted)]">
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Mã</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Thông tin cửa hàng</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Store ID</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Brand ID</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Trạng thái</th>
+              <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Thao tác</th>
             </tr>
           </thead>
 
           <tbody v-if="stores.length" class="divide-y divide-slate-100">
-            <tr v-for="store in stores" :key="store.id" class="transition-colors hover:bg-slate-50/70">
-              <td class="px-4 py-3 text-sm font-semibold text-blue-950">{{ store.code || '--' }}</td>
+            <tr v-for="store in stores" :key="store.id" class="transition-colors hover:bg-[var(--surface-muted)]">
+              <td class="px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">{{ store.code || '--' }}</td>
               <td class="px-4 py-3">
-                <p class="text-sm font-semibold text-blue-950">{{ store.name || 'Chưa đặt tên' }}</p>
-                <p class="text-xs text-slate-500">{{ store.shortAddress || store.address || '--' }}</p>
+                <p class="text-sm font-semibold text-[var(--text-primary)]">{{ store.name || 'Chưa đặt tên' }}</p>
+                <p class="text-xs text-[var(--text-secondary)]">{{ store.shortAddress || store.address || '--' }}</p>
               </td>
-              <td class="px-4 py-3 text-sm text-slate-700">{{ store.storeId || '--' }}</td>
-              <td class="px-4 py-3 text-sm text-slate-700">{{ store.brandId || '--' }}</td>
+              <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">{{ store.storeId || '--' }}</td>
+              <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">{{ store.brandId || '--' }}</td>
               <td class="px-4 py-3">
                 <span :class="statusClass(store.isActive)">{{ statusLabel(store.isActive) }}</span>
               </td>
               <td class="px-4 py-3 text-end">
                 <button
                   type="button"
-                  class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  class="inline-flex items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
                   @click="openEditModal(store)"
                 >
                   Chỉnh sửa
@@ -363,12 +363,12 @@ onMounted(async () => {
         </table>
       </div>
 
-      <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50/70 px-4 py-3">
-        <p class="text-sm text-slate-500">Trang {{ currentPage }} / {{ pageCount }}</p>
+      <div class="app-pagination-bar flex items-center justify-between">
+        <p class="text-sm text-[var(--text-secondary)]">Trang {{ currentPage }} / {{ pageCount }}</p>
         <div class="flex gap-2">
           <button
             type="button"
-            class="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="currentPage <= 1"
             @click="goToPage(currentPage - 1)"
           >
@@ -376,7 +376,7 @@ onMounted(async () => {
           </button>
           <button
             type="button"
-            class="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="currentPage >= pageCount"
             @click="goToPage(currentPage + 1)"
           >
@@ -389,15 +389,15 @@ onMounted(async () => {
 
   <div
     v-if="isModalOpen"
-    class="fixed inset-0 z-[90] flex items-center justify-center bg-blue-600/40 px-4"
+    class="fixed inset-0 z-[90] flex items-center justify-center bg-[var(--primary)]/40 px-4"
     @click.self="closeModal"
   >
-    <div class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl tablet:p-6">
+    <div class="w-full max-w-2xl rounded-2xl border border-[var(--stroke)] bg-white p-5 shadow-xl tablet:p-6">
       <div class="flex items-center justify-between gap-4">
-        <h3 class="text-lg font-semibold text-blue-950">{{ modalTitle }}</h3>
+        <h3 class="text-lg font-semibold text-[var(--text-primary)]">{{ modalTitle }}</h3>
         <button
           type="button"
-          class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100"
+          class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)]"
           @click="closeModal"
         >
           <span class="material-symbols-outlined text-[18px]">close</span>
@@ -406,61 +406,61 @@ onMounted(async () => {
 
       <div class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2">
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Store ID *</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Store ID *</label>
           <input
             v-model="storeForm.storeId"
             type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
           />
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Mã cửa hàng</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Mã cửa hàng</label>
           <input
             v-model="storeForm.code"
             type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
           />
         </div>
 
         <div class="tablet:col-span-2">
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Tên cửa hàng *</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tên cửa hàng *</label>
           <input
             v-model="storeForm.name"
             type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
           />
         </div>
 
         <div class="tablet:col-span-2">
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Địa chỉ</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Địa chỉ</label>
           <input
             v-model="storeForm.address"
             type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
           />
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Địa chỉ ngắn</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Địa chỉ ngắn</label>
           <input
             v-model="storeForm.shortAddress"
             type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
           />
         </div>
 
         <div>
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Brand ID</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Brand ID</label>
           <input
             v-model="storeForm.brandId"
             type="text"
-            class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+            class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
           />
         </div>
 
         <div class="tablet:col-span-2">
-          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Trạng thái</label>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Trạng thái</label>
           <select
             id="admin-stores-edit-status"
             v-model="storeForm.isActive"
@@ -476,14 +476,14 @@ onMounted(async () => {
       <div class="mt-5 flex justify-end gap-2">
         <button
           type="button"
-          class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+          class="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-4 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
           @click="closeModal"
         >
           Hủy
         </button>
         <button
           type="button"
-          class="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          class="inline-flex h-9 items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] disabled:cursor-not-allowed disabled:opacity-60"
           :disabled="savingStore"
           @click="submitStore"
         >

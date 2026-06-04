@@ -301,58 +301,60 @@ watch(
 <template>
   <!-- Ticket Creation Chat Assistant (Full View) -->
   <template v-if="!isEditMode">
-    <div class="h-[calc(100vh-64px)] w-full overflow-hidden bg-slate-50 tablet:h-[calc(100vh-80px)]">
+    <div class="h-[calc(100vh-64px)] w-full overflow-hidden bg-[var(--surface-muted)] tablet:h-[calc(100vh-80px)]">
       <TicketCreateChat :chat-state="chatState" @close="goBack" @ticket-created="onTicketCreated" />
     </div>
   </template>
 
   <!-- Edit Ticket Form (Standard Page Stack Layout) -->
   <template v-else>
-    <div class="page-stack overflow-visible space-y-4 p-4 tablet:p-5 pc:p-6">
+    <div class="app-page page-stack overflow-visible">
       <div class="flex min-w-0 items-start gap-3">
         <button
           type="button"
-          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+          class="app-button-secondary inline-flex size-9 shrink-0 items-center justify-center rounded-lg"
           aria-label="Quay lại danh sách ticket"
           @click="goBack"
         >
           <span class="material-symbols-outlined text-[18px]">arrow_back</span>
         </button>
         <div class="min-w-0">
-          <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
             Cập nhật ticket
           </p>
-          <h1 class="mt-1 text-lg font-semibold text-blue-950 tablet:text-xl">{{ pageTitle }}</h1>
-          <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
+          <h1 class="app-page-title mt-1">{{ pageTitle }}</h1>
+          <p class="app-page-subtitle">{{ pageDescription }}</p>
         </div>
       </div>
 
       <div>
-        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white" v-loading="pageLoading">
+        <div class="app-section" v-loading="pageLoading">
           <form @submit.prevent="submitTicket">
-          <div class="rounded-xl bg-white">
-            <div class="p-4 tablet:p-7">
-              <div class="space-y-4 tablet:space-y-6">
+            <div class="p-4 tablet:p-5 pc:p-6">
+              <div class="space-y-5">
                 <div v-if="formError" class="app-state-banner">
                   {{ formError }}
                 </div>
 
-                <h2 class="text-xl font-semibold text-gray-800 mt-1">Người tạo yêu cầu</h2>
+                <div>
+                  <h2 class="text-base font-semibold text-[var(--text-primary)]">Người tạo yêu cầu</h2>
+                  <p class="mt-1 text-sm text-[var(--text-secondary)]">Thông tin người gửi được lấy từ tài khoản hiện tại.</p>
+                </div>
 
                 <div class="grid grid-cols-1 gap-4 tablet:grid-cols-2 pc:gap-6">
                   <div class="space-y-2">
-                    <label for="requester-name" class="block text-sm text-gray-700 font-medium">Tên</label>
+                    <label for="requester-name" class="block text-sm text-[var(--text-secondary)] font-medium">Tên</label>
                     <input id="requester-name" type="text" class="app-input app-input--muted py-2.5 tablet:py-3 px-4 block w-full rounded-lg tablet:text-sm" :value="requesterName" readonly />
                   </div>
 
                   <div class="space-y-2">
-                    <label for="requester-email" class="block text-sm text-gray-700 font-medium">Email</label>
+                    <label for="requester-email" class="block text-sm text-[var(--text-secondary)] font-medium">Email</label>
                     <input id="requester-email" type="text" class="app-input app-input--muted py-2.5 tablet:py-3 px-4 block w-full rounded-lg tablet:text-sm" :value="requesterEmail" readonly />
                   </div>
                 </div>
 
-                <div class="space-y-2">
-                  <label for="ticket-store" class="inline-block text-sm font-medium text-gray-800">Cửa hàng <span class="text-red-500">*</span></label>
+                <div class="space-y-2 border-t border-[var(--stroke)] pt-5">
+                  <label for="ticket-store" class="inline-block text-sm font-medium text-[var(--text-primary)]">Cửa hàng <span class="text-[var(--danger-text)]">*</span></label>
                   <select
                     id="ticket-store"
                     v-model="formData.store_id"
@@ -360,11 +362,11 @@ watch(
                     data-hs-select='{
                       "placeholder": "Chọn cửa hàng",
                       "toggleTag": "<button type=\"button\" aria-expanded=\"false\"></button>",
-                      "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative py-2.5 tablet:py-3 ps-4 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer bg-white border border-gray-200 rounded-lg text-start text-sm focus:outline-hidden",
-                      "dropdownClasses": "mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 bg-white border border-gray-200 rounded-lg overflow-hidden overflow-y-auto",
-                      "optionClasses": "py-2 px-4 w-full text-sm text-gray-800 cursor-pointer hover:bg-gray-100 rounded-lg focus:outline-hidden",
-                      "optionTemplate": "<div class=\"flex justify-between items-center w-full\"><span data-title></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-blue-950\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
-                      "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-gray-500\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
+                      "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative py-2.5 tablet:py-3 ps-4 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer bg-white border border-[var(--stroke)] rounded-lg text-start text-sm focus:outline-hidden",
+                      "dropdownClasses": "mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto",
+                      "optionClasses": "py-2 px-4 w-full text-sm text-[var(--text-primary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-lg focus:outline-hidden",
+                      "optionTemplate": "<div class=\"flex justify-between items-center w-full\"><span data-title></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-[var(--text-primary)]\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
+                      "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-[var(--text-secondary)]\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
                     }'
                   >
                     <option value="">Chọn cửa hàng</option>
@@ -375,10 +377,10 @@ watch(
                   <p v-if="errors.store_id" class="app-field-error">{{ errors.store_id }}</p>
                 </div>
 
-                <h2 class="text-xl font-semibold text-gray-800 mt-3">Chi tiết yêu cầu</h2>
+                <h2 class="text-xl font-semibold text-[var(--text-primary)] mt-3">Chi tiết yêu cầu</h2>
 
                 <div class="space-y-2">
-                  <label for="ticket-title" class="inline-block text-sm font-medium text-gray-800">Tiêu đề <span class="text-red-500">*</span></label>
+                  <label for="ticket-title" class="inline-block text-sm font-medium text-[var(--text-primary)]">Tiêu đề <span class="text-[var(--danger-text)]">*</span></label>
                   <input
                     id="ticket-title"
                     v-model="formData.title"
@@ -390,9 +392,9 @@ watch(
                   <p v-if="errors.title" class="app-field-error">{{ errors.title }}</p>
                 </div>
 
-                <div class="grid grid-cols-1 gap-4 tablet:grid-cols-2 pc:gap-6">
+                <div class="grid grid-cols-1 gap-4 border-t border-[var(--stroke)] pt-5 tablet:grid-cols-2 pc:gap-6">
                   <div class="space-y-2">
-                    <label for="ticket-department" class="inline-block text-sm font-medium text-gray-800">Bộ phận <span class="text-red-500">*</span></label>
+                    <label for="ticket-department" class="inline-block text-sm font-medium text-[var(--text-primary)]">Bộ phận <span class="text-[var(--danger-text)]">*</span></label>
                     <select
                       id="ticket-department"
                       v-model="formData.responsible_department_id"
@@ -400,11 +402,11 @@ watch(
                       data-hs-select='{
                         "placeholder": "Chọn bộ phận xử lý",
                         "toggleTag": "<button type=\"button\" aria-expanded=\"false\"></button>",
-                        "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative py-2.5 tablet:py-3 ps-4 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer bg-white border border-gray-200 rounded-lg text-start text-sm focus:outline-hidden",
-                        "dropdownClasses": "mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 bg-white border border-gray-200 rounded-lg overflow-hidden overflow-y-auto",
-                        "optionClasses": "py-2 px-4 w-full text-sm text-gray-800 cursor-pointer hover:bg-gray-100 rounded-lg focus:outline-hidden",
-                        "optionTemplate": "<div class=\"flex justify-between items-center w-full\"><span data-title></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-blue-950\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
-                        "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-gray-500\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
+                        "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative py-2.5 tablet:py-3 ps-4 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer bg-white border border-[var(--stroke)] rounded-lg text-start text-sm focus:outline-hidden",
+                        "dropdownClasses": "mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto",
+                        "optionClasses": "py-2 px-4 w-full text-sm text-[var(--text-primary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-lg focus:outline-hidden",
+                        "optionTemplate": "<div class=\"flex justify-between items-center w-full\"><span data-title></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-[var(--text-primary)]\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
+                        "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-[var(--text-secondary)]\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
                       }'
                     >
                       <option value="">Chọn bộ phận xử lý</option>
@@ -416,7 +418,7 @@ watch(
                   </div>
 
                   <div class="space-y-2">
-                    <label for="ticket-type" class="inline-block text-sm font-medium text-gray-800">Phân loại</label>
+                    <label for="ticket-type" class="inline-block text-sm font-medium text-[var(--text-primary)]">Phân loại</label>
                     <select
                       id="ticket-type"
                       v-model="formData.type"
@@ -424,11 +426,11 @@ watch(
                       data-hs-select='{
                         "placeholder": "Chọn loại yêu cầu",
                         "toggleTag": "<button type=\"button\" aria-expanded=\"false\"></button>",
-                        "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative py-2.5 tablet:py-3 ps-4 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer bg-white border border-gray-200 rounded-lg text-start text-sm focus:outline-hidden",
-                        "dropdownClasses": "mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 bg-white border border-gray-200 rounded-lg overflow-hidden overflow-y-auto",
-                        "optionClasses": "py-2 px-4 w-full text-sm text-gray-800 cursor-pointer hover:bg-gray-100 rounded-lg focus:outline-hidden",
-                        "optionTemplate": "<div class=\"flex justify-between items-center w-full\"><span data-title></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-blue-950\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
-                        "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-gray-500\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
+                        "toggleClasses": "hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative py-2.5 tablet:py-3 ps-4 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer bg-white border border-[var(--stroke)] rounded-lg text-start text-sm focus:outline-hidden",
+                        "dropdownClasses": "mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto",
+                        "optionClasses": "py-2 px-4 w-full text-sm text-[var(--text-primary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-lg focus:outline-hidden",
+                        "optionTemplate": "<div class=\"flex justify-between items-center w-full\"><span data-title></span><span class=\"hidden hs-selected:block\"><svg class=\"shrink-0 size-3.5 text-[var(--text-primary)]\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></span></div>",
+                        "extraMarkup": "<div class=\"absolute top-1/2 end-3 -translate-y-1/2\"><svg class=\"shrink-0 size-3.5 text-[var(--text-secondary)]\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m7 15 5 5 5-5\"/><path d=\"m7 9 5-5 5 5\"/></svg></div>"
                       }'
                     >
                       <option value="">Chọn loại yêu cầu</option>
@@ -439,8 +441,8 @@ watch(
                   </div>
                 </div>
 
-                <div class="space-y-2">
-                  <label for="ticket-description" class="inline-block text-sm font-medium text-gray-800">Nội dung <span class="text-red-500">*</span></label>
+                <div class="space-y-2 border-t border-[var(--stroke)] pt-5">
+                  <label for="ticket-description" class="inline-block text-sm font-medium text-[var(--text-primary)]">Nội dung <span class="text-[var(--danger-text)]">*</span></label>
                   <textarea
                     id="ticket-description"
                     v-model="formData.description"
@@ -453,12 +455,14 @@ watch(
                 </div>
 
                 <div class="space-y-2">
-                  <label class="inline-block text-sm font-medium text-gray-800">Hình ảnh đính kèm</label>
+                  <label class="inline-block text-sm font-medium text-[var(--text-primary)]">Hình ảnh đính kèm</label>
                   <FileUploadItem v-model="formData.attachments_media" :upload-handler="handleTicketUpload" />
                 </div>
               </div>
 
-              <div class="mt-6 flex flex-col-reverse gap-2 tablet:flex-row tablet:justify-end">
+              <div class="app-page-header mt-6 border-t border-[var(--stroke)] pt-5 tablet:items-center">
+                <p class="text-sm text-[var(--text-secondary)]">Kiểm tra lại nội dung trước khi lưu thay đổi.</p>
+                <div class="app-toolbar flex-col-reverse tablet:justify-end">
                 <button
                   type="button"
                   class="app-button-secondary inline-flex w-full items-center justify-center gap-x-2 rounded-lg px-4 py-3 text-sm font-medium disabled:opacity-50 tablet:w-auto"
@@ -475,9 +479,9 @@ watch(
                   <span v-if="submitting" class="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                   <span>{{ submitButtonText }}</span>
                 </button>
+                </div>
               </div>
             </div>
-          </div>
         </form>
       </div>
     </div>

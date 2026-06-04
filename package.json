@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "check": "npm run check:responsive && npm run check:syntax && npm run build",
     "check:responsive": "bash ./scripts/check-responsive-breakpoints.sh",
-    "check:syntax": "node --check src/services/qc_service.js && node --check api/src/api/qc-session/controllers/qc-session.js && node --check api/src/api/qc-draft/controllers/qc-draft.js",
+    "check:syntax": "node --check src/main.js && node --check src/router/index.js && node --check src/services/qc_service.js",
     "recap": "bash ./scripts/project-recap.sh",
     "recap:print": "bash ./scripts/project-recap.sh --stdout"
   },

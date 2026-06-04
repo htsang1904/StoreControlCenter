@@ -111,13 +111,13 @@ const tabClasses = (tab) => {
 
   if (isExpanded.value) {
     return isActive
-      ? 'gap-2.5 rounded-2xl bg-slate-100 px-3 py-2 text-slate-900 pc:justify-start'
-      : 'gap-2.5 rounded-2xl px-3 py-2 text-slate-600 pc:justify-start hover:bg-slate-50 hover:text-slate-900'
+      ? 'gap-2.5 rounded-2xl bg-[var(--primary-softer)] px-3 py-2 text-[var(--text-primary)] pc:justify-start'
+      : 'gap-2.5 rounded-2xl px-3 py-2 text-[var(--text-secondary)] pc:justify-start hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]'
   }
 
   return isActive
-    ? 'mx-auto h-10 w-10 justify-center rounded-2xl bg-slate-100 text-slate-900'
-    : 'mx-auto h-10 w-10 justify-center rounded-2xl text-slate-700 hover:bg-slate-100'
+    ? 'mx-auto h-10 w-10 justify-center rounded-2xl bg-[var(--primary-softer)] text-[var(--text-primary)]'
+    : 'mx-auto h-10 w-10 justify-center rounded-2xl text-[var(--text-secondary)] hover:bg-[var(--primary-softer)]'
 }
 
 const userName = computed(() => state.userInfo?.name || 'Người dùng')
@@ -202,14 +202,14 @@ onBeforeUnmount(() => {
   <button
     v-if="props.drawerMode && props.drawerOpen"
     type="button"
-    class="fixed inset-0 z-[55] bg-slate-900/20"
+    class="fixed inset-0 z-[55] bg-blue-950/20"
     aria-label="Đóng sidebar"
     @click="emit('close-drawer')"
   ></button>
 
   <aside
     id="hs-pro-sidebar"
-    class="stitch-shell fixed inset-y-0 start-0 z-[60] bg-white border-r border-slate-200 transition-all duration-300 ease-in-out"
+    class="stitch-shell fixed inset-y-0 start-0 z-[60] bg-white border-r border-[var(--stroke)] transition-all duration-300 ease-in-out"
     :class="sidebarClasses"
     role="dialog"
     tabindex="-1"
@@ -221,20 +221,20 @@ onBeforeUnmount(() => {
         :class="isExpanded ? 'pc:justify-start pc:px-4 pc:py-3.5' : 'pc:justify-center pc:px-1.5 pc:py-4'"
       >
         <div
-          class="flex h-9 w-9 items-center justify-center rounded-lg bg-[#136dec] text-white"
+          class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--primary)] text-white"
           :class="isExpanded ? 'pc:flex' : 'pc:hidden'"
         >
           <span class="material-symbols-outlined text-[18px]">storefront</span>
         </div>
         <div class="min-w-0" :class="isExpanded ? 'pc:block' : 'pc:hidden'">
-          <p class="truncate text-sm font-bold tracking-tight text-slate-900">Quản trị cửa hàng</p>
+          <p class="truncate text-sm font-bold tracking-tight text-[var(--text-primary)]">Quản trị cửa hàng</p>
         </div>
 
         <button
           v-if="!props.drawerMode"
           type="button"
-          class="hidden size-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 pc:inline-flex"
-          :class="isExpanded ? 'ml-auto' : 'pc:mx-auto pc:border pc:border-slate-200 pc:bg-slate-50'"
+          class="hidden size-9 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] pc:inline-flex"
+          :class="isExpanded ? 'ml-auto' : 'pc:mx-auto pc:border pc:border-[var(--stroke)] pc:bg-[var(--surface-muted)]'"
           :aria-label="isExpanded ? 'Thu gọn sidebar' : 'Mở sidebar'"
           @click="emit('toggle-desktop-sidebar')"
         >
@@ -246,7 +246,7 @@ onBeforeUnmount(() => {
         <button
           v-if="props.drawerMode"
           type="button"
-          class="ml-auto inline-flex size-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+          class="ml-auto inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:bg-[var(--primary-softer)]"
           aria-label="Đóng sidebar"
           @click="emit('close-drawer')"
         >
@@ -261,7 +261,7 @@ onBeforeUnmount(() => {
         <div>
           <p
             v-if="isExpanded"
-            class="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400"
+            class="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-muted)]"
           >
             Vận hành
           </p>
@@ -287,13 +287,13 @@ onBeforeUnmount(() => {
             v-if="isExpanded"
             class="mb-3 pt-3"
           >
-            <p class="px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">
+            <p class="px-3 text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-muted)]">
               Quản trị hệ thống
             </p>
           </div>
           <div
             v-else
-            class="mx-auto h-px w-8 bg-slate-200"
+            class="mx-auto h-px w-8 bg-[var(--primary-soft)]"
           ></div>
 
           <div :class="isExpanded ? 'space-y-1' : 'mt-4 space-y-3'">
@@ -314,34 +314,34 @@ onBeforeUnmount(() => {
         </div>
       </nav>
 
-      <div class="border-t border-slate-200 p-4" :class="isExpanded ? 'pc:block' : 'pc:hidden'">
+      <div class="border-t border-[var(--stroke)] p-4" :class="isExpanded ? 'pc:block' : 'pc:hidden'">
         <div ref="userMenuRef" class="relative">
           <button
             type="button"
             class="flex w-full items-center gap-3 rounded-2xl border p-2.5 transition-colors"
-            :class="userMenuOpen ? 'border-slate-200 bg-white' : 'border-transparent bg-slate-50/70 hover:border-slate-200 hover:bg-white'"
+            :class="userMenuOpen ? 'border-[var(--stroke)] bg-white' : 'border-transparent bg-[var(--surface-muted)] hover:border-[var(--stroke)] hover:bg-white'"
             @click.stop="toggleUserMenu"
           >
-            <div class="inline-flex size-10 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
+            <div class="inline-flex size-10 items-center justify-center rounded-full bg-[var(--primary-soft)] text-sm font-semibold text-[var(--text-secondary)]">
               {{ userInitials }}
             </div>
             <div class="min-w-0 flex-1 text-left">
-              <p class="truncate text-sm font-semibold text-slate-900">{{ userName }}</p>
-              <p class="truncate text-xs text-slate-500">{{ userRoleLabel }}</p>
+              <p class="truncate text-sm font-semibold text-[var(--text-primary)]">{{ userName }}</p>
+              <p class="truncate text-xs text-[var(--text-secondary)]">{{ userRoleLabel }}</p>
             </div>
-            <span class="material-symbols-outlined text-[20px] text-slate-500" :class="userMenuOpen ? 'rotate-180' : ''">
+            <span class="material-symbols-outlined text-[20px] text-[var(--text-secondary)]" :class="userMenuOpen ? 'rotate-180' : ''">
               expand_more
             </span>
           </button>
 
           <div
             v-if="userMenuOpen"
-            class="absolute bottom-full left-0 right-0 mb-2 rounded-2xl border border-slate-200 bg-white p-2.5"
+            class="absolute bottom-full left-0 right-0 mb-2 rounded-2xl border border-[var(--stroke)] bg-white p-2.5"
             @click.stop
           >
             <button
               type="button"
-              class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              class="inline-flex w-full items-center justify-center rounded-lg border border-[var(--stroke)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="syncingStores"
               @click="handleSyncStoresFromMenu"
             >
@@ -349,7 +349,7 @@ onBeforeUnmount(() => {
             </button>
             <button
               type="button"
-              class="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-slate-50"
+              class="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-[var(--stroke)] px-3 py-2 text-xs font-semibold text-[var(--danger-text)] transition-colors hover:bg-[var(--surface-muted)]"
               @click="handleLogout"
             >
               Đăng xuất
@@ -358,9 +358,9 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="hidden mt-auto border-t border-slate-200 px-2 py-4 pc:justify-center" :class="isExpanded ? 'pc:hidden' : 'pc:flex'">
-        <div class="flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50">
-          <div class="inline-flex size-9 items-center justify-center rounded-full bg-slate-200 text-xl font-semibold text-slate-700">
+      <div class="hidden mt-auto border-t border-[var(--stroke)] px-2 py-4 pc:justify-center" :class="isExpanded ? 'pc:hidden' : 'pc:flex'">
+        <div class="flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)]">
+          <div class="inline-flex size-9 items-center justify-center rounded-full bg-[var(--primary-soft)] text-xl font-semibold text-[var(--text-secondary)]">
             {{ userMonogram }}
           </div>
         </div>

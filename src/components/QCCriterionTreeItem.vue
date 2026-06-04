@@ -59,17 +59,17 @@ const resolveCriterionStatus = (criterion, criterionState = {}) => {
 const currentStatus = computed(() => resolveCriterionStatus(props.criterion, state.value))
 
 const cardToneClass = computed(() => {
-  if (currentStatus.value === 'pass') return 'border-emerald-200 bg-emerald-50/30 shadow-sm shadow-emerald-100/50'
-  if (currentStatus.value === 'fail') return 'border-rose-200 bg-rose-50/30 shadow-sm shadow-rose-100/50'
-  if (currentStatus.value === 'na') return 'border-slate-200 bg-slate-50 opacity-75'
-  return 'border-slate-200 hover:border-indigo-200 hover:shadow-sm hover:shadow-indigo-100/50 transition-all'
+  if (currentStatus.value === 'pass') return 'border-[var(--success-border)] bg-[var(--success-bg)]/30 shadow-sm'
+  if (currentStatus.value === 'fail') return 'border-[var(--danger-border)] bg-[var(--danger-bg)]/30 shadow-sm'
+  if (currentStatus.value === 'na') return 'border-[var(--stroke)] bg-[var(--surface-muted)] opacity-75'
+  return 'border-[var(--stroke)] transition-all hover:border-[var(--primary-soft)] hover:shadow-sm'
 })
 
 const statusBadgeClass = computed(() => {
-  if (currentStatus.value === 'pass') return 'bg-emerald-600 text-white shadow-sm shadow-emerald-200'
-  if (currentStatus.value === 'fail') return 'bg-rose-600 text-white shadow-sm shadow-rose-200'
-  if (currentStatus.value === 'na') return 'bg-slate-200 text-slate-700'
-  return 'bg-indigo-100 text-indigo-700 font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.05)] ring-1 ring-inset ring-indigo-200/50'
+  if (currentStatus.value === 'pass') return 'bg-[var(--success-text)] text-white shadow-sm'
+  if (currentStatus.value === 'fail') return 'bg-[var(--danger-text)] text-white shadow-sm'
+  if (currentStatus.value === 'na') return 'bg-[var(--neutral-bg)] text-[var(--neutral-text)]'
+  return 'border border-[var(--stroke)] bg-white font-semibold text-[var(--text-secondary)]'
 })
 
 const statusLabel = computed(() => {
@@ -105,9 +105,9 @@ const scoreHint = computed(() => {
 })
 
 const scoreHintClass = computed(() => {
-  if (currentStatus.value === 'pass') return 'text-emerald-700'
-  if (currentStatus.value === 'fail') return 'text-rose-700'
-  return 'text-slate-500'
+  if (currentStatus.value === 'pass') return 'text-[var(--success-text)]'
+  if (currentStatus.value === 'fail') return 'text-[var(--danger-text)]'
+  return 'text-[var(--text-secondary)]'
 })
 
 const canShowDetails = computed(() => currentStatus.value !== 'pending' && currentStatus.value !== 'na')
@@ -127,33 +127,33 @@ const detailToggleLabel = computed(() => (
 
 const sectionHeaderClass = computed(() => {
   if (props.level === 1) {
-    return 'rounded-2xl border border-indigo-100/50 bg-gradient-to-r from-indigo-50/80 via-white to-sky-50/30 px-5 py-4 shadow-sm shadow-indigo-100/20'
+    return 'rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] px-5 py-4 shadow-sm'
   }
 
   if (props.level === 2) {
-    return 'rounded-xl border border-indigo-50 bg-indigo-50/40 px-4 py-3'
+    return 'rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3'
   }
 
-  return 'rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2'
+  return 'rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)]/80 px-3 py-2'
 })
 
 const sectionTagClass = computed(() => {
   if (props.level <= 2) {
-    return 'bg-white text-indigo-700 font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.05)] ring-1 ring-inset ring-indigo-100/50'
+    return 'border border-[var(--stroke)] bg-white font-semibold text-[var(--primary-strong)]'
   }
 
-  return 'bg-slate-100 text-slate-600'
+  return 'bg-[var(--primary-softer)] text-[var(--text-secondary)]'
 })
 
 const sectionTitleClass = computed(() => {
-  if (props.level === 1) return 'text-base font-bold text-indigo-950 tracking-tight'
-  if (props.level === 2) return 'text-[15px] font-bold text-indigo-900 tracking-tight'
-  return 'text-sm font-semibold text-slate-800 tracking-tight'
+  if (props.level === 1) return 'text-base font-bold text-[var(--text-primary)] tracking-tight'
+  if (props.level === 2) return 'text-[15px] font-bold text-[var(--text-primary)] tracking-tight'
+  return 'text-sm font-semibold text-[var(--text-primary)] tracking-tight'
 })
 
 const sectionChildrenLaneClass = computed(() => {
-  if (props.level === 1) return 'ml-4 space-y-1 border-l-2 border-slate-200 pl-4'
-  return 'ml-3 space-y-1 border-l border-slate-200 pl-3'
+  if (props.level === 1) return 'ml-4 space-y-1 border-l-2 border-[var(--stroke)] pl-4'
+  return 'ml-3 space-y-1 border-l border-[var(--stroke)] pl-3'
 })
 
 const collectLeafCriteria = (criterion) => {
@@ -264,13 +264,13 @@ const toggleDetails = () => {
         </div>
 
         <div v-if="sectionSummary" class="hidden shrink-0 items-center gap-2 tablet:flex">
-          <span class="text-[11px] text-slate-500">
+          <span class="text-[11px] text-[var(--text-secondary)]">
             {{ sectionSummary.completed }}/{{ sectionSummary.total }} hoàn tất
           </span>
-          <span v-if="sectionSummary.failed > 0" class="text-[11px] text-rose-600">{{ sectionSummary.failed }} lỗi</span>
+          <span v-if="sectionSummary.failed > 0" class="text-[11px] text-[var(--danger-text)]">{{ sectionSummary.failed }} lỗi</span>
         </div>
 
-        <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
+        <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--stroke)] bg-white text-[var(--text-secondary)]">
           <svg
             class="size-3.5 transition-transform"
             :class="sectionExpanded ? 'rotate-180' : ''"
@@ -309,15 +309,15 @@ const toggleDetails = () => {
     <div
       v-else
       :id="criterionDomId"
-      :class="['scroll-mt-24 border-b bg-white py-2.5 last:border-b-0 transition-colors', cardToneClass]"
+      :class="['scroll-mt-24 rounded-2xl border bg-white px-4 py-3 transition-colors', cardToneClass]"
     >
       <div class="flex flex-col gap-3 pc:flex-row pc:items-start pc:justify-between">
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+            <span class="inline-flex rounded-full bg-[var(--primary-softer)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
               {{ criterion.ordering || criterion.code || 'Tiêu chí' }}
             </span>
-            <span class="text-[11px] text-slate-500">
+            <span class="text-[11px] text-[var(--text-secondary)]">
               {{ metricLabel }}
             </span>
             <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="statusBadgeClass">
@@ -325,10 +325,10 @@ const toggleDetails = () => {
             </span>
           </div>
 
-          <h4 class="mt-2 text-sm font-semibold leading-6 text-blue-950">
+          <h4 class="mt-2 text-sm font-semibold leading-6 text-[var(--text-primary)]">
             {{ criterion.name }}
           </h4>
-          <p v-if="criterion.description" class="mt-1 text-sm leading-6 text-slate-600">
+          <p v-if="criterion.description" class="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
             {{ criterion.description }}
           </p>
         </div>
@@ -338,7 +338,7 @@ const toggleDetails = () => {
             <button
               type="button"
               class="cursor-pointer rounded-xl border px-4 py-2.5 text-sm font-medium transition"
-              :class="currentStatus === 'pass' ? 'border-emerald-200 bg-emerald-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:bg-emerald-50'"
+              :class="currentStatus === 'pass' ? 'border-[var(--success-text)] bg-[var(--success-text)] text-white' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:border-[var(--success-border)] hover:bg-[var(--success-bg)]'"
               @click="handlePassFail('pass')"
             >
               Đạt
@@ -346,7 +346,7 @@ const toggleDetails = () => {
             <button
               type="button"
               class="cursor-pointer rounded-xl border px-4 py-2.5 text-sm font-medium transition"
-              :class="currentStatus === 'fail' ? 'border-rose-200 bg-rose-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-rose-200 hover:bg-rose-50'"
+              :class="currentStatus === 'fail' ? 'border-[var(--danger-text)] bg-[var(--danger-text)] text-white' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:border-[var(--danger-border)] hover:bg-[var(--danger-bg)]'"
               @click="handlePassFail('fail')"
             >
               Không đạt
@@ -354,7 +354,7 @@ const toggleDetails = () => {
           </div>
 
           <div v-else class="space-y-3">
-            <div class="rounded-2xl border border-indigo-50/80 bg-indigo-50/40 p-3 transition focus-within:border-indigo-200 focus-within:bg-white focus-within:shadow-sm">
+            <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-3 transition focus-within:border-[var(--primary)] focus-within:bg-white focus-within:shadow-sm">
               <div class="flex items-center gap-3">
                 <input
                   type="number"
@@ -363,29 +363,29 @@ const toggleDetails = () => {
                   :max="criterion.maxScore"
                   step="0.5"
                   placeholder="Điểm"
-                  class="score-input h-10 min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 text-2xl font-semibold tracking-tight text-blue-950 placeholder:text-slate-300 focus:border-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  class="score-input h-10 min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 text-2xl font-semibold tracking-tight text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                   @input="handleScoreChange"
                 />
-                <span class="inline-flex shrink-0 items-center rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-500">
+                <span class="inline-flex shrink-0 items-center rounded-full bg-white px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)]">
                   / {{ criterion.maxScore }} điểm
                 </span>
               </div>
               <div class="mt-2 flex items-center justify-between gap-3 text-[11px]">
-                <span class="text-slate-500">Ngưỡng đạt {{ pointThreshold }}/{{ criterion.maxScore }}</span>
+                <span class="text-[var(--text-secondary)]">Ngưỡng đạt {{ pointThreshold }}/{{ criterion.maxScore }}</span>
                 <span class="font-medium" :class="scoreHintClass">{{ scoreHint }}</span>
               </div>
             </div>
 
             <div class="px-1">
-              <div class="h-2 overflow-hidden rounded-full bg-slate-200">
+              <div class="h-2 overflow-hidden rounded-full bg-[var(--primary-softer)]">
                 <div
                   class="h-full rounded-full transition-all duration-200"
-                  :class="currentStatus === 'fail' ? 'bg-rose-500' : currentStatus === 'pass' ? 'bg-emerald-500' : 'bg-slate-400'"
+                  :class="currentStatus === 'fail' ? 'bg-[var(--danger-text)]' : currentStatus === 'pass' ? 'bg-[var(--success-text)]' : 'bg-[var(--text-muted)]'"
                   :style="{ width: `${scorePercent}%` }"
                 ></div>
               </div>
               <div class="mt-2 flex items-center justify-between gap-2 text-[11px]">
-                <span class="text-slate-500">Điểm: {{ state.score ?? '--' }}</span>
+                <span class="text-[var(--text-secondary)]">Điểm: {{ state.score ?? '--' }}</span>
                 <span class="font-medium" :class="scoreHintClass">{{ statusLabel }}</span>
               </div>
             </div>
@@ -394,7 +394,7 @@ const toggleDetails = () => {
           <button
             v-if="showFindingAction && currentStatus === 'fail'"
             type="button"
-            class="cursor-pointer mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100"
+            class="app-button-danger mt-2 inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium"
             @click="$emit('open-finding-modal', criterion.id)"
           >
             <svg class="size-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
@@ -407,18 +407,18 @@ const toggleDetails = () => {
         </div>
       </div>
 
-      <div v-if="canShowDetails" class="mt-2.5 border-t border-slate-200 pt-2.5">
+      <div v-if="canShowDetails" class="mt-3 rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-3 py-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p class="text-xs font-medium text-slate-500">Ghi chú & ảnh</p>
-            <p class="mt-1 text-[11px] text-slate-500">
+            <p class="text-xs font-medium text-[var(--text-secondary)]">Ghi chú & ảnh</p>
+            <p class="mt-1 text-[11px] text-[var(--text-secondary)]">
               {{ Array.isArray(state.attachments) ? state.attachments.length : 0 }}/{{ maxAttachments }} ảnh được phép đính kèm
             </p>
           </div>
 
           <button
             type="button"
-            class="cursor-pointer rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+            class="app-button-secondary cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-medium"
             @click="toggleDetails"
           >
             {{ detailToggleLabel }}
@@ -427,23 +427,23 @@ const toggleDetails = () => {
 
         <div v-if="detailsVisible" class="mt-3 grid gap-4 pc:grid-cols-[minmax(0,1fr)_220px]">
           <div>
-            <label class="block text-xs font-medium text-slate-500">Nhận xét</label>
+            <label class="block text-xs font-medium text-[var(--text-secondary)]">Nhận xét</label>
             <textarea
               :value="state.note"
               rows="3"
-              class="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+              class="mt-2 w-full rounded-xl border border-[var(--stroke)] bg-white px-3 py-2 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-none focus:ring-0"
               :placeholder="currentStatus === 'fail' ? 'Mô tả chi tiết lỗi và yêu cầu xử lý...' : 'Ghi chú thêm cho tiêu chí này...'"
               @input="(event) => updateState({ note: event.target.value })"
             ></textarea>
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-500">Ảnh minh chứng</label>
+            <label class="block text-xs font-medium text-[var(--text-secondary)]">Ảnh minh chứng</label>
             <div class="mt-2 flex flex-wrap gap-2">
               <div
                 v-for="(file, index) in state.attachments"
                 :key="file.id || index"
-                class="group relative h-[72px] w-[72px] overflow-hidden rounded-2xl border border-slate-200 bg-white"
+                class="group relative h-[72px] w-[72px] overflow-hidden rounded-2xl border border-[var(--stroke)] bg-white"
               >
                 <img :src="file.preview || file.url" class="h-full w-full object-cover" />
                 <button
@@ -463,7 +463,7 @@ const toggleDetails = () => {
 
               <label
                 v-if="state.attachments.length < maxAttachments"
-                class="cursor-pointer flex h-[72px] w-[72px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white text-slate-500 transition hover:border-slate-400 hover:bg-slate-50"
+                class="cursor-pointer flex h-[72px] w-[72px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-[var(--stroke-strong)] bg-white text-[var(--text-secondary)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
               >
                 <span class="text-lg font-semibold">+</span>
                 <span class="text-[11px] font-medium">Thêm ảnh</span>

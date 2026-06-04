@@ -1,6 +1,5 @@
 <script setup>
 import { nextTick, onMounted, ref, watch } from 'vue'
-import HSFileUpload from '@preline/file-upload'
 
 const props = defineProps({
   modelValue: {
@@ -142,6 +141,7 @@ const syncModelToDropzone = () => {
 
 onMounted(async () => {
   await nextTick()
+  const { default: HSFileUpload } = await import('@preline/file-upload')
   HSFileUpload.autoInit()
 
   const instance = HSFileUpload.getInstance(upload.value, true)
@@ -254,21 +254,21 @@ watch(
     }
     }'>
     <div class="hidden" data-hs-file-upload-preview="">
-        <div class="p-3 bg-white border border-solid border-gray-300 rounded-xl dark:bg-neutral-800 dark:border-neutral-600">
+        <div class="p-3 bg-white border border-solid border-[var(--stroke)] rounded-xl dark:bg-neutral-800 dark:border-neutral-600">
         <div class="mb-1 flex justify-between items-center">
             <div class="flex items-center gap-x-3">
-                <span class="size-10 shrink-0 overflow-hidden flex justify-center items-center border border-gray-200 text-gray-500 rounded-lg dark:border-neutral-700 dark:text-neutral-500" data-hs-file-upload-file-icon="">
+                <span class="size-10 shrink-0 overflow-hidden flex justify-center items-center border border-[var(--stroke)] text-[var(--text-secondary)] rounded-lg dark:border-neutral-700 dark:text-neutral-500" data-hs-file-upload-file-icon="">
                     <img class="block w-full h-full object-cover rounded-lg" data-dz-thumbnail="">
                 </span>
                 <div>
-                    <p class="text-sm font-medium text-gray-800 dark:text-white">
+                    <p class="text-sm font-medium text-[var(--text-primary)] dark:text-white">
                     <span class="truncate inline-block max-w-75 align-bottom" data-hs-file-upload-file-name=""></span>.<span data-hs-file-upload-file-ext=""></span>
                     </p>
-                    <p class="text-xs text-gray-500 dark:text-neutral-500" data-hs-file-upload-file-size=""></p>
+                    <p class="text-xs text-[var(--text-secondary)] dark:text-neutral-500" data-hs-file-upload-file-size=""></p>
                 </div>
             </div>
             <div class="flex items-center gap-x-2">
-            <button type="button" class="text-gray-500 hover:text-gray-800 focus:outline-hidden focus:text-gray-800 dark:text-neutral-500 dark:hover:text-neutral-200 dark:focus:text-neutral-200" data-hs-file-upload-remove="">
+            <button type="button" class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus:outline-hidden focus:text-[var(--text-primary)] dark:text-neutral-500 dark:hover:text-neutral-200 dark:focus:text-neutral-200" data-hs-file-upload-remove="">
                 <svg class="shrink-0 size-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 6h18"></path>
                 <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
@@ -281,11 +281,11 @@ watch(
         </div>
 
         <div class="flex items-center gap-x-3 whitespace-nowrap">
-            <div class="flex w-full h-2 bg-gray-200 rounded-full overflow-hidden dark:bg-neutral-700" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" data-hs-file-upload-progress-bar="">
-            <div class="flex flex-col justify-center rounded-full overflow-hidden bg-slate-700 text-xs text-white text-center whitespace-nowrap transition-all duration-500 hs-file-upload-complete:bg-slate-700" style="width: 0" data-hs-file-upload-progress-bar-pane=""></div>
+            <div class="flex w-full h-2 bg-[var(--primary-softer)] rounded-full overflow-hidden dark:bg-neutral-700" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" data-hs-file-upload-progress-bar="">
+            <div class="flex flex-col justify-center rounded-full overflow-hidden bg-[var(--primary)] text-xs text-white text-center whitespace-nowrap transition-all duration-500 hs-file-upload-complete:bg-[var(--primary)]" style="width: 0" data-hs-file-upload-progress-bar-pane=""></div>
             </div>
             <div class="w-10 text-end">
-            <span class="text-sm text-gray-800 dark:text-white">
+            <span class="text-sm text-[var(--text-primary)] dark:text-white">
                 <span data-hs-file-upload-progress-bar-value="">0</span>%
             </span>
             </div>
@@ -294,24 +294,24 @@ watch(
     </div>
 
     <div v-if="iconOnly"
-      class="cursor-pointer inline-flex items-center justify-center rounded-xl p-2 text-slate-500 transition-colors hover:bg-indigo-50 hover:text-indigo-600" 
+      class="cursor-pointer inline-flex items-center justify-center rounded-xl p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] hover:text-[var(--primary-strong)]" 
       data-hs-file-upload-trigger="" title="Đính kèm hình ảnh">
         <span class="material-symbols-outlined text-[22px]">image</span>
     </div>
     <div v-else
-      class="cursor-pointer flex justify-center bg-white border border-dashed border-gray-300 rounded-xl dark:bg-neutral-800 dark:border-neutral-600" 
+      class="cursor-pointer flex justify-center bg-white border border-dashed border-[var(--stroke-strong)] hover:border-[var(--primary)] hover:bg-[var(--primary-softer)] transition-colors rounded-xl dark:bg-neutral-800 dark:border-neutral-600" 
       :class="compact ? 'p-6' : 'p-12'"
       data-hs-file-upload-trigger="">
         <div class="text-center">
         <span class="inline-flex justify-center items-center" :class="compact ? 'size-10' : 'size-16'">
             <svg class="shrink-0 h-auto" :class="compact ? 'w-10' : 'w-16'" width="71" height="51" viewBox="0 0 71 51" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6.55172 8.74547L17.7131 6.88524V40.7377L12.8018 41.7717C9.51306 42.464 6.29705 40.3203 5.67081 37.0184L1.64319 15.7818C1.01599 12.4748 3.23148 9.29884 6.55172 8.74547Z" stroke="currentColor" stroke-width="2" class="stroke-slate-400 dark:stroke-slate-400"></path>
-            <path d="M64.4483 8.74547L53.2869 6.88524V40.7377L58.1982 41.7717C61.4869 42.464 64.703 40.3203 65.3292 37.0184L69.3568 15.7818C69.984 12.4748 67.7685 9.29884 64.4483 8.74547Z" stroke="currentColor" stroke-width="2" class="stroke-slate-400 dark:stroke-slate-400"></path>
+            <path d="M6.55172 8.74547L17.7131 6.88524V40.7377L12.8018 41.7717C9.51306 42.464 6.29705 40.3203 5.67081 37.0184L1.64319 15.7818C1.01599 12.4748 3.23148 9.29884 6.55172 8.74547Z" stroke="currentColor" stroke-width="2" class="stroke-[var(--text-muted)] dark:stroke-[var(--text-muted)]"></path>
+            <path d="M64.4483 8.74547L53.2869 6.88524V40.7377L58.1982 41.7717C61.4869 42.464 64.703 40.3203 65.3292 37.0184L69.3568 15.7818C69.984 12.4748 67.7685 9.29884 64.4483 8.74547Z" stroke="currentColor" stroke-width="2" class="stroke-[var(--text-muted)] dark:stroke-[var(--text-muted)]"></path>
             <g filter="url(#filter4)">
-                <rect x="17.5656" y="1" width="35.8689" height="42.7541" rx="5" stroke="currentColor" stroke-width="2" class="stroke-slate-400 dark:stroke-slate-400" shape-rendering="crispEdges"></rect>
+                <rect x="17.5656" y="1" width="35.8689" height="42.7541" rx="5" stroke="currentColor" stroke-width="2" class="stroke-[var(--text-muted)] dark:stroke-[var(--text-muted)]" shape-rendering="crispEdges"></rect>
             </g>
-            <path d="M39.4826 33.0893C40.2331 33.9529 41.5385 34.0028 42.3537 33.2426L42.5099 33.0796L47.7453 26.976L53.4347 33.0981V38.7544C53.4346 41.5156 51.1959 43.7542 48.4347 43.7544H22.5656C19.8043 43.7544 17.5657 41.5157 17.5656 38.7544V35.2934L29.9728 22.145L39.4826 33.0893Z" class="fill-slate-100 stroke-slate-400 dark:fill-slate-200 dark:stroke-slate-400" fill="currentColor" stroke="currentColor" stroke-width="2"></path>
-            <circle cx="40.0902" cy="14.3443" r="4.16393" class="fill-slate-100 stroke-slate-400 dark:fill-slate-200 dark:stroke-slate-400" fill="currentColor" stroke="currentColor" stroke-width="2"></circle>
+            <path d="M39.4826 33.0893C40.2331 33.9529 41.5385 34.0028 42.3537 33.2426L42.5099 33.0796L47.7453 26.976L53.4347 33.0981V38.7544C53.4346 41.5156 51.1959 43.7542 48.4347 43.7544H22.5656C19.8043 43.7544 17.5657 41.5157 17.5656 38.7544V35.2934L29.9728 22.145L39.4826 33.0893Z" class="fill-[var(--primary-softer)] stroke-[var(--text-muted)] dark:fill-[var(--primary-softer)] dark:stroke-[var(--text-muted)]" fill="currentColor" stroke="currentColor" stroke-width="2"></path>
+            <circle cx="40.0902" cy="14.3443" r="4.16393" class="fill-[var(--primary-softer)] stroke-[var(--text-muted)] dark:fill-[var(--primary-softer)] dark:stroke-[var(--text-muted)]" fill="currentColor" stroke="currentColor" stroke-width="2"></circle>
             <defs>
                 <filter id="filter4" x="13.5656" y="0" width="43.8689" height="50.7541" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
                 <feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood>
@@ -327,14 +327,14 @@ watch(
             </svg>
         </span>
 
-        <div class="flex flex-wrap justify-center text-gray-600" :class="compact ? 'mt-2 text-xs' : 'mt-4 text-sm/6'">
-            <span class="pe-1 font-medium text-gray-800 dark:text-neutral-200">
+        <div class="flex flex-wrap justify-center text-[var(--text-secondary)]" :class="compact ? 'mt-2 text-xs' : 'mt-4 text-sm/6'">
+            <span class="pe-1 font-medium text-[var(--text-primary)] dark:text-neutral-200">
             Kéo thả ảnh vào đây hoặc
             </span>
-            <span class="rounded-lg bg-white font-semibold text-slate-700 decoration-2 hover:underline hover:text-blue-950 focus-within:outline-hidden focus-within:ring-2 focus-within:ring-slate-400 focus-within:ring-offset-2 dark:bg-neutral-800 dark:text-slate-200 dark:hover:text-white">tải ảnh lên</span>
+            <span class="rounded-lg bg-white font-semibold text-[var(--text-primary)] decoration-2 hover:underline hover:text-[var(--primary-strong)] focus-within:outline-hidden focus-within:ring-2 focus-within:ring-[var(--ring)] focus-within:ring-offset-2 dark:bg-neutral-800 dark:text-[var(--text-secondary)] dark:hover:text-white">tải ảnh lên</span>
         </div>
 
-        <p class="mt-1 text-xs text-gray-400 dark:text-neutral-400">
+        <p class="mt-1 text-xs text-[var(--text-muted)] dark:text-neutral-400">
             Kích thước ảnh tối đa {{ maxSizeMb }}MB.
         </p>
         </div>

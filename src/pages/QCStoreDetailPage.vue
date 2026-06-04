@@ -521,22 +521,22 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="p-4 tablet:p-5 pc:p-6">
-    <div class="page-stack space-y-4">
+  <div class="app-page">
+    <div class="page-stack">
       <div class="flex min-w-0 items-start gap-3">
         <button
           @click="goBack"
           type="button"
-          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
           aria-label="Quay lại danh sách QC"
         >
           <span class="material-symbols-outlined text-[18px]">arrow_back</span>
         </button>
 
         <div class="min-w-0 flex-1">
-          <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Chi tiết QC cửa hàng</p>
-          <h1 class="mt-1 truncate text-lg font-semibold text-blue-950 tablet:text-xl" :title="storeTitle">{{ storeTitle }}</h1>
-          <p class="mt-1 text-sm leading-6 text-slate-500">{{ pageDescription }}</p>
+          <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Chi tiết QC cửa hàng</p>
+          <h1 class="mt-1 truncate text-lg font-semibold text-[var(--text-primary)] tablet:text-xl" :title="storeTitle">{{ storeTitle }}</h1>
+          <p class="mt-1 text-sm leading-6 text-[var(--text-secondary)]">{{ pageDescription }}</p>
         </div>
       </div>
 
@@ -553,31 +553,39 @@ onBeforeUnmount(() => {
       </section>
 
       <section class="flex flex-col space-y-4">
-        <div class="flex flex-col overflow-visible rounded-xl border border-gray-200 bg-white">
-          <div class="relative z-10 border-b border-gray-200 px-4 py-4 tablet:px-6">
+        <div class="flex flex-col overflow-visible rounded-xl border border-[var(--stroke)] bg-white">
+          <div class="app-section-header relative z-10 tablet:px-6">
+            <div class="mb-3 flex flex-col gap-1 tablet:flex-row tablet:items-end tablet:justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">QC sessions</p>
+                <h2 class="text-base font-semibold text-[var(--text-primary)]">Lịch sử chấm và phiếu nháp</h2>
+              </div>
+              <p class="text-xs text-[var(--text-secondary)]">Theo dõi phiếu đang chấm, kết quả đã chốt và lỗi cần xử lý.</p>
+            </div>
+
             <div class="flex flex-col gap-3 pc:flex-row pc:items-center">
               <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
                 <div class="hs-dropdown [--auto-close:inside] relative inline-block">
                   <button
                     id="qc-status-filter"
                     type="button"
-                    class="relative inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
+                    class="relative inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:w-auto"
                     aria-haspopup="menu"
                     aria-expanded="false"
                   >
                     Kết quả
-                    <svg class="size-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                       <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0l-4.25-4.51a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
                     </svg>
                     <span
                       v-if="selectedResultCount > 0"
-                      class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                      class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-[var(--primary)] px-1.5 py-0.5 text-[10px] font-semibold text-white"
                     >
                       {{ selectedResultCount }}
                     </span>
                   </button>
                   <div
-                    class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-44 z-20 mt-2 rounded-lg border border-slate-200 bg-white"
+                    class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-44 z-20 mt-2 rounded-lg border border-[var(--stroke)] bg-white"
                     role="menu"
                     aria-orientation="vertical"
                     aria-labelledby="qc-status-filter"
@@ -585,13 +593,13 @@ onBeforeUnmount(() => {
                     <label
                       v-for="result in resultOptions"
                       :key="result.value || 'all'"
-                      class="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                      class="flex items-center gap-2 px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
                     >
                       <input
                         v-model="filters.status"
                         :value="result.value"
                         type="radio"
-                        class="mt-0.5 shrink-0 border-slate-300 text-blue-950 focus:ring-slate-300"
+                        class="mt-0.5 shrink-0 border-[var(--stroke-strong)] text-[var(--text-primary)] focus:ring-[var(--stroke-strong)]"
                         @change="applyFilters"
                       >
                       <span>{{ result.label }}</span>
@@ -610,15 +618,15 @@ onBeforeUnmount(() => {
 
               <div class="flex flex-col gap-2 tablet:flex-row tablet:items-center pc:ml-auto">
                 <div class="relative w-full tablet:flex-1 pc:w-[300px] pc:flex-none">
-                  <input v-model="searchInput" type="text" class="block h-9 w-full rounded-lg border border-gray-200 px-3 ps-10 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:ring-0" placeholder="Tìm mã phiếu, mẫu QC, ghi chú..." />
+                  <input v-model="searchInput" type="text" class="block h-9 w-full rounded-lg border border-[var(--stroke)] px-3 ps-10 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:ring-0" placeholder="Tìm mã phiếu, mẫu QC, ghi chú..." />
                   <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3">
-                    <svg class="size-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+                    <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
                   </div>
                 </div>
 
                 <button
                   type="button"
-                  class="inline-flex h-9 w-full shrink-0 whitespace-nowrap items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 tablet:w-auto"
+                  class="app-button-primary inline-flex h-9 w-full shrink-0 whitespace-nowrap items-center justify-center rounded-lg px-4 text-sm font-semibold tablet:w-auto"
                   @click="openCreateDraftModal"
                 >
                   Tạo phiếu QC
@@ -634,23 +642,23 @@ onBeforeUnmount(() => {
 
           <div v-loading="loading" class="overflow-hidden rounded-b-xl">
             <div class="pc:hidden">
-              <div v-if="hasRows" class="divide-y divide-slate-100">
+              <div v-if="hasRows" class="space-y-3 p-3 tablet:p-4">
                 <article
                   v-for="session in tableRows"
                   :key="session.rowKey"
-                  class="bg-white px-4 py-4 tablet:px-6"
+                  class="rounded-2xl border border-[var(--stroke)] bg-white px-4 py-4 shadow-sm tablet:px-5"
                 >
-                  <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
+                  <div class="app-page-header">
                     <div class="min-w-0 flex-1">
                       <button
                         type="button"
                         class="block text-left"
                         @click="handleRowAction(session)"
                       >
-                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-600">{{ session.code }}</p>
-                        <p class="mt-1 text-sm font-semibold text-blue-950">{{ session.templateName || '--' }}</p>
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">{{ session.code }}</p>
+                        <p class="mt-1 text-sm font-semibold text-[var(--text-primary)]">{{ session.templateName || '--' }}</p>
                       </button>
-                      <p class="mt-1 text-xs text-slate-500">{{ session.templateVersion || '--' }}</p>
+                      <p class="mt-1 text-xs text-[var(--text-secondary)]">{{ session.templateVersion || '--' }}</p>
                     </div>
 
                     <span class="app-badge inline-flex w-fit items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="resultClass(session.result)">
@@ -659,41 +667,41 @@ onBeforeUnmount(() => {
                   </div>
 
                   <div class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2">
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Auditor</p>
-                      <p class="mt-1 text-sm font-medium text-slate-700">{{ session.auditorName || '--' }}</p>
+                    <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
+                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Auditor</p>
+                      <p class="mt-1 text-sm font-medium text-[var(--text-secondary)]">{{ session.auditorName || '--' }}</p>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Ngày chấm</p>
-                      <p class="mt-1 text-sm font-medium text-slate-700">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</p>
+                    <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
+                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Ngày chấm</p>
+                      <p class="mt-1 text-sm font-medium text-[var(--text-secondary)]">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</p>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Điểm</p>
+                    <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
+                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Điểm</p>
                       <template v-if="isDraftRow(session)">
-                        <p class="mt-1 text-sm font-semibold text-slate-500">--</p>
+                        <p class="mt-1 text-sm font-semibold text-[var(--text-secondary)]">--</p>
                       </template>
                       <template v-else>
-                        <p class="mt-1 text-sm font-semibold text-blue-950">{{ session.totalScore }}/{{ session.maxScore }}</p>
-                        <p class="mt-1 text-xs text-slate-500">{{ sessionScoreRate(session) }}%</p>
+                        <p class="mt-1 text-sm font-semibold text-[var(--text-primary)]">{{ session.totalScore }}/{{ session.maxScore }}</p>
+                        <p class="mt-1 text-xs text-[var(--text-secondary)]">{{ sessionScoreRate(session) }}%</p>
                       </template>
                     </div>
 
-                    <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Ghi chú</p>
-                      <p class="mt-1 text-sm text-slate-700">{{ session.note || '--' }}</p>
+                    <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
+                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Ghi chú</p>
+                      <p class="mt-1 text-sm text-[var(--text-secondary)]">{{ session.note || '--' }}</p>
                     </div>
                   </div>
 
                   <div class="mt-4 flex flex-col gap-2 tablet:flex-row">
-                    <button type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 tablet:flex-1" @click="handleRowAction(session)">
+                    <button type="button" class="app-button-secondary inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:flex-1" @click="handleRowAction(session)">
                       {{ isDraftRow(session) ? 'Tiếp tục' : 'Chi tiết' }}
                     </button>
-                    <button v-if="isDraftRow(session)" type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 tablet:flex-1" @click="confirmRemoveDraftSession(session.id)">
+                    <button v-if="isDraftRow(session)" type="button" class="app-button-danger inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:flex-1" @click="confirmRemoveDraftSession(session.id)">
                       Xóa nháp
                     </button>
-                    <button v-else type="button" class="inline-flex w-full items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 tablet:flex-1" @click="confirmRemoveSession(session.id)">
+                    <button v-else type="button" class="app-button-danger inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:flex-1" @click="confirmRemoveSession(session.id)">
                       Xóa phiên lỗi
                     </button>
                   </div>
@@ -713,9 +721,9 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="hidden max-w-full overflow-x-auto pc:block">
-              <table class="min-w-[980px] w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50 uppercase text-xs font-semibold text-gray-700">
+            <div class="app-table-scroll hidden max-w-full pc:block">
+              <table class="min-w-[980px] w-full divide-y divide-[var(--stroke)]">
+                <thead class="bg-[var(--surface-muted)] uppercase text-xs font-semibold text-[var(--text-secondary)]">
                   <tr>
                     <th class="px-4 py-2.5 text-start">Mã phiếu</th>
                     <th class="px-4 py-2.5 text-start">Biên bản</th>
@@ -726,22 +734,22 @@ onBeforeUnmount(() => {
                     <th class="px-4 py-2.5 text-end"></th>
                   </tr>
                 </thead>
-                <tbody v-if="hasRows" class="divide-y divide-gray-200">
+                <tbody v-if="hasRows" class="divide-y divide-[var(--stroke)]">
                   <template v-for="session in tableRows" :key="session.rowKey">
-                    <tr class="bg-white hover:bg-gray-50">
-                      <td class="cursor-pointer px-4 py-2 text-sm font-medium text-blue-950 hover:text-slate-700 hover:underline" @click="handleRowAction(session)">{{ session.code }}</td>
-                      <td class="px-4 py-2 text-sm text-gray-700">
-                        <p class="font-medium text-slate-700">{{ session.templateName || '--' }}</p>
-                        <p class="text-xs text-slate-500">{{ session.templateVersion || '--' }}</p>
+                    <tr class="bg-white hover:bg-[var(--surface-muted)]">
+                      <td class="cursor-pointer px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:text-[var(--text-secondary)] hover:underline" @click="handleRowAction(session)">{{ session.code }}</td>
+                      <td class="px-4 py-2 text-sm text-[var(--text-secondary)]">
+                        <p class="font-medium text-[var(--text-secondary)]">{{ session.templateName || '--' }}</p>
+                        <p class="text-xs text-[var(--text-secondary)]">{{ session.templateVersion || '--' }}</p>
                       </td>
-                      <td class="px-4 py-2 text-sm text-gray-700">{{ session.auditorName || '--' }}</td>
+                      <td class="px-4 py-2 text-sm text-[var(--text-secondary)]">{{ session.auditorName || '--' }}</td>
                       <td class="px-4 py-2 text-end">
                         <template v-if="isDraftRow(session)">
-                          <p class="text-sm font-semibold text-slate-500">--</p>
+                          <p class="text-sm font-semibold text-[var(--text-secondary)]">--</p>
                         </template>
                         <template v-else>
-                          <p class="text-sm font-semibold text-gray-700">{{ session.totalScore }}/{{ session.maxScore }}</p>
-                          <p class="text-xs text-slate-500">{{ sessionScoreRate(session) }}%</p>
+                          <p class="text-sm font-semibold text-[var(--text-secondary)]">{{ session.totalScore }}/{{ session.maxScore }}</p>
+                          <p class="text-xs text-[var(--text-secondary)]">{{ sessionScoreRate(session) }}%</p>
                         </template>
                       </td>
                       <td class="px-4 py-2 text-sm">
@@ -749,15 +757,15 @@ onBeforeUnmount(() => {
                           {{ resultLabel(session.result) }}
                         </span>
                       </td>
-                      <td class="px-4 py-2 text-sm text-gray-600">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</td>
+                      <td class="px-4 py-2 text-sm text-[var(--text-secondary)]">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</td>
                       <td class="px-4 py-2 text-end flex gap-2 justify-end">
-                        <button type="button" class="cursor-pointer rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50" @click="handleRowAction(session)">
+                        <button type="button" class="app-button-secondary cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="handleRowAction(session)">
                           {{ isDraftRow(session) ? 'Tiếp tục' : 'Chi tiết' }}
                         </button>
-                        <button v-if="isDraftRow(session)" type="button" class="cursor-pointer rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100" @click="confirmRemoveDraftSession(session.id)">
+                        <button v-if="isDraftRow(session)" type="button" class="app-button-danger cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="confirmRemoveDraftSession(session.id)">
                           Xóa
                         </button>
-                        <button v-else type="button" class="cursor-pointer rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100" @click="confirmRemoveSession(session.id)">
+                        <button v-else type="button" class="app-button-danger cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="confirmRemoveSession(session.id)">
                           Xóa
                         </button>
                       </td>
@@ -807,18 +815,18 @@ onBeforeUnmount(() => {
       @close="cancelRemoveDraftSession"
     >
       <div class="flex flex-col items-center pt-6 pb-2 text-center focus:outline-none">
-        <div class="mb-5 flex size-14 items-center justify-center rounded-full bg-rose-100 text-rose-600 ring-8 ring-rose-50">
+        <div class="mb-5 flex size-14 items-center justify-center rounded-full bg-[var(--danger-bg)] text-[var(--danger-text)] ring-8 ring-[var(--danger-bg)]/70">
           <span class="material-symbols-outlined text-[28px]">delete</span>
         </div>
-        <h3 class="text-lg font-bold text-blue-950 tracking-tight">Xóa phiếu nháp?</h3>
-        <p class="mt-2 text-[14px] font-medium text-slate-500 leading-relaxed px-2">
-          Dữ liệu đã chấm sẽ bị mất hoàn toàn và chức năng này <span class="text-rose-600 font-semibold underline decoration-rose-200 underline-offset-2">không thể khôi phục</span>.
+        <h3 class="text-lg font-bold text-[var(--text-primary)] tracking-tight">Xóa phiếu nháp?</h3>
+        <p class="mt-2 text-[14px] font-medium text-[var(--text-secondary)] leading-relaxed px-2">
+          Dữ liệu đã chấm sẽ bị mất hoàn toàn và chức năng này <span class="text-[var(--danger-text)] font-semibold underline decoration-rose-200 underline-offset-2">không thể khôi phục</span>.
         </p>
 
         <div class="mt-8 flex items-center gap-3 w-full">
           <button
             type="button"
-            class="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-100 px-4 py-3 text-[15px] font-bold text-slate-700 transition hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            class="app-button-secondary inline-flex flex-1 items-center justify-center rounded-xl px-4 py-3 text-[15px] font-bold focus:outline-none focus:ring-2 focus:ring-[var(--stroke-strong)]"
             :disabled="deletingDraft"
             @click="cancelRemoveDraftSession"
           >
@@ -826,11 +834,11 @@ onBeforeUnmount(() => {
           </button>
           <button
             type="button"
-            class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-[15px] font-bold text-white transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 shadow-sm shadow-rose-200"
+            class="app-button-danger inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-[15px] font-bold focus:outline-none focus:ring-2 focus:ring-[var(--danger-border)] disabled:opacity-50"
             :disabled="deletingDraft"
             @click="executeRemoveDraftSession"
           >
-            <span v-if="deletingDraft" class="inline-block size-4 animate-spin rounded-full border-2 border-rose-200 border-t-white"></span>
+            <span v-if="deletingDraft" class="inline-block size-4 animate-spin rounded-full border-2 border-[var(--danger-border)] border-t-white"></span>
             <span v-else>Xóa vĩnh viễn</span>
           </button>
         </div>
@@ -845,18 +853,18 @@ onBeforeUnmount(() => {
       @close="cancelRemoveSession"
     >
       <div class="flex flex-col items-center pt-6 pb-2 text-center focus:outline-none">
-        <div class="mb-5 flex size-14 items-center justify-center rounded-full bg-rose-100 text-rose-600 ring-8 ring-rose-50">
+        <div class="mb-5 flex size-14 items-center justify-center rounded-full bg-[var(--danger-bg)] text-[var(--danger-text)] ring-8 ring-[var(--danger-bg)]/70">
           <span class="material-symbols-outlined text-[28px]">delete_forever</span>
         </div>
-        <h3 class="text-lg font-bold text-blue-950 tracking-tight">Xóa phiên QC đã chốt?</h3>
-        <p class="mt-2 text-[14px] font-medium text-slate-500 leading-relaxed px-2">
+        <h3 class="text-lg font-bold text-[var(--text-primary)] tracking-tight">Xóa phiên QC đã chốt?</h3>
+        <p class="mt-2 text-[14px] font-medium text-[var(--text-secondary)] leading-relaxed px-2">
           Hành động này sẽ xóa hoàn toàn kết quả chấm QC cùng với hình ảnh đính kèm và không thể khôi phục.
         </p>
 
         <div class="mt-8 flex items-center gap-3 w-full">
           <button
             type="button"
-            class="inline-flex flex-1 items-center justify-center rounded-xl bg-slate-100 px-4 py-3 text-[15px] font-bold text-slate-700 transition hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            class="app-button-secondary inline-flex flex-1 items-center justify-center rounded-xl px-4 py-3 text-[15px] font-bold focus:outline-none focus:ring-2 focus:ring-[var(--stroke-strong)]"
             :disabled="deletingSession"
             @click="cancelRemoveSession"
           >
@@ -864,11 +872,11 @@ onBeforeUnmount(() => {
           </button>
           <button
             type="button"
-            class="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-[15px] font-bold text-white transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 disabled:opacity-50 shadow-sm shadow-rose-200"
+            class="app-button-danger inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-[15px] font-bold focus:outline-none focus:ring-2 focus:ring-[var(--danger-border)] disabled:opacity-50"
             :disabled="deletingSession"
             @click="executeRemoveSession"
           >
-            <span v-if="deletingSession" class="inline-block size-4 animate-spin rounded-full border-2 border-rose-200 border-t-white"></span>
+            <span v-if="deletingSession" class="inline-block size-4 animate-spin rounded-full border-2 border-[var(--danger-border)] border-t-white"></span>
             <span v-else>Xóa vĩnh viễn</span>
           </button>
         </div>
@@ -883,14 +891,14 @@ onBeforeUnmount(() => {
       @close="closeSessionDetailModal"
     >
       <div v-if="selectedSessionForModal" class="flex flex-col focus:outline-none">
-        <div class="border-b border-slate-200 px-4 py-4 tablet:px-6">
+        <div class="app-section-header tablet:px-6">
           <div class="flex items-center justify-between gap-4">
             <div>
-              <h3 class="text-lg font-bold text-blue-950 tracking-tight">Chi tiết phiên QC - {{ selectedSessionForModal.code }}</h3>
-              <p class="mt-1 text-sm text-slate-500 font-medium">Mẫu: {{ selectedSessionForModal.templateName }} • Auditor: {{ selectedSessionForModal.auditorName }}</p>
+              <h3 class="text-lg font-bold text-[var(--text-primary)] tracking-tight">Chi tiết phiên QC - {{ selectedSessionForModal.code }}</h3>
+              <p class="mt-1 text-sm text-[var(--text-secondary)] font-medium">Mẫu: {{ selectedSessionForModal.templateName }} • Auditor: {{ selectedSessionForModal.auditorName }}</p>
             </div>
             <button
-              class="inline-flex size-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 focus:outline-none"
+              class="inline-flex size-8 items-center justify-center rounded-full bg-[var(--primary-softer)] text-[var(--text-secondary)] hover:bg-[var(--primary-soft)] hover:text-[var(--text-secondary)] focus:outline-none"
               @click="closeSessionDetailModal"
             >
               <span class="material-symbols-outlined text-[20px]">close</span>
@@ -898,60 +906,60 @@ onBeforeUnmount(() => {
           </div>
         </div>
         
-        <div class="max-h-[65vh] overflow-y-auto bg-slate-50/50 p-4 tablet:p-6">
-          <div class="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div class="max-h-[65vh] overflow-y-auto bg-[var(--surface-muted)] p-4 tablet:p-6">
+          <div class="mb-5 rounded-xl border border-[var(--stroke)] bg-white p-4 shadow-sm">
             <div class="grid grid-cols-2 gap-4 tablet:grid-cols-4">
               <div>
-                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Điểm số</p>
-                <p class="mt-1 font-semibold text-blue-950">{{ selectedSessionForModal.totalScore }} / {{ selectedSessionForModal.maxScore }}</p>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Điểm số</p>
+                <p class="mt-1 font-semibold text-[var(--text-primary)]">{{ selectedSessionForModal.totalScore }} / {{ selectedSessionForModal.maxScore }}</p>
               </div>
               <div>
-                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Tỷ lệ</p>
-                <p class="mt-1 font-semibold text-blue-950">{{ sessionScoreRate(selectedSessionForModal) }}%</p>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Tỷ lệ</p>
+                <p class="mt-1 font-semibold text-[var(--text-primary)]">{{ sessionScoreRate(selectedSessionForModal) }}%</p>
               </div>
               <div>
-                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Kết quả</p>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Kết quả</p>
                 <span class="mt-1 app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold" :class="resultClass(selectedSessionForModal.result)">
                   {{ resultLabel(selectedSessionForModal.result) }}
                 </span>
               </div>
               <div>
-                <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Ghi chú</p>
-                <p class="mt-1 text-sm text-slate-700 truncate" :title="selectedSessionForModal.note">{{ selectedSessionForModal.note || '--' }}</p>
+                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Ghi chú</p>
+                <p class="mt-1 text-sm text-[var(--text-secondary)] truncate" :title="selectedSessionForModal.note">{{ selectedSessionForModal.note || '--' }}</p>
               </div>
             </div>
             
             <div class="mt-4 flex flex-wrap gap-2">
-               <span v-for="reason in sessionReasons(selectedSessionForModal)" :key="reason" class="inline-flex rounded-md bg-rose-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-rose-700 border border-rose-200">{{ reason }}</span>
-               <span v-if="sessionReasons(selectedSessionForModal).length === 0" class="inline-flex rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700 border border-emerald-200">Không phát hiện lỗi quan trọng</span>
+               <span v-for="reason in sessionReasons(selectedSessionForModal)" :key="reason" class="inline-flex rounded-md bg-[var(--danger-bg)] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[var(--danger-text)] border border-[var(--danger-border)]">{{ reason }}</span>
+               <span v-if="sessionReasons(selectedSessionForModal).length === 0" class="inline-flex rounded-md border border-[var(--success-border)] bg-[var(--success-bg)] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[var(--success-text)]">Không phát hiện lỗi quan trọng</span>
             </div>
           </div>
 
-          <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div class="overflow-hidden rounded-xl border border-[var(--stroke)] bg-white shadow-sm">
             <div v-if="loadingSessionDetail" class="flex flex-col items-center justify-center py-10">
-              <span class="mb-3 inline-block size-6 animate-spin rounded-full border-2 border-slate-200 border-t-slate-800"></span>
-              <p class="text-sm text-slate-500 font-medium">Đang tải biểu mẫu chi tiết...</p>
+              <span class="mb-3 inline-block size-6 animate-spin rounded-full border-2 border-[var(--stroke)] border-t-[var(--primary)]"></span>
+              <p class="text-sm text-[var(--text-secondary)] font-medium">Đang tải biểu mẫu chi tiết...</p>
             </div>
             <table v-else class="w-full text-left">
-              <thead class="bg-slate-50 border-b border-slate-200">
+              <thead class="bg-[var(--surface-muted)] border-b border-[var(--stroke)]">
                 <tr>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Tiêu chí</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500 hidden tablet:table-cell">Danh mục</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500 text-center">Điểm</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500 text-right">Tình trạng</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Tiêu chí</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)] hidden tablet:table-cell">Danh mục</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)] text-center">Điểm</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)] text-right">Tình trạng</th>
                 </tr>
               </thead>
-              <tbody v-if="selectedSessionForModal.criteria && selectedSessionForModal.criteria.length > 0" class="divide-y divide-slate-100">
-                <tr v-for="criterion in selectedSessionForModal.criteria" :key="criterion.id" class="transition-colors hover:bg-slate-50/50">
+              <tbody v-if="selectedSessionForModal.criteria && selectedSessionForModal.criteria.length > 0" class="divide-y divide-[var(--stroke)]">
+                <tr v-for="criterion in selectedSessionForModal.criteria" :key="criterion.id" class="transition-colors hover:bg-[var(--surface-muted)]">
                   <td class="px-4 py-3">
-                    <p class="text-sm font-semibold text-blue-950">{{ criterion.name }}</p>
-                    <p class="mt-1 text-xs text-slate-500 tablet:hidden">{{ criterion.category }}</p>
-                    <p v-if="criterion.note" class="mt-1.5 text-xs text-slate-600 bg-slate-100 p-2 rounded-lg border border-slate-200">{{ criterion.note }}</p>
+                    <p class="text-sm font-semibold text-[var(--text-primary)]">{{ criterion.name }}</p>
+                    <p class="mt-1 text-xs text-[var(--text-secondary)] tablet:hidden">{{ criterion.category }}</p>
+                    <p v-if="criterion.note" class="mt-1.5 text-xs text-[var(--text-secondary)] bg-[var(--primary-softer)] p-2 rounded-lg border border-[var(--stroke)]">{{ criterion.note }}</p>
                   </td>
-                  <td class="px-4 py-3 text-sm text-slate-700 hidden tablet:table-cell align-top">{{ criterion.category }}</td>
-                  <td class="px-4 py-3 text-sm font-medium text-slate-700 text-center align-top whitespace-nowrap">
+                  <td class="px-4 py-3 text-sm text-[var(--text-secondary)] hidden tablet:table-cell align-top">{{ criterion.category }}</td>
+                  <td class="px-4 py-3 text-sm font-medium text-[var(--text-secondary)] text-center align-top whitespace-nowrap">
                     <template v-if="criterion.status === 'na' || criterion.status === 'skipped_weekly'">
-                      <span class="text-slate-400">--</span>
+                      <span class="text-[var(--text-muted)]">--</span>
                     </template>
                     <template v-else-if="criterion.mode === 'pass_fail'">
                        {{ criterion.status === 'pass' ? '1' : '0' }} / 1
@@ -970,7 +978,7 @@ onBeforeUnmount(() => {
               <tbody v-else>
                 <tr>
                   <td colspan="4" class="px-4 py-8 text-center">
-                    <p class="text-sm text-slate-500">Bảng tiêu chí trống.</p>
+                    <p class="text-sm text-[var(--text-secondary)]">Bảng tiêu chí trống.</p>
                   </td>
                 </tr>
               </tbody>
@@ -978,8 +986,8 @@ onBeforeUnmount(() => {
           </div>
         </div>
         
-        <div class="border-t border-slate-200 px-4 py-4 tablet:px-6 flex justify-end bg-white rounded-b-xl">
-          <button type="button" class="inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-blue-700" @click="closeSessionDetailModal">
+        <div class="border-t border-[var(--stroke)] px-4 py-4 tablet:px-6 flex justify-end bg-white rounded-b-xl">
+          <button type="button" class="inline-flex h-10 items-center justify-center rounded-xl bg-[var(--primary)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)]" @click="closeSessionDetailModal">
             Đóng
           </button>
         </div>

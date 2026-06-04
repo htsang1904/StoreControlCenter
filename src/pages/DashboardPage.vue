@@ -1,14 +1,14 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
-import VueApexCharts from 'vue3-apexcharts'
-import draggable from 'vuedraggable'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
 import StoreFilterButton from '@/components/StoreFilterButton.vue'
 import { useApp } from '@/plugins/app'
 import { getDashboardOverview, listTickets } from '@/services/ticket_service'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
-import { onMounted } from 'vue'
+
+const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'))
+const draggable = defineAsyncComponent(() => import('vuedraggable'))
 
 const route = useRoute()
 const router = useRouter()
@@ -121,7 +121,7 @@ const storeTonePalette = [
     dotClass: 'bg-sky-500',
     railClass: 'bg-sky-100',
     fillClass: 'bg-sky-500',
-    badgeClass: 'border border-sky-200 bg-sky-50 text-sky-700',
+    badgeClass: 'app-badge app-badge--info',
   },
   {
     dotClass: 'bg-teal-500',
@@ -133,13 +133,13 @@ const storeTonePalette = [
     dotClass: 'bg-amber-500',
     railClass: 'bg-amber-100',
     fillClass: 'bg-amber-500',
-    badgeClass: 'border border-amber-200 bg-amber-50 text-amber-700',
+    badgeClass: 'app-badge app-badge--warning',
   },
   {
     dotClass: 'bg-rose-500',
     railClass: 'bg-rose-100',
     fillClass: 'bg-rose-500',
-    badgeClass: 'border border-rose-200 bg-rose-50 text-rose-700',
+    badgeClass: 'app-badge app-badge--danger',
   },
 ]
 
@@ -150,8 +150,8 @@ const kpiCards = computed(() => [
     value: numberFormatter.format(Number(ticketSummary.value.total_ticket || 0)),
     meta: 'Trong kỳ',
     icon: 'list_alt',
-    bgClass: 'bg-sky-100',
-    textClass: 'text-sky-600',
+    bgClass: 'bg-[var(--info-bg)]',
+    textClass: 'text-[var(--info-text)]',
   },
   {
     key: 'avg_processing_time',
@@ -159,8 +159,8 @@ const kpiCards = computed(() => [
     value: `${Number(ticketAvgProcessingTime.value.toFixed(1))} giờ`,
     meta: 'Trên mỗi ticket',
     icon: 'schedule',
-    bgClass: 'bg-indigo-100',
-    textClass: 'text-indigo-600',
+    bgClass: 'bg-[var(--primary-soft)]',
+    textClass: 'text-[var(--primary-strong)]',
   },
   {
     key: 'in_progress',
@@ -168,8 +168,8 @@ const kpiCards = computed(() => [
     value: numberFormatter.format(Number(ticketSummary.value.in_progress || 0)),
     meta: 'Cần theo dõi',
     icon: 'pending',
-    bgClass: 'bg-amber-100',
-    textClass: 'text-amber-600',
+    bgClass: 'bg-[var(--warning-bg)]',
+    textClass: 'text-[var(--warning-text)]',
   },
   {
     key: 'qc_pass_rate',
@@ -177,8 +177,8 @@ const kpiCards = computed(() => [
     value: `${Number(qcSummary.value.passRate || 0)}%`,
     meta: 'Mục tiêu 95%',
     icon: 'check_circle',
-    bgClass: 'bg-emerald-100',
-    textClass: 'text-emerald-600',
+    bgClass: 'bg-[var(--success-bg)]',
+    textClass: 'text-[var(--success-text)]',
   },
   {
     key: 'overdue',
@@ -186,8 +186,8 @@ const kpiCards = computed(() => [
     value: numberFormatter.format(Number(ticketSummary.value.overdue || 0)),
     meta: 'Sát SLA',
     icon: 'timer',
-    bgClass: 'bg-rose-100',
-    textClass: 'text-rose-600',
+    bgClass: 'bg-[var(--danger-bg)]',
+    textClass: 'text-[var(--danger-text)]',
   },
 ])
 
@@ -203,23 +203,23 @@ const sparklineData = computed(() => {
   return {
     total_ticket: {
       series: [{ data: [12, 14, 18, 15, 21, 19, 25].map(v => Math.round(v * mult)) }],
-      options: { ...sparklineCommonOptions, colors: ['#0EA5E9'] }
+      options: { ...sparklineCommonOptions, colors: ['#1d7de2'] }
     },
     avg_processing_time: {
       series: [{ data: [2.5, 2.3, 2.6, 2.4, 2.1, 1.9, 2.2].map(v => Number((v * mult).toFixed(1))) }],
-      options: { ...sparklineCommonOptions, colors: ['#6366F1'] }
+      options: { ...sparklineCommonOptions, colors: ['#0f6adf'] }
     },
     in_progress: {
       series: [{ data: [5, 7, 4, 8, 6, 9, 5].map(v => Math.round(v * mult)) }],
-      options: { ...sparklineCommonOptions, colors: ['#F59E0B'] }
+      options: { ...sparklineCommonOptions, colors: ['#d97706'] }
     },
     qc_pass_rate: {
       series: [{ data: [92, 94, 91, 95, 96, 94, 97].map(v => Math.min(100, Math.round(v + (mult - 1) * 5))) }],
-      options: { ...sparklineCommonOptions, colors: ['#10B981'] }
+      options: { ...sparklineCommonOptions, colors: ['#16a34a'] }
     },
     overdue: {
       series: [{ data: [2, 3, 1, 4, 2, 5, 1].map(v => Math.round(v * mult)) }],
-      options: { ...sparklineCommonOptions, colors: ['#F43F5E'] }
+      options: { ...sparklineCommonOptions, colors: ['#e11d48'] }
     }
   }
 })
@@ -255,7 +255,8 @@ const dashboardWidgets = ref([
   { id: 'kpi_table', type: 'kpi_table', span: 12, minSpan: 12 },
   { id: 'main_chart', type: 'main_chart', span: 12, minSpan: 6 },
   { id: 'top_ticket_chart', type: 'top_ticket_chart', span: 6, minSpan: 6 },
-  { id: 'top_qc_chart', type: 'top_qc_chart', span: 6, minSpan: 6 }
+  { id: 'top_qc_chart', type: 'top_qc_chart', span: 6, minSpan: 6 },
+  { id: 'recent_tickets', type: 'recent_tickets', span: 12, minSpan: 6 }
 ])
 
 const chartStoreFilter = ref([])
@@ -334,7 +335,7 @@ const commonChartOptions = {
   },
   theme: { mode: 'light' },
   grid: {
-    borderColor: 'rgba(100, 116, 139, 0.15)',
+    borderColor: 'rgba(29, 125, 226, 0.14)',
     strokeDashArray: 4,
   },
   dataLabels: { enabled: false },
@@ -348,7 +349,7 @@ const ticketChartOptions = computed(() => ({
   ...commonChartOptions,
   chart: { ...commonChartOptions.chart, type: 'line' },
   stroke: { width: [0, 4], curve: 'smooth' },
-  colors: ['#818CF8', '#38BDF8'],
+  colors: ['#1d7de2', '#33b5ff'],
   fill: {
     type: ['solid', 'gradient'],
     gradient: {
@@ -360,13 +361,13 @@ const ticketChartOptions = computed(() => ({
   },
   xaxis: {
     categories: ticketChartData.value.categories,
-    labels: { style: { colors: '#64748b', fontWeight: 600 } },
+    labels: { style: { colors: '#557399', fontWeight: 600 } },
     axisBorder: { show: false },
     axisTicks: { show: false }
   },
   yaxis: [
-    { title: { text: 'Số Yêu cầu (Ticket)', style: { color: '#64748b', fontWeight: 600 } }, labels: { style: { colors: '#64748b' } } },
-    { opposite: true, title: { text: 'Thời gian IT Xử lý (giờ)', style: { color: '#64748b', fontWeight: 600 } }, labels: { style: { colors: '#64748b' } } }
+    { title: { text: 'Số Yêu cầu (Ticket)', style: { color: '#557399', fontWeight: 600 } }, labels: { style: { colors: '#557399' } } },
+    { opposite: true, title: { text: 'Thời gian IT Xử lý (giờ)', style: { color: '#557399', fontWeight: 600 } }, labels: { style: { colors: '#557399' } } }
   ],
   legend: { position: 'top', horizontalAlign: 'right', fontWeight: 600 }
 }))
@@ -376,11 +377,16 @@ const ticketChartSeries = computed(() => [
   { name: 'Thời gian IT Xử lý (giờ)', type: 'line', data: ticketChartData.value.supportTime }
 ])
 
+const hasTicketTrendData = computed(() => (
+  ticketChartRawData.value.categories.length > 0 &&
+  ticketChartRawData.value.tickets.some((value) => Number(value || 0) > 0)
+))
+
 const topStoreTicketBarOptions = computed(() => ({
   ...commonChartOptions,
   chart: { ...commonChartOptions.chart, type: 'bar' },
   plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true } },
-  colors: ['#6366F1', '#8B5CF6', '#EC4899', '#F43F5E', '#F59E0B'],
+  colors: ['#1d7de2', '#33b5ff', '#0d9488', '#e11d48', '#d97706'],
   dataLabels: { enabled: true, style: { colors: ['#fff'] } },
   xaxis: { categories: ticketTopStores.value.map(s => s.name || `Store #${s.store_id}`), labels: { trim: true, style: { fontWeight: 600 } } },
   legend: { show: false }
@@ -390,11 +396,13 @@ const topStoreTicketBarSeries = computed(() => [
   { name: 'Số yêu cầu', data: ticketTopStores.value.map(s => s.count || 0) }
 ])
 
+const hasTopTicketStoreData = computed(() => ticketTopStores.value.some((store) => Number(store?.count || 0) > 0))
+
 const topStoreQcBarOptions = computed(() => ({
   ...commonChartOptions,
   chart: { ...commonChartOptions.chart, type: 'bar' },
   plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true } },
-  colors: ['#10B981', '#34D399', '#6EE7B7', '#A7F3D0'],
+  colors: ['#16a34a', '#22c55e', '#86efac', '#bbf7d0'],
   dataLabels: { enabled: true, style: { colors: ['#064E3B'] } },
   xaxis: { categories: qcTopStoresData.value.map(s => s.storeName || s.name || `Store #${s.storeId || s.store_id}`), max: 100, labels: { trim: true, style: { fontWeight: 600 } } },
   legend: { show: false }
@@ -403,6 +411,8 @@ const topStoreQcBarOptions = computed(() => ({
 const topStoreQcBarSeries = computed(() => [
   { name: 'Tỉ lệ đạt (%)', data: qcTopStoresData.value.map(s => s.passRate || 0) }
 ])
+
+const hasTopQcStoreData = computed(() => qcTopStoresData.value.some((store) => Number(store?.passRate || 0) > 0))
 
 async function loadDashboard() {
   loading.value = true
@@ -522,14 +532,31 @@ watch(
 </script>
 
 <template>
-  <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
+  <div class="app-page page-stack">
     <p v-if="errorMessage" class="app-state-banner text-xs">
       {{ errorMessage }}
     </p>
 
-    <!-- BỘ LỌC CỬA HÀNG -->
-    <div class="mb-2 flex items-center justify-end">
-       <StoreFilterButton v-model="chartStoreFilter" />
+    <section class="app-section app-section--padded">
+      <div class="app-page-header tablet:items-center">
+        <div class="app-page-heading">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">Dashboard</p>
+          <h1 class="app-page-title mt-1">Tổng quan vận hành cửa hàng</h1>
+          <p class="app-page-subtitle">
+            Theo dõi ticket, thời gian xử lý và chất lượng QC theo cửa hàng trong kỳ đã chọn.
+          </p>
+        </div>
+
+        <div class="app-toolbar tablet:justify-end">
+          <StoreFilterButton v-model="chartStoreFilter" />
+        </div>
+      </div>
+    </section>
+
+    <div v-if="loading" class="grid gap-3 tablet:grid-cols-3">
+      <div v-for="item in 3" :key="item" class="h-2 rounded-full bg-[var(--primary-softer)]">
+        <span class="block h-full w-1/2 animate-pulse rounded-full bg-[var(--primary-soft)]"></span>
+      </div>
     </div>
 
     <!-- CÁC WIDGETS CÓ THỂ KÉO THẢ, ĐỔI CHIỀU, THU PHÓNG BẰNG CSS GRID -->
@@ -537,7 +564,7 @@ watch(
       v-model="dashboardWidgets" 
       item-key="id" 
       handle=".drag-handle" 
-      class="mt-4 grid grid-cols-12 gap-6 items-stretch"
+      class="app-dashboard-grid"
       ghost-class="sortable-ghost-widget"
       drag-class="cursor-grabbing"
       :animation="200"
@@ -551,29 +578,29 @@ watch(
            }"
          >
            <!-- Control Toolbox -->
-           <div class="drag-handle absolute -left-2 tablet:-left-4 top-1/2 -translate-y-1/2 cursor-grab text-slate-400/30 opacity-0 transition-opacity hover:text-indigo-500 group-hover:opacity-100 z-50 p-2 hidden tablet:block active:cursor-grabbing">
+           <div class="drag-handle absolute -left-2 tablet:-left-4 top-1/2 -translate-y-1/2 cursor-grab text-[var(--text-muted)]/40 opacity-0 transition-opacity hover:text-[var(--primary)] group-hover:opacity-100 z-50 p-2 hidden tablet:block active:cursor-grabbing">
              <span class="material-symbols-outlined text-[28px]">drag_indicator</span>
            </div>
 
            <div v-if="element.minSpan !== 12" class="absolute right-4 top-3 z-[60] flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 bg-white/80 rounded-lg p-1 backdrop-blur-md shadow-sm border border-white/60">
-             <button title="50% Chiều rộng" @click="element.span = 6" :class="element.span === 6 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-700'" class="px-2 py-0.5 text-xs font-bold rounded">50%</button>
-             <button title="100% Chiều rộng" @click="element.span = 12" :class="element.span === 12 ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400 hover:text-slate-700'" class="px-2 py-0.5 text-xs font-bold rounded">100%</button>
+             <button title="50% Chiều rộng" @click="element.span = 6" :class="element.span === 6 ? 'text-[var(--primary-strong)] bg-[var(--primary-softer)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'" class="px-2 py-0.5 text-xs font-bold rounded">50%</button>
+             <button title="100% Chiều rộng" @click="element.span = 12" :class="element.span === 12 ? 'text-[var(--primary-strong)] bg-[var(--primary-softer)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'" class="px-2 py-0.5 text-xs font-bold rounded">100%</button>
            </div>
            
            <!-- WIDGET 1: KPI TABLE -->
            <template v-if="element.type === 'kpi_table'">
-              <div class="flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 shadow-[0_8px_30px_rgba(29,125,226,0.08)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgba(29,125,226,0.14)] h-full w-full">
-                <div class="px-6 py-5 border-b border-white/50 shrink-0 bg-white/20">
-                   <h3 class="text-base font-black tracking-tight text-slate-800 truncate">Chỉ số Thống kê Tổng quan</h3>
+              <div class="app-dashboard-card">
+                <div class="app-dashboard-card__header">
+                   <h3 class="app-dashboard-card__title truncate">Chỉ số Thống kê Tổng quan</h3>
                 </div>
-                <div class="flex-1 w-full overflow-x-auto overflow-y-hidden">
-                  <table class="w-full min-w-[600px] text-left text-sm text-slate-600 h-full">
-                    <thead class="border-b border-white/40 bg-white/20 text-xs uppercase text-slate-500">
+                <div class="app-dashboard-card__body app-table-scroll overflow-y-hidden">
+                  <table class="w-full min-w-[600px] text-left text-sm text-[var(--text-secondary)] h-full">
+                    <thead class="border-b border-[var(--stroke)] bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-secondary)]">
                       <tr>
-                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-slate-700">Chỉ số thống kê</th>
-                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-slate-700 text-right">Giá trị hiện tại</th>
-                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-slate-700">Ghi chú</th>
-                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-slate-700 text-center w-[180px] pc:w-[250px]">Biến động</th>
+                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-[var(--text-secondary)]">Chỉ số thống kê</th>
+                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-[var(--text-secondary)] text-right">Giá trị hiện tại</th>
+                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-[var(--text-secondary)]">Ghi chú</th>
+                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-[var(--text-secondary)] text-center w-[180px] pc:w-[250px]">Biến động</th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-white/40">
@@ -583,11 +610,11 @@ watch(
                             <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl shadow-sm" :class="[card.bgClass, card.textClass]">
                               <span class="material-symbols-outlined text-[20px]">{{ card.icon }}</span>
                             </div>
-                            <span class="font-bold text-slate-800">{{ card.label }}</span>
+                            <span class="font-bold text-[var(--text-primary)]">{{ card.label }}</span>
                           </div>
                         </td>
                         <td class="px-6 py-3 whitespace-nowrap text-right">
-                          <span class="text-[18px] font-black tracking-tight text-slate-800">{{ card.value }}</span>
+                          <span class="text-[18px] font-black tracking-tight text-[var(--text-primary)]">{{ card.value }}</span>
                         </td>
                         <td class="px-6 py-3">
                           <span class="app-badge rounded-full border border-white/50 bg-white/50 px-2.5 py-1 text-[11px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md" :class="card.textClass">
@@ -613,66 +640,148 @@ watch(
 
            <!-- WIDGET 2: MAIN CHART -->
            <template v-else-if="element.type === 'main_chart'">
-              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgba(29,125,226,0.08)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgba(29,125,226,0.14)] h-full w-full">
+              <article class="app-dashboard-card p-5 tablet:p-6">
                 <div class="pointer-events-none absolute inset-0 -z-10">
-                  <div class="absolute -left-20 -top-20 h-48 w-48 rounded-full bg-indigo-300/20 blur-3xl"></div>
+                  <div class="absolute -left-20 -top-20 h-48 w-48 rounded-full bg-blue-300/20 blur-3xl"></div>
                   <div class="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-sky-300/20 blur-3xl"></div>
                 </div>
-                <div class="mb-4 ml-2 pr-20 border-b border-transparent pb-1">
-                   <h3 class="text-base font-black tracking-tight text-slate-800 truncate">Tần suất Báo lỗi (Ticket) & Thời gian IT Xử lý</h3>
+                <div class="mb-4 pr-20">
+                   <h3 class="app-dashboard-card__title truncate">Tần suất Báo lỗi (Ticket) & Thời gian IT Xử lý</h3>
                 </div>
-                <div class="flex-1 -ml-4 -mt-2">
+                <div class="app-dashboard-card__body -ml-4 -mt-2">
                    <VueApexCharts
+                     v-if="hasTicketTrendData"
                      type="line"
                      height="300"
                      :options="ticketChartOptions"
                      :series="ticketChartSeries"
                      class="w-full"
                    />
+                   <div v-else class="app-state-panel--compact flex min-h-[300px] items-center justify-center">
+                     <div class="app-state-stack">
+                       <div class="app-state-icon mx-auto"><span class="material-symbols-outlined">query_stats</span></div>
+                       <p class="app-state-title">Chưa có dữ liệu xu hướng</p>
+                       <p class="app-state-body">Thử đổi khoảng ngày hoặc bộ lọc cửa hàng để xem biểu đồ.</p>
+                     </div>
+                   </div>
                 </div>
               </article>
            </template>
 
            <!-- WIDGET 3: TOP TICKET BAR CHART -->
            <template v-else-if="element.type === 'top_ticket_chart'">
-              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgba(29,125,226,0.08)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgba(29,125,226,0.14)] h-full w-full">
+              <article class="app-dashboard-card p-5 tablet:p-6">
                 <div class="pointer-events-none absolute inset-0 -z-10">
                   <div class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-blue-300/20 blur-3xl"></div>
                   <div class="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-violet-300/20 blur-3xl"></div>
                 </div>
-                <div class="mb-4 ml-2 pr-20 border-b border-transparent pb-1">
-                   <h3 class="text-base font-black tracking-tight text-slate-800 truncate">Top Cửa hàng Yêu cầu Hỗ trợ</h3>
+                <div class="mb-4 pr-20">
+                   <h3 class="app-dashboard-card__title truncate">Top Cửa hàng Yêu cầu Hỗ trợ</h3>
                 </div>
-                <div class="flex-1 -ml-4 -mt-2">
+                <div class="app-dashboard-card__body -ml-4 -mt-2">
                    <VueApexCharts
+                     v-if="hasTopTicketStoreData"
                      type="bar"
                      height="250"
                      :options="topStoreTicketBarOptions"
                      :series="topStoreTicketBarSeries"
                      class="w-full"
                    />
+                   <div v-else class="app-state-panel--compact flex min-h-[250px] items-center justify-center">
+                     <div class="app-state-stack">
+                       <div class="app-state-icon mx-auto"><span class="material-symbols-outlined">storefront</span></div>
+                       <p class="app-state-title">Chưa có cửa hàng phát sinh ticket</p>
+                       <p class="app-state-body">Dữ liệu top cửa hàng sẽ hiển thị khi có ticket trong kỳ.</p>
+                     </div>
+                   </div>
                 </div>
               </article>
            </template>
 
            <!-- WIDGET 4: TOP QC BAR CHART -->
            <template v-else-if="element.type === 'top_qc_chart'">
-              <article class="relative z-10 flex flex-col overflow-hidden rounded-[32px] border border-white/60 bg-white/40 p-6 shadow-[0_8px_30px_rgba(29,125,226,0.08)] backdrop-blur-xl transition-all group-hover:shadow-[0_12px_40px_rgba(29,125,226,0.14)] h-full w-full">
+              <article class="app-dashboard-card p-5 tablet:p-6">
                 <div class="pointer-events-none absolute inset-0 -z-10">
                   <div class="absolute left-0 top-0 h-40 w-40 rounded-full bg-emerald-300/20 blur-3xl"></div>
                   <div class="absolute bottom-0 right-0 h-40 w-40 rounded-full bg-teal-300/20 blur-3xl"></div>
                 </div>
-                <div class="mb-4 ml-2 pr-20 border-b border-transparent pb-1">
-                   <h3 class="text-base font-black tracking-tight text-slate-800 truncate">Xếp hạng Điểm QC Tốt nhất</h3>
+                <div class="mb-4 pr-20">
+                   <h3 class="app-dashboard-card__title truncate">Xếp hạng Điểm QC Tốt nhất</h3>
                 </div>
-                <div class="flex-1 -ml-4 -mt-2">
+                <div class="app-dashboard-card__body -ml-4 -mt-2">
                    <VueApexCharts
+                     v-if="hasTopQcStoreData"
                      type="bar"
                      height="250"
                      :options="topStoreQcBarOptions"
                      :series="topStoreQcBarSeries"
                      class="w-full"
                    />
+                   <div v-else class="app-state-panel--compact flex min-h-[250px] items-center justify-center">
+                     <div class="app-state-stack">
+                       <div class="app-state-icon mx-auto"><span class="material-symbols-outlined">verified</span></div>
+                       <p class="app-state-title">Chưa có dữ liệu QC</p>
+                       <p class="app-state-body">Top điểm QC sẽ xuất hiện khi có phiên QC trong kỳ.</p>
+                     </div>
+                   </div>
+                </div>
+              </article>
+           </template>
+
+           <!-- WIDGET 5: RECENT TICKETS -->
+           <template v-else-if="element.type === 'recent_tickets'">
+              <article class="app-dashboard-card">
+                <div class="app-dashboard-card__header">
+                  <div class="app-page-header tablet:items-center">
+                    <div class="app-page-heading">
+                      <h3 class="app-dashboard-card__title truncate">Ticket gần đây</h3>
+                      <p class="app-page-subtitle">Các yêu cầu mới nhất trong kỳ lọc hiện tại.</p>
+                    </div>
+                    <RouterLink
+                      to="/ticket"
+                      class="app-button-secondary inline-flex h-9 items-center justify-center rounded-lg px-3 text-sm font-semibold"
+                    >
+                      Xem tất cả
+                    </RouterLink>
+                  </div>
+                </div>
+
+                <div class="app-dashboard-card__body p-3 tablet:p-4">
+                  <div v-if="recentTickets.length" class="grid gap-3 tablet:grid-cols-2 pc:grid-cols-3">
+                    <RouterLink
+                      v-for="ticket in recentTickets"
+                      :key="ticket.id"
+                      :to="`/ticket/${ticket.id}`"
+                      class="group rounded-2xl border border-[var(--stroke)] bg-white p-4 transition hover:border-[var(--primary)] hover:bg-[var(--primary-softer)]"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <p class="truncate text-xs font-bold uppercase tracking-[0.16em] text-[var(--primary-strong)]">
+                            {{ ticket.ticket_code || `#${ticket.id}` }}
+                          </p>
+                          <h4 class="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-[var(--text-primary)] group-hover:text-[var(--primary-strong)]">
+                            {{ ticket.title || 'Không có tiêu đề' }}
+                          </h4>
+                        </div>
+                        <span class="app-badge shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="statusClass(ticket.status)">
+                          {{ statusLabel(ticket.status) }}
+                        </span>
+                      </div>
+
+                      <div class="mt-4 flex items-center justify-between gap-3 text-xs text-[var(--text-secondary)]">
+                        <span class="min-w-0 truncate">{{ storeDisplay(ticket) }}</span>
+                        <span class="shrink-0">{{ formatRelativeTime(ticket.createdAt || ticket.created_at) }}</span>
+                      </div>
+                    </RouterLink>
+                  </div>
+
+                  <div v-else class="app-state-panel--compact flex min-h-[180px] items-center justify-center">
+                    <div class="app-state-stack">
+                      <div class="app-state-icon mx-auto"><span class="material-symbols-outlined">confirmation_number</span></div>
+                      <p class="app-state-title">Chưa có ticket gần đây</p>
+                      <p class="app-state-body">Ticket mới trong kỳ sẽ xuất hiện tại đây để dễ theo dõi.</p>
+                    </div>
+                  </div>
                 </div>
               </article>
            </template>
@@ -691,6 +800,6 @@ watch(
   border-radius: 32px !important;
   overflow: hidden !important;
   transform: scale(0.98) !important;
-  box-shadow: 0 0 0 2px #6366f1 !important;
+  box-shadow: 0 0 0 2px #1d7de2 !important;
 }
 </style>

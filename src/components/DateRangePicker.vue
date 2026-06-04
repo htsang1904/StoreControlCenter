@@ -161,7 +161,7 @@ function dayContainerClass(day, index) {
   const atRowStart = index % 7 === 0
   const atRowEnd = index % 7 === 6
 
-  classes.push('bg-slate-100')
+    classes.push('bg-[var(--primary-softer)]')
   if (atRowStart || !prevInRange) classes.push('rounded-l-full')
   if (atRowEnd || !nextInRange) classes.push('rounded-r-full')
 
@@ -186,15 +186,15 @@ function dayClass(day) {
   const inRange = tempFrom.value && resolvedTo && day.ymd > tempFrom.value && day.ymd < resolvedTo
 
   if (!day.isCurrentMonth) {
-    classes.push('text-slate-300', 'border-transparent')
+    classes.push('text-[var(--text-muted)]', 'border-transparent')
   } else if (isStart || isEnd) {
-    classes.push('bg-blue-600', 'border-blue-600', 'text-white', 'font-semibold')
+    classes.push('bg-[var(--primary)]', 'border-[var(--primary)]', 'text-white', 'font-semibold')
   } else if (inRange) {
-    classes.push('bg-transparent', 'border-transparent', 'text-slate-700')
+    classes.push('bg-transparent', 'border-transparent', 'text-[var(--text-secondary)]')
   } else if (day.isToday) {
-    classes.push('border-slate-300', 'text-blue-950', 'hover:border-slate-400')
+    classes.push('border-[var(--stroke-strong)]', 'text-[var(--text-primary)]', 'hover:border-[var(--primary)]')
   } else {
-    classes.push('border-transparent', 'text-slate-700', 'hover:border-slate-300', 'hover:text-blue-950')
+    classes.push('border-transparent', 'text-[var(--text-secondary)]', 'hover:border-[var(--stroke-strong)]', 'hover:text-[var(--text-primary)]')
   }
 
   return classes.join(' ')
@@ -250,25 +250,25 @@ onBeforeUnmount(() => {
     <button
       :id="pickerId"
       type="button"
-      class="inline-flex h-9 max-w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+      class="inline-flex h-9 max-w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
       :disabled="disabled"
       @click="togglePicker"
     >
       <span class="max-w-[170px] truncate tablet:max-w-[220px]">{{ buttonLabel }}</span>
-      <svg class="size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg class="size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="m6 9 6 6 6-6" />
       </svg>
     </button>
 
     <div
       v-if="open"
-      class="absolute left-0 top-full z-30 mt-2 w-[18rem] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-200 bg-white p-2.5"
+      class="absolute left-0 top-full z-30 mt-2 w-[18rem] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--stroke)] bg-white p-2.5"
       :aria-labelledby="pickerId"
     >
       <div class="grid grid-cols-3 items-center gap-1.5 px-1 pb-2">
         <button
           type="button"
-          class="size-7 inline-flex items-center justify-center rounded-full text-slate-600 hover:bg-slate-100"
+          class="size-7 inline-flex items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--primary-softer)]"
           @click="prevMonth"
         >
           <svg class="size-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -276,11 +276,11 @@ onBeforeUnmount(() => {
           </svg>
         </button>
 
-        <p class="text-center text-xs font-semibold text-slate-700 whitespace-nowrap">{{ monthTitle }}</p>
+        <p class="text-center text-xs font-semibold text-[var(--text-secondary)] whitespace-nowrap">{{ monthTitle }}</p>
 
         <button
           type="button"
-          class="justify-self-end size-7 inline-flex items-center justify-center rounded-full text-slate-600 hover:bg-slate-100"
+          class="justify-self-end size-7 inline-flex items-center justify-center rounded-full text-[var(--text-secondary)] hover:bg-[var(--primary-softer)]"
           @click="nextMonth"
         >
           <svg class="size-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -290,7 +290,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="grid grid-cols-7 pb-1.5">
-        <span v-for="week in weekDays" :key="week" class="text-center text-[11px] text-slate-500">{{ week }}</span>
+        <span v-for="week in weekDays" :key="week" class="text-center text-[11px] text-[var(--text-secondary)]">{{ week }}</span>
       </div>
 
       <div class="grid grid-cols-7 gap-y-0.5">
@@ -305,17 +305,17 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="mt-2.5 flex justify-end gap-2 border-t border-gray-100 pt-2.5">
+      <div class="mt-2.5 flex justify-end gap-2 border-t border-[var(--stroke)] pt-2.5">
         <button
           type="button"
-          class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-gray-50"
+          class="rounded-lg border border-[var(--stroke)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
           @click="cancelPicker"
         >
           Huỷ
         </button>
         <button
           type="button"
-          class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+          class="rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[var(--primary-strong)]"
           @click="applyPicker"
         >
           Áp dụng

@@ -92,7 +92,7 @@ function normalizeHealth(store) {
       key: 'unchecked',
       label: 'Chưa kiểm tra',
       badgeClass: 'app-badge--neutral',
-      scoreClass: 'border border-slate-200 bg-slate-100 text-slate-500',
+      scoreClass: 'border border-[var(--stroke)] bg-[var(--primary-softer)] text-[var(--text-secondary)]',
     }
   }
 
@@ -104,7 +104,7 @@ function normalizeHealth(store) {
       key: 'standard',
       label: 'Đạt tiêu chuẩn',
       badgeClass: 'app-badge--success',
-      scoreClass: 'border border-emerald-200 bg-emerald-100 text-emerald-800',
+      scoreClass: 'border border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success-text)]',
     }
   }
 
@@ -113,7 +113,7 @@ function normalizeHealth(store) {
       key: 'warning',
       label: 'Cần nhắc nhở',
       badgeClass: 'app-badge--warning',
-      scoreClass: 'border border-amber-200 bg-amber-100 text-amber-700',
+      scoreClass: 'border border-[var(--warning-border)] bg-[var(--warning-bg)] text-[var(--warning-text)]',
     }
   }
 
@@ -121,7 +121,7 @@ function normalizeHealth(store) {
     key: 'critical',
     label: 'Vi phạm nghiêm trọng',
     badgeClass: 'app-badge--danger',
-    scoreClass: 'border border-rose-200 bg-rose-100 text-rose-700',
+    scoreClass: 'border border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger-text)]',
   }
 }
 
@@ -241,7 +241,7 @@ const sortIndicator = (field) => {
   return '↕'
 }
 
-const sortIndicatorClass = (field) => (sortDirections.value[field] ? 'text-slate-700' : 'text-slate-400')
+const sortIndicatorClass = (field) => (sortDirections.value[field] ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]')
 
 const normalizedStores = computed(() => {
   const statsMap = new Map(
@@ -562,8 +562,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="p-4 tablet:p-5 pc:p-6">
-    <div class="page-stack overflow-visible space-y-4">
+  <div class="app-page">
+    <div class="page-stack overflow-visible">
       <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard
           v-for="card in summaryCards"
@@ -576,19 +576,27 @@ onBeforeUnmount(() => {
         />
       </section>
 
-      <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div class="border-b border-slate-200 p-3 tablet:p-4">
+      <section class="app-section">
+        <div class="border-b border-[var(--stroke)] p-3 tablet:p-4">
+          <div class="mb-3 flex flex-col gap-1 tablet:flex-row tablet:items-end tablet:justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">QC overview</p>
+              <h2 class="text-base font-semibold text-[var(--text-primary)]">Tình trạng kiểm tra theo cửa hàng</h2>
+            </div>
+            <p class="text-xs text-[var(--text-secondary)]">Sắp xếp theo phiên, lỗi hoặc điểm trung bình để ưu tiên xử lý.</p>
+          </div>
+
           <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
             <div class="flex min-w-0 flex-1 flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
               <div class="relative w-full min-w-0 flex-1 tablet:min-w-[220px] pc:w-[320px] pc:flex-none">
                 <input
                   v-model="searchInput"
                   type="text"
-                  class="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+                  class="h-9 w-full rounded-lg border border-[var(--stroke)] bg-white pl-9 pr-3 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
                   placeholder="Tìm kiếm ..."
                 />
                 <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <svg class="size-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+                  <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
                     <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
                   </svg>
                 </div>
@@ -596,7 +604,7 @@ onBeforeUnmount(() => {
 
               <button
                 type="button"
-                class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:w-auto"
+                class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:w-auto"
                 @click="handleRefresh"
               >
                 Tải lại
@@ -605,7 +613,7 @@ onBeforeUnmount(() => {
 
             <button
               type="button"
-              class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 tablet:ml-auto tablet:w-auto"
+              class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:ml-auto tablet:w-auto"
               @click="exportReport"
             >
               <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -623,31 +631,31 @@ onBeforeUnmount(() => {
         </p>
 
         <div v-loading="loading">
-          <div class="hidden overflow-x-auto pc:block">
+          <div class="app-table-scroll hidden pc:block">
             <table class="min-w-[840px] w-full border-collapse text-left">
               <thead>
-                <tr class="bg-slate-50">
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Cửa hàng</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500" @click="toggleSort('totalSessions')">
+                <tr class="bg-[var(--surface-muted)]">
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Cửa hàng</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]" @click="toggleSort('totalSessions')">
                       Tổng phiên
                       <span :class="sortIndicatorClass('totalSessions')">{{ sortIndicator('totalSessions') }}</span>
                     </button>
                   </th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500" @click="toggleSort('passed')">
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]" @click="toggleSort('passed')">
                       Phiên đạt
                       <span :class="sortIndicatorClass('passed')">{{ sortIndicator('passed') }}</span>
                     </button>
                   </th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500" @click="toggleSort('failed')">
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]" @click="toggleSort('failed')">
                       Phiên lỗi
                       <span :class="sortIndicatorClass('failed')">{{ sortIndicator('failed') }}</span>
                     </button>
                   </th>
-                  <th class="w-[104px] px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500" @click="toggleSort('avgScoreRate')">
+                  <th class="w-[104px] px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]" @click="toggleSort('avgScoreRate')">
                       Điểm TB
                       <span :class="sortIndicatorClass('avgScoreRate')">{{ sortIndicator('avgScoreRate') }}</span>
                     </button>
@@ -655,23 +663,23 @@ onBeforeUnmount(() => {
                 </tr>
               </thead>
 
-              <tbody v-if="hasStores" class="divide-y divide-slate-100">
+              <tbody v-if="hasStores" class="divide-y divide-[var(--stroke)]">
                 <tr
                   v-for="store in pagedStores"
                   :key="store.id"
-                  class="cursor-pointer transition-colors hover:bg-slate-50"
+                  class="cursor-pointer transition-colors hover:bg-[var(--surface-muted)]"
                   @click="openStoreDetail(store.id)"
                 >
                   <td class="px-4 py-3">
                     <div class="min-w-0">
-                      <p class="text-sm font-semibold text-blue-950">{{ store.name }}</p>
-                      <p class="text-xs text-slate-500">
+                      <p class="text-sm font-semibold text-[var(--text-primary)]">{{ store.name }}</p>
+                      <p class="text-xs text-[var(--text-secondary)]">
                         {{ store.code || store.storeId || '--' }} • {{ store.region }} • Phụ trách: {{ store.managerName }}
                       </p>
                     </div>
                   </td>
                   <td class="px-4 py-3">
-                    <p class="text-sm font-semibold text-blue-950">{{ store.totalSessionsLabel }} phiên</p>
+                    <p class="text-sm font-semibold text-[var(--text-primary)]">{{ store.totalSessionsLabel }} phiên</p>
                   </td>
                   <td class="px-4 py-3">
                     <span class="app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium app-badge--success">
@@ -715,13 +723,13 @@ onBeforeUnmount(() => {
             <div
               v-for="store in pagedStores"
               :key="store.id"
-              class="cursor-pointer rounded-xl border border-slate-200 bg-white p-3.5 transition-colors hover:bg-slate-50"
+              class="cursor-pointer rounded-xl border border-[var(--stroke)] bg-white p-3.5 shadow-sm transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)]"
               @click="openStoreDetail(store.id)"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="text-sm font-semibold text-slate-800">{{ store.name }}</p>
-                  <p class="text-xs text-slate-500">
+                  <p class="text-sm font-semibold text-[var(--text-primary)]">{{ store.name }}</p>
+                  <p class="text-xs text-[var(--text-secondary)]">
                     {{ store.code || store.storeId || '--' }} • {{ store.region }} • Phụ trách: {{ store.managerName }}
                   </p>
                 </div>
@@ -731,23 +739,23 @@ onBeforeUnmount(() => {
               </div>
 
               <div class="mt-3 grid grid-cols-3 gap-2 text-sm">
-                <div class="rounded-lg bg-slate-50 px-3 py-2">
-                  <p class="text-[11px] uppercase tracking-wide text-slate-500">Tổng phiên</p>
-                  <p class="mt-1 font-semibold text-slate-800">{{ store.totalSessionsLabel }} phiên</p>
+                <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] px-3 py-2">
+                  <p class="text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">Tổng phiên</p>
+                  <p class="mt-1 font-semibold text-[var(--text-primary)]">{{ store.totalSessionsLabel }} phiên</p>
                 </div>
-                <div class="rounded-lg bg-slate-50 px-3 py-2">
-                  <p class="text-[11px] uppercase tracking-wide text-slate-500">Phiên đạt</p>
-                  <p class="mt-1 font-semibold text-emerald-700">{{ store.passedLabel }} phiên</p>
+                <div class="rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2">
+                  <p class="text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">Phiên đạt</p>
+                  <p class="mt-1 font-semibold text-[var(--success-text)]">{{ store.passedLabel }} phiên</p>
                 </div>
-                <div class="rounded-lg bg-slate-50 px-3 py-2">
-                  <p class="text-[11px] uppercase tracking-wide text-slate-500">Phiên lỗi</p>
-                  <p class="mt-1 font-semibold text-rose-700">{{ store.failedLabel }} phiên</p>
+                <div class="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2">
+                  <p class="text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">Phiên lỗi</p>
+                  <p class="mt-1 font-semibold text-[var(--danger-text)]">{{ store.failedLabel }} phiên</p>
                 </div>
               </div>
 
-              <div class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                <p class="text-[11px] uppercase tracking-wide text-slate-500">Điểm TB</p>
-                <p class="mt-1 font-semibold text-slate-800">{{ store.scoreDisplay }}</p>
+              <div class="mt-3 rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] px-3 py-2 text-sm">
+                <p class="text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">Điểm TB</p>
+                <p class="mt-1 font-semibold text-[var(--text-primary)]">{{ store.scoreDisplay }}</p>
               </div>
             </div>
 
@@ -763,19 +771,19 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3 tablet:flex-row tablet:items-center tablet:justify-between">
-          <p class="text-sm text-slate-500">
+        <div class="app-pagination-bar app-page-header tablet:items-center">
+          <p class="text-sm text-[var(--text-secondary)]">
             Hiển thị
-            <span class="font-semibold text-slate-700">{{ paginationStart }} - {{ paginationEnd }}</span>
+            <span class="font-semibold text-[var(--text-secondary)]">{{ paginationStart }} - {{ paginationEnd }}</span>
             trong tổng số
-            <span class="font-semibold text-slate-700">{{ filteredStores.length }}</span>
+            <span class="font-semibold text-[var(--text-secondary)]">{{ filteredStores.length }}</span>
             cửa hàng
           </p>
 
           <div class="flex max-w-full items-center justify-between gap-3 tablet:justify-end">
             <button
               type="button"
-              class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              class="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="currentPage <= 1"
               @click="prevPage"
             >
@@ -790,18 +798,18 @@ onBeforeUnmount(() => {
                   v-if="typeof item === 'number'"
                   type="button"
                   class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold transition-colors"
-                  :class="item === currentPage ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'"
+                  :class="item === currentPage ? 'border-[var(--primary)] bg-[var(--primary)] text-white' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:bg-[var(--primary-softer)]'"
                   @click="goToPage(item)"
                 >
                   {{ item }}
                 </button>
-                <span v-else class="px-1 text-xs text-slate-400">...</span>
+                <span v-else class="px-1 text-xs text-[var(--text-muted)]">...</span>
               </template>
             </div>
 
             <button
               type="button"
-              class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              class="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
               :disabled="currentPage >= totalPages"
               @click="nextPage"
             >

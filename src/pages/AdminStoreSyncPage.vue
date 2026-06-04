@@ -32,27 +32,27 @@ const goBack = () => {
 </script>
 
 <template>
-  <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
-    <section class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-      <div class="flex flex-col gap-4 tablet:flex-row tablet:items-start tablet:justify-between">
+  <div class="app-page page-stack">
+    <section class="app-section app-section--padded">
+      <div class="app-page-header">
         <div>
           <button
             type="button"
-            class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            class="inline-flex items-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
             @click="goBack"
           >
             <span class="material-symbols-outlined text-[18px]">arrow_back</span>
             Quay lại công cụ
           </button>
-          <h2 class="mt-4 text-xl font-semibold tracking-tight text-blue-950">Đồng bộ danh mục cửa hàng</h2>
-          <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+          <h2 class="mt-4 text-xl font-semibold tracking-tight text-[var(--text-primary)]">Đồng bộ danh mục cửa hàng</h2>
+          <p class="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
             Chạy đồng bộ thủ công từ nguồn chính về backend để cập nhật danh sách cửa hàng hiện hành.
           </p>
         </div>
 
         <button
           type="button"
-          class="inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
+          class="inline-flex w-full items-center justify-center rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
           :disabled="syncingStores"
           @click="handleSyncStoresNow"
         >
@@ -63,28 +63,28 @@ const goBack = () => {
     </section>
 
     <section class="grid grid-cols-1 gap-4 pc:grid-cols-[minmax(0,1.1fr)_320px]">
-      <article class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-        <h3 class="text-base font-semibold text-blue-950">Kết quả lần chạy gần nhất</h3>
+      <article class="app-section app-section--padded">
+        <h3 class="text-base font-semibold text-[var(--text-primary)]">Kết quả lần chạy gần nhất</h3>
 
         <div
           v-if="syncResult"
           class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4"
         >
-          <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Synced</p>
-            <p class="mt-2 text-2xl font-semibold text-blue-950">{{ Number(syncResult.synced || 0) }}</p>
+          <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] p-4">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Synced</p>
+            <p class="mt-2 text-2xl font-semibold text-[var(--text-primary)]">{{ Number(syncResult.synced || 0) }}</p>
           </div>
-          <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Created</p>
-            <p class="mt-2 text-2xl font-semibold text-blue-950">{{ Number(syncResult.created || 0) }}</p>
+          <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] p-4">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Created</p>
+            <p class="mt-2 text-2xl font-semibold text-[var(--text-primary)]">{{ Number(syncResult.created || 0) }}</p>
           </div>
-          <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Updated</p>
-            <p class="mt-2 text-2xl font-semibold text-blue-950">{{ Number(syncResult.updated || 0) }}</p>
+          <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] p-4">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Updated</p>
+            <p class="mt-2 text-2xl font-semibold text-[var(--text-primary)]">{{ Number(syncResult.updated || 0) }}</p>
           </div>
-          <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p class="text-[11px] font-bold uppercase tracking-wide text-slate-400">Skipped</p>
-            <p class="mt-2 text-2xl font-semibold text-blue-950">{{ Number(syncResult.skipped || 0) }}</p>
+          <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] p-4">
+            <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Skipped</p>
+            <p class="mt-2 text-2xl font-semibold text-[var(--text-primary)]">{{ Number(syncResult.skipped || 0) }}</p>
           </div>
         </div>
 
@@ -92,7 +92,7 @@ const goBack = () => {
           v-else
           class="mt-4"
         >
-          <div class="app-state-panel app-state-panel--compact border-dashed border-slate-300 bg-slate-50">
+          <div class="app-state-panel app-state-panel--compact border-dashed border-[var(--stroke-strong)] bg-[var(--surface-muted)]">
             <div class="app-state-stack mx-auto">
               <div class="app-state-icon mx-auto">
                 <span class="material-symbols-outlined text-[24px]">sync</span>
@@ -104,9 +104,9 @@ const goBack = () => {
         </div>
       </article>
 
-      <aside class="rounded-xl border border-slate-200 bg-white px-5 py-5 tablet:px-6">
-        <h3 class="text-base font-semibold text-blue-950">Lưu ý vận hành</h3>
-        <ul class="mt-4 space-y-3 text-sm leading-6 text-slate-500">
+      <aside class="app-section app-section--padded">
+        <h3 class="text-base font-semibold text-[var(--text-primary)]">Lưu ý vận hành</h3>
+        <ul class="mt-4 space-y-3 text-sm leading-6 text-[var(--text-secondary)]">
           <li>Chỉ chạy khi cần cập nhật danh mục mới từ nguồn chính.</li>
           <li>Không cần chạy liên tục nếu dữ liệu store không thay đổi.</li>
           <li>Sau khi đồng bộ, các màn ticket và QC sẽ dùng danh mục đã cập nhật.</li>

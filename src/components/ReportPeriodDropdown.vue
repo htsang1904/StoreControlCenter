@@ -67,26 +67,26 @@ onBeforeUnmount(() => {
   <div ref="rootRef" class="relative w-full tablet:w-auto">
     <button
       type="button"
-      class="w-full tablet:w-auto cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 inline-flex items-center justify-between gap-2 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+      class="app-button-secondary inline-flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold tablet:w-auto disabled:cursor-not-allowed disabled:opacity-60"
       :disabled="disabled"
       @click="toggleDropdown"
     >
       <span class="max-w-[10rem] truncate whitespace-nowrap">Kỳ báo cáo: {{ activeLabel }}</span>
-      <svg class="size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg class="size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="m6 9 6 6 6-6" />
       </svg>
     </button>
 
     <div
       v-if="open"
-      class="absolute right-0 z-30 mt-2 w-40 rounded-lg border border-gray-200 bg-white p-1.5"
+      class="app-menu-panel absolute right-0 z-30 mt-2 w-40 p-1.5"
     >
       <button
         v-for="option in options"
         :key="option.key"
         type="button"
         class="w-full rounded-md px-2.5 py-2 text-left text-xs font-medium transition-colors"
-        :class="option.key === activeKey ? 'bg-slate-100 text-blue-950' : 'text-slate-700 hover:bg-slate-50'"
+        :class="option.key === activeKey ? 'bg-[var(--primary-softer)] text-[var(--primary-strong)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]'"
         @click="selectPeriod(option.key)"
       >
         {{ option.label }}

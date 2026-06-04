@@ -18,11 +18,11 @@ const pageCount = ref(1)
 const statusFilterSelectConfig = JSON.stringify({
   placeholder: 'Tất cả trạng thái',
   toggleTag: '<button type="button" aria-expanded="false"></button>',
-  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-slate-200 bg-white ps-3 pe-9 text-start text-sm text-slate-700 focus:outline-hidden',
-  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-slate-200 rounded-lg overflow-hidden overflow-y-auto',
-  optionClasses: 'py-2 px-3 w-full text-sm text-slate-700 cursor-pointer hover:bg-slate-50 rounded-md focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
-  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative flex h-9 items-center gap-x-2 text-nowrap w-full cursor-pointer rounded-lg border border-[var(--stroke)] bg-white ps-3 pe-9 text-start text-sm text-[var(--text-secondary)] focus:outline-hidden',
+  dropdownClasses: 'mt-2 z-[90] w-full max-h-72 p-1 space-y-0.5 bg-white border border-[var(--stroke)] rounded-lg overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-3 w-full text-sm text-[var(--text-secondary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-md focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full gap-2"><span data-title class="truncate"></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 
 const normalizedSearch = computed(() => String(searchInput.value || '').trim().toLowerCase())
@@ -180,19 +180,19 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page-stack space-y-4 p-4 tablet:p-5 pc:p-6">
-    <section class="rounded-xl border border-slate-200 bg-white">
-      <div class="space-y-4 border-b border-slate-200 px-4 py-4 tablet:px-5">
-        <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-between">
+  <div class="app-page page-stack">
+    <section class="app-section">
+      <div class="app-section-header space-y-4">
+        <div class="app-page-header">
           <div>
-            <h3 class="text-base font-semibold text-blue-950">Danh sách biểu mẫu QC</h3>
+            <h3 class="text-base font-semibold text-[var(--text-primary)]">Danh sách biểu mẫu QC</h3>
           </div>
 
           <div class="grid w-full grid-cols-1 gap-3 tablet:w-auto tablet:grid-cols-[minmax(280px,1fr)_190px_auto] tablet:items-center tablet:justify-end">
             <input
               v-model="searchInput"
               type="text"
-              class="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-hidden focus:ring-0"
+              class="h-9 w-full rounded-lg border border-[var(--stroke)] px-3 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
               placeholder="Tìm theo mã, tên, mô tả..."
             />
 
@@ -211,7 +211,7 @@ onMounted(async () => {
 
             <button
               type="button"
-              class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700 tablet:w-auto"
+              class="inline-flex h-9 w-full items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] tablet:w-auto"
               @click="openCreatePage"
             >
               Tạo biểu mẫu
@@ -219,7 +219,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <p v-if="hasLocalFilters" class="text-xs text-slate-400">
+        <p v-if="hasLocalFilters" class="text-xs text-[var(--text-muted)]">
           Bộ lọc hiện áp dụng trên các bản ghi của trang hiện tại.
         </p>
       </div>
@@ -228,16 +228,16 @@ onMounted(async () => {
         {{ formsError }}
       </p>
 
-      <div class="overflow-x-auto">
+      <div class="app-table-scroll">
         <table class="min-w-[920px] w-full border-collapse text-left">
           <thead>
-            <tr class="bg-slate-50">
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Mã biểu mẫu</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Tên biểu mẫu</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Version mới nhất</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Trạng thái</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Cập nhật</th>
-              <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-slate-500">Thao tác</th>
+            <tr class="bg-[var(--surface-muted)]">
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Mã biểu mẫu</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Tên biểu mẫu</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Version mới nhất</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Trạng thái</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Cập nhật</th>
+              <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Thao tác</th>
             </tr>
           </thead>
 
@@ -245,25 +245,25 @@ onMounted(async () => {
             <tr
               v-for="form in displayForms"
               :key="form.id"
-              class="cursor-pointer transition-colors hover:bg-slate-50/80"
+              class="cursor-pointer transition-colors hover:bg-[var(--surface-muted)]/80"
               @click="openFormDetail(form.id)"
             >
-              <td class="px-4 py-3 text-sm font-semibold text-blue-950">{{ form.code }}</td>
+              <td class="px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">{{ form.code }}</td>
               <td class="px-4 py-3">
-                <p class="text-sm font-medium text-blue-950">{{ form.name }}</p>
-                <p class="text-xs text-slate-500">{{ form.description || 'Không có mô tả' }}</p>
+                <p class="text-sm font-medium text-[var(--text-primary)]">{{ form.name }}</p>
+                <p class="text-xs text-[var(--text-secondary)]">{{ form.description || 'Không có mô tả' }}</p>
               </td>
-              <td class="px-4 py-3 text-sm text-slate-600">{{ form.latestVersionNo || '--' }}</td>
+              <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">{{ form.latestVersionNo || '--' }}</td>
               <td class="px-4 py-3">
                 <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.latestVersionStatus, form.hasLatestVersion)">
                   {{ statusLabel(form.latestVersionStatus, form.hasLatestVersion) }}
                 </span>
               </td>
-              <td class="px-4 py-3 text-sm text-slate-500">{{ formatDisplayDate(form.updatedAt) }}</td>
+              <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">{{ formatDisplayDate(form.updatedAt) }}</td>
               <td class="px-4 py-3 text-end">
                 <button
                   type="button"
-                  class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  class="inline-flex items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
                   @click.stop="openEditPage(form.id)"
                 >
                   Chỉnh sửa
@@ -290,19 +290,19 @@ onMounted(async () => {
         </table>
       </div>
 
-      <div class="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3 tablet:flex-row tablet:items-center tablet:justify-between">
-        <p class="text-sm text-slate-500">
+      <div class="app-pagination-bar app-page-header tablet:items-center">
+        <p class="text-sm text-[var(--text-secondary)]">
           Hiển thị
-          <span class="font-semibold text-slate-800">{{ rangeStart }}-{{ rangeEnd }}</span>
+          <span class="font-semibold text-[var(--text-primary)]">{{ rangeStart }}-{{ rangeEnd }}</span>
           trong
-          <span class="font-semibold text-slate-800">{{ summaryTotalForms }}</span>
+          <span class="font-semibold text-[var(--text-primary)]">{{ summaryTotalForms }}</span>
           kết quả
         </p>
 
         <div class="flex max-w-full items-center justify-between gap-3 tablet:justify-end">
           <button
             type="button"
-            class="inline-flex size-8 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-50"
+            class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] disabled:opacity-50"
             :disabled="currentPage <= 1 || loadingForms"
             @click="goToPage(currentPage - 1)"
           >
@@ -317,19 +317,19 @@ onMounted(async () => {
                 v-if="typeof item === 'number'"
                 type="button"
                 class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold transition-colors"
-                :class="item === currentPage ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'"
+                :class="item === currentPage ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--primary-soft)]'"
                 :disabled="item === currentPage || loadingForms"
                 @click="goToPage(item)"
               >
                 {{ item }}
               </button>
-              <span v-else class="px-1 text-xs text-slate-400">...</span>
+              <span v-else class="px-1 text-xs text-[var(--text-muted)]">...</span>
             </template>
           </div>
 
           <button
             type="button"
-            class="inline-flex size-8 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-50"
+            class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] disabled:opacity-50"
             :disabled="currentPage >= pageCount || loadingForms || pageCount === 0"
             @click="goToPage(currentPage + 1)"
           >

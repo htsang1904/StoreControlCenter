@@ -105,20 +105,20 @@ const sectionToggleAriaLabel = computed(() => (
 
 const childLaneClass = computed(() => (
   props.depth <= 1
-    ? 'ml-5 space-y-3 border-l-2 border-slate-200 pl-5'
-    : 'ml-4 space-y-3 border-l border-slate-200 pl-4'
+    ? 'ml-5 space-y-3 border-l-2 border-[var(--stroke)] pl-5'
+    : 'ml-4 space-y-3 border-l border-[var(--stroke)] pl-4'
 ))
-const customInputClass = 'py-2.5 tablet:py-3 px-4 block w-full border border-gray-200 rounded-lg bg-white text-slate-700 tablet:text-sm focus:border-slate-400 focus:outline-none focus:ring-0 disabled:opacity-50 disabled:pointer-events-none disabled:bg-slate-100'
+const customInputClass = 'app-input py-2.5 tablet:py-3 px-4 block w-full rounded-lg tablet:text-sm disabled:opacity-50 disabled:pointer-events-none disabled:bg-[var(--surface-muted)]'
 const validationInputClass = 'app-input-invalid'
 const validationMessageClass = 'app-field-error'
 const buildHsSelectConfig = (placeholder) => JSON.stringify({
   placeholder,
   toggleTag: '<button type="button" aria-expanded="false"></button>',
-  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 relative py-2.5 tablet:py-3 ps-4 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer bg-white border border-gray-200 rounded-lg text-start text-sm focus:outline-hidden',
-  dropdownClasses: 'mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 bg-white border border-gray-200 rounded-lg overflow-hidden overflow-y-auto',
-  optionClasses: 'py-2 px-4 w-full text-sm text-gray-800 cursor-pointer hover:bg-gray-100 rounded-lg focus:outline-hidden',
-  optionTemplate: '<div class="flex justify-between items-center w-full"><span data-title></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-blue-950" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
-  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
+  toggleClasses: 'hs-select-disabled:pointer-events-none hs-select-disabled:opacity-50 app-input relative py-2.5 tablet:py-3 ps-4 pe-9 flex gap-x-2 text-nowrap w-full cursor-pointer rounded-lg text-start text-sm focus:outline-hidden',
+  dropdownClasses: 'app-menu-panel mt-2 z-50 w-full max-h-72 p-1 space-y-0.5 overflow-hidden overflow-y-auto',
+  optionClasses: 'py-2 px-4 w-full text-sm text-[var(--text-primary)] cursor-pointer hover:bg-[var(--surface-muted)] rounded-lg focus:outline-hidden',
+  optionTemplate: '<div class="flex justify-between items-center w-full"><span data-title></span><span class="hidden hs-selected:block"><svg class="shrink-0 size-3.5 text-[var(--primary-strong)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></div>',
+  extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 const modeSelectId = computed(() => `admin-qc-criterion-mode-${props.node.id}`)
 const modeSelectConfig = buildHsSelectConfig('Chọn kiểu chấm')
@@ -167,24 +167,24 @@ watch(
 
 <template>
   <article class="space-y-2.5">
-    <section v-if="isGroupNode" class="rounded-2xl border border-slate-200 bg-slate-50/80">
+    <section v-if="isGroupNode" class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)]">
       <div class="px-4 py-3.5">
         <div class="flex flex-wrap items-start justify-between gap-2.5">
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
-              <span class="inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+              <span class="inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)]">
                 Nhóm
               </span>
               <span
                 v-if="displayOrderingLabel"
-                class="inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+                class="inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)]"
               >
                 {{ displayOrderingLabel }}
               </span>
-              <p class="min-w-0 break-words text-sm font-semibold text-blue-950">
+              <p class="min-w-0 break-words text-sm font-semibold text-[var(--primary-strong)]">
                 {{ nodeTitle }}
               </p>
-              <span v-if="groupSummary" class="text-[11px] font-medium text-slate-500">
+              <span v-if="groupSummary" class="text-[11px] font-medium text-[var(--text-secondary)]">
                 {{ groupSummary.childCount }} mục con • {{ groupSummary.leafCount }} tiêu chí lá
               </span>
             </div>
@@ -193,7 +193,7 @@ watch(
           <div class="flex items-center gap-2">
             <button
               type="button"
-              class="inline-flex size-8 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white"
+              class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-white"
               :aria-expanded="String(sectionExpanded)"
               :aria-label="sectionToggleAriaLabel"
               @click="toggleSection"
@@ -205,7 +205,7 @@ watch(
 
         <div v-show="sectionExpanded" :class="groupFormClass">
           <label class="space-y-2">
-            <span class="text-sm font-semibold text-slate-700">Tên nhóm</span>
+            <span class="text-sm font-semibold text-[var(--text-secondary)]">Tên nhóm</span>
             <input
               v-model="node.name"
               type="text"
@@ -216,7 +216,7 @@ watch(
           </label>
 
           <label v-if="showGroupOrderingField" class="space-y-2">
-            <span class="text-sm font-semibold text-slate-700">Mã thứ tự nhóm</span>
+            <span class="text-sm font-semibold text-[var(--text-secondary)]">Mã thứ tự nhóm</span>
             <input
               :value="node.orderingLabel"
               type="text"
@@ -225,15 +225,15 @@ watch(
               @input="updateOrderingLabel"
             />
             <p v-if="fieldErrors.orderingLabel" :class="validationMessageClass">{{ fieldErrors.orderingLabel }}</p>
-            <p class="text-xs leading-5 text-slate-400">Để trống nếu muốn giữ thứ tự tự động theo vị trí.</p>
+            <p class="text-xs leading-5 text-[var(--text-muted)]">Để trống nếu muốn giữ thứ tự tự động theo vị trí.</p>
           </label>
         </div>
 
-        <div class="mt-3 flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-200 pt-3">
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2.5 border-t border-[var(--stroke)] pt-3">
           <div v-show="sectionExpanded" class="flex flex-1 flex-wrap items-center gap-2">
             <button
               type="button"
-              class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              class="inline-flex items-center gap-2 rounded-xl border border-[var(--stroke)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
               @click="addChildGroup"
             >
               <span class="material-symbols-outlined text-[18px]">account_tree</span>
@@ -241,20 +241,20 @@ watch(
             </button>
             <button
               type="button"
-              class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              class="inline-flex items-center gap-2 rounded-xl border border-[var(--stroke)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
               @click="addChildCriterion"
             >
               <span class="material-symbols-outlined text-[18px]">playlist_add</span>
               Thêm tiêu chí
             </button>
-            <p v-if="fieldErrors.children" class="w-full text-sm text-rose-600">{{ fieldErrors.children }}</p>
+            <p v-if="fieldErrors.children" class="w-full text-sm text-[var(--danger-text)]">{{ fieldErrors.children }}</p>
           </div>
 
           <div class="ml-auto inline-flex items-center gap-2">
-            <div class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-1 py-1">
+            <div class="inline-flex items-center gap-1 rounded-xl border border-[var(--stroke)] bg-white px-1 py-1">
               <button
                 type="button"
-                class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-40"
                 :disabled="!canMoveUp"
                 aria-label="Di chuyển lên"
                 @click="moveUp"
@@ -263,7 +263,7 @@ watch(
               </button>
               <button
                 type="button"
-                class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-40"
                 :disabled="!canMoveDown"
                 aria-label="Di chuyển xuống"
                 @click="moveDown"
@@ -273,7 +273,7 @@ watch(
             </div>
             <button
               type="button"
-              class="inline-flex size-8 items-center justify-center rounded-lg text-rose-500 transition-colors hover:bg-rose-50"
+              class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--danger-text)] transition-colors hover:bg-[var(--danger-bg)]"
               aria-label="Xóa mục"
               @click="removeNode"
             >
@@ -284,23 +284,23 @@ watch(
       </div>
     </section>
 
-    <section v-else class="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">
+    <section v-else class="rounded-2xl border border-[var(--stroke)] bg-white px-4 py-3.5">
       <div class="flex flex-wrap items-start justify-between gap-2.5">
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
-            <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+            <span class="inline-flex rounded-full bg-[var(--primary-softer)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)]">
               Tiêu chí
             </span>
             <span
               v-if="displayOrderingLabel"
-              class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+              class="inline-flex rounded-full bg-[var(--primary-softer)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)]"
             >
               {{ displayOrderingLabel }}
             </span>
-            <p class="min-w-0 break-words text-sm font-semibold text-blue-950">
+            <p class="min-w-0 break-words text-sm font-semibold text-[var(--primary-strong)]">
               {{ nodeTitle }}
             </p>
-            <span class="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+            <span class="inline-flex rounded-full bg-[var(--primary-softer)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
               {{ criterionModeLabel }}
             </span>
           </div>
@@ -309,7 +309,7 @@ watch(
         <div class="flex items-center gap-2">
           <button
             type="button"
-            class="inline-flex size-8 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100"
+            class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)]"
             :aria-expanded="String(sectionExpanded)"
             :aria-label="sectionToggleAriaLabel"
             @click="toggleSection"
@@ -321,7 +321,7 @@ watch(
 
       <div v-show="sectionExpanded" class="mt-3 grid gap-4 pc:grid-cols-[minmax(0,1fr)_minmax(420px,0.95fr)]">
         <label class="space-y-2">
-          <span class="text-sm font-semibold text-slate-700">Tên tiêu chí</span>
+          <span class="text-sm font-semibold text-[var(--text-secondary)]">Tên tiêu chí</span>
           <input
             v-model="node.name"
             type="text"
@@ -333,7 +333,7 @@ watch(
 
         <div class="grid gap-3 tablet:grid-cols-2">
           <label class="space-y-2">
-            <span class="text-sm font-semibold text-slate-700">Kiểu chấm</span>
+            <span class="text-sm font-semibold text-[var(--text-secondary)]">Kiểu chấm</span>
             <select
               :id="modeSelectId"
               v-model="node.mode"
@@ -347,7 +347,7 @@ watch(
           </label>
 
           <label class="space-y-2">
-            <span class="text-sm font-semibold text-slate-700">Điểm tối đa</span>
+            <span class="text-sm font-semibold text-[var(--text-secondary)]">Điểm tối đa</span>
             <input
               v-model.number="node.maxScore"
               type="number"
@@ -357,11 +357,11 @@ watch(
               :class="[customInputClass, 'no-spin', fieldErrors.maxScore ? validationInputClass : '']"
             />
             <p v-if="fieldErrors.maxScore" :class="validationMessageClass">{{ fieldErrors.maxScore }}</p>
-            <p v-if="node.mode === 'pass_fail'" class="text-xs text-slate-400">Kiểu này luôn quy đổi về 1 điểm.</p>
+            <p v-if="node.mode === 'pass_fail'" class="text-xs text-[var(--text-muted)]">Kiểu này luôn quy đổi về 1 điểm.</p>
           </label>
 
           <label class="space-y-2">
-            <span class="text-sm font-semibold text-slate-700">Điểm đạt tối thiểu</span>
+            <span class="text-sm font-semibold text-[var(--text-secondary)]">Điểm đạt tối thiểu</span>
             <input
               v-model.number="node.minPassScore"
               type="number"
@@ -372,18 +372,18 @@ watch(
               :class="[customInputClass, 'no-spin', fieldErrors.minPassScore ? validationInputClass : '']"
             />
             <p v-if="fieldErrors.minPassScore" :class="validationMessageClass">{{ fieldErrors.minPassScore }}</p>
-            <p v-if="node.mode === 'pass_fail'" class="text-xs text-slate-400">Mặc định tính là 1 điểm.</p>
-            <p v-else class="text-xs text-slate-400">Dưới điểm này sẽ bị tính Không Đạt.</p>
+            <p v-if="node.mode === 'pass_fail'" class="text-xs text-[var(--text-muted)]">Mặc định tính là 1 điểm.</p>
+            <p v-else class="text-xs text-[var(--text-muted)]">Dưới điểm này sẽ bị tính Không Đạt.</p>
           </label>
 
         </div>
       </div>
 
-      <div class="mt-3 flex items-center justify-end gap-2 border-t border-slate-200 pt-3">
-        <div class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-1 py-1">
+      <div class="mt-3 flex items-center justify-end gap-2 border-t border-[var(--stroke)] pt-3">
+        <div class="inline-flex items-center gap-1 rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-1 py-1">
           <button
             type="button"
-            class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+            class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
             :disabled="!canMoveUp"
             aria-label="Di chuyển lên"
             @click="moveUp"
@@ -392,7 +392,7 @@ watch(
           </button>
           <button
             type="button"
-            class="inline-flex size-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+            class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
             :disabled="!canMoveDown"
             aria-label="Di chuyển xuống"
             @click="moveDown"
@@ -402,7 +402,7 @@ watch(
         </div>
         <button
           type="button"
-          class="inline-flex size-8 items-center justify-center rounded-lg text-rose-500 transition-colors hover:bg-rose-50"
+          class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--danger-text)] transition-colors hover:bg-[var(--danger-bg)]"
           aria-label="Xóa mục"
           @click="removeNode"
         >
@@ -430,7 +430,7 @@ watch(
 
       <p
         v-if="!node.children.length"
-        class="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500"
+        class="rounded-xl border border-dashed border-[var(--stroke-strong)] bg-white px-4 py-3 text-sm text-[var(--text-secondary)]"
       >
         Nhóm này chưa có nội dung. Hãy thêm nhóm con hoặc tiêu chí để tiếp tục dựng cây.
       </p>

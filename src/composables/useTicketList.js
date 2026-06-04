@@ -1,5 +1,6 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { deleteTicket as deleteTicketApi, listTickets, reopenTicket } from '@/services/ticket_service'
+import { confirmDialog } from '@/composables/useConfirmDialog'
 import { useRoute } from 'vue-router'
 
 function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 10, fallbackTotal = 0) {
@@ -59,8 +60,8 @@ export function useTicketList(userInfo) {
   })
 
   const userRole = computed(() => String(userInfo?.value?.role || '').toLowerCase())
+  const userId = computed(() => Number(userInfo?.value?.id || userInfo?.value?.user_id || 0))
   const hasTickets = computed(() => tickets.value.length > 0)
-  const canDeleteTicket = computed(() => userRole.value === 'store' || userRole.value === 'admin')
   const canEditTicket = computed(() => userRole.value === 'store' || userRole.value === 'admin')
   const selectedStatusCount = computed(() => filters.statuses.length)
   const paginationStart = computed(() => {
@@ -102,6 +103,12 @@ export function useTicketList(userInfo) {
   function canReopenTicket(ticket) {
     if (!ticket) return false
     return (userRole.value === 'store' || userRole.value === 'admin') && String(ticket.status || '').toLowerCase() === 'resolved'
+  }
+
+  function canDeleteTicket(ticket) {
+    if (!ticket) return false
+    if (userRole.value === 'admin') return true
+    return userRole.value === 'store' && Number(ticket.requester_id || ticket.requester?.id || 0) === userId.value
   }
 
   async function requestTickets(targetPage = pagination.page, options = {}) {
@@ -161,7 +168,7 @@ export function useTicketList(userInfo) {
     } catch (err) {
       if (!append) {
         tickets.value = []
-        errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể tải danh sách yêu cầu.'
+        errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể tải danh sách ticket.'
       }
     } finally {
       if (append) {
@@ -211,9 +218,15 @@ export function useTicketList(userInfo) {
   }
 
   async function handleDeleteTicket(ticket) {
-    if (!ticket?.id || deletingId.value) return
+    if (!ticket?.id || deletingId.value || !canDeleteTicket(ticket)) return
 
-    const canDelete = window.confirm(`Bạn có chắc muốn xoá yêu cầu ${ticket.ticket_code || `#${ticket.id}`}?`)
+    const canDelete = await confirmDialog({
+      title: 'Xoá ticket?',
+      message: `Bạn có chắc muốn xoá ticket ${ticket.ticket_code || `#${ticket.id}`}? Thao tác này không thể hoàn tác.`,
+      confirmText: 'Xoá ticket',
+      cancelText: 'Huỷ',
+      tone: 'danger',
+    })
     if (!canDelete) return
 
     deletingId.value = ticket.id
@@ -229,7 +242,7 @@ export function useTicketList(userInfo) {
 
       await fetchTickets()
     } catch (err) {
-      errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể xoá yêu cầu.'
+      errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể xoá ticket.'
     } finally {
       deletingId.value = null
     }
@@ -238,7 +251,13 @@ export function useTicketList(userInfo) {
   async function handleReopenTicket(ticket) {
     if (!ticket?.id || reopeningId.value || !canReopenTicket(ticket)) return
 
-    const confirmed = window.confirm(`Bạn muốn mở lại yêu cầu ${ticket.ticket_code || `#${ticket.id}`}?`)
+    const confirmed = await confirmDialog({
+      title: 'Mở lại ticket?',
+      message: `Bạn muốn mở lại ticket ${ticket.ticket_code || `#${ticket.id}`}? Ticket sẽ quay về trạng thái đang xử lý.`,
+      confirmText: 'Mở lại',
+      cancelText: 'Huỷ',
+      tone: 'warning',
+    })
     if (!confirmed) return
 
     reopeningId.value = ticket.id
@@ -248,7 +267,7 @@ export function useTicketList(userInfo) {
       await reopenTicket(ticket.id)
       await fetchTickets()
     } catch (err) {
-      errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể mở lại yêu cầu.'
+      errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể mở lại ticket.'
     } finally {
       reopeningId.value = null
     }

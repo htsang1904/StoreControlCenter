@@ -31,23 +31,23 @@ async function submitData() {
 </script>
 
 <template>
-  <div class="flex h-[100dvh] flex-col overflow-hidden bg-[#f6f7f8]">
-    <header class="z-50 flex w-full shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-3.5 tablet:px-6 tablet:py-4">
+  <div class="flex h-[100dvh] flex-col overflow-hidden bg-[var(--app-bg)]">
+    <header class="z-50 flex w-full shrink-0 items-center justify-between border-b border-[var(--stroke)] bg-white px-5 py-3.5 tablet:px-6 tablet:py-4">
       <div class="flex items-center gap-3">
-        <span class="text-[#136dec]">
+        <span class="text-[var(--primary)]">
           <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 48">
             <path fill="currentColor" fill-rule="evenodd" d="M47.2426 24L24 47.2426L0.757355 24L24 0.757355L47.2426 24ZM12.2426 21H35.7574L24 9.24264L12.2426 21Z" clip-rule="evenodd" />
           </svg>
         </span>
-        <h1 class="text-lg font-bold tracking-tight text-blue-950">Trung tâm Điều hành Cửa hàng</h1>
+        <h1 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">Trung tâm Điều hành Cửa hàng</h1>
       </div>
-      <span class="text-sm font-medium text-slate-500">{{ appVersion }}</span>
+      <span class="text-sm font-medium text-[var(--text-secondary)]">{{ appVersion }}</span>
     </header>
 
     <main class="flex min-h-0 flex-1 items-center justify-center p-3 tablet:p-6">
-      <div class="w-full max-w-[440px] rounded-xl border border-slate-200 bg-white p-5 tablet:p-8">
+      <div class="w-full max-w-[440px] rounded-xl border border-[var(--stroke)] bg-white p-5 tablet:p-8">
         <div class="mb-6 text-center tablet:mb-8">
-          <div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 tablet:mb-6 tablet:h-16 tablet:w-16">
+          <div class="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--primary-softer)] text-[var(--text-secondary)] tablet:mb-6 tablet:h-16 tablet:w-16">
             <svg class="h-8 w-8 tablet:h-9 tablet:w-9" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 8.5 4.5 4h15L21 8.5" />
               <path d="M20 8.5v8.8A2.7 2.7 0 0 1 17.3 20H6.7A2.7 2.7 0 0 1 4 17.3V8.5" />
@@ -55,8 +55,8 @@ async function submitData() {
               <path d="M9 13h6" />
             </svg>
           </div>
-          <h2 class="mb-1.5 text-2xl font-bold text-blue-950">Đăng nhập</h2>
-          <p class="text-sm text-slate-500">Truy cập vào hệ thống quản trị cửa hàng của bạn</p>
+          <h2 class="mb-1.5 text-2xl font-bold text-[var(--text-primary)]">Đăng nhập</h2>
+          <p class="text-sm text-[var(--text-secondary)]">Truy cập vào hệ thống quản trị cửa hàng của bạn</p>
         </div>
 
         <form class="space-y-4 tablet:space-y-5" @submit.prevent="submitData">
@@ -65,12 +65,12 @@ async function submitData() {
           </p>
 
           <div class="space-y-2">
-            <label for="username" class="ml-1 block text-sm font-semibold text-slate-700">Tên đăng nhập</label>
+            <label for="username" class="ml-1 block text-sm font-semibold text-[var(--text-secondary)]">Tên đăng nhập</label>
             <input
               id="username"
               v-model="formData.username"
               type="text"
-              class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 text-blue-950 outline-none transition-all"
+              class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 text-[var(--text-primary)] outline-none transition-all"
               placeholder="Nhập tên đăng nhập của bạn"
               autocomplete="username"
             />
@@ -78,21 +78,21 @@ async function submitData() {
 
           <div class="space-y-2">
             <div class="ml-1 flex items-center justify-between">
-              <label for="password" class="text-sm font-semibold text-slate-700">Mật khẩu</label>
-              <a href="#" class="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline">Quên mật khẩu?</a>
+              <label for="password" class="text-sm font-semibold text-[var(--text-secondary)]">Mật khẩu</label>
+              <a href="#" class="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-secondary)] hover:underline">Quên mật khẩu?</a>
             </div>
             <div class="relative">
               <input
                 id="password"
                 v-model="formData.password"
                 :type="showPassword ? 'text' : 'password'"
-                class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 pr-12 text-blue-950 outline-none transition-all"
+                class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 pr-12 text-[var(--text-primary)] outline-none transition-all"
                 placeholder="••••••••"
                 autocomplete="current-password"
               />
               <button
                 type="button"
-                class="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer text-slate-400 hover:text-slate-600"
+                class="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                 :aria-label="showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
                 @click="showPassword = !showPassword"
               >
@@ -128,10 +128,10 @@ async function submitData() {
           </div>
         </form>
 
-        <div class="mt-6 border-t border-slate-100 pt-5 text-center tablet:mt-8 tablet:pt-6">
-          <p class="mb-3 text-xs uppercase tracking-widest text-slate-400 tablet:mb-4">Hỗ trợ kỹ thuật</p>
+        <div class="mt-6 border-t border-[var(--stroke)] pt-5 text-center tablet:mt-8 tablet:pt-6">
+          <p class="mb-3 text-xs uppercase tracking-widest text-[var(--text-muted)] tablet:mb-4">Hỗ trợ kỹ thuật</p>
           <div class="flex justify-center gap-6">
-            <a href="#" class="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-slate-700">
+            <a href="#" class="flex items-center gap-1.5 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-secondary)]">
               <svg class="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="12" r="10" />
                 <path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4" />
@@ -139,7 +139,7 @@ async function submitData() {
               </svg>
               <span class="text-sm font-medium">Trung tâm trợ giúp</span>
             </a>
-            <a href="#" class="flex items-center gap-1.5 text-slate-500 transition-colors hover:text-slate-700">
+            <a href="#" class="flex items-center gap-1.5 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-secondary)]">
               <svg class="h-[18px] w-[18px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
@@ -150,7 +150,7 @@ async function submitData() {
       </div>
     </main>
 
-    <footer class="w-full shrink-0 py-3 text-center text-xs text-slate-400 tablet:py-4">
+    <footer class="w-full shrink-0 py-3 text-center text-xs text-[var(--text-muted)] tablet:py-4">
       <p>© 2023 Trung tâm Điều hành Cửa hàng. Tất cả quyền được bảo lưu.</p>
     </footer>
   </div>

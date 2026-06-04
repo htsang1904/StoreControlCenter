@@ -54,7 +54,7 @@ const titleId = `common-modal-title-${Math.random().toString(36).slice(2, 10)}`
 
 const panelClasses = computed(() => {
   return [
-    'flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white',
+    'app-menu-panel flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-2xl',
     props.maxWidthClass,
     props.panelClass,
   ]
@@ -110,7 +110,7 @@ onBeforeUnmount(() => {
   <Teleport to="body" :disabled="disableTeleport">
     <div
       v-if="modelValue"
-      :class="[containerClass, 'flex items-center justify-center bg-slate-950/30 p-4']"
+      :class="[containerClass, 'flex items-center justify-center bg-blue-950/25 p-4 backdrop-blur-sm']"
       @click.self="handleBackdropClick"
     >
       <div
@@ -121,14 +121,14 @@ onBeforeUnmount(() => {
       >
         <div
           v-if="$slots.header || title || description || showClose"
-          class="flex items-center gap-4 border-b border-slate-200 px-5 py-4 tablet:px-6"
+          class="flex items-center gap-4 border-b border-[var(--stroke)] px-5 py-4 tablet:px-6"
         >
           <slot name="header">
             <div class="min-w-0 flex-1">
-              <h3 v-if="title" :id="titleId" class="text-base font-semibold text-blue-950">
+              <h3 v-if="title" :id="titleId" class="text-base font-semibold text-[var(--text-primary)]">
                 {{ title }}
               </h3>
-              <p v-if="description" class="mt-1 text-sm leading-6 text-slate-500">
+              <p v-if="description" class="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
                 {{ description }}
               </p>
             </div>
@@ -137,7 +137,7 @@ onBeforeUnmount(() => {
           <button
             v-if="showClose"
             type="button"
-            class="inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            class="inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] hover:text-[var(--primary-strong)] disabled:cursor-not-allowed disabled:opacity-60"
             :disabled="closeDisabled"
             aria-label="Đóng modal"
             @click="closeModal"
@@ -152,7 +152,7 @@ onBeforeUnmount(() => {
           <slot />
         </div>
 
-        <div v-if="$slots.footer" class="border-t border-slate-200 px-5 py-4 tablet:px-6">
+        <div v-if="$slots.footer" class="border-t border-[var(--stroke)] px-5 py-4 tablet:px-6">
           <slot name="footer" />
         </div>
       </div>
