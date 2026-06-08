@@ -387,7 +387,7 @@ const summaryCards = computed(() => [
     label: 'Tổng số cửa hàng',
     value: new Intl.NumberFormat('vi-VN').format(normalizedStores.value.length),
     meta: `Hoàn tất ${completedRate.value.toFixed(1)}%`,
-    icon: 'storefront',
+    hint: 'Tổng số cửa hàng trong danh sách QC hiện tại.',
     tone: 'sky',
   },
   {
@@ -395,7 +395,7 @@ const summaryCards = computed(() => [
     label: 'QC Score TB',
     value: avgQcScore.value.toFixed(2),
     meta: `Toàn kỳ ${Number(summary.value.avgScore || 0).toFixed(1)}`,
-    icon: 'monitoring',
+    hint: 'Điểm QC trung bình của các cửa hàng đang hiển thị.',
     tone: 'teal',
   },
   {
@@ -403,7 +403,7 @@ const summaryCards = computed(() => [
     label: 'Cần kiểm tra lại',
     value: new Intl.NumberFormat('vi-VN').format(needReviewCount.value),
     meta: `${summary.value.failed} phiên lỗi`,
-    icon: 'warning',
+    hint: 'Số cửa hàng có phiên QC lỗi hoặc cần kiểm tra lại.',
     tone: 'rose',
   },
   {
@@ -411,7 +411,7 @@ const summaryCards = computed(() => [
     label: 'Đã hoàn thành QC',
     value: `${completedRate.value.toFixed(1)}%`,
     meta: `Pass ${Number(summary.value.passRate || 0).toFixed(1)}%`,
-    icon: 'task_alt',
+    hint: 'Tỷ lệ cửa hàng đã hoàn thành QC trong danh sách hiện tại.',
     tone: 'emerald',
   },
 ])
@@ -571,7 +571,7 @@ onBeforeUnmount(() => {
           :label="card.label"
           :value="card.value"
           :meta="card.meta"
-          :icon="card.icon"
+          :hint="card.hint"
           :tone="card.tone"
         />
       </section>

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import StatSummaryCard from '@/components/StatSummaryCard.vue'
 import { useTicketList } from '@/composables/useTicketList'
@@ -46,6 +46,11 @@ const {
 } = useTicketList(userInfo)
 
 const hasTickets = computed(() => tickets.value.length > 0)
+const openActionMenuId = ref(null)
+const actionMenuPosition = reactive({ top: 0, left: 0 })
+const activeActionTicket = computed(() => (
+  tickets.value.find((ticket) => ticket.id === openActionMenuId.value) || null
+))
 
 const {
   fetchTicketReports,
@@ -69,7 +74,50 @@ function goToTicketInbox() {
 }
 
 function goToEditTicket(id) {
+  openActionMenuId.value = null
   router.push(`/ticket/${id}/edit`)
+}
+
+function hasTicketActions(ticket) {
+  return (canEditTicket && isEditableTicket(ticket)) || canReopenTicket(ticket) || canDeleteTicket(ticket)
+}
+
+function hasAssignedHandler(ticket) {
+  const firstAssignee = Array.isArray(ticket?.assignees) ? ticket.assignees[0] : null
+  return Boolean(firstAssignee?.name || ticket?.assigned_to?.name)
+}
+
+function ticketCreatedAt(ticket) {
+  return ticket?.createdAt || ticket?.created_at || null
+}
+
+function toggleActionMenu(event, ticketId) {
+  if (openActionMenuId.value === ticketId) {
+    closeActionMenu()
+    return
+  }
+
+  const rect = event.currentTarget?.getBoundingClientRect()
+  if (rect) {
+    actionMenuPosition.top = rect.bottom + 8
+    actionMenuPosition.left = rect.right
+  }
+
+  openActionMenuId.value = ticketId
+}
+
+function closeActionMenu() {
+  openActionMenuId.value = null
+}
+
+function reopenTicketFromMenu(ticket) {
+  closeActionMenu()
+  handleReopenTicket(ticket)
+}
+
+function deleteTicketFromMenu(ticket) {
+  closeActionMenu()
+  handleDeleteTicket(ticket)
 }
 
 function updateTicketQuery(nextQuery) {
@@ -145,6 +193,7 @@ watch(
     }
 
     previousFilterQueryKey = filterQueryKey
+    closeActionMenu()
     syncReportRangeFromRoute(route.query || {})
     const nextSearch = String(route.query.q || '')
     const nextStatuses = String(route.query.status || '')
@@ -170,12 +219,13 @@ onBeforeUnmount(() => {
   if (searchDebounceTimer) {
     clearTimeout(searchDebounceTimer)
   }
+  closeActionMenu()
 })
 
 </script>
 
 <template>
-  <div class="app-page h-full bg-[var(--surface-muted)]">
+  <div class="app-page h-full bg-[var(--surface-muted)]" @click="closeActionMenu">
     <div class="page-stack overflow-visible">
       <!-- Mảng thẻ Overview Stats -->
       <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
@@ -185,7 +235,7 @@ onBeforeUnmount(() => {
           :label="card.label"
           :value="card.value"
           :meta="card.meta"
-          :icon="card.icon"
+          :hint="card.hint"
           :tone="card.tone"
           class="shadow-sm border-[var(--stroke)]/60"
         />
@@ -333,16 +383,17 @@ onBeforeUnmount(() => {
                     </span>
                   </td>
                   <td class="px-4 py-3 align-top">
-                    <div class="flex items-center gap-2.5">
+                    <div v-if="hasAssignedHandler(ticket)" class="flex items-center gap-2.5">
                       <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--primary-softer)] text-xs font-medium uppercase text-[var(--text-secondary)] ring-1 ring-slate-200">
                         {{ avatarInitials(handlerDisplay(ticket)) }}
                       </span>
                       <span class="text-sm font-medium text-[var(--text-secondary)] truncate">{{ handlerDisplay(ticket) }}</span>
                     </div>
+                    <span v-else class="text-sm font-medium text-[var(--warning-text)]">Chưa phân công</span>
                   </td>
                   <td class="px-4 py-3 align-top">
-                    <p class="text-sm text-[var(--text-secondary)]">{{ formatShortDate(ticket.createdAt) }}</p>
-                    <p class="text-xs text-[var(--text-muted)] mt-0.5">{{ formatDateTime(ticket.createdAt).split(' ')[1] }}</p>
+                    <p class="text-sm text-[var(--text-secondary)]">{{ formatShortDate(ticketCreatedAt(ticket)) }}</p>
+                    <p class="text-xs text-[var(--text-muted)] mt-0.5">{{ formatDateTime(ticketCreatedAt(ticket)).split(' ')[1] }}</p>
                   </td>
                   <td class="px-4 py-3 align-top">
                     <p class="text-sm font-medium" :class="ticketProcessingDurationClass(ticket)">
@@ -356,34 +407,18 @@ onBeforeUnmount(() => {
                     </p>
                   </td>
                   <td class="px-4 py-3 align-top">
-                    <div class="flex items-center justify-end gap-2">
+                    <div v-if="hasTicketActions(ticket)" class="relative flex justify-end">
                       <button
-                        v-if="canEditTicket && isEditableTicket(ticket)"
                         type="button"
-                        class="app-button-secondary rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-                        @click.stop="goToEditTicket(ticket.id)"
+                        class="inline-flex size-8 items-center justify-center text-[var(--text-secondary)] transition-colors hover:text-[var(--primary)] focus:outline-none focus:text-[var(--primary)]"
+                        aria-label="Mở menu thao tác"
+                        :aria-expanded="openActionMenuId === ticket.id"
+                        @click.stop="toggleActionMenu($event, ticket.id)"
                       >
-                        Sửa
-                      </button>
-                      <button
-                        v-if="canReopenTicket(ticket)"
-                        type="button"
-                        class="app-button-warning rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                        :disabled="reopeningId === ticket.id"
-                        @click.stop="handleReopenTicket(ticket)"
-                      >
-                        {{ reopeningId === ticket.id ? 'Đang mở...' : 'Mở lại' }}
-                      </button>
-                      <button
-                        v-if="canDeleteTicket(ticket)"
-                        type="button"
-                        class="app-button-danger rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                        :disabled="deletingId === ticket.id"
-                        @click.stop="handleDeleteTicket(ticket)"
-                      >
-                        {{ deletingId === ticket.id ? 'Đang xoá...' : 'Xoá' }}
+                        <span class="material-symbols-outlined text-[20px]">more_horiz</span>
                       </button>
                     </div>
+                    <span v-else class="block text-right text-sm text-[var(--text-muted)]">--</span>
                   </td>
                 </tr>
               </tbody>
@@ -443,16 +478,16 @@ onBeforeUnmount(() => {
                     <dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
                       <div>
                         <dt class="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Người xử lý</dt>
-                        <dd class="mt-0.5 font-medium text-[var(--text-secondary)] flex items-center gap-1.5">
-                          <span class="inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary-softer)] text-[8px] font-bold text-[var(--text-secondary)] uppercase">
+                        <dd class="mt-0.5 flex items-center gap-1.5 font-medium">
+                          <span v-if="hasAssignedHandler(ticket)" class="inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary-softer)] text-[8px] font-bold text-[var(--text-secondary)] uppercase">
                             {{ avatarInitials(handlerDisplay(ticket)) }}
                           </span>
-                          <span class="truncate">{{ handlerDisplay(ticket) }}</span>
+                          <span class="truncate" :class="hasAssignedHandler(ticket) ? 'text-[var(--text-secondary)]' : 'text-[var(--warning-text)]'">{{ handlerDisplay(ticket) }}</span>
                         </dd>
                       </div>
                       <div>
                         <dt class="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Ngày tạo</dt>
-                        <dd class="mt-0.5 font-medium text-[var(--text-secondary)]">{{ formatShortDate(ticket.createdAt) }}</dd>
+                        <dd class="mt-0.5 font-medium text-[var(--text-secondary)]">{{ formatShortDate(ticketCreatedAt(ticket)) }}</dd>
                       </div>
                       <div class="col-span-2">
                         <dt class="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Thời gian xử lý</dt>
@@ -575,6 +610,45 @@ onBeforeUnmount(() => {
         </div>
       </section>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="activeActionTicket"
+        class="fixed z-[9999] w-40 -translate-x-full overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
+        :style="{ top: `${actionMenuPosition.top}px`, left: `${actionMenuPosition.left}px` }"
+        @click.stop
+      >
+        <button
+          v-if="canEditTicket && isEditableTicket(activeActionTicket)"
+          type="button"
+          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--primary)]"
+          @click="goToEditTicket(activeActionTicket.id)"
+        >
+          <span class="material-symbols-outlined text-[18px]">edit</span>
+          <span>Sửa</span>
+        </button>
+        <button
+          v-if="canReopenTicket(activeActionTicket)"
+          type="button"
+          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-[var(--warning-text)] transition-colors hover:bg-[var(--warning-bg)] disabled:opacity-50"
+          :disabled="reopeningId === activeActionTicket.id"
+          @click="reopenTicketFromMenu(activeActionTicket)"
+        >
+          <span class="material-symbols-outlined text-[18px]">refresh</span>
+          <span>{{ reopeningId === activeActionTicket.id ? 'Đang mở...' : 'Mở lại' }}</span>
+        </button>
+        <button
+          v-if="canDeleteTicket(activeActionTicket)"
+          type="button"
+          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-[var(--danger-text)] transition-colors hover:bg-[var(--danger-bg)] disabled:opacity-50"
+          :disabled="deletingId === activeActionTicket.id"
+          @click="deleteTicketFromMenu(activeActionTicket)"
+        >
+          <span class="material-symbols-outlined text-[18px]">delete</span>
+          <span>{{ deletingId === activeActionTicket.id ? 'Đang xoá...' : 'Xoá' }}</span>
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
 

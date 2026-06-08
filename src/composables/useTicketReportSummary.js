@@ -25,7 +25,7 @@ export function useTicketReportSummary() {
       label: 'Tổng ticket',
       value: numberFormatter.format(Number(reportSummary.value?.total_ticket || 0)),
       meta: 'Theo bộ lọc',
-      icon: 'list_alt',
+      hint: 'Tổng số ticket phát sinh theo bộ lọc hiện tại.',
       tone: 'sky',
     },
     {
@@ -33,7 +33,7 @@ export function useTicketReportSummary() {
       label: 'Đang chờ hỗ trợ',
       value: numberFormatter.format(Number(reportSummary.value?.in_progress || 0)),
       meta: 'Cần ưu tiên',
-      icon: 'support_agent',
+      hint: 'Số ticket đang mở hoặc đang được xử lý, cần theo dõi tiến độ.',
       tone: 'amber',
     },
     {
@@ -41,7 +41,7 @@ export function useTicketReportSummary() {
       label: 'Đã hoàn thành',
       value: numberFormatter.format(Number(reportSummary.value?.resolved || 0)),
       meta: 'Đã đóng',
-      icon: 'task_alt',
+      hint: 'Số ticket đã hoàn tất xử lý trong phạm vi bộ lọc.',
       tone: 'emerald',
     },
     {
@@ -49,7 +49,7 @@ export function useTicketReportSummary() {
       label: 'Cần phản hồi',
       value: numberFormatter.format(Number(reportSummary.value?.overdue || 0)),
       meta: 'Quá hạn / sát hạn',
-      icon: 'timer',
+      hint: 'Số ticket đã quá hạn hoặc cần phản hồi gấp theo SLA.',
       tone: 'rose',
     },
   ])

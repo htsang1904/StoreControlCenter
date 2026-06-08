@@ -129,7 +129,7 @@ const summaryCards = computed(() => [
     label: 'Phiên đang hiển thị',
     value: filteredSummary.value.totalSessions,
     meta: `Toàn kỳ ${summary.value.totalSessions}`,
-    icon: 'fact_check',
+    hint: 'Số phiên QC của cửa hàng đang hiển thị theo bộ lọc hiện tại.',
     tone: 'sky',
   },
   {
@@ -137,7 +137,7 @@ const summaryCards = computed(() => [
     label: 'Tỷ lệ đạt',
     value: `${filteredSummary.value.passRate}%`,
     meta: `Toàn kỳ ${summary.value.passRate}%`,
-    icon: 'task_alt',
+    hint: 'Tỷ lệ phiên QC đạt trong danh sách đang hiển thị.',
     tone: 'emerald',
   },
   {
@@ -145,7 +145,7 @@ const summaryCards = computed(() => [
     label: 'Cần khắc phục',
     value: `${filteredSummary.value.failed}`,
     meta: `Toàn kỳ ${summary.value.failed}`,
-    icon: 'warning',
+    hint: 'Số phiên QC không đạt hoặc còn tiêu chí cần khắc phục.',
     tone: 'rose',
   },
   {
@@ -153,7 +153,7 @@ const summaryCards = computed(() => [
     label: 'Điểm TB',
     value: `${filteredSummary.value.avgScoreRate}%`,
     meta: `${filteredSummary.value.avgScore}/${filteredSummary.value.avgMaxScore} điểm`,
-    icon: 'monitoring',
+    hint: 'Điểm QC trung bình quy đổi theo phần trăm trên các phiên đang hiển thị.',
     tone: 'amber',
   },
 ])
@@ -547,7 +547,7 @@ onBeforeUnmount(() => {
           :label="card.label"
           :value="card.value"
           :meta="card.meta"
-          :icon="card.icon"
+          :hint="card.hint"
           :tone="card.tone"
         />
       </section>

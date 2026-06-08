@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive, ref } from 'vue'
 
 const props = defineProps({
   label: {
@@ -16,15 +16,11 @@ const props = defineProps({
   },
   metaClass: {
     type: String,
-    default: 'bg-[var(--primary-softer)] text-[var(--text-secondary)]',
-  },
-  icon: {
-    type: String,
     default: '',
   },
-  iconClass: {
+  hint: {
     type: String,
-    default: 'bg-[var(--primary-softer)] text-[var(--text-secondary)]',
+    default: '',
   },
   tone: {
     type: String,
@@ -36,26 +32,73 @@ const toneClass = computed(() => {
   const allowedTones = new Set(['neutral', 'sky', 'teal', 'amber', 'emerald', 'rose'])
   return `app-metric-card--${allowedTones.has(props.tone) ? props.tone : 'neutral'}`
 })
+
+const valueClass = computed(() => {
+  const toneClasses = {
+    neutral: 'text-[var(--text-primary)]',
+    sky: 'text-[var(--info-text)]',
+    teal: 'text-teal-700',
+    amber: 'text-[var(--warning-text)]',
+    emerald: 'text-[var(--success-text)]',
+    rose: 'text-[var(--danger-text)]',
+  }
+
+  return toneClasses[props.tone] || toneClasses.neutral
+})
+
+const hintIconRef = ref(null)
+const tooltipVisible = ref(false)
+const tooltipPosition = reactive({ top: 0, left: 0 })
+
+function showTooltip() {
+  const rect = hintIconRef.value?.getBoundingClientRect()
+  if (!rect) return
+
+  tooltipPosition.top = rect.top - 8
+  tooltipPosition.left = rect.left + rect.width / 2
+  tooltipVisible.value = true
+}
+
+function hideTooltip() {
+  tooltipVisible.value = false
+}
 </script>
 
 <template>
   <article class="app-metric-card h-full p-5" :class="toneClass">
-    <div class="flex items-start justify-between gap-4">
-      <div class="min-w-0">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2">
         <p class="app-metric-card__eyebrow">{{ label }}</p>
-        <p class="mt-4 text-3xl font-semibold tracking-tight text-[var(--text-primary)] tablet:text-[2rem]">{{ value }}</p>
+        <span
+          ref="hintIconRef"
+          class="app-metric-card__hint inline-flex items-center"
+          @mouseenter="showTooltip"
+          @mouseleave="hideTooltip"
+          @focusin="showTooltip"
+          @focusout="hideTooltip"
+        >
+          <span
+            class="material-symbols-outlined app-metric-card__hint-icon text-[var(--text-secondary)]/70"
+            tabindex="0"
+            aria-hidden="true"
+          >help</span>
+        </span>
       </div>
-
-      <div
-        v-if="icon"
-        class="app-metric-card__icon flex size-11 shrink-0 items-center justify-center rounded-[20px]"
-      >
-        <span class="material-symbols-outlined text-[20px]">{{ icon }}</span>
-      </div>
+      <p class="mt-3 text-3xl font-semibold tracking-tight tablet:text-[2rem]" :class="valueClass">{{ value }}</p>
     </div>
 
-    <p v-if="meta" class="app-metric-card__meta mt-5">
+    <p v-if="meta" class="app-metric-card__meta mt-3" :class="metaClass">
       <span>{{ meta }}</span>
     </p>
+
+    <Teleport to="body">
+      <span
+        v-if="tooltipVisible"
+        class="app-metric-card__tooltip app-metric-card__tooltip--fixed pointer-events-none fixed z-[9999] w-max max-w-[220px] -translate-x-1/2 -translate-y-full rounded-lg px-3 py-2 text-xs font-medium normal-case leading-5 tracking-normal shadow-lg"
+        :style="{ top: `${tooltipPosition.top}px`, left: `${tooltipPosition.left}px` }"
+      >
+        {{ hint || label }}
+      </span>
+    </Teleport>
   </article>
 </template>

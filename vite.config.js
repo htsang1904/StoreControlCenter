@@ -21,10 +21,6 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  server: {
-    port: process.env.FRONTEND_PORT ? parseInt(process.env.FRONTEND_PORT) : 5173,
-    strictPort: true, // Fail if port is already in use instead of falling back
-  },
   build: {
     rollupOptions: {
       output: {

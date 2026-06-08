@@ -1,5 +1,5 @@
 <script setup>
-import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
 import StoreFilterButton from '@/components/StoreFilterButton.vue'
@@ -17,6 +17,7 @@ const { state } = useApp()
 const loading = ref(false)
 const errorMessage = ref('')
 const isMounted = ref(false)
+const kpiTooltip = reactive({ visible: false, top: 0, left: 0, text: '' })
 
 onMounted(() => {
   isMounted.value = true
@@ -149,8 +150,7 @@ const kpiCards = computed(() => [
     label: 'Tổng Ticket',
     value: numberFormatter.format(Number(ticketSummary.value.total_ticket || 0)),
     meta: 'Trong kỳ',
-    icon: 'list_alt',
-    bgClass: 'bg-[var(--info-bg)]',
+    hint: 'Tổng số ticket phát sinh trong khoảng thời gian dashboard.',
     textClass: 'text-[var(--info-text)]',
   },
   {
@@ -158,8 +158,7 @@ const kpiCards = computed(() => [
     label: 'TB Thời gian xử lý',
     value: `${Number(ticketAvgProcessingTime.value.toFixed(1))} giờ`,
     meta: 'Trên mỗi ticket',
-    icon: 'schedule',
-    bgClass: 'bg-[var(--primary-soft)]',
+    hint: 'Thời gian xử lý trung bình tính trên mỗi ticket đã có dữ liệu xử lý.',
     textClass: 'text-[var(--primary-strong)]',
   },
   {
@@ -167,8 +166,7 @@ const kpiCards = computed(() => [
     label: 'Đang xử lý',
     value: numberFormatter.format(Number(ticketSummary.value.in_progress || 0)),
     meta: 'Cần theo dõi',
-    icon: 'pending',
-    bgClass: 'bg-[var(--warning-bg)]',
+    hint: 'Số ticket đang được xử lý và cần theo dõi tiến độ.',
     textClass: 'text-[var(--warning-text)]',
   },
   {
@@ -176,8 +174,7 @@ const kpiCards = computed(() => [
     label: 'Tỉ lệ QC đạt',
     value: `${Number(qcSummary.value.passRate || 0)}%`,
     meta: 'Mục tiêu 95%',
-    icon: 'check_circle',
-    bgClass: 'bg-[var(--success-bg)]',
+    hint: 'Tỷ lệ phiên QC đạt trong khoảng thời gian dashboard.',
     textClass: 'text-[var(--success-text)]',
   },
   {
@@ -185,11 +182,24 @@ const kpiCards = computed(() => [
     label: 'Cảnh báo quá hạn',
     value: numberFormatter.format(Number(ticketSummary.value.overdue || 0)),
     meta: 'Sát SLA',
-    icon: 'timer',
-    bgClass: 'bg-[var(--danger-bg)]',
+    hint: 'Số ticket quá hạn hoặc có nguy cơ trễ SLA.',
     textClass: 'text-[var(--danger-text)]',
   },
 ])
+
+function showKpiTooltip(event, text) {
+  const rect = event.currentTarget?.getBoundingClientRect()
+  if (!rect) return
+
+  kpiTooltip.top = rect.top - 8
+  kpiTooltip.left = rect.left + rect.width / 2
+  kpiTooltip.text = text || ''
+  kpiTooltip.visible = true
+}
+
+function hideKpiTooltip() {
+  kpiTooltip.visible = false
+}
 
 const sparklineCommonOptions = {
   chart: { type: 'area', sparkline: { enabled: true }, animations: { enabled: false } },
@@ -593,7 +603,7 @@ watch(
                 <div class="app-dashboard-card__header">
                    <h3 class="app-dashboard-card__title truncate">Chỉ số Thống kê Tổng quan</h3>
                 </div>
-                <div class="app-dashboard-card__body app-table-scroll overflow-y-hidden">
+                <div class="app-dashboard-card__body app-table-scroll overflow-visible">
                   <table class="w-full min-w-[600px] text-left text-sm text-[var(--text-secondary)] h-full">
                     <thead class="border-b border-[var(--stroke)] bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-secondary)]">
                       <tr>
@@ -606,15 +616,21 @@ watch(
                     <tbody class="divide-y divide-white/40">
                       <tr v-for="card in kpiCards" :key="card.key" class="transition-colors hover:bg-white/50">
                         <td class="px-6 py-3">
-                          <div class="flex items-center gap-4">
-                            <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl shadow-sm" :class="[card.bgClass, card.textClass]">
-                              <span class="material-symbols-outlined text-[20px]">{{ card.icon }}</span>
-                            </div>
+                          <div class="flex items-center gap-2">
                             <span class="font-bold text-[var(--text-primary)]">{{ card.label }}</span>
+                            <span
+                              class="app-metric-card__hint inline-flex items-center"
+                              @mouseenter="showKpiTooltip($event, card.hint)"
+                              @mouseleave="hideKpiTooltip"
+                              @focusin="showKpiTooltip($event, card.hint)"
+                              @focusout="hideKpiTooltip"
+                            >
+                              <span class="material-symbols-outlined app-metric-card__hint-icon text-[var(--text-secondary)]/70" tabindex="0" aria-hidden="true">help</span>
+                            </span>
                           </div>
                         </td>
                         <td class="px-6 py-3 whitespace-nowrap text-right">
-                          <span class="text-[18px] font-black tracking-tight text-[var(--text-primary)]">{{ card.value }}</span>
+                          <span class="text-[18px] font-black tracking-tight" :class="card.textClass">{{ card.value }}</span>
                         </td>
                         <td class="px-6 py-3">
                           <span class="app-badge rounded-full border border-white/50 bg-white/50 px-2.5 py-1 text-[11px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md" :class="card.textClass">
@@ -790,6 +806,15 @@ watch(
       </template>
     </draggable>
 
+    <Teleport to="body">
+      <span
+        v-if="kpiTooltip.visible"
+        class="app-metric-card__tooltip app-metric-card__tooltip--fixed pointer-events-none fixed z-[9999] w-max max-w-[220px] -translate-x-1/2 -translate-y-full rounded-lg px-3 py-2 text-xs font-medium normal-case leading-5 tracking-normal shadow-lg"
+        :style="{ top: `${kpiTooltip.top}px`, left: `${kpiTooltip.left}px` }"
+      >
+        {{ kpiTooltip.text }}
+      </span>
+    </Teleport>
 
   </div>
 </template>
@@ -801,5 +826,9 @@ watch(
   overflow: hidden !important;
   transform: scale(0.98) !important;
   box-shadow: 0 0 0 2px #1d7de2 !important;
+}
+
+:deep(.app-dashboard-card) {
+  overflow: visible;
 }
 </style>

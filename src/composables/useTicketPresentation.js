@@ -75,8 +75,11 @@ export function handlerDisplay(ticket) {
 }
 
 export function ticketProcessingDurationLabel(ticket) {
-  if (ticket?.processing_duration_label) return ticket.processing_duration_label
-  return ticket?.start_date || ticket?.createdAt ? '0 phút' : '--'
+  if (ticket?.processing_duration_label || ticket?.processingDurationLabel) {
+    return ticket.processing_duration_label || ticket.processingDurationLabel
+  }
+
+  return ticket?.start_date || ticket?.startDate || ticket?.createdAt || ticket?.created_at ? '0 phút' : '--'
 }
 
 export function ticketProcessingDurationClass(ticket) {
