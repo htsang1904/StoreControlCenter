@@ -1,7 +1,9 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useHeaderBreadcrumb } from '@/composables/useHeaderBreadcrumb'
+import { useApp } from '@/plugins/app'
+import StoreFilterButton from '@/components/StoreFilterButton.vue'
 import HeaderDateControls from './HeaderDateControls.vue'
 import HeaderNotifications from './HeaderNotifications.vue'
 
@@ -18,7 +20,7 @@ const props = defineProps({
 const emit = defineEmits(['open-sidebar'])
 
 const HEADER_TAB_SUBTITLES = {
-  dashboard: 'Theo dõi chỉ số vận hành ticket và chất lượng cửa hàng',
+  dashboard: 'Tổng quan hoạt động',
   ticket: 'Quản lý và giải quyết các yêu cầu',
   qc: 'Theo dõi chỉ số QC và trạng thái vận hành',
   tools: 'Công cụ vận hành hệ thống',
@@ -26,6 +28,7 @@ const HEADER_TAB_SUBTITLES = {
 
 const route = useRoute()
 const router = useRouter()
+const { state } = useApp()
 const { breadcrumbLabel } = useHeaderBreadcrumb()
 
 const headerContext = computed(() => resolveHeaderContext(route))
@@ -36,12 +39,14 @@ const showHeaderBreadcrumb = computed(() => headerContext.value.display === 'bre
 const visibleTitle = computed(() => headerContext.value.title)
 const visibleSubtitle = computed(() => HEADER_TAB_SUBTITLES[activeRootTab.value] || '')
 const breadcrumbItems = computed(() => resolveBreadcrumbItems(route, headerContext.value, breadcrumbLabel.value))
+const stores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))
+const dashboardStoreFilter = ref([])
 
 function resolveHeaderContext(currentRoute) {
   const path = currentRoute.path
 
   if (path.startsWith('/dashboard')) {
-    return { tab: 'dashboard', title: 'Tổng quan Dashboard', display: 'title' }
+    return { tab: 'dashboard', title: 'Dashboard', display: 'title' }
   }
 
   if (path === '/ticket/inbox') {
@@ -148,6 +153,48 @@ function navigateTo(path) {
   if (!path || path === route.path) return
   router.push(path)
 }
+
+watch(
+  () => [route.path, route.query.store_ids, stores.value.map((store) => store.id).join(',')],
+  () => {
+    if (!route.path.startsWith('/dashboard')) return
+
+    const queryStoreIds = route.query.store_ids
+    if (typeof queryStoreIds === 'string' && queryStoreIds.trim() !== '') {
+      const parsed = queryStoreIds.split(',').map(Number).filter((id) => Number.isInteger(id) && id > 0)
+      if (parsed.join(',') !== dashboardStoreFilter.value.join(',')) {
+        dashboardStoreFilter.value = parsed
+      }
+      return
+    }
+
+    const allStoreIds = stores.value.map((store) => store.id).filter((id) => Number.isInteger(Number(id)))
+    if (allStoreIds.length && allStoreIds.join(',') !== dashboardStoreFilter.value.join(',')) {
+      dashboardStoreFilter.value = allStoreIds
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  dashboardStoreFilter,
+  (newValue) => {
+    if (!route.path.startsWith('/dashboard')) return
+
+    const selectedIds = newValue.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)
+    const allSelected = stores.value.length > 0 && selectedIds.length === stores.value.length
+    const nextStoreIds = allSelected ? '' : selectedIds.join(',')
+    const currentStoreIds = String(route.query.store_ids || '')
+
+    if (currentStoreIds === nextStoreIds) return
+
+    const query = { ...route.query }
+    if (nextStoreIds) query.store_ids = nextStoreIds
+    else delete query.store_ids
+    router.replace({ path: route.path, query })
+  },
+  { deep: true }
+)
 </script>
 
 <template>
@@ -198,8 +245,8 @@ function navigateTo(path) {
           </div>
         </div>
 
-        <div class="flex shrink-0 items-center justify-end gap-2 tablet:gap-3">
-          <div id="dashboard-header-actions" class="flex items-center gap-2 tablet:gap-3 empty:hidden"></div>
+        <div class="flex shrink-0 items-center justify-end gap-2">
+          <StoreFilterButton v-if="activeRootTab === 'dashboard'" v-model="dashboardStoreFilter" />
           <HeaderDateControls v-if="showHeaderDateFilter" />
           <HeaderNotifications />
         </div>

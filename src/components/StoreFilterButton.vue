@@ -25,7 +25,7 @@ watch(() => props.modelValue, (newVal) => {
 const selectedStoreText = computed(() => {
   if (props.modelValue.length === 1) {
     const store = stores.value.find(s => s.id === props.modelValue[0])
-    return store?.name || store?.address || `Store #${store?.id}` || '1 cửa hàng'
+    return storeTitle(store) || '1 cửa hàng'
   }
   if (props.modelValue.length === 0) {
     return 'Chưa chọn cửa hàng'
@@ -37,10 +37,23 @@ const filteredStores = computed(() => {
   if (!storeSearchQuery.value) return stores.value
   const q = storeSearchQuery.value.toLowerCase()
   return stores.value.filter(s => {
-    const name = (s.name || s.address || `Store #${s.id}`).toLowerCase()
-    return name.includes(q)
+    const searchable = [storeTitle(s), storeAddress(s), s.code, s.storeId]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return searchable.includes(q)
   })
 })
+
+function storeTitle(store) {
+  return store?.name || store?.shortAddress || `Store #${store?.id || '--'}`
+}
+
+function storeAddress(store) {
+  const address = store?.address || ''
+  if (address && address !== storeTitle(store)) return address
+  return store?.shortAddress && store?.shortAddress !== storeTitle(store) ? store.shortAddress : ''
+}
 
 function toggleStoreSelection(storeId) {
   const index = localSelection.value.indexOf(storeId)
@@ -73,7 +86,7 @@ function applySelection() {
   <div class="relative inline-flex items-center">
     <button
       @click="showStoreFilterPopup = true"
-      class="app-button-secondary flex min-w-[140px] items-center gap-2 rounded-xl px-4 py-2.5 text-[15px] font-black shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+      class="app-button-secondary flex min-w-[140px] items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
     >
       <span class="material-symbols-outlined text-[20px]">store</span>
       <span class="truncate">{{ selectedStoreText }}</span>
@@ -122,8 +135,13 @@ function applySelection() {
                   />
                   <span class="material-symbols-outlined pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[14px] text-white opacity-0 transition-opacity peer-checked:opacity-100">check</span>
                 </div>
-                <span class="select-none text-sm font-semibold text-[var(--text-secondary)]">
-                  {{ store.name || store.address || `Store #${store.id}` }}
+                <span class="min-w-0 select-none">
+                  <span class="block truncate text-sm font-semibold text-[var(--text-primary)]">
+                    {{ storeTitle(store) }}
+                  </span>
+                  <span v-if="storeAddress(store)" class="mt-0.5 block truncate text-xs font-normal text-[var(--text-secondary)]">
+                    {{ storeAddress(store) }}
+                  </span>
                 </span>
               </label>
             </div>

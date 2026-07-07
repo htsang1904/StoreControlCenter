@@ -16,6 +16,7 @@ const router = useRouter()
 
 const headerDateFrom = ref('')
 const headerDateTo = ref('')
+const selectedQuickRange = ref('')
 
 const todayRange = computed(() => getTodayDateRange())
 const last7Range = computed(() => getDefaultDateRange(DEFAULT_RECENT_RANGE_DAYS))
@@ -25,6 +26,18 @@ function syncRangeFromRoute() {
   const range = normalizeDateRangeFromQuery(route.query || {})
   headerDateFrom.value = range.from
   headerDateTo.value = range.to
+
+  const selectedRange = selectedQuickRange.value === 'today'
+    ? todayRange.value
+    : selectedQuickRange.value === 'last7'
+      ? last7Range.value
+      : selectedQuickRange.value === 'month'
+        ? thisMonthRange.value
+        : null
+
+  if (selectedRange && isActiveRange(selectedRange)) return
+
+  selectedQuickRange.value = ''
 }
 
 async function updateHeaderRange(from, to) {
@@ -45,7 +58,19 @@ function isActiveRange(range) {
   return headerDateFrom.value === range.from && headerDateTo.value === range.to
 }
 
-function applyQuickRange(range) {
+const activeQuickRange = computed(() => {
+  if (selectedQuickRange.value === 'today' && isActiveRange(todayRange.value)) return 'today'
+  if (selectedQuickRange.value === 'last7' && isActiveRange(last7Range.value)) return 'last7'
+  if (selectedQuickRange.value === 'month' && isActiveRange(thisMonthRange.value)) return 'month'
+
+  if (isActiveRange(todayRange.value)) return 'today'
+  if (isActiveRange(last7Range.value)) return 'last7'
+  if (isActiveRange(thisMonthRange.value)) return 'month'
+  return ''
+})
+
+function applyQuickRange(range, key) {
+  selectedQuickRange.value = key
   headerDateFrom.value = range.from
   headerDateTo.value = range.to
   void updateHeaderRange(range.from, range.to)
@@ -67,29 +92,29 @@ watch(
 </script>
 
 <template>
-  <div class="flex items-center gap-2 tablet:gap-3">
+  <div class="flex items-center gap-2">
     <div class="hidden items-center rounded-lg bg-[var(--primary-softer)] p-1 pc:inline-flex">
       <button
         type="button"
         class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-        :class="isActiveRange(todayRange) ? 'border border-[var(--stroke)] bg-white text-[var(--text-primary)]' : 'border border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'"
-        @click="applyQuickRange(todayRange)"
+        :class="activeQuickRange === 'today' ? 'border border-[var(--stroke)] bg-white text-[var(--text-primary)]' : 'border border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'"
+        @click="applyQuickRange(todayRange, 'today')"
       >
         Hôm nay
       </button>
       <button
         type="button"
         class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-        :class="isActiveRange(last7Range) ? 'border border-[var(--stroke)] bg-white text-[var(--text-primary)]' : 'border border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'"
-        @click="applyQuickRange(last7Range)"
+        :class="activeQuickRange === 'last7' ? 'border border-[var(--stroke)] bg-white text-[var(--text-primary)]' : 'border border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'"
+        @click="applyQuickRange(last7Range, 'last7')"
       >
         7 ngày qua
       </button>
       <button
         type="button"
         class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-        :class="isActiveRange(thisMonthRange) ? 'border border-[var(--stroke)] bg-white text-[var(--text-primary)]' : 'border border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'"
-        @click="applyQuickRange(thisMonthRange)"
+        :class="activeQuickRange === 'month' ? 'border border-[var(--stroke)] bg-white text-[var(--text-primary)]' : 'border border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'"
+        @click="applyQuickRange(thisMonthRange, 'month')"
       >
         Tháng này
       </button>

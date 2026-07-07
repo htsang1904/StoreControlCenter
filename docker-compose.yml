@@ -1,15 +1,11 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
     container_name: store_control_center_db
-    env_file:
-      - .env
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: store_control_center
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
@@ -26,15 +22,29 @@ services:
       context: ./python-api
       dockerfile: Dockerfile
     container_name: store_control_center_backend
-    env_file:
-      - .env
     environment:
       - POSTGRES_SERVER=db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=store_control_center
-      - POSTGRES_PORT=5432
-      - SECRET_KEY=${SECRET_KEY:-change_me_in_production}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS:-true}
+      - SUITE_API=${SUITE_API:-https://lab-sapi.guta.asia}
+      - MAIN_STORE_SYNC_URL=${MAIN_STORE_SYNC_URL:-https://gapi.guta.asia/webapi/stores?all_stores=true}
+      - SUITE_VERIFY_TOKEN=${SUITE_VERIFY_TOKEN:-false}
+      - SUITE_PUBLIC_KEY_FILE=${SUITE_PUBLIC_KEY_FILE:-}
+      - ENABLE_SQLADMIN=${ENABLE_SQLADMIN:-false}
+      - SQLADMIN_USERNAME=${SQLADMIN_USERNAME:-}
+      - SQLADMIN_PASSWORD=${SQLADMIN_PASSWORD:-}
+      - SQLADMIN_SESSION_SECRET=${SQLADMIN_SESSION_SECRET:-}
+      - ENABLE_BOOTSTRAP_ADMIN=${ENABLE_BOOTSTRAP_ADMIN:-true}
+      - BOOTSTRAP_ADMIN_EMAIL=${BOOTSTRAP_ADMIN_EMAIL}
+      - BOOTSTRAP_ADMIN_NAME=${BOOTSTRAP_ADMIN_NAME:-System Administrator}
+      - BOOTSTRAP_ADMIN_PHONE_NUMBER=${BOOTSTRAP_ADMIN_PHONE_NUMBER:-}
     ports:
       - "${BACKEND_PORT:-8001}:${BACKEND_PORT:-8001}"
     command: uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT:-8001} --reload
@@ -50,12 +60,14 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     container_name: store_control_center_frontend
-    env_file:
-      - .env
     environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000}
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+      - VITE_AUTH_URL=${VITE_AUTH_URL:-}
+      - VITE_APP_VERSION=${VITE_APP_VERSION:-}
+      - VITE_DEFAULT_STORE_ID=${VITE_DEFAULT_STORE_ID:-}
+      - VITE_DEFAULT_STORE_NAME=${VITE_DEFAULT_STORE_NAME:-}
     ports:
-      - "${FRONTEND_PORT:-5173}:${FRONTEND_PORT:-5173}"
+      - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
       - backend
     # This mounts the current folder in so you get hot-reloading when modifying Vue files

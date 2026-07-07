@@ -1,8 +1,5 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import model_validator
-import logging
-
-logger = logging.getLogger("app.config")
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Store Control Center API"
@@ -10,16 +7,16 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # JWT Settings
-    SECRET_KEY: str = "change_me_in_production"
+    SECRET_KEY: str = Field(..., min_length=32)
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
     
-    # Database Settings (Defaults are for local dev without docker)
-    POSTGRES_SERVER: str = "localhost"
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"
-    POSTGRES_DB: str = "store_control_center"
-    POSTGRES_PORT: str = "5432"
+    # Database Settings
+    POSTGRES_SERVER: str
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: str
     
     # External APIs
     SUITE_API: str = "https://lab-sapi.guta.asia"
@@ -59,12 +56,6 @@ class Settings(BaseSettings):
             return False
         return self.CORS_ALLOW_CREDENTIALS
     
-    @model_validator(mode='after')
-    def validate_secret(self):
-        if self.SECRET_KEY == "change_me_in_production":
-            logger.warning("⚠️  SECRET_KEY chưa được cấu hình! Đang dùng key mặc định, KHÔNG AN TOÀN cho production.")
-        return self
-        
     model_config = SettingsConfigDict(env_file=".env")
 
 settings = Settings()

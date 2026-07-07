@@ -2,13 +2,11 @@
 import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
-import StoreFilterButton from '@/components/StoreFilterButton.vue'
 import { useApp } from '@/plugins/app'
 import { getDashboardOverview, listTickets } from '@/services/ticket_service'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
 
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'))
-const draggable = defineAsyncComponent(() => import('vuedraggable'))
 
 const route = useRoute()
 const router = useRouter()
@@ -27,8 +25,11 @@ const ticketSummary = ref({
   total_ticket: 0,
   in_progress: 0,
   resolved: 0,
+  due_soon: 0,
   overdue: 0,
 })
+const ticketStatusData = ref([])
+const ticketTrends = ref({})
 const ticketTopStores = ref([])
 const qcSummary = ref({
   totalSessions: 0,
@@ -48,6 +49,13 @@ const ticketChartRawData = ref({
   supportTime: []
 })
 const qcTopStoresData = ref([])
+const chartGroupBy = ref('day')
+const chartGroupOptions = [
+  { value: 'day', label: 'Theo ngày' },
+  { value: 'week', label: 'Theo tuần' },
+  { value: 'month', label: 'Theo tháng' },
+]
+const chartGroupLabel = computed(() => chartGroupOptions.find((option) => option.value === chartGroupBy.value)?.label || 'Theo ngày')
 
 const dashboardRange = computed(() => {
   return normalizeDateRangeFromQuery(route.query || {}, getDefaultDateRange())
@@ -84,12 +92,16 @@ function statusClass(status) {
 
 function storeDisplay(ticket) {
   return (
+    ticket?.store?.name ||
     ticket?.store?.shortAddress ||
-    ticket?.store?.address ||
-    ticket?.store?.code ||
     ticket?.store_name ||
     (ticket?.store_id ? `Store #${ticket.store_id}` : '--')
   )
+}
+
+function storeLabel(store) {
+  const name = store?.storeName || store?.name
+  return name || store?.shortAddress || `Store #${store?.store_id || store?.storeId || '--'}`
 }
 
 function formatRelativeTime(value) {
@@ -116,76 +128,159 @@ function formatRelativeTime(value) {
   }).format(date)
 }
 
-const numberFormatter = new Intl.NumberFormat('vi-VN')
-const storeTonePalette = [
-  {
-    dotClass: 'bg-sky-500',
-    railClass: 'bg-sky-100',
-    fillClass: 'bg-sky-500',
-    badgeClass: 'app-badge app-badge--info',
-  },
-  {
-    dotClass: 'bg-teal-500',
-    railClass: 'bg-teal-100',
-    fillClass: 'bg-teal-500',
-    badgeClass: 'border border-teal-200 bg-teal-50 text-teal-700',
-  },
-  {
-    dotClass: 'bg-amber-500',
-    railClass: 'bg-amber-100',
-    fillClass: 'bg-amber-500',
-    badgeClass: 'app-badge app-badge--warning',
-  },
-  {
-    dotClass: 'bg-rose-500',
-    railClass: 'bg-rose-100',
-    fillClass: 'bg-rose-500',
-    badgeClass: 'app-badge app-badge--danger',
-  },
-]
+function formatDurationFromHours(value) {
+  const hours = Number(value || 0)
+  if (!Number.isFinite(hours) || hours <= 0) return '0 phút'
 
+  const totalMinutes = Math.max(Math.round(hours * 60), 1)
+  if (totalMinutes < 60) return `${totalMinutes} phút`
+
+  const wholeHours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (minutes === 0) return `${wholeHours} giờ`
+  return `${wholeHours} giờ ${minutes} phút`
+}
+
+const numberFormatter = new Intl.NumberFormat('vi-VN')
 const kpiCards = computed(() => [
   {
     key: 'total_ticket',
     label: 'Tổng Ticket',
     value: numberFormatter.format(Number(ticketSummary.value.total_ticket || 0)),
-    meta: 'Trong kỳ',
+    meta: trendLabel(ticketTrends.value.total_ticket),
     hint: 'Tổng số ticket phát sinh trong khoảng thời gian dashboard.',
-    textClass: 'text-[var(--info-text)]',
+    tone: 'blue',
+    icon: 'confirmation_number',
+    trend: trendClass(ticketTrends.value.total_ticket),
   },
   {
     key: 'avg_processing_time',
     label: 'TB Thời gian xử lý',
-    value: `${Number(ticketAvgProcessingTime.value.toFixed(1))} giờ`,
-    meta: 'Trên mỗi ticket',
+    value: formatDurationFromHours(ticketAvgProcessingTime.value),
+    meta: trendLabel(ticketTrends.value.avg_processing_time),
     hint: 'Thời gian xử lý trung bình tính trên mỗi ticket đã có dữ liệu xử lý.',
-    textClass: 'text-[var(--primary-strong)]',
+    tone: 'purple',
+    icon: 'schedule',
+    trend: trendClass(ticketTrends.value.avg_processing_time),
   },
   {
     key: 'in_progress',
     label: 'Đang xử lý',
     value: numberFormatter.format(Number(ticketSummary.value.in_progress || 0)),
-    meta: 'Cần theo dõi',
+    meta: trendLabel(ticketTrends.value.in_progress),
     hint: 'Số ticket đang được xử lý và cần theo dõi tiến độ.',
-    textClass: 'text-[var(--warning-text)]',
+    tone: 'orange',
+    icon: 'pending_actions',
+    trend: trendClass(ticketTrends.value.in_progress),
   },
   {
     key: 'qc_pass_rate',
     label: 'Tỉ lệ QC đạt',
     value: `${Number(qcSummary.value.passRate || 0)}%`,
-    meta: 'Mục tiêu 95%',
+    meta: trendLabel(ticketTrends.value.qc_pass_rate),
     hint: 'Tỷ lệ phiên QC đạt trong khoảng thời gian dashboard.',
-    textClass: 'text-[var(--success-text)]',
+    tone: 'green',
+    icon: 'check_circle',
+    trend: trendClass(ticketTrends.value.qc_pass_rate),
   },
   {
     key: 'overdue',
-    label: 'Cảnh báo quá hạn',
-    value: numberFormatter.format(Number(ticketSummary.value.overdue || 0)),
-    meta: 'Sát SLA',
+    label: 'Ticket sắp quá hạn',
+    value: numberFormatter.format(Number(ticketSummary.value.due_soon || 0)),
+    meta: trendLabel(ticketTrends.value.due_soon),
     hint: 'Số ticket quá hạn hoặc có nguy cơ trễ SLA.',
-    textClass: 'text-[var(--danger-text)]',
+    tone: 'red',
+    icon: 'alarm',
+    trend: trendClass(ticketTrends.value.due_soon),
   },
 ])
+
+function trendLabel(trend) {
+  if (!trend || typeof trend !== 'object') return 'So với kỳ trước'
+  const direction = trend.direction === 'up' ? '↑' : trend.direction === 'down' ? '↓' : '→'
+  const percent = Number(trend.percent || 0).toFixed(1)
+  return `${direction} ${percent}% so với kỳ trước`
+}
+
+function trendClass(trend) {
+  if (!trend || trend.sentiment === 'neutral') return 'neutral'
+  if (trend.sentiment === 'good') return trend.direction === 'down' ? 'down-good' : 'up-good'
+  return trend.direction === 'down' ? 'down-bad' : 'up-bad'
+}
+
+const statusToneMap = {
+  new: { label: 'Mới', color: '#3b82f6', badge: 'dash-status--new' },
+  in_progress: { label: 'Đang xử lý', color: '#fb923c', badge: 'dash-status--progress' },
+  resolved: { label: 'Đã xong', color: '#22c55e', badge: 'dash-status--resolved' },
+  due_soon: { label: 'Sắp quá hạn', color: '#f59e0b', badge: 'dash-status--due-soon' },
+  overdue: { label: 'Đã quá hạn', color: '#ef4444', badge: 'dash-status--overdue' },
+}
+
+const ticketStatusRows = computed(() => {
+  const total = Number(ticketSummary.value.total_ticket || 0)
+  const source = Array.isArray(ticketStatusData.value) ? ticketStatusData.value : []
+  const byKey = source.reduce((acc, item) => {
+    const key = normalizeStatus(item?.key || item?.status)
+    acc[key] = Number(item?.value || item?.count || 0)
+    return acc
+  }, {})
+  const fallback = {
+    new: byKey.new || 0,
+    in_progress: byKey.in_progress ?? Number(ticketSummary.value.in_progress || 0),
+    resolved: byKey.resolved ?? Number(ticketSummary.value.resolved || 0),
+    due_soon: Number(ticketSummary.value.due_soon || 0),
+    overdue: Number(ticketSummary.value.overdue || 0),
+  }
+
+  return ['new', 'in_progress', 'resolved', 'due_soon', 'overdue'].map((key) => {
+    const value = Number(fallback[key] || 0)
+    const percent = total > 0 ? Number(((value / total) * 100).toFixed(1)) : 0
+    return {
+      key,
+      value,
+      percent,
+      ...statusToneMap[key],
+    }
+  })
+})
+
+const statusDonutSeries = computed(() => ticketStatusRows.value.map((item) => item.value))
+const statusDonutOptions = computed(() => ({
+  chart: { type: 'donut', toolbar: { show: false }, fontFamily: 'inherit' },
+  labels: ticketStatusRows.value.map((item) => item.label),
+  colors: ticketStatusRows.value.map((item) => item.color),
+  dataLabels: { enabled: false },
+  legend: { show: false },
+  stroke: { width: 0 },
+  plotOptions: {
+    pie: {
+      donut: {
+        size: '68%',
+        labels: {
+          show: true,
+          name: { show: true, offsetY: 16, formatter: () => 'Tổng ticket' },
+          value: {
+            show: true,
+            offsetY: -10,
+            fontSize: '26px',
+            fontWeight: 800,
+            formatter: () => numberFormatter.format(Number(ticketSummary.value.total_ticket || 0)),
+          },
+          total: { show: false },
+        },
+      },
+    },
+  },
+  tooltip: { y: { formatter: (value) => numberFormatter.format(Number(value || 0)) } },
+}))
+
+const lastUpdatedLabel = computed(() => new Intl.DateTimeFormat('vi-VN', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+}).format(new Date()))
 
 function showKpiTooltip(event, text) {
   const rect = event.currentTarget?.getBoundingClientRect()
@@ -200,74 +295,6 @@ function showKpiTooltip(event, text) {
 function hideKpiTooltip() {
   kpiTooltip.visible = false
 }
-
-const sparklineCommonOptions = {
-  chart: { type: 'area', sparkline: { enabled: true }, animations: { enabled: false } },
-  stroke: { curve: 'smooth', width: 2 },
-  fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.3, opacityTo: 0, stops: [0, 100] } },
-  tooltip: { fixed: { enabled: false }, x: { show: false }, y: { title: { formatter: () => '' } }, marker: { show: false } }
-}
-
-const sparklineData = computed(() => {
-  const mult = chartMultiplier.value === 0 ? 0.1 : chartMultiplier.value
-  return {
-    total_ticket: {
-      series: [{ data: [12, 14, 18, 15, 21, 19, 25].map(v => Math.round(v * mult)) }],
-      options: { ...sparklineCommonOptions, colors: ['#1d7de2'] }
-    },
-    avg_processing_time: {
-      series: [{ data: [2.5, 2.3, 2.6, 2.4, 2.1, 1.9, 2.2].map(v => Number((v * mult).toFixed(1))) }],
-      options: { ...sparklineCommonOptions, colors: ['#0f6adf'] }
-    },
-    in_progress: {
-      series: [{ data: [5, 7, 4, 8, 6, 9, 5].map(v => Math.round(v * mult)) }],
-      options: { ...sparklineCommonOptions, colors: ['#d97706'] }
-    },
-    qc_pass_rate: {
-      series: [{ data: [92, 94, 91, 95, 96, 94, 97].map(v => Math.min(100, Math.round(v + (mult - 1) * 5))) }],
-      options: { ...sparklineCommonOptions, colors: ['#16a34a'] }
-    },
-    overdue: {
-      series: [{ data: [2, 3, 1, 4, 2, 5, 1].map(v => Math.round(v * mult)) }],
-      options: { ...sparklineCommonOptions, colors: ['#e11d48'] }
-    }
-  }
-})
-
-const topStoreStats = computed(() => {
-  const storesData = Array.isArray(ticketTopStores.value) ? ticketTopStores.value : []
-  const maxCount = storesData.reduce((max, item) => Math.max(max, Number(item?.count || 0)), 0)
-
-  return storesData.slice(0, 4).map((item, index) => {
-    const count = Number(item?.count || 0)
-    const share = maxCount > 0 ? Math.round((count / maxCount) * 100) : 0
-    const palette = storeTonePalette[index % storeTonePalette.length]
-    return {
-      name: item?.name || `Store #${item?.store_id || '--'}`,
-      count,
-      percent: maxCount > 0 ? Math.max(Math.round((count / maxCount) * 100), 6) : 0,
-      shareLabel: share > 0 ? `${share}% so với nhóm dẫn đầu` : 'Chưa có phát sinh',
-      ...palette,
-    }
-  })
-})
-
-const chartPeriod = computed(() => {
-  const f = new Date(dashboardRange.value.from)
-  const t = new Date(dashboardRange.value.to)
-  const diff = (t - f) / (1000 * 3600 * 24)
-  if (diff <= 8) return 'week'
-  if (diff > 40) return 'year'
-  return 'month'
-})
-
-const dashboardWidgets = ref([
-  { id: 'kpi_table', type: 'kpi_table', span: 12, minSpan: 12 },
-  { id: 'main_chart', type: 'main_chart', span: 12, minSpan: 6 },
-  { id: 'top_ticket_chart', type: 'top_ticket_chart', span: 6, minSpan: 6 },
-  { id: 'top_qc_chart', type: 'top_qc_chart', span: 6, minSpan: 6 },
-  { id: 'recent_tickets', type: 'recent_tickets', span: 12, minSpan: 6 }
-])
 
 const chartStoreFilter = ref([])
 
@@ -341,12 +368,14 @@ const commonChartOptions = {
     toolbar: { show: false },
     background: 'transparent',
     fontFamily: 'inherit',
-    zoom: { enabled: false }
+    zoom: { enabled: false },
+    parentHeightOffset: 0,
+    offsetY: 0,
   },
   theme: { mode: 'light' },
   grid: {
-    borderColor: 'rgba(29, 125, 226, 0.14)',
-    strokeDashArray: 4,
+    borderColor: 'rgba(148, 163, 184, 0.22)',
+    strokeDashArray: 0,
   },
   dataLabels: { enabled: false },
   tooltip: {
@@ -357,34 +386,73 @@ const commonChartOptions = {
 
 const ticketChartOptions = computed(() => ({
   ...commonChartOptions,
-  chart: { ...commonChartOptions.chart, type: 'line' },
-  stroke: { width: [0, 4], curve: 'smooth' },
-  colors: ['#1d7de2', '#33b5ff'],
+  chart: { ...commonChartOptions.chart, type: 'line', stacked: false },
+  stroke: { width: [0, 3], curve: 'smooth' },
+  colors: ['#3b82f6', '#ff8a00'],
   fill: {
-    type: ['solid', 'gradient'],
-    gradient: {
-      shade: 'light',
-      type: 'vertical',
-      opacityFrom: 1,
-      opacityTo: 0.8,
-    }
+    type: ['solid', 'solid'],
+    opacity: [1, 1],
+  },
+  plotOptions: {
+    bar: {
+      columnWidth: '30%',
+      borderRadius: 3,
+      borderRadiusApplication: 'end',
+    },
+  },
+  markers: {
+    size: [0, 5],
+    strokeWidth: 3,
+    strokeColors: '#ffffff',
+    colors: ['#3b82f6', '#ffffff'],
+    hover: { size: 6 },
   },
   xaxis: {
     categories: ticketChartData.value.categories,
-    labels: { style: { colors: '#557399', fontWeight: 600 } },
+    labels: { style: { colors: '#64748b', fontSize: '11px', fontWeight: 500 } },
     axisBorder: { show: false },
     axisTicks: { show: false }
   },
   yaxis: [
-    { title: { text: 'Số Yêu cầu (Ticket)', style: { color: '#557399', fontWeight: 600 } }, labels: { style: { colors: '#557399' } } },
-    { opposite: true, title: { text: 'Thời gian IT Xử lý (giờ)', style: { color: '#557399', fontWeight: 600 } }, labels: { style: { colors: '#557399' } } }
+    {
+      min: 0,
+      title: { text: undefined },
+      labels: { style: { colors: '#64748b', fontSize: '11px', fontWeight: 500 } },
+    },
+    {
+      min: 0,
+      opposite: true,
+      title: { text: undefined },
+      labels: {
+        formatter: (value) => formatDurationFromHours(value),
+        style: { colors: '#64748b', fontSize: '11px', fontWeight: 500 }
+      },
+    }
   ],
-  legend: { position: 'top', horizontalAlign: 'right', fontWeight: 600 }
+  tooltip: {
+    ...commonChartOptions.tooltip,
+    y: {
+      formatter: (value, { seriesIndex }) => {
+        if (seriesIndex === 1) return formatDurationFromHours(value)
+        return numberFormatter.format(Number(value || 0))
+      },
+    },
+  },
+  legend: {
+    position: 'top',
+    horizontalAlign: 'left',
+    offsetY: 0,
+    fontSize: '12px',
+    fontWeight: 500,
+    labels: { colors: '#334155' },
+    markers: { width: 10, height: 10, radius: 999, strokeWidth: 0 },
+    itemMargin: { horizontal: 14, vertical: 0 },
+  },
 }))
 
 const ticketChartSeries = computed(() => [
-  { name: 'Số Yêu cầu (Ticket)', type: 'column', data: ticketChartData.value.tickets },
-  { name: 'Thời gian IT Xử lý (giờ)', type: 'line', data: ticketChartData.value.supportTime }
+  { name: 'Số lượng ticket', type: 'column', data: ticketChartData.value.tickets },
+  { name: 'TB thời gian xử lý', type: 'line', data: ticketChartData.value.supportTime }
 ])
 
 const hasTicketTrendData = computed(() => (
@@ -392,49 +460,78 @@ const hasTicketTrendData = computed(() => (
   ticketChartRawData.value.tickets.some((value) => Number(value || 0) > 0)
 ))
 
-const topStoreTicketBarOptions = computed(() => ({
-  ...commonChartOptions,
-  chart: { ...commonChartOptions.chart, type: 'bar' },
-  plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true } },
-  colors: ['#1d7de2', '#33b5ff', '#0d9488', '#e11d48', '#d97706'],
-  dataLabels: { enabled: true, style: { colors: ['#fff'] } },
-  xaxis: { categories: ticketTopStores.value.map(s => s.name || `Store #${s.store_id}`), labels: { trim: true, style: { fontWeight: 600 } } },
-  legend: { show: false }
-}))
-
-const topStoreTicketBarSeries = computed(() => [
-  { name: 'Số yêu cầu', data: ticketTopStores.value.map(s => s.count || 0) }
-])
-
-const hasTopTicketStoreData = computed(() => ticketTopStores.value.some((store) => Number(store?.count || 0) > 0))
-
-const topStoreQcBarOptions = computed(() => ({
-  ...commonChartOptions,
-  chart: { ...commonChartOptions.chart, type: 'bar' },
-  plotOptions: { bar: { horizontal: true, borderRadius: 4, distributed: true } },
-  colors: ['#16a34a', '#22c55e', '#86efac', '#bbf7d0'],
-  dataLabels: { enabled: true, style: { colors: ['#064E3B'] } },
-  xaxis: { categories: qcTopStoresData.value.map(s => s.storeName || s.name || `Store #${s.storeId || s.store_id}`), max: 100, labels: { trim: true, style: { fontWeight: 600 } } },
-  legend: { show: false }
-}))
-
-const topStoreQcBarSeries = computed(() => [
-  { name: 'Tỉ lệ đạt (%)', data: qcTopStoresData.value.map(s => s.passRate || 0) }
-])
-
-const hasTopQcStoreData = computed(() => qcTopStoresData.value.some((store) => Number(store?.passRate || 0) > 0))
-
-async function loadDashboard() {
-  loading.value = true
-  errorMessage.value = ''
-
+function resolveDashboardStoreFilters() {
   const storeIds = chartStoreFilter.value
     .map((id) => Number(id || 0))
     .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
 
   const isAllSelected = stores.value.length > 0 && storeIds.length === stores.value.length
-  const apiStoreIdsStr = isAllSelected ? undefined : storeIds.join(',') || undefined
-  const apiStoreIdsArr = isAllSelected ? undefined : storeIds
+  return {
+    apiStoreIdsStr: isAllSelected ? undefined : storeIds.join(',') || undefined,
+    apiStoreIdsArr: isAllSelected ? undefined : storeIds,
+  }
+}
+
+function applyTicketOverviewPayload(ticketPayload = {}) {
+  ticketSummary.value = {
+    total_ticket: Number(ticketPayload?.summary?.total_ticket || 0),
+    in_progress: Number(ticketPayload?.summary?.in_progress || 0),
+    resolved: Number(ticketPayload?.summary?.resolved || 0),
+    due_soon: Number(ticketPayload?.summary?.due_soon || 0),
+    overdue: Number(ticketPayload?.summary?.overdue || 0),
+  }
+  ticketAvgProcessingTime.value = Number(ticketPayload?.summary?.avg_processing_time || 0)
+  ticketChartRawData.value = ticketPayload?.chart_data || { categories: [], tickets: [], supportTime: [] }
+  ticketTopStores.value = Array.isArray(ticketPayload?.top_stores) ? ticketPayload.top_stores : []
+  ticketStatusData.value = Array.isArray(ticketPayload?.status) ? ticketPayload.status : []
+  ticketTrends.value = ticketPayload?.trends && typeof ticketPayload.trends === 'object' ? ticketPayload.trends : {}
+}
+
+function resetTicketOverview() {
+  ticketSummary.value = {
+    total_ticket: 0,
+    in_progress: 0,
+    resolved: 0,
+    due_soon: 0,
+    overdue: 0,
+  }
+  ticketTopStores.value = []
+  ticketStatusData.value = []
+  ticketTrends.value = {}
+  ticketAvgProcessingTime.value = 0
+  ticketChartRawData.value = { categories: [], tickets: [], supportTime: [] }
+}
+
+async function loadTicketOverview({ showLoading = false } = {}) {
+  if (showLoading) loading.value = true
+  errorMessage.value = ''
+
+  const { apiStoreIdsStr } = resolveDashboardStoreFilters()
+
+  try {
+    const result = await getDashboardOverview({
+      date_from: dashboardRange.value.from,
+      date_to: dashboardRange.value.to,
+      store_ids: apiStoreIdsStr,
+      top_stores_limit: 8,
+      activity_limit: 8,
+      chart_group_by: chartGroupBy.value,
+    })
+    const ticketPayload = result?.data || result || {}
+    applyTicketOverviewPayload(ticketPayload)
+  } catch (error) {
+    resetTicketOverview()
+    errorMessage.value = error?.response?.data?.message || error?.message || 'Không thể tải dữ liệu ticket.'
+  } finally {
+    if (showLoading) loading.value = false
+  }
+}
+
+async function loadDashboard() {
+  loading.value = true
+  errorMessage.value = ''
+
+  const { apiStoreIdsStr, apiStoreIdsArr } = resolveDashboardStoreFilters()
 
   const [ticketOverviewResult, qcOverviewResult, recentTicketsResult] = await Promise.allSettled([
     getDashboardOverview({
@@ -443,6 +540,7 @@ async function loadDashboard() {
       store_ids: apiStoreIdsStr,
       top_stores_limit: 8,
       activity_limit: 8,
+      chart_group_by: chartGroupBy.value,
     }),
     getQcStoresOverviewApi({
       from: dashboardRange.value.from,
@@ -462,25 +560,9 @@ async function loadDashboard() {
 
   if (ticketOverviewResult.status === 'fulfilled') {
     const ticketPayload = ticketOverviewResult.value?.data || ticketOverviewResult.value || {}
-    ticketSummary.value = {
-      total_ticket: Number(ticketPayload?.summary?.total_ticket || 0),
-      in_progress: Number(ticketPayload?.summary?.in_progress || 0),
-      resolved: Number(ticketPayload?.summary?.resolved || 0),
-      overdue: Number(ticketPayload?.summary?.overdue || 0),
-    }
-    ticketAvgProcessingTime.value = Number(ticketPayload?.summary?.avg_processing_time || 0)
-    ticketChartRawData.value = ticketPayload?.chart_data || { categories: [], tickets: [], supportTime: [] }
-    ticketTopStores.value = Array.isArray(ticketPayload?.top_stores) ? ticketPayload.top_stores : []
+    applyTicketOverviewPayload(ticketPayload)
   } else {
-    ticketSummary.value = {
-      total_ticket: 0,
-      in_progress: 0,
-      resolved: 0,
-      overdue: 0,
-    }
-    ticketTopStores.value = []
-    ticketAvgProcessingTime.value = 0
-    ticketChartRawData.value = { categories: [], tickets: [], supportTime: [] }
+    resetTicketOverview()
     errorMessage.value = ticketOverviewResult.reason?.response?.data?.message || ticketOverviewResult.reason?.message || 'Không thể tải dữ liệu ticket.'
   }
 
@@ -495,8 +577,6 @@ async function loadDashboard() {
       avgScoreRate: Number(remoteSummary.avgScoreRate || 0),
       passRate: Number(remoteSummary.passRate || 0),
     }
-    
-    // Sort logic to take top 5 QC stores with highest passRate
     const storeStats = Array.isArray(qcOverviewResult.value?.data?.storeStats) ? qcOverviewResult.value.data.storeStats : []
     qcTopStoresData.value = [...storeStats].sort((a,b) => b.passRate - a.passRate).slice(0, 5)
   } else {
@@ -539,272 +619,196 @@ watch(
   },
   { immediate: true, deep: true }
 )
+
+watch(chartGroupBy, () => {
+  loadTicketOverview({ showLoading: true })
+})
 </script>
 
 <template>
-  <div class="app-page page-stack">
-    <p v-if="errorMessage" class="app-state-banner text-xs">
-      {{ errorMessage }}
-    </p>
-
-    <section class="app-section app-section--padded">
-      <div class="app-page-header tablet:items-center">
-        <div class="app-page-heading">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">Dashboard</p>
-          <h1 class="app-page-title mt-1">Tổng quan vận hành cửa hàng</h1>
-          <p class="app-page-subtitle">
-            Theo dõi ticket, thời gian xử lý và chất lượng QC theo cửa hàng trong kỳ đã chọn.
-          </p>
-        </div>
-
-        <div class="app-toolbar tablet:justify-end">
-          <StoreFilterButton v-model="chartStoreFilter" />
-        </div>
-      </div>
-    </section>
-
-    <div v-if="loading" class="grid gap-3 tablet:grid-cols-3">
-      <div v-for="item in 3" :key="item" class="h-2 rounded-full bg-[var(--primary-softer)]">
-        <span class="block h-full w-1/2 animate-pulse rounded-full bg-[var(--primary-soft)]"></span>
-      </div>
+  <div class="dashboard-shell">
+    <div v-if="errorMessage" class="dashboard-alert">
+      <span class="material-symbols-outlined">error</span>
+      <span>{{ errorMessage }}</span>
     </div>
 
-    <!-- CÁC WIDGETS CÓ THỂ KÉO THẢ, ĐỔI CHIỀU, THU PHÓNG BẰNG CSS GRID -->
-    <draggable 
-      v-model="dashboardWidgets" 
-      item-key="id" 
-      handle=".drag-handle" 
-      class="app-dashboard-grid"
-      ghost-class="sortable-ghost-widget"
-      drag-class="cursor-grabbing"
-      :animation="200"
-    >
-      <template #item="{ element }">
-         <div 
-           class="relative group transition-all duration-300 ease-in-out h-full"
-           :class="{
-             'col-span-12': element.span === 12,
-             'col-span-12 tablet:col-span-6': element.span === 6,
-           }"
-         >
-           <!-- Control Toolbox -->
-           <div class="drag-handle absolute -left-2 tablet:-left-4 top-1/2 -translate-y-1/2 cursor-grab text-[var(--text-muted)]/40 opacity-0 transition-opacity hover:text-[var(--primary)] group-hover:opacity-100 z-50 p-2 hidden tablet:block active:cursor-grabbing">
-             <span class="material-symbols-outlined text-[28px]">drag_indicator</span>
-           </div>
+    <section class="dashboard-kpis" :class="{ 'is-loading': loading }">
+      <article
+        v-for="card in kpiCards"
+        :key="card.key"
+        class="dashboard-kpi-card"
+        :class="`dashboard-kpi-card--${card.tone}`"
+        @mouseenter="showKpiTooltip($event, card.hint)"
+        @mouseleave="hideKpiTooltip"
+      >
+        <div class="dashboard-kpi-content">
+          <div class="dashboard-kpi-heading">
+            <span class="dashboard-kpi-icon">
+              <span class="material-symbols-outlined">{{ card.icon }}</span>
+            </span>
+            <p>{{ card.label }}</p>
+          </div>
+          <strong>{{ card.value }}</strong>
+          <span :class="['dashboard-kpi-trend', `dashboard-kpi-trend--${card.trend}`]">{{ card.meta }}</span>
+        </div>
+      </article>
+    </section>
 
-           <div v-if="element.minSpan !== 12" class="absolute right-4 top-3 z-[60] flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 bg-white/80 rounded-lg p-1 backdrop-blur-md shadow-sm border border-white/60">
-             <button title="50% Chiều rộng" @click="element.span = 6" :class="element.span === 6 ? 'text-[var(--primary-strong)] bg-[var(--primary-softer)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'" class="px-2 py-0.5 text-xs font-bold rounded">50%</button>
-             <button title="100% Chiều rộng" @click="element.span = 12" :class="element.span === 12 ? 'text-[var(--primary-strong)] bg-[var(--primary-softer)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'" class="px-2 py-0.5 text-xs font-bold rounded">100%</button>
-           </div>
-           
-           <!-- WIDGET 1: KPI TABLE -->
-           <template v-if="element.type === 'kpi_table'">
-              <div class="app-dashboard-card">
-                <div class="app-dashboard-card__header">
-                   <h3 class="app-dashboard-card__title truncate">Chỉ số Thống kê Tổng quan</h3>
-                </div>
-                <div class="app-dashboard-card__body app-table-scroll overflow-visible">
-                  <table class="w-full min-w-[600px] text-left text-sm text-[var(--text-secondary)] h-full">
-                    <thead class="border-b border-[var(--stroke)] bg-[var(--surface-muted)] text-xs uppercase text-[var(--text-secondary)]">
-                      <tr>
-                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-[var(--text-secondary)]">Chỉ số thống kê</th>
-                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-[var(--text-secondary)] text-right">Giá trị hiện tại</th>
-                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-[var(--text-secondary)]">Ghi chú</th>
-                        <th scope="col" class="px-6 py-4 font-black tracking-wider text-[var(--text-secondary)] text-center w-[180px] pc:w-[250px]">Biến động</th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-white/40">
-                      <tr v-for="card in kpiCards" :key="card.key" class="transition-colors hover:bg-white/50">
-                        <td class="px-6 py-3">
-                          <div class="flex items-center gap-2">
-                            <span class="font-bold text-[var(--text-primary)]">{{ card.label }}</span>
-                            <span
-                              class="app-metric-card__hint inline-flex items-center"
-                              @mouseenter="showKpiTooltip($event, card.hint)"
-                              @mouseleave="hideKpiTooltip"
-                              @focusin="showKpiTooltip($event, card.hint)"
-                              @focusout="hideKpiTooltip"
-                            >
-                              <span class="material-symbols-outlined app-metric-card__hint-icon text-[var(--text-secondary)]/70" tabindex="0" aria-hidden="true">help</span>
-                            </span>
-                          </div>
-                        </td>
-                        <td class="px-6 py-3 whitespace-nowrap text-right">
-                          <span class="text-[18px] font-black tracking-tight" :class="card.textClass">{{ card.value }}</span>
-                        </td>
-                        <td class="px-6 py-3">
-                          <span class="app-badge rounded-full border border-white/50 bg-white/50 px-2.5 py-1 text-[11px] font-bold tracking-wider uppercase shadow-sm backdrop-blur-md" :class="card.textClass">
-                            {{ card.meta }}
-                          </span>
-                        </td>
-                        <td class="px-6 py-1 w-[180px] pc:w-[250px]">
-                           <div class="mx-auto h-12 w-[160px] pc:w-[220px] opacity-80 mix-blend-multiply pointer-events-none">
-                             <VueApexCharts
-                                type="area"
-                                height="100%"
-                                :options="sparklineData[card.key].options"
-                                :series="sparklineData[card.key].series"
-                             />
-                           </div>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-           </template>
+    <section class="dashboard-main-grid">
+      <article class="dashboard-panel dashboard-panel--chart">
+        <div class="dashboard-panel-header">
+          <h2>Ticket theo thời gian</h2>
+          <label class="dashboard-chart-period">
+            <span class="sr-only">Chọn kiểu gom nhóm biểu đồ</span>
+            <select v-model="chartGroupBy" :aria-label="chartGroupLabel">
+              <option v-for="option in chartGroupOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+            <span class="material-symbols-outlined">expand_more</span>
+          </label>
+        </div>
+        <div class="dashboard-chart-wrap">
+          <VueApexCharts
+            v-if="isMounted && hasTicketTrendData"
+            height="100%"
+            :options="ticketChartOptions"
+            :series="ticketChartSeries"
+          />
+          <div v-else class="dashboard-empty-state">
+            <span class="material-symbols-outlined">bar_chart</span>
+            <p>Chưa có dữ liệu ticket theo thời gian.</p>
+          </div>
+        </div>
+      </article>
 
-           <!-- WIDGET 2: MAIN CHART -->
-           <template v-else-if="element.type === 'main_chart'">
-              <article class="app-dashboard-card p-5 tablet:p-6">
-                <div class="pointer-events-none absolute inset-0 -z-10">
-                  <div class="absolute -left-20 -top-20 h-48 w-48 rounded-full bg-blue-300/20 blur-3xl"></div>
-                  <div class="absolute -bottom-10 -right-10 h-32 w-32 rounded-full bg-sky-300/20 blur-3xl"></div>
-                </div>
-                <div class="mb-4 pr-20">
-                   <h3 class="app-dashboard-card__title truncate">Tần suất Báo lỗi (Ticket) & Thời gian IT Xử lý</h3>
-                </div>
-                <div class="app-dashboard-card__body -ml-4 -mt-2">
-                   <VueApexCharts
-                     v-if="hasTicketTrendData"
-                     type="line"
-                     height="300"
-                     :options="ticketChartOptions"
-                     :series="ticketChartSeries"
-                     class="w-full"
-                   />
-                   <div v-else class="app-state-panel--compact flex min-h-[300px] items-center justify-center">
-                     <div class="app-state-stack">
-                       <div class="app-state-icon mx-auto"><span class="material-symbols-outlined">query_stats</span></div>
-                       <p class="app-state-title">Chưa có dữ liệu xu hướng</p>
-                       <p class="app-state-body">Thử đổi khoảng ngày hoặc bộ lọc cửa hàng để xem biểu đồ.</p>
-                     </div>
-                   </div>
-                </div>
-              </article>
-           </template>
+      <article class="dashboard-panel">
+        <div class="dashboard-panel-header">
+          <h2>Top cửa hàng theo ticket</h2>
+        </div>
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cửa hàng</th>
+                <th>Số ticket</th>
+                <th>TB xử lý</th>
+              </tr>
+            </thead>
+            <tbody v-if="ticketTopStores.length">
+              <tr v-for="(store, index) in ticketTopStores.slice(0, 5)" :key="store.store_id || store.name || index">
+                <td>{{ index + 1 }}</td>
+                <td class="dashboard-store-name" :title="store.name || storeLabel(store)">{{ store.name || storeLabel(store) }}</td>
+                <td>{{ numberFormatter.format(Number(store.count || 0)) }}</td>
+                <td>{{ formatDurationFromHours(store.avgSupportTime) }}</td>
+              </tr>
+            </tbody>
+            <tbody v-else>
+              <tr><td colspan="4" class="dashboard-table-empty">Chưa có dữ liệu cửa hàng.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <RouterLink class="dashboard-link" to="/ticket">Xem tất cả <span class="material-symbols-outlined">arrow_forward</span></RouterLink>
+      </article>
 
-           <!-- WIDGET 3: TOP TICKET BAR CHART -->
-           <template v-else-if="element.type === 'top_ticket_chart'">
-              <article class="app-dashboard-card p-5 tablet:p-6">
-                <div class="pointer-events-none absolute inset-0 -z-10">
-                  <div class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-blue-300/20 blur-3xl"></div>
-                  <div class="absolute -left-12 -bottom-12 h-40 w-40 rounded-full bg-violet-300/20 blur-3xl"></div>
-                </div>
-                <div class="mb-4 pr-20">
-                   <h3 class="app-dashboard-card__title truncate">Top Cửa hàng Yêu cầu Hỗ trợ</h3>
-                </div>
-                <div class="app-dashboard-card__body -ml-4 -mt-2">
-                   <VueApexCharts
-                     v-if="hasTopTicketStoreData"
-                     type="bar"
-                     height="250"
-                     :options="topStoreTicketBarOptions"
-                     :series="topStoreTicketBarSeries"
-                     class="w-full"
-                   />
-                   <div v-else class="app-state-panel--compact flex min-h-[250px] items-center justify-center">
-                     <div class="app-state-stack">
-                       <div class="app-state-icon mx-auto"><span class="material-symbols-outlined">storefront</span></div>
-                       <p class="app-state-title">Chưa có cửa hàng phát sinh ticket</p>
-                       <p class="app-state-body">Dữ liệu top cửa hàng sẽ hiển thị khi có ticket trong kỳ.</p>
-                     </div>
-                   </div>
-                </div>
-              </article>
-           </template>
+      <article class="dashboard-panel">
+        <div class="dashboard-panel-header">
+          <h2>Top cửa hàng theo QC</h2>
+        </div>
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Cửa hàng</th>
+                <th>Tỉ lệ QC đạt</th>
+                <th>Số phiên QC</th>
+              </tr>
+            </thead>
+            <tbody v-if="qcTopStoresData.length">
+              <tr v-for="(store, index) in qcTopStoresData.slice(0, 5)" :key="store.storeId || store.store_id || store.name || index">
+                <td>{{ index + 1 }}</td>
+                <td class="dashboard-store-name" :title="storeLabel(store)">{{ storeLabel(store) }}</td>
+                <td>{{ Number(store.passRate || 0).toFixed(1) }}%</td>
+                <td>{{ numberFormatter.format(Number(store.totalSessions || store.sessionCount || 0)) }}</td>
+              </tr>
+            </tbody>
+            <tbody v-else>
+              <tr><td colspan="4" class="dashboard-table-empty">Chưa có dữ liệu QC.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <RouterLink class="dashboard-link" to="/qc">Xem tất cả <span class="material-symbols-outlined">arrow_forward</span></RouterLink>
+      </article>
+    </section>
 
-           <!-- WIDGET 4: TOP QC BAR CHART -->
-           <template v-else-if="element.type === 'top_qc_chart'">
-              <article class="app-dashboard-card p-5 tablet:p-6">
-                <div class="pointer-events-none absolute inset-0 -z-10">
-                  <div class="absolute left-0 top-0 h-40 w-40 rounded-full bg-emerald-300/20 blur-3xl"></div>
-                  <div class="absolute bottom-0 right-0 h-40 w-40 rounded-full bg-teal-300/20 blur-3xl"></div>
-                </div>
-                <div class="mb-4 pr-20">
-                   <h3 class="app-dashboard-card__title truncate">Xếp hạng Điểm QC Tốt nhất</h3>
-                </div>
-                <div class="app-dashboard-card__body -ml-4 -mt-2">
-                   <VueApexCharts
-                     v-if="hasTopQcStoreData"
-                     type="bar"
-                     height="250"
-                     :options="topStoreQcBarOptions"
-                     :series="topStoreQcBarSeries"
-                     class="w-full"
-                   />
-                   <div v-else class="app-state-panel--compact flex min-h-[250px] items-center justify-center">
-                     <div class="app-state-stack">
-                       <div class="app-state-icon mx-auto"><span class="material-symbols-outlined">verified</span></div>
-                       <p class="app-state-title">Chưa có dữ liệu QC</p>
-                       <p class="app-state-body">Top điểm QC sẽ xuất hiện khi có phiên QC trong kỳ.</p>
-                     </div>
-                   </div>
-                </div>
-              </article>
-           </template>
+    <section class="dashboard-bottom-grid">
+      <article class="dashboard-panel dashboard-panel--recent">
+        <div class="dashboard-panel-header">
+          <h2>Ticket gần đây</h2>
+        </div>
+        <div class="dashboard-table-wrap">
+          <table class="dashboard-table dashboard-table--recent">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Mã ticket</th>
+                <th>Tiêu đề</th>
+                <th>Cửa hàng</th>
+                <th>Trạng thái</th>
+                <th>Thời gian tạo</th>
+              </tr>
+            </thead>
+            <tbody v-if="recentTickets.length">
+              <tr v-for="(ticket, index) in recentTickets" :key="ticket.id">
+                <td>{{ index + 1 }}</td>
+                <td>{{ ticket.ticket_code || `TKT-${ticket.id}` }}</td>
+                <td>{{ ticket.title || 'Không có tiêu đề' }}</td>
+                <td class="dashboard-store-name" :title="storeDisplay(ticket)">{{ storeDisplay(ticket) }}</td>
+                <td><span class="dashboard-status-badge" :class="statusClass(ticket.status)">{{ statusLabel(ticket.status) }}</span></td>
+                <td>{{ formatRelativeTime(ticket.createdAt || ticket.created_at) }}</td>
+              </tr>
+            </tbody>
+            <tbody v-else>
+              <tr><td colspan="6" class="dashboard-table-empty">Chưa có ticket gần đây.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <RouterLink class="dashboard-link" to="/ticket">Xem tất cả ticket <span class="material-symbols-outlined">arrow_forward</span></RouterLink>
+      </article>
 
-           <!-- WIDGET 5: RECENT TICKETS -->
-           <template v-else-if="element.type === 'recent_tickets'">
-              <article class="app-dashboard-card">
-                <div class="app-dashboard-card__header">
-                  <div class="app-page-header tablet:items-center">
-                    <div class="app-page-heading">
-                      <h3 class="app-dashboard-card__title truncate">Ticket gần đây</h3>
-                      <p class="app-page-subtitle">Các yêu cầu mới nhất trong kỳ lọc hiện tại.</p>
-                    </div>
-                    <RouterLink
-                      to="/ticket"
-                      class="app-button-secondary inline-flex h-9 items-center justify-center rounded-lg px-3 text-sm font-semibold"
-                    >
-                      Xem tất cả
-                    </RouterLink>
-                  </div>
-                </div>
-
-                <div class="app-dashboard-card__body p-3 tablet:p-4">
-                  <div v-if="recentTickets.length" class="grid gap-3 tablet:grid-cols-2 pc:grid-cols-3">
-                    <RouterLink
-                      v-for="ticket in recentTickets"
-                      :key="ticket.id"
-                      :to="`/ticket/${ticket.id}`"
-                      class="group rounded-2xl border border-[var(--stroke)] bg-white p-4 transition hover:border-[var(--primary)] hover:bg-[var(--primary-softer)]"
-                    >
-                      <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0">
-                          <p class="truncate text-xs font-bold uppercase tracking-[0.16em] text-[var(--primary-strong)]">
-                            {{ ticket.ticket_code || `#${ticket.id}` }}
-                          </p>
-                          <h4 class="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-[var(--text-primary)] group-hover:text-[var(--primary-strong)]">
-                            {{ ticket.title || 'Không có tiêu đề' }}
-                          </h4>
-                        </div>
-                        <span class="app-badge shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="statusClass(ticket.status)">
-                          {{ statusLabel(ticket.status) }}
-                        </span>
-                      </div>
-
-                      <div class="mt-4 flex items-center justify-between gap-3 text-xs text-[var(--text-secondary)]">
-                        <span class="min-w-0 truncate">{{ storeDisplay(ticket) }}</span>
-                        <span class="shrink-0">{{ formatRelativeTime(ticket.createdAt || ticket.created_at) }}</span>
-                      </div>
-                    </RouterLink>
-                  </div>
-
-                  <div v-else class="app-state-panel--compact flex min-h-[180px] items-center justify-center">
-                    <div class="app-state-stack">
-                      <div class="app-state-icon mx-auto"><span class="material-symbols-outlined">confirmation_number</span></div>
-                      <p class="app-state-title">Chưa có ticket gần đây</p>
-                      <p class="app-state-body">Ticket mới trong kỳ sẽ xuất hiện tại đây để dễ theo dõi.</p>
-                    </div>
-                  </div>
-                </div>
-              </article>
-           </template>
-
-         </div>
-      </template>
-    </draggable>
+      <article class="dashboard-panel dashboard-panel--status">
+        <div class="dashboard-panel-header">
+          <h2>Tổng quan theo trạng thái</h2>
+        </div>
+        <div class="dashboard-status-content">
+          <div class="dashboard-donut">
+            <VueApexCharts
+              v-if="isMounted && statusDonutSeries.some((value) => Number(value || 0) > 0)"
+              height="210"
+              :options="statusDonutOptions"
+              :series="statusDonutSeries"
+            />
+            <div v-else class="dashboard-empty-state dashboard-empty-state--small">
+              <span class="material-symbols-outlined">donut_large</span>
+              <p>Chưa có dữ liệu trạng thái.</p>
+            </div>
+          </div>
+          <div class="dashboard-status-list">
+            <div v-for="item in ticketStatusRows" :key="item.key" class="dashboard-status-row">
+              <span class="dashboard-status-dot" :style="{ backgroundColor: item.color }"></span>
+              <span>{{ item.label }}</span>
+              <strong>{{ numberFormatter.format(item.value) }} ({{ item.percent }}%)</strong>
+            </div>
+          </div>
+        </div>
+        <div class="dashboard-updated">
+          <span class="material-symbols-outlined">schedule</span>
+          <span>Cập nhật: {{ lastUpdatedLabel }}</span>
+        </div>
+      </article>
+    </section>
 
     <Teleport to="body">
       <span
@@ -815,20 +819,412 @@ watch(
         {{ kpiTooltip.text }}
       </span>
     </Teleport>
-
   </div>
 </template>
 
 <style scoped>
-:deep(.sortable-ghost-widget) {
-  opacity: 0.5 !important;
-  border-radius: 32px !important;
-  overflow: hidden !important;
-  transform: scale(0.98) !important;
-  box-shadow: 0 0 0 2px #1d7de2 !important;
+.dashboard-shell {
+  min-height: 100%;
+  padding: 0.75rem 0.875rem;
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  scrollbar-width: none;
 }
 
-:deep(.app-dashboard-card) {
-  overflow: visible;
+.dashboard-shell::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--danger-border);
+  border-radius: 0.875rem;
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.dashboard-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.dashboard-kpis.is-loading {
+  opacity: 0.72;
+}
+
+.dashboard-kpi-card {
+  min-height: 5.1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--stroke);
+  border-radius: 0.875rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.dashboard-kpi-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 1.125rem;
+  display: grid;
+  place-items: center;
+}
+
+.dashboard-kpi-icon .material-symbols-outlined {
+  font-size: 1rem;
+  font-variation-settings: 'FILL' 0, 'wght' 600, 'GRAD' 0, 'opsz' 32;
+}
+
+.dashboard-kpi-content {
+  min-width: 0;
+}
+
+.dashboard-kpi-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dashboard-kpi-content p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-kpi-content strong {
+  display: block;
+  margin-top: 0.45rem;
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+
+.dashboard-kpi-trend {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.dashboard-kpi-trend--up-good,
+.dashboard-kpi-trend--down-good {
+  color: var(--success-text);
+}
+
+.dashboard-kpi-trend--up-bad,
+.dashboard-kpi-trend--down-bad {
+  color: var(--danger-text);
+}
+
+.dashboard-kpi-trend--neutral {
+  color: var(--text-secondary);
+}
+
+.dashboard-kpi-card--blue .dashboard-kpi-icon { color: var(--info-text); }
+.dashboard-kpi-card--purple .dashboard-kpi-icon { color: #7c3aed; }
+.dashboard-kpi-card--orange .dashboard-kpi-icon { color: var(--warning-text); }
+.dashboard-kpi-card--green .dashboard-kpi-icon { color: var(--success-text); }
+.dashboard-kpi-card--red .dashboard-kpi-icon { color: var(--danger-text); }
+
+.dashboard-main-grid,
+.dashboard-bottom-grid {
+  display: grid;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.dashboard-main-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.95fr) minmax(18rem, 0.95fr);
+  margin-bottom: 0.75rem;
+}
+
+.dashboard-bottom-grid {
+  grid-template-columns: minmax(0, 1.7fr) minmax(21rem, 1fr);
+}
+
+.dashboard-panel {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--stroke);
+  border-radius: 0.875rem;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  padding: 0.875rem;
+}
+
+.dashboard-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.625rem;
+}
+
+.dashboard-panel-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.dashboard-chart-period {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.95rem;
+  border: 1px solid var(--stroke);
+  border-radius: 0.625rem;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 500;
+  overflow: hidden;
+}
+
+.dashboard-chart-period select {
+  min-height: 1.95rem;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 1.85rem 0 0.625rem;
+  font: inherit;
+  outline: none;
+}
+
+.dashboard-chart-period .material-symbols-outlined {
+  pointer-events: none;
+  position: absolute;
+  right: 0.55rem;
+  font-size: 1rem;
+}
+
+.dashboard-chart-wrap {
+  flex: 1 1 auto;
+  min-height: 18.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-chart-wrap :deep(.vue-apexcharts),
+.dashboard-chart-wrap :deep(.apexcharts-canvas) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dashboard-table-wrap {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  max-height: 18.5rem;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.dashboard-table-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-primary);
+  font-size: 0.72rem;
+}
+
+.dashboard-table th {
+  padding: 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--stroke);
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.dashboard-table td {
+  padding: 0.5rem 0.4rem;
+  border-bottom: 1px solid var(--stroke);
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.dashboard-store-name {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.dashboard-table th:nth-child(1),
+.dashboard-table td:nth-child(1) {
+  width: 2rem;
+  color: var(--text-secondary);
+}
+
+.dashboard-table-empty {
+  height: 11.5rem;
+  text-align: center !important;
+  color: var(--text-muted) !important;
+}
+
+.dashboard-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  flex-shrink: 0;
+  color: var(--primary-strong);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.dashboard-link .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.dashboard-status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  padding: 0 0.4rem;
+  border-radius: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.dashboard-status-badge.app-badge--info { background: var(--info-bg); color: var(--info-text); }
+.dashboard-status-badge.app-badge--warning { background: var(--warning-bg); color: var(--warning-text); }
+.dashboard-status-badge.app-badge--success { background: var(--success-bg); color: var(--success-text); }
+.dashboard-status-badge.app-badge--neutral { background: var(--surface-muted); color: var(--text-secondary); }
+.dashboard-status-badge.app-badge--danger { background: var(--danger-bg); color: var(--danger-text); }
+
+.dashboard-status-content {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(11rem, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 13rem;
+}
+
+.dashboard-donut {
+  min-width: 0;
+}
+
+.dashboard-status-list {
+  display: grid;
+  gap: 0.625rem;
+}
+
+.dashboard-status-row {
+  display: grid;
+  grid-template-columns: 0.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.625rem;
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.dashboard-status-row strong {
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dashboard-status-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 999px;
+}
+
+.dashboard-updated {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.dashboard-updated .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.dashboard-empty-state {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.dashboard-empty-state .material-symbols-outlined {
+  font-size: 1.5rem;
+}
+
+.dashboard-empty-state--small {
+  min-height: 9rem;
+}
+
+@media (max-width: 64rem) {
+  .dashboard-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-main-grid,
+  .dashboard-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 48rem) {
+  .dashboard-shell {
+    padding: 0.75rem;
+  }
+
+  .dashboard-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-kpi-card {
+    min-height: 5.75rem;
+  }
+
+  .dashboard-status-content {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
