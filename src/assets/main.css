@@ -135,7 +135,14 @@ body.page-scroll-hidden::-webkit-scrollbar {
 }
 
 .app-page {
-  padding: 1rem;
+  min-height: 100%;
+  padding: 0.75rem 0.875rem;
+  background: var(--surface-muted);
+  scrollbar-width: none;
+}
+
+.app-page::-webkit-scrollbar {
+  display: none;
 }
 
 .page-stack > * + * {
@@ -299,7 +306,7 @@ body.page-scroll-hidden::-webkit-scrollbar {
 
 @media (min-width: 48rem) {
   .app-page {
-    padding: 1.25rem;
+    padding: 0.75rem 0.875rem;
   }
 
   .app-section-header {
@@ -328,7 +335,7 @@ body.page-scroll-hidden::-webkit-scrollbar {
 
 @media (min-width: 64rem) {
   .app-page {
-    padding: 1.5rem;
+    padding: 0.75rem 0.875rem;
   }
 
   .app-dashboard-grid {

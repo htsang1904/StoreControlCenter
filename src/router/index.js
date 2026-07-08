@@ -12,7 +12,7 @@ const router = createRouter({
                 {
                     path: '',
                     name: 'default',
-                    redirect: '/ticket'
+                    redirect: '/dashboard'
                 },
                 {
                     path: 'dashboard',

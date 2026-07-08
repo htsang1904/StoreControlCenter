@@ -12,7 +12,7 @@ router.beforeEach((to, from, next) => {
   const hasToken = Boolean(state.token)
 
   if (to.path === '/login' && hasToken) {
-      next('/ticket')
+      next('/dashboard')
       return
   }
 
@@ -25,7 +25,7 @@ router.beforeEach((to, from, next) => {
       if (Array.isArray(to.meta.roles) && to.meta.roles.length > 0) {
           const currentRole = String(state.userInfo?.role || '').toLowerCase()
           if (!currentRole || !to.meta.roles.includes(currentRole)) {
-              next('/ticket')
+              next('/dashboard')
               return
           }
       }

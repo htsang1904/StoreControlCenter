@@ -465,10 +465,9 @@ function resolveDashboardStoreFilters() {
     .map((id) => Number(id || 0))
     .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
 
-  const isAllSelected = stores.value.length > 0 && storeIds.length === stores.value.length
   return {
-    apiStoreIdsStr: isAllSelected ? undefined : storeIds.join(',') || undefined,
-    apiStoreIdsArr: isAllSelected ? undefined : storeIds,
+    apiStoreIdsStr: storeIds.join(',') || undefined,
+    apiStoreIdsArr: storeIds.length > 0 ? storeIds : undefined,
   }
 }
 
@@ -626,7 +625,7 @@ watch(chartGroupBy, () => {
 </script>
 
 <template>
-  <div class="dashboard-shell">
+  <div class="app-page dashboard-shell">
     <div v-if="errorMessage" class="dashboard-alert">
       <span class="material-symbols-outlined">error</span>
       <span>{{ errorMessage }}</span>
@@ -824,15 +823,7 @@ watch(chartGroupBy, () => {
 
 <style scoped>
 .dashboard-shell {
-  min-height: 100%;
-  padding: 0.75rem 0.875rem;
-  background: var(--surface-muted);
   color: var(--text-primary);
-  scrollbar-width: none;
-}
-
-.dashboard-shell::-webkit-scrollbar {
-  display: none;
 }
 
 .dashboard-alert {
@@ -1211,10 +1202,6 @@ watch(chartGroupBy, () => {
 }
 
 @media (max-width: 48rem) {
-  .dashboard-shell {
-    padding: 0.75rem;
-  }
-
   .dashboard-kpis {
     grid-template-columns: 1fr;
   }

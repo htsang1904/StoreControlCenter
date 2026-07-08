@@ -9,6 +9,19 @@ const state = reactive({
   initialized: false,
 })
 
+const syncAuthStateFromStorage = () => {
+    state.token = localStorage.getItem('token') || null
+    state.refreshToken = localStorage.getItem('refreshToken') || null
+}
+
+const clearAuthState = () => {
+    state.token = null
+    state.refreshToken = null
+    state.userInfo = null
+    localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
+}
+
 const normalizeStores = (user) => {
     if (!user || typeof user !== 'object') return []
 
@@ -52,12 +65,11 @@ export function useApp() {
                 throw new Error(result?.message || 'Đăng nhập vào hệ thống thất bại')
             }
 
-            state.token = accessToken
-            state.refreshToken = refreshToken
-            localStorage.setItem('token', state.token)
-            if (state.refreshToken) {
-                localStorage.setItem('refreshToken', state.refreshToken)
+            localStorage.setItem('token', accessToken)
+            if (refreshToken) {
+                localStorage.setItem('refreshToken', refreshToken)
             }
+            syncAuthStateFromStorage()
 
             // Do not block navigation if profile fetch has transient issues.
             try {
@@ -68,14 +80,10 @@ export function useApp() {
                 }
             } catch (_err) {}
 
-            await router.replace('/ticket')
+            await router.replace('/dashboard')
             return result
         } catch (err) {
-            state.token = null
-            state.refreshToken = null
-            state.userInfo = null
-            localStorage.removeItem('token')
-            localStorage.removeItem('refreshToken')
+            clearAuthState()
             const message =
                 err?.response?.data?.detail ||
                 err?.response?.data?.message ||
@@ -89,12 +97,8 @@ export function useApp() {
         if (state.token) {
             logoutApi().catch(() => {})
         }
-        state.token = null
-        state.refreshToken = null
-        state.userInfo = null
+        clearAuthState()
         state.initialized = true
-        localStorage.removeItem('token')
-        localStorage.removeItem('refreshToken')
         router.push(`/login`)
         toast.info('Bạn đã đăng xuất')
     }
@@ -109,6 +113,8 @@ export function useApp() {
     }
 
     const initializeAuth = async () => {
+        syncAuthStateFromStorage()
+
         if (!state.token && !state.refreshToken) {
             state.initialized = true
             return
@@ -120,15 +126,10 @@ export function useApp() {
             if (!result?.success || !user) {
                 throw new Error('Không thể lấy thông tin người dùng')
             }
-            state.token = localStorage.getItem('token') || null
-            state.refreshToken = localStorage.getItem('refreshToken') || null
+            syncAuthStateFromStorage()
             state.userInfo = user
         } catch (_err) {
-            state.token = null
-            state.refreshToken = null
-            state.userInfo = null
-            localStorage.removeItem('token')
-            localStorage.removeItem('refreshToken')
+            clearAuthState()
         } finally {
             state.initialized = true
         }

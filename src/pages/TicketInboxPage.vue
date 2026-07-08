@@ -220,7 +220,7 @@ watch(
 </script>
 
 <template>
-  <div class="h-full min-h-0 overflow-hidden">
+  <div class="app-page h-full min-h-0 overflow-hidden">
     <section class="app-inbox-shell">
       <aside
         class="relative min-h-0 border-b border-[var(--stroke)] bg-white text-[var(--text-primary)] pc:border-b-0 pc:border-r pc:border-[var(--stroke)]"

@@ -15,8 +15,8 @@ const redirectToLogin = () => {
 }
 
 const storeAuthTokens = (payload) => {
-  const accessToken = payload?.data?.accessToken
-  const refreshToken = payload?.data?.refreshToken
+  const accessToken = payload?.data?.accessToken || payload?.accessToken || payload?.jwt
+  const refreshToken = payload?.data?.refreshToken || payload?.refreshToken
 
   if (accessToken) {
     localStorage.setItem('token', accessToken)
@@ -46,17 +46,17 @@ const refreshAccessToken = async () => {
   const data = response?.data
   const accessToken = data?.data?.accessToken || data?.accessToken || data?.jwt
   if (!accessToken) {
-    throw new Error(data?.message || 'Refresh token failed')
+    throw new Error(data?.detail || data?.message || 'Refresh token failed')
   }
 
   // Support both new FastAPI structure (data.data) and legacy structures
   const newRefreshToken = data?.data?.refreshToken || data?.refreshToken
 
-  storeAuthTokens({ 
-    data: { 
-      accessToken, 
-      refreshToken: newRefreshToken || refreshToken 
-    } 
+  storeAuthTokens({
+    data: {
+      accessToken,
+      refreshToken: newRefreshToken || refreshToken,
+    }
   })
   return accessToken
 }

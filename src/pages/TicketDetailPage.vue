@@ -979,7 +979,7 @@ watch(
 </script>
 
 <template>
-  <div :class="isEmbedded ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'h-full min-h-0 overflow-hidden flex flex-col'">
+  <div :class="isEmbedded ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'app-page h-full min-h-0 overflow-hidden flex flex-col'">
     <section
       class="flex flex-col flex-1 min-h-0 overflow-hidden"
       :class="isEmbedded ? 'bg-transparent' : 'border border-[var(--stroke)] bg-white pc:border-x pc:border-y-0'"
