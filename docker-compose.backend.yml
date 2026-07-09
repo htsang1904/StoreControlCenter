@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: store_control_center_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./python-api
+      dockerfile: Dockerfile
+    container_name: store_control_center_backend
+    environment:
+      POSTGRES_SERVER: db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PORT: 5432
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}
+      SUITE_API: ${SUITE_API:-https://lab-sapi.guta.asia}
+      MAIN_STORE_SYNC_URL: ${MAIN_STORE_SYNC_URL:-https://gapi.guta.asia/webapi/stores?all_stores=true}
+      SUITE_VERIFY_TOKEN: ${SUITE_VERIFY_TOKEN:-false}
+      SUITE_PUBLIC_KEY_FILE: ${SUITE_PUBLIC_KEY_FILE:-}
+      ENABLE_SQLADMIN: ${ENABLE_SQLADMIN:-false}
+      SQLADMIN_USERNAME: ${SQLADMIN_USERNAME:-}
+      SQLADMIN_PASSWORD: ${SQLADMIN_PASSWORD:-}
+      SQLADMIN_SESSION_SECRET: ${SQLADMIN_SESSION_SECRET:-}
+      ENABLE_BOOTSTRAP_ADMIN: ${ENABLE_BOOTSTRAP_ADMIN:-true}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-System Administrator}
+      BOOTSTRAP_ADMIN_PHONE_NUMBER: ${BOOTSTRAP_ADMIN_PHONE_NUMBER:-}
+      BACKEND_PORT: ${BACKEND_PORT:-8001}
+    ports:
+      - "${BACKEND_PORT:-8001}:${BACKEND_PORT:-8001}"
+    command: >
+      sh -c "alembic upgrade head &&
+      exec uvicorn app.main:app --host 0.0.0.0 --port $${BACKEND_PORT:-8001}"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - backend_static:/app/static
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  backend_static:

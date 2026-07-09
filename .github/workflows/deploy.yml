@@ -31,7 +31,19 @@ jobs:
         run: npm ci
 
       - name: Build frontend
-        run: npm run build
+        env:
+          APP_ENV: ${{ secrets.APP_ENV }}
+        run: |
+          printf '%s\n' "$APP_ENV" > .env.production
+          npm run build
+
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
 
   deploy:
     name: Deploy through SSH
@@ -43,6 +55,12 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist/
 
       - name: Configure SSH
         env:
@@ -61,6 +79,7 @@ jobs:
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          FRONTEND_PATH: ${{ secrets.FRONTEND_PATH }}
           APP_ENV: ${{ secrets.APP_ENV }}
         run: |
           ssh \
@@ -68,7 +87,7 @@ jobs:
             -p "${SSH_PORT:-22}" \
             -o BatchMode=yes \
             "${SSH_USER}@${SSH_HOST}" \
-            "mkdir -p '$DEPLOY_PATH' && chmod 750 '$DEPLOY_PATH'"
+            "mkdir -p '$DEPLOY_PATH' '$FRONTEND_PATH' && chmod 750 '$DEPLOY_PATH'"
 
           printf '%s\n' "$APP_ENV" | ssh \
             -i ~/.ssh/deploy_key \
@@ -77,7 +96,7 @@ jobs:
             "${SSH_USER}@${SSH_HOST}" \
             "umask 077; cat > '$DEPLOY_PATH/.env'"
 
-      - name: Upload source to server
+      - name: Upload backend source to server
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
@@ -85,14 +104,28 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
           rsync -az --delete \
-            --exclude='.git/' \
-            --exclude='.github/' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${SSH_PORT:-22} -o BatchMode=yes" \
+            python-api/ "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/python-api/"
+
+          rsync -az \
+            -e "ssh -i ~/.ssh/deploy_key -p ${SSH_PORT:-22} -o BatchMode=yes" \
+            docker-compose.backend.yml \
+            "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/docker-compose.backend.yml"
+
+      - name: Upload frontend build to web root
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          FRONTEND_PATH: ${{ secrets.FRONTEND_PATH }}
+        run: |
+          rsync -az --delete \
             --exclude='.env' \
             --exclude='.user.ini' \
-            --exclude='node_modules/' \
-            --exclude='dist/' \
+            --exclude='python-api/' \
+            --exclude='docker-compose.backend.yml' \
             -e "ssh -i ~/.ssh/deploy_key -p ${SSH_PORT:-22} -o BatchMode=yes" \
-            ./ "${SSH_USER}@${SSH_HOST}:${DEPLOY_PATH}/"
+            dist/ "${SSH_USER}@${SSH_HOST}:${FRONTEND_PATH}/"
 
       - name: Build and restart Docker services
         env:
@@ -111,11 +144,11 @@ jobs:
 
               cd "$DEPLOY_PATH"
               test -s .env
-              test -f docker-compose.yml
-              docker compose config --quiet
-              docker compose build --pull
-              docker compose up -d --remove-orphans
-              docker compose ps
+              test -f docker-compose.backend.yml
+              docker compose -f docker-compose.backend.yml config --quiet
+              docker compose -f docker-compose.backend.yml build --pull
+              docker compose -f docker-compose.backend.yml up -d --remove-orphans
+              docker compose -f docker-compose.backend.yml ps
 
               backend_ready=0
               for attempt in $(seq 1 30); do
@@ -132,7 +165,7 @@ jobs:
               done
 
               if [ "$backend_ready" -ne 1 ]; then
-                docker compose logs --tail=100 backend
+                docker compose -f docker-compose.backend.yml logs --tail=100 backend
                 exit 1
               fi
           REMOTE_SCRIPT
