@@ -117,9 +117,14 @@ jobs:
               docker compose up -d --remove-orphans
               docker compose ps
 
-              curl --fail --silent --show-error \
-                --retry 10 \
+              if ! curl --fail --silent --show-error \
+                --connect-timeout 5 \
+                --retry 30 \
                 --retry-delay 3 \
+                --retry-all-errors \
                 "http://127.0.0.1:${BACKEND_PORT:-8001}/" \
-                >/dev/null
+                >/dev/null; then
+                docker compose logs --tail=100 backend
+                exit 1
+              fi
           REMOTE_SCRIPT
