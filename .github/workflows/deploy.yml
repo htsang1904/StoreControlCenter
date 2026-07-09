@@ -117,13 +117,21 @@ jobs:
               docker compose up -d --remove-orphans
               docker compose ps
 
-              if ! curl --fail --silent --show-error \
-                --connect-timeout 5 \
-                --retry 30 \
-                --retry-delay 3 \
-                --retry-all-errors \
-                "http://127.0.0.1:${BACKEND_PORT:-8001}/" \
-                >/dev/null; then
+              backend_ready=0
+              for attempt in $(seq 1 30); do
+                if curl --fail --silent --show-error \
+                  --connect-timeout 5 \
+                  "http://127.0.0.1:${BACKEND_PORT:-8001}/" \
+                  >/dev/null; then
+                  backend_ready=1
+                  break
+                fi
+
+                echo "Backend is not ready yet (attempt ${attempt}/30)."
+                sleep 3
+              done
+
+              if [ "$backend_ready" -ne 1 ]; then
                 docker compose logs --tail=100 backend
                 exit 1
               fi
