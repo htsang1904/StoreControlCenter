@@ -17,7 +17,6 @@ def test_can_access_ticket_for_store_scope():
         user_store_ids={1, 2},
         ticket_store_id=2,
         ticket_department_id=5,
-        ticket_handler_id=None,
         ticket_requester_id=9,
         is_assignee=False,
     )
@@ -28,7 +27,6 @@ def test_can_access_ticket_for_store_scope():
         user_store_ids={1, 2},
         ticket_store_id=3,
         ticket_department_id=5,
-        ticket_handler_id=None,
         ticket_requester_id=9,
         is_assignee=False,
     )
@@ -42,7 +40,6 @@ def test_can_access_ticket_for_handler_scope():
         user_store_ids=set(),
         ticket_store_id=2,
         ticket_department_id=4,
-        ticket_handler_id=None,
         ticket_requester_id=9,
         is_assignee=False,
     )
@@ -53,7 +50,6 @@ def test_can_access_ticket_for_handler_scope():
         user_store_ids=set(),
         ticket_store_id=2,
         ticket_department_id=99,
-        ticket_handler_id=None,
         ticket_requester_id=9,
         is_assignee=True,
     )
@@ -64,7 +60,6 @@ def test_can_access_ticket_for_handler_scope():
         user_store_ids=set(),
         ticket_store_id=2,
         ticket_department_id=99,
-        ticket_handler_id=None,
         ticket_requester_id=9,
         is_assignee=False,
     )
@@ -78,7 +73,6 @@ def test_can_access_ticket_for_requester_fallback():
         user_store_ids=set(),
         ticket_store_id=1,
         ticket_department_id=2,
-        ticket_handler_id=None,
         ticket_requester_id=15,
         is_assignee=False,
     )
@@ -89,7 +83,6 @@ def test_can_access_ticket_for_requester_fallback():
         user_store_ids=set(),
         ticket_store_id=1,
         ticket_department_id=2,
-        ticket_handler_id=None,
         ticket_requester_id=15,
         is_assignee=False,
     )

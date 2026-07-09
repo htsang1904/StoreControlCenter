@@ -8,6 +8,7 @@ import re
 from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import delete, func, update
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
@@ -17,6 +18,8 @@ from app.models.qc_session import QCSession
 
 router = APIRouter()
 logger = logging.getLogger("app.admin_qc")
+MAX_QC_CRITERION_CODE_LENGTH = 50
+MAX_QC_FORM_CODE_LENGTH = 50
 
 def _require_admin(current_user):
     if current_user.role != "admin":
@@ -111,6 +114,19 @@ def _next_version_no(current_version_no: str) -> str:
     return f"v{major}.{minor + 1}"
 
 
+def _build_criterion_code(form_code: str, version_no: str, ordering: str) -> str:
+    raw_code = f"{form_code}-{version_no}-{ordering}"
+    if len(raw_code) <= MAX_QC_CRITERION_CODE_LENGTH:
+        return raw_code
+
+    suffix = f"-{version_no}-{ordering}"
+    if len(suffix) >= MAX_QC_CRITERION_CODE_LENGTH:
+        return suffix[-MAX_QC_CRITERION_CODE_LENGTH:]
+
+    prefix_length = MAX_QC_CRITERION_CODE_LENGTH - len(suffix)
+    return f"{form_code[:prefix_length]}{suffix}"
+
+
 async def _sync_criteria_tree(session, form_code: str, version: QCFormVersion, criteria_payload: list):
     async def process_nodes(nodes, parent_id=None, level=1, parent_ordering=""):
         for i, node in enumerate(nodes):
@@ -139,7 +155,7 @@ async def _sync_criteria_tree(session, form_code: str, version: QCFormVersion, c
                 max_score = 1.0
                 min_pass_score = 1.0
                 
-            code = f"{form_code}-{version.version_no}-{ordering}"
+            code = _build_criterion_code(form_code, version.version_no, ordering)
             
             criterion = QCCriterion(
                 code=code,
@@ -247,14 +263,25 @@ async def create_admin_qc_form(
     
     code = payload.get("code", "").strip()
     name = payload.get("name", "").strip()
+    criteria_payload = payload.get("criteria", [])
+    criteria_count = len(criteria_payload) if isinstance(criteria_payload, list) else 0
+    logger.info(
+        "Create admin QC form requested: code=%s name=%s status=%s criteria=%s",
+        code,
+        name,
+        payload.get("status", "draft"),
+        criteria_count,
+    )
     
     if not code or not name:
         raise HTTPException(status_code=400, detail="code và name là bắt buộc")
+    if len(code) > MAX_QC_FORM_CODE_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Mã biểu mẫu tối đa {MAX_QC_FORM_CODE_LENGTH} ký tự")
     
     # Check duplicate code
     existing = await session.execute(select(QCForm).where(QCForm.code == code))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail=f"QC Form code '{code}' đã tồn tại")
+        raise HTTPException(status_code=400, detail=f"Mã biểu mẫu '{code}' đã tồn tại")
     
     form = QCForm(
         code=code,
@@ -262,27 +289,35 @@ async def create_admin_qc_form(
         description=payload.get("description", ""),
         is_active=payload.get("isActive", True),
     )
-    session.add(form)
-    await session.flush()
-    
-    pass_rule_payload = {
-        "passThreshold": payload.get("passThreshold", 40),
-        "passScore": payload.get("passScore", 0)
-    }
-    
-    # Create initial version
-    version = QCFormVersion(
-        form_id=form.id,
-        version_no=payload.get("versionNo", "v1.0"),
-        status=payload.get("status", "draft"),
-        pass_rule=pass_rule_payload,
-    )
-    session.add(version)
-    await session.flush()
-    
-    await _sync_criteria_tree(session, form.code, version, payload.get("criteria", []))
-    
-    await session.commit()
+    try:
+        session.add(form)
+        await session.flush()
+
+        pass_rule_payload = {
+            "passThreshold": payload.get("passThreshold", 40),
+            "passScore": payload.get("passScore", 0)
+        }
+
+        # Create initial version
+        version = QCFormVersion(
+            form_id=form.id,
+            version_no=payload.get("versionNo", "v1.0"),
+            status=payload.get("status", "draft"),
+            pass_rule=pass_rule_payload,
+        )
+        session.add(version)
+        await session.flush()
+
+        await _sync_criteria_tree(session, form.code, version, criteria_payload)
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        logger.exception("Failed to create admin QC form due to integrity error")
+        raise HTTPException(status_code=400, detail="Không thể tạo biểu mẫu QC do mã biểu mẫu hoặc mã tiêu chí bị trùng/quá dài.") from exc
+    except SQLAlchemyError as exc:
+        await session.rollback()
+        logger.exception("Failed to create admin QC form")
+        raise HTTPException(status_code=400, detail="Không thể tạo biểu mẫu QC. Vui lòng kiểm tra mã biểu mẫu và cây tiêu chí.") from exc
     
     # Reload for response
     query = (

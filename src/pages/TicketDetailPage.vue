@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CommonModal from '@/components/CommonModal.vue'
 import { useApp } from '@/plugins/app'
+import { ticketConfirmationMeta, ticketDurationClass, ticketResolutionMeta } from '@/composables/useTicketPresentation'
 import { createRealtimeConnection } from '@/services/realtime_service'
 import {
   assignTicketHandler,
@@ -174,7 +175,7 @@ const storeDisplay = computed(() => {
   )
 })
 const departmentDisplay = computed(() => ticket.value?.responsible_department?.name || '--')
-const processingDurationMeta = computed(() => {
+const confirmationDurationMeta = computed(() => {
   if (!hasTicket.value) {
     return {
       value: '--',
@@ -183,16 +184,28 @@ const processingDurationMeta = computed(() => {
     }
   }
 
-  const reason = String(ticket.value?.processing_alert_reason || '')
+  const meta = ticketConfirmationMeta(ticket.value)
   return {
-    value: ticket.value?.processing_duration_label || (ticket.value?.start_date || ticket.value?.createdAt ? '0 phút' : '--'),
-    className: ticket.value?.processing_alert_level === 'danger' ? 'text-[var(--danger-text)]' : 'text-[var(--text-primary)]',
-    note:
-      reason === 'unconfirmed_over_2h'
-        ? 'Quá 2 giờ chưa xác nhận'
-        : reason === 'confirmed_over_24h'
-          ? 'Quá 24 giờ chưa hoàn tất'
-          : '',
+    value: meta.label,
+    className: ticketDurationClass(meta),
+    note: meta.hint,
+  }
+})
+
+const resolutionDurationMeta = computed(() => {
+  if (!hasTicket.value) {
+    return {
+      value: '--',
+      className: 'text-[var(--text-primary)]',
+      note: '',
+    }
+  }
+
+  const meta = ticketResolutionMeta(ticket.value)
+  return {
+    value: meta.label,
+    className: ticketDurationClass(meta),
+    note: meta.hint,
   }
 })
 
@@ -200,7 +213,8 @@ const overviewItems = computed(() => {
   if (!hasTicket.value) return []
   return [
     { key: 'status', label: 'Trạng thái', value: normalizeStatus(ticket.value.status), className: statusClass(ticket.value.status), kind: 'status' },
-    { key: 'processingDuration', label: 'Thời gian xử lý', value: processingDurationMeta.value.value, className: processingDurationMeta.value.className, note: processingDurationMeta.value.note, kind: 'text' },
+    { key: 'confirmationDuration', label: 'Thời gian tiếp nhận', value: confirmationDurationMeta.value.value, className: confirmationDurationMeta.value.className, note: confirmationDurationMeta.value.note, kind: 'text' },
+    { key: 'resolutionDuration', label: 'Thời gian xử lý', value: resolutionDurationMeta.value.value, className: resolutionDurationMeta.value.className, note: resolutionDurationMeta.value.note, kind: 'text' },
     { key: 'store', label: 'Cửa hàng', value: storeDisplay.value, className: '', kind: 'text' },
     { key: 'department', label: 'Bộ phận phụ trách', value: departmentDisplay.value, className: '', kind: 'text' },
     { key: 'createdAt', label: 'Ngày tạo', value: formatDateTime(ticket.value.createdAt), className: '', kind: 'text' },
@@ -228,7 +242,7 @@ const conversationItems = computed(() => {
     sender_name: log?.sender?.name || '--',
     sender_role: normalizeUserRoleLabel(log?.sender?.role || log?.sender_type || 'handler'),
     sender_type: log?.sender_type || 'handler',
-    createdAt: log?.createdAt || null,
+    createdAt: log?.createdAt || log?.created_at || null,
     message: log?.message || '--',
     attachments: normalizeAttachmentList(log?.attachments),
   }))
@@ -378,7 +392,7 @@ function conversationAttachmentLinkClass(item) {
 function conversationTimestampClass(item) {
   if (isSystemConversationItem(item)) return 'mt-2 self-center text-[11px] text-[var(--text-muted)]'
   return isOwnConversationItem(item)
-    ? 'mt-2 self-end text-[11px] text-[var(--text-muted)]'
+    ? 'mt-2 self-end text-[11px] text-white/70'
     : 'mt-2 self-end text-[11px] text-[var(--text-muted)]'
 }
 
@@ -979,7 +993,7 @@ watch(
 </script>
 
 <template>
-  <div :class="isEmbedded ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'app-page h-full min-h-0 overflow-hidden flex flex-col'">
+  <div :class="isEmbedded ? 'flex-1 flex flex-col min-h-0 overflow-hidden' : 'h-full min-h-0 overflow-hidden flex flex-col'">
     <section
       class="flex flex-col flex-1 min-h-0 overflow-hidden"
       :class="isEmbedded ? 'bg-transparent' : 'border border-[var(--stroke)] bg-white pc:border-x pc:border-y-0'"
@@ -1119,7 +1133,7 @@ watch(
                 </div>
 
                 <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  <div ref="actionMenuRef">
+                  <div ref="actionMenuRef" class="relative">
                     <button
                       v-if="showHeaderActionMenu"
                       type="button"
@@ -1134,32 +1148,19 @@ watch(
                     <Transition name="action-modal">
                       <div
                         v-if="actionMenuOpen"
-                        class="fixed inset-0 z-[100] flex flex-col justify-end overflow-hidden bg-[var(--primary)]/40 tablet:absolute tablet:z-[60] tablet:items-center tablet:justify-center tablet:p-6"
+                        class="absolute right-0 top-full z-[80] mt-2 w-[22rem] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-[var(--stroke)] bg-white shadow-2xl"
+                        @click.stop
                       >
-                        <div class="absolute inset-0" @click.stop="closeActionMenu"></div>
-                        
-                        <div class="modal-panel relative flex h-[50dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl focus:outline-none tablet:h-auto tablet:max-h-[80%] tablet:max-w-sm tablet:rounded-2xl">
-                          <div class="flex shrink-0 items-center justify-between border-b border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
-                            <h3 class="text-base font-semibold text-[var(--text-primary)]">Tùy chọn thao tác</h3>
-                            <button
-                              type="button"
-                              class="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)]/50 text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--text-secondary)]"
-                              @click.stop="closeActionMenu"
-                            >
-                              <span class="material-symbols-outlined text-[18px]">close</span>
-                            </button>
-                          </div>
-                        
-                        <div class="flex-1 overflow-y-auto p-3 space-y-2">
+                        <div class="max-h-[min(26rem,calc(100vh-7rem))] overflow-y-auto p-1.5 space-y-1">
                           <button
                             v-if="canClaimTicket"
                             type="button"
-                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-all hover:bg-blue-50 hover:text-[var(--primary-strong)] disabled:opacity-50"
+                            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-secondary)] transition-all hover:bg-blue-50 hover:text-[var(--primary-strong)] disabled:opacity-50"
                             :disabled="assigning || resolving"
                             @click="actionMenuOpen = false; handleClaimTicket()"
                           >
-                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
-                              <span class="material-symbols-outlined text-[20px]">{{ assigning ? 'hourglass_empty' : 'how_to_reg' }}</span>
+                            <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
+                              <span class="material-symbols-outlined text-[18px]">{{ assigning ? 'hourglass_empty' : 'how_to_reg' }}</span>
                             </span>
                             <span class="flex-1">{{ assigning ? 'Đang nhận xử lý...' : 'Nhận xử lý việc này' }}</span>
                           </button>
@@ -1167,12 +1168,12 @@ watch(
                           <button
                             v-if="canAdminAssignHandler"
                             type="button"
-                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-all hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
+                            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-secondary)] transition-all hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
                             :disabled="assigningHandler || assignableHandlersLoading"
                             @click="openAssignPanelFromMenu"
                           >
-                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
-                              <span class="material-symbols-outlined text-[20px]">person_add</span>
+                            <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
+                              <span class="material-symbols-outlined text-[18px]">person_add</span>
                             </span>
                             <span class="flex-1">Giao việc cho nhân viên khác</span>
                           </button>
@@ -1180,18 +1181,17 @@ watch(
                           <button
                             v-if="canResolveTicket"
                             type="button"
-                            class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-all hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
+                            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-secondary)] transition-all hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
                             :disabled="assigning || resolving"
                             @click="handleResolveFromMenu"
                           >
-                            <span class="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--success-bg)] text-[var(--success-text)]">
-                              <span class="material-symbols-outlined text-[20px]" :class="resolving ? 'animate-spin' : ''">{{ resolving ? 'autorenew' : 'task_alt' }}</span>
+                            <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--success-bg)] text-[var(--success-text)]">
+                              <span class="material-symbols-outlined text-[18px]" :class="resolving ? 'animate-spin' : ''">{{ resolving ? 'autorenew' : 'task_alt' }}</span>
                             </span>
                             <span class="flex-1">{{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý xong' }}</span>
                           </button>
                         </div>
                       </div>
-                    </div>
                   </Transition>
                 </div>
 
@@ -1348,10 +1348,10 @@ watch(
                          <svg class="size-[22px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05 12.25 20.24a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                        </button>
 
-                       <div class="flex-1 relative rounded-[20px] border border-[var(--stroke)] bg-white focus-within:border-[var(--primary)] transition-colors">
+                       <div class="relative flex-1 rounded-[20px] border border-[var(--stroke)] bg-white transition-colors focus-within:border-[var(--primary)] focus-within:shadow-[0_0_0_3px_rgba(29,125,226,0.10)]">
                          <textarea
                             v-model="replyMessage"
-                            class="block w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-0"
+                            class="inbox-reply-textarea block w-full resize-none rounded-[20px] border-0 bg-transparent px-4 py-3 text-[15px] leading-relaxed text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
                             placeholder="Nhập nội dung phản hồi..."
                             rows="1"
                             style="min-height: 46px; max-height: 120px;"
@@ -1568,6 +1568,11 @@ watch(
 }
 
 .inbox-reply-textarea:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.inbox-reply-textarea:focus {
   outline: none;
   box-shadow: none;
 }

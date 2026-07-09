@@ -78,7 +78,6 @@ async def _can_access_ticket_for_ws(ticket: Ticket, current_user: User) -> bool:
         user_store_ids=_get_user_store_ids(current_user),
         ticket_store_id=ticket.store_id,
         ticket_department_id=ticket.responsible_department_id,
-        ticket_handler_id=ticket.handler_id,
         ticket_requester_id=ticket.requester_id,
         is_assignee=is_assignee,
     )

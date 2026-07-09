@@ -41,7 +41,6 @@ def can_access_ticket(
     user_store_ids: Iterable[int] | None,
     ticket_store_id: int | None,
     ticket_department_id: int | None,
-    ticket_handler_id: int | None,
     ticket_requester_id: int | None,
     is_assignee: bool,
 ) -> bool:
@@ -56,8 +55,6 @@ def can_access_ticket(
 
     if role == "handler":
         if user_department_id and ticket_department_id == user_department_id:
-            return True
-        if user_id and ticket_handler_id == user_id:
             return True
         return is_assignee
 

@@ -33,7 +33,7 @@ export const listAssignableTicketHandlers = (id) => {
 
 export const assignTicketHandler = (id, handlerId) => {
   return http.post(`/api/tickets/${id}/assignees`, {
-    handler_id: Number(handlerId),
+    assignee_id: Number(handlerId),
   })
 }
 

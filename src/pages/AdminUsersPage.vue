@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import CommonModal from '@/components/CommonModal.vue'
 import { useToast } from '@/plugins/toast'
 import {
   listAdminDepartments,
@@ -388,27 +389,16 @@ onMounted(async () => {
     </section>
   </div>
 
-  <div
-    v-if="editingUser"
-    class="fixed inset-0 z-[90] flex items-center justify-center bg-[var(--primary)]/40 px-4"
-    @click.self="closeEditModal"
+  <CommonModal
+    :model-value="Boolean(editingUser)"
+    title="Cập nhật nhân viên"
+    :description="editingUser?.email || ''"
+    max-width-class="max-w-2xl"
+    :close-disabled="savingUser"
+    @update:model-value="(value) => { if (!value) closeEditModal() }"
+    @close="closeEditModal"
   >
-    <div class="w-full max-w-2xl rounded-2xl border border-[var(--stroke)] bg-white p-5 shadow-xl tablet:p-6">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <h3 class="text-lg font-semibold text-[var(--text-primary)]">Cập nhật nhân viên</h3>
-          <p class="mt-1 text-sm text-[var(--text-secondary)]">{{ editingUser.email }}</p>
-        </div>
-        <button
-          type="button"
-          class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)]"
-          @click="closeEditModal"
-        >
-          <span class="material-symbols-outlined text-[18px]">close</span>
-        </button>
-      </div>
-
-      <div class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2">
+      <div class="grid grid-cols-1 gap-3 tablet:grid-cols-2">
         <div>
           <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">Tên hiển thị</label>
           <input
@@ -482,23 +472,25 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div class="mt-5 flex justify-end gap-2">
+    <template #footer>
+      <div class="flex w-full flex-col-reverse gap-2 tablet:flex-row tablet:justify-end">
         <button
           type="button"
-          class="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-4 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
+          class="app-button-secondary inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-medium tablet:w-auto"
+          :disabled="savingUser"
           @click="closeEditModal"
         >
           Hủy
         </button>
         <button
           type="button"
-          class="inline-flex h-9 items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+          class="app-button-primary inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
           :disabled="savingUser"
           @click="submitUserUpdate"
         >
           {{ savingUser ? 'Đang lưu...' : 'Lưu thay đổi' }}
         </button>
       </div>
-    </div>
-  </div>
+    </template>
+  </CommonModal>
 </template>

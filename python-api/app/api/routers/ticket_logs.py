@@ -36,7 +36,6 @@ async def _ensure_ticket_access(session: SessionDep, ticket: Ticket, current_use
         user_store_ids=_get_user_store_ids(current_user),
         ticket_store_id=ticket.store_id,
         ticket_department_id=ticket.responsible_department_id,
-        ticket_handler_id=ticket.handler_id,
         ticket_requester_id=ticket.requester_id,
         is_assignee=is_assignee,
     )
@@ -86,7 +85,6 @@ async def create_ticket_log(
 
     notification_recipients = [
         ticket.requester_id,
-        ticket.handler_id,
         *[assignee.id for assignee in ticket.assignees],
     ]
     notifications = build_ticket_reply_notifications(
@@ -103,11 +101,12 @@ async def create_ticket_log(
         session.add_all(notifications)
 
     await session.commit()
+    await session.refresh(log)
     
     # Reload with sender details
     query = select(TicketLog).options(
         selectinload(TicketLog.sender)
-    ).where(TicketLog.id == log.id)
+    ).where(TicketLog.id == log.id).execution_options(populate_existing=True)
     result = await session.execute(query)
     log = result.scalar_one()
 

@@ -24,8 +24,8 @@ export function useTicketReportSummary() {
       key: 'total_ticket',
       label: 'Tổng ticket',
       value: numberFormatter.format(Number(reportSummary.value?.total_ticket || 0)),
-      meta: 'Theo bộ lọc',
-      hint: 'Tổng số ticket phát sinh theo bộ lọc hiện tại.',
+      meta: 'Hiện trạng',
+      hint: 'Tổng số ticket hiện có theo phạm vi dữ liệu người dùng được xem.',
       tone: 'sky',
     },
     {
@@ -41,7 +41,7 @@ export function useTicketReportSummary() {
       label: 'Đã hoàn thành',
       value: numberFormatter.format(Number(reportSummary.value?.resolved || 0)),
       meta: 'Đã đóng',
-      hint: 'Số ticket đã hoàn tất xử lý trong phạm vi bộ lọc.',
+      hint: 'Số ticket đã hoàn tất xử lý theo phạm vi dữ liệu người dùng được xem.',
       tone: 'emerald',
     },
     {
@@ -75,7 +75,7 @@ export function useTicketReportSummary() {
       
       const rootData = result?.data?.data || result?.data || result || {}
       
-      const summaryPayload = rootData?.summary || {}
+      const summaryPayload = rootData?.live_summary || rootData?.liveSummary || rootData?.summary || {}
       
       reportSummary.value = {
         total_ticket: Number(summaryPayload.total_ticket || 0),

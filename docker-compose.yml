@@ -47,7 +47,7 @@ services:
       - BOOTSTRAP_ADMIN_PHONE_NUMBER=${BOOTSTRAP_ADMIN_PHONE_NUMBER:-}
     ports:
       - "${BACKEND_PORT:-8001}:${BACKEND_PORT:-8001}"
-    command: uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT:-8001} --reload
+    command: sh ./scripts/start-dev.sh
     depends_on:
       db:
         condition: service_healthy

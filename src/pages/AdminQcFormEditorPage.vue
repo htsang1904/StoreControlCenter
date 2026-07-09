@@ -41,6 +41,7 @@ const FORM_STEPS = [
 ]
 
 const ORDERING_LABEL_PATTERN = /^[A-Z0-9]+$/
+const MAX_FORM_CODE_LENGTH = 50
 
 const normalizeOrderingLabel = (value) => String(value || '').trim().toUpperCase()
 
@@ -241,6 +242,8 @@ const getMetadataValidationErrors = () => {
 
   if (!formCode) {
     errors.code = 'Mã biểu mẫu là bắt buộc'
+  } else if (formCode.length > MAX_FORM_CODE_LENGTH) {
+    errors.code = `Mã biểu mẫu tối đa ${MAX_FORM_CODE_LENGTH} ký tự`
   } else if (!/^[A-Z0-9_-]+$/.test(formCode)) {
     errors.code = 'Mã biểu mẫu chỉ được chứa chữ, số, dấu gạch dưới hoặc gạch ngang'
   }
@@ -617,7 +620,7 @@ const submitForm = async (targetStatus) => {
       router.replace(`/tools/qc-forms/${detail.id}/edit`)
     }
   } catch (error) {
-    const message = error?.response?.data?.message || error?.message || 'Không thể lưu biểu mẫu QC'
+    const message = error?.response?.data?.detail || error?.response?.data?.message || error?.message || 'Không thể lưu biểu mẫu QC'
     toast.error(message)
   } finally {
     savingMode.value = ''
@@ -790,6 +793,7 @@ onMounted(async () => {
                 <input
                   v-model="qcForm.code"
                   type="text"
+                  :maxlength="MAX_FORM_CODE_LENGTH"
                   :disabled="isEditMode"
                   :class="[customInputClass, showMetadataValidation && metadataValidationErrors.code ? validationInputClass : '']"
                   placeholder="VD: QC_STORE_STANDARD"
@@ -798,7 +802,7 @@ onMounted(async () => {
                   {{ metadataValidationErrors.code }}
                 </p>
                 <p class="text-xs text-[var(--text-muted)]">
-                  {{ isEditMode ? 'Mã biểu mẫu được khóa để giữ định danh ổn định cho các version đã có.' : 'Dùng chữ in hoa, số, gạch dưới hoặc gạch ngang.' }}
+                  {{ isEditMode ? 'Mã biểu mẫu được khóa để giữ định danh ổn định cho các version đã có.' : `Dùng chữ in hoa, số, gạch dưới hoặc gạch ngang. Tối đa ${MAX_FORM_CODE_LENGTH} ký tự.` }}
                 </p>
               </label>
 
@@ -1109,7 +1113,7 @@ onMounted(async () => {
 
         <div class="app-page-header border-t border-[var(--stroke)] pt-5 tablet:items-center">
           <p class="text-sm text-[var(--text-secondary)]">
-            {{ activeStep === 1 ? 'Hoàn tất metadata trước khi dựng cây tiêu chí.' : (activeStep === 2 ? 'Chỉ node lá mới là tiêu chí chấm điểm trong phiên QC.' : 'Nếu mọi thứ đã ổn, anh có thể phát hành ngay version làm việc này.') }}
+            {{ activeStep === 1 ? 'Hoàn tất metadata trước khi dựng cây tiêu chí.' : (activeStep === 2 ? 'Chỉ node lá mới là tiêu chí chấm điểm trong phiên QC.' : 'Nếu mọi thứ đã ổn, có thể phát hành ngay version làm việc này.') }}
           </p>
 
           <div class="flex w-full flex-col gap-2 tablet:w-auto tablet:flex-row tablet:flex-wrap tablet:items-center tablet:justify-end">

@@ -28,6 +28,15 @@ const ticketSummary = ref({
   due_soon: 0,
   overdue: 0,
 })
+const liveSummary = ref({
+  total_ticket: 0,
+  in_progress: 0,
+  resolved: 0,
+  due_soon: 0,
+  overdue: 0,
+  avg_processing_time: 0,
+  qc_pass_rate: 0,
+})
 const ticketStatusData = ref([])
 const ticketTrends = ref({})
 const ticketTopStores = ref([])
@@ -146,7 +155,7 @@ const kpiCards = computed(() => [
   {
     key: 'total_ticket',
     label: 'Tổng Ticket',
-    value: numberFormatter.format(Number(ticketSummary.value.total_ticket || 0)),
+    value: numberFormatter.format(Number(liveSummary.value.total_ticket || 0)),
     meta: trendLabel(ticketTrends.value.total_ticket),
     hint: 'Tổng số ticket phát sinh trong khoảng thời gian dashboard.',
     tone: 'blue',
@@ -156,7 +165,7 @@ const kpiCards = computed(() => [
   {
     key: 'avg_processing_time',
     label: 'TB Thời gian xử lý',
-    value: formatDurationFromHours(ticketAvgProcessingTime.value),
+    value: formatDurationFromHours(liveSummary.value.avg_processing_time),
     meta: trendLabel(ticketTrends.value.avg_processing_time),
     hint: 'Thời gian xử lý trung bình tính trên mỗi ticket đã có dữ liệu xử lý.',
     tone: 'purple',
@@ -166,7 +175,7 @@ const kpiCards = computed(() => [
   {
     key: 'in_progress',
     label: 'Đang xử lý',
-    value: numberFormatter.format(Number(ticketSummary.value.in_progress || 0)),
+    value: numberFormatter.format(Number(liveSummary.value.in_progress || 0)),
     meta: trendLabel(ticketTrends.value.in_progress),
     hint: 'Số ticket đang được xử lý và cần theo dõi tiến độ.',
     tone: 'orange',
@@ -176,7 +185,7 @@ const kpiCards = computed(() => [
   {
     key: 'qc_pass_rate',
     label: 'Tỉ lệ QC đạt',
-    value: `${Number(qcSummary.value.passRate || 0)}%`,
+    value: `${Number(liveSummary.value.qc_pass_rate || 0)}%`,
     meta: trendLabel(ticketTrends.value.qc_pass_rate),
     hint: 'Tỷ lệ phiên QC đạt trong khoảng thời gian dashboard.',
     tone: 'green',
@@ -185,13 +194,13 @@ const kpiCards = computed(() => [
   },
   {
     key: 'overdue',
-    label: 'Ticket sắp quá hạn',
-    value: numberFormatter.format(Number(ticketSummary.value.due_soon || 0)),
-    meta: trendLabel(ticketTrends.value.due_soon),
-    hint: 'Số ticket quá hạn hoặc có nguy cơ trễ SLA.',
+    label: 'Ticket quá hạn',
+    value: numberFormatter.format(Number(liveSummary.value.overdue || liveSummary.value.due_soon || 0)),
+    meta: trendLabel(ticketTrends.value.overdue),
+    hint: 'Số ticket đã trễ SLA tiếp nhận hoặc xử lý theo rule hệ thống.',
     tone: 'red',
     icon: 'alarm',
-    trend: trendClass(ticketTrends.value.due_soon),
+    trend: trendClass(ticketTrends.value.overdue),
   },
 ])
 
@@ -472,12 +481,22 @@ function resolveDashboardStoreFilters() {
 }
 
 function applyTicketOverviewPayload(ticketPayload = {}) {
+  const nextLiveSummary = ticketPayload?.live_summary || ticketPayload?.liveSummary || ticketPayload?.summary || {}
   ticketSummary.value = {
     total_ticket: Number(ticketPayload?.summary?.total_ticket || 0),
     in_progress: Number(ticketPayload?.summary?.in_progress || 0),
     resolved: Number(ticketPayload?.summary?.resolved || 0),
     due_soon: Number(ticketPayload?.summary?.due_soon || 0),
     overdue: Number(ticketPayload?.summary?.overdue || 0),
+  }
+  liveSummary.value = {
+    total_ticket: Number(nextLiveSummary?.total_ticket || 0),
+    in_progress: Number(nextLiveSummary?.in_progress || 0),
+    resolved: Number(nextLiveSummary?.resolved || 0),
+    due_soon: Number(nextLiveSummary?.due_soon || 0),
+    overdue: Number(nextLiveSummary?.overdue || 0),
+    avg_processing_time: Number(nextLiveSummary?.avg_processing_time || 0),
+    qc_pass_rate: Number(nextLiveSummary?.qc_pass_rate || 0),
   }
   ticketAvgProcessingTime.value = Number(ticketPayload?.summary?.avg_processing_time || 0)
   ticketChartRawData.value = ticketPayload?.chart_data || { categories: [], tickets: [], supportTime: [] }
@@ -493,6 +512,15 @@ function resetTicketOverview() {
     resolved: 0,
     due_soon: 0,
     overdue: 0,
+  }
+  liveSummary.value = {
+    total_ticket: 0,
+    in_progress: 0,
+    resolved: 0,
+    due_soon: 0,
+    overdue: 0,
+    avg_processing_time: 0,
+    qc_pass_rate: 0,
   }
   ticketTopStores.value = []
   ticketStatusData.value = []

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete as sa_delete, insert as sa_insert
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
@@ -14,9 +15,9 @@ from app.core import security
 from app.core.config import settings
 from app.core.datetime_utils import utc_now_naive
 from app.api.deps import SessionDep, CurrentUser
-from app.models.user import User
+from app.models.user import User, user_stores
 from app.models.org import Store
-from app.schemas.user import LoginRequest, RefreshRequest, AuthTokensResponse, UserResponse
+from app.schemas.user import LoginRequest, RefreshRequest, SsoCallbackRequest, AuthTokensResponse, UserResponse
 
 router = APIRouter()
 logger = logging.getLogger("app.auth")
@@ -28,6 +29,125 @@ def hash_refresh_token(token: str) -> str:
     # Use SECRET_KEY as salt for refresh token hashing if no specific salt is defined
     salt = settings.SECRET_KEY
     return hashlib.sha256(f"{token}{salt}".encode()).hexdigest()
+
+def resolve_staff_role(staff: dict) -> str:
+    roles = staff.get("roles") if isinstance(staff.get("roles"), list) else []
+    permissions = staff.get("permissions") if isinstance(staff.get("permissions"), list) else []
+    normalized_roles = set()
+    for role in roles:
+        if isinstance(role, dict):
+            value = role.get("code") or role.get("name") or role.get("role") or role.get("key") or role.get("slug")
+        else:
+            value = role
+        if value:
+            normalized_roles.add(str(value).strip().lower())
+    normalized_permissions = {str(permission).strip().lower() for permission in permissions if permission}
+    explicit_role = str(staff.get("role") or "").strip().lower()
+    if explicit_role in {"admin", "qc", "handler", "store"}:
+        return explicit_role
+    if "admin" in explicit_role:
+        return "admin"
+    for role in ("admin", "qc", "handler", "store"):
+        if any(item == role or item.endswith(f".{role}") or role in item for item in normalized_roles):
+            return role
+    if any("admin" in permission for permission in normalized_permissions):
+        return "admin"
+    return "store"
+
+def serialize_role(role: object) -> str:
+    return str(role.value if hasattr(role, "value") else role).strip().lower()
+
+async def issue_auth_tokens(session: AsyncSession, user: User) -> dict:
+    next_token_version = (user.token_version or 0) + 1
+    access_payload = {"sub": str(user.id), "email": user.email, "tokenVersion": next_token_version, "type": "access"}
+    access_token = security.create_access_token(
+        user.id,
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        data=access_payload,
+    )
+    refresh_payload = {"sub": str(user.id), "tokenVersion": next_token_version, "type": "refresh"}
+    refresh_token = security.create_access_token(
+        user.id,
+        expires_delta=timedelta(days=30),
+        data=refresh_payload,
+    )
+
+    user.token_version = next_token_version
+    user.refresh_token_hash = hash_refresh_token(refresh_token)
+    user.refresh_token_expires_at = utc_now_naive() + timedelta(days=30)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    return {
+        "tokenType": "Bearer",
+        "accessToken": access_token,
+        "refreshToken": refresh_token,
+    }
+
+async def map_staff_stores_to_user(session: AsyncSession, user: User, stores_payload: list | None) -> list:
+    if not isinstance(stores_payload, list):
+        return []
+
+    suite_store_refs = []
+    for store in stores_payload:
+        if not isinstance(store, dict):
+            continue
+        for key in ("id", "storeId", "store_id", "code"):
+            value = store.get(key)
+            if value:
+                suite_store_refs.append(str(value).strip())
+
+    if not suite_store_refs:
+        await session.execute(sa_delete(user_stores).where(user_stores.c.user_id == user.id))
+        await session.commit()
+        return []
+
+    query = select(Store).where(
+        (Store.storeId.in_(suite_store_refs)) |
+        (Store.code.in_(suite_store_refs))
+    )
+    result = await session.execute(query)
+    matched_stores = result.scalars().all()
+    await session.execute(sa_delete(user_stores).where(user_stores.c.user_id == user.id))
+    if matched_stores:
+        await session.execute(
+            sa_insert(user_stores),
+            [{"user_id": user.id, "store_id": store.id} for store in matched_stores],
+        )
+    await session.commit()
+    return matched_stores
+
+async def upsert_staff_user(session: AsyncSession, staff: dict, suite_token: str | None = None) -> User:
+    email = str(staff.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="SSO staff thiếu email")
+
+    result = await session.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            name=staff.get("name") or staff.get("username") or email,
+            email=email,
+            phone_number=staff.get("phone_number") or staff.get("phone"),
+            suite_token=suite_token,
+            token_version=0,
+            role="store",
+            is_active=False,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+    else:
+        user.name = staff.get("name") or user.name
+        user.phone_number = staff.get("phone_number") or staff.get("phone") or user.phone_number
+        user.suite_token = suite_token or user.suite_token
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+    return user
 
 def verify_suite_token_if_enabled(token: str) -> None:
     """
@@ -153,6 +273,58 @@ async def user_login(
             "accessToken": access_token,
             "refreshToken": refresh_token
         }
+    }
+
+@router.post("/sso/callback", response_model=dict)
+async def sso_callback(
+    session: SessionDep,
+    request: SsoCallbackRequest,
+) -> Any:
+    """Exchange a single-use Suite SSO ticket for local auth tokens."""
+    ticket = str(request.ticket or "").strip()
+    if not ticket:
+        raise HTTPException(status_code=400, detail="Thiếu SSO ticket")
+    if not settings.SUITE_PLATFORM_TOKEN:
+        raise HTTPException(status_code=500, detail="Thiếu cấu hình SUITE_PLATFORM_TOKEN")
+
+    verify_url = urljoin(settings.SUITE_API, "/platform/v1/sso/verify")
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                verify_url,
+                json={"ticket": ticket},
+                headers={"Authorization": f"Bearer {settings.SUITE_PLATFORM_TOKEN}"},
+            )
+            payload = response.json()
+            response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        detail = exc.response.json().get("message") if exc.response.content else None
+        raise HTTPException(status_code=400, detail=detail or "SSO ticket không hợp lệ hoặc đã hết hạn")
+    except Exception as exc:
+        logger.warning(f"[auth] SSO verify failed: {exc}")
+        raise HTTPException(status_code=502, detail="Không thể xác thực SSO với Suite")
+
+    if not payload.get("success"):
+        raise HTTPException(status_code=400, detail=payload.get("message") or "SSO ticket không hợp lệ hoặc đã hết hạn")
+
+    staff = payload.get("staff") or payload.get("data") or {}
+    if not isinstance(staff, dict):
+        raise HTTPException(status_code=400, detail="Dữ liệu staff SSO không hợp lệ")
+
+    user = await upsert_staff_user(session, staff)
+    if not user.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Tài khoản chưa được cấp quyền. Vui lòng liên hệ IT để được cấp quyền truy cập.",
+        )
+
+    await map_staff_stores_to_user(session, user, staff.get("stores"))
+    tokens = await issue_auth_tokens(session, user)
+
+    return {
+        "success": True,
+        "message": "Đăng nhập thành công",
+        "data": tokens,
     }
 
 @router.post("/refresh", response_model=dict)
@@ -311,7 +483,7 @@ def serialize_user(user: User) -> dict:
         "email": user.email,
         "phone_number": user.phone_number,
         "is_active": user.is_active,
-        "role": user.role,
+        "role": serialize_role(user.role),
         "department": {
             "id": user.department.id,
             "name": user.department.name,

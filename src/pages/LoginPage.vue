@@ -1,32 +1,35 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
-import { useApp } from '@/plugins/app'
+import { computed, ref } from 'vue'
 import { useToast } from '@/plugins/toast'
 
-const { userLogin } = useApp()
 const toast = useToast()
 const loading = ref(false)
-const showPassword = ref(false)
 const errorMessage = ref('')
 const appVersion = computed(() => String(import.meta.env.VITE_APP_VERSION || 'v2.4.0'))
 
-const formData = reactive({
-  username: '',
-  password: '',
-})
+function buildSsoCallbackUrl() {
+  const callbackPath = String(import.meta.env.VITE_SSO_CALLBACK_PATH || '/sso/callback')
+  return `${window.location.origin}${callbackPath.startsWith('/') ? callbackPath : `/${callbackPath}`}`
+}
 
-async function submitData() {
-  errorMessage.value = ''
-  loading.value = true
-  try {
-    await userLogin(formData)
-    toast.success('Đăng nhập thành công')
-  } catch (err) {
-    errorMessage.value = err?.message || 'Đăng nhập thất bại'
+function buildSuiteLoginUrl(redirectUri) {
+  const suiteLoginUrl = String(import.meta.env.VITE_SUITE_LOGIN_URL || '').trim()
+  if (!suiteLoginUrl) return ''
+
+  const separator = suiteLoginUrl.includes('?') ? '&' : '?'
+  return `${suiteLoginUrl}${separator}redirect_uri=${encodeURIComponent(redirectUri)}`
+}
+
+function redirectToSuiteSso() {
+  const targetUrl = buildSuiteLoginUrl(buildSsoCallbackUrl())
+  if (!targetUrl) {
+    errorMessage.value = 'Thiếu cấu hình VITE_SUITE_LOGIN_URL'
     toast.error(errorMessage.value)
-  } finally {
-    loading.value = false
+    return
   }
+
+  loading.value = true
+  window.location.assign(targetUrl)
 }
 </script>
 
@@ -59,74 +62,27 @@ async function submitData() {
           <p class="text-sm text-[var(--text-secondary)]">Truy cập vào hệ thống quản trị cửa hàng của bạn</p>
         </div>
 
-        <form class="space-y-4 tablet:space-y-5" @submit.prevent="submitData">
+        <div class="space-y-4 tablet:space-y-5">
           <p v-if="errorMessage" class="app-state-banner">
             {{ errorMessage }}
           </p>
 
-          <div class="space-y-2">
-            <label for="username" class="ml-1 block text-sm font-semibold text-[var(--text-secondary)]">Tên đăng nhập</label>
-            <input
-              id="username"
-              v-model="formData.username"
-              type="text"
-              class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 text-[var(--text-primary)] outline-none transition-all"
-              placeholder="Nhập tên đăng nhập của bạn"
-              autocomplete="username"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <div class="ml-1 flex items-center justify-between">
-              <label for="password" class="text-sm font-semibold text-[var(--text-secondary)]">Mật khẩu</label>
-              <a href="#" class="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-secondary)] hover:underline">Quên mật khẩu?</a>
-            </div>
-            <div class="relative">
-              <input
-                id="password"
-                v-model="formData.password"
-                :type="showPassword ? 'text' : 'password'"
-                class="app-input app-input--muted w-full rounded-lg px-4 py-3.5 pr-12 text-[var(--text-primary)] outline-none transition-all"
-                placeholder="••••••••"
-                autocomplete="current-password"
-              />
-              <button
-                type="button"
-                class="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                :aria-label="showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
-                @click="showPassword = !showPassword"
-              >
-                <svg v-if="showPassword" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <svg v-else class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
-                  <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-                  <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-                  <line x1="2" y1="2" x2="22" y2="22" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div class="pt-1">
-            <button
-              type="submit"
-              class="app-button-primary group flex w-full items-center justify-center gap-2 rounded-lg py-3.5 font-bold disabled:cursor-not-allowed disabled:opacity-70"
-              :disabled="loading"
-            >
-              <span v-if="loading" class="inline-block size-5 animate-spin rounded-full border-2 border-white border-t-transparent" role="status" aria-label="Đang tải"></span>
-              <template v-else>
-                <span>Đăng nhập</span>
-                <svg class="h-4 w-4 transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M5 12h14" />
-                  <path d="m13 6 6 6-6 6" />
-                </svg>
-              </template>
-            </button>
-          </div>
-        </form>
+          <button
+            type="button"
+            class="app-button-primary group flex w-full items-center justify-center gap-2 rounded-lg py-3.5 font-bold disabled:cursor-not-allowed disabled:opacity-70"
+            :disabled="loading"
+            @click="redirectToSuiteSso"
+          >
+            <span v-if="loading" class="inline-block size-5 animate-spin rounded-full border-2 border-white border-t-transparent" role="status" aria-label="Đang chuyển hướng"></span>
+            <template v-else>
+              <span>Đăng nhập bằng Suite</span>
+              <svg class="h-4 w-4 transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+            </template>
+          </button>
+        </div>
 
         <div class="mt-6 border-t border-[var(--stroke)] pt-5 text-center tablet:mt-8 tablet:pt-6">
           <p class="mb-3 text-xs uppercase tracking-widest text-[var(--text-muted)] tablet:mb-4">Hỗ trợ kỹ thuật</p>

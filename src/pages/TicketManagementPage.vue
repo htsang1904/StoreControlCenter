@@ -7,13 +7,15 @@ import {
   avatarInitials,
   formatDateTime,
   formatShortDate,
+  formatTime,
   handlerDisplay,
   normalizeTicketStatus,
-  ticketProcessingAlertHint,
-  ticketProcessingDurationClass,
-  ticketProcessingDurationLabel,
+  ticketConfirmationMeta,
+  ticketDurationClass,
+  ticketResolutionMeta,
   ticketStatusClass,
   ticketStatusOptions,
+  storeDisplay,
   ticketSubline,
 } from '@/composables/useTicketPresentation'
 import { useTicketReportSummary } from '@/composables/useTicketReportSummary'
@@ -62,15 +64,11 @@ let previousFilterQueryKey = ''
 let searchDebounceTimer = null
 
 function goToTicketDetail(id) {
-  router.push(`/ticket/${id}`)
+  router.push({ path: '/ticket/inbox', query: { ticket: id } })
 }
 
 function goToAddTicket() {
   router.push('/ticket/add-ticket')
-}
-
-function goToTicketInbox() {
-  router.push('/ticket/inbox')
 }
 
 function goToEditTicket(id) {
@@ -84,7 +82,7 @@ function hasTicketActions(ticket) {
 
 function hasAssignedHandler(ticket) {
   const firstAssignee = Array.isArray(ticket?.assignees) ? ticket.assignees[0] : null
-  return Boolean(firstAssignee?.name || ticket?.assigned_to?.name)
+  return Boolean(firstAssignee?.name)
 }
 
 function ticketCreatedAt(ticket) {
@@ -225,8 +223,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-page h-full bg-[var(--surface-muted)]" @click="closeActionMenu">
-    <div class="page-stack overflow-visible">
+  <div class="app-page min-h-full bg-[var(--surface-muted)]" @click="closeActionMenu">
+    <div class="page-stack overflow-visible pb-8 tablet:pb-10">
       <!-- Mảng thẻ Overview Stats -->
       <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard
@@ -245,21 +243,7 @@ onBeforeUnmount(() => {
       <section class="app-section relative z-0">
           <!-- Toolbar & Filter -->
           <div class="app-section-header">
-          <div class="app-page-header">
-            
-            <div class="flex items-center gap-3">
-              <button
-                type="button"
-                class="app-button-secondary inline-flex h-9 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium focus:outline-none"
-                @click="goToTicketInbox"
-              >
-                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 0 1 2.012 1.244l.256.512a2.25 2.25 0 0 0 2.013 1.244h3.218a2.25 2.25 0 0 0 2.013-1.244l.256-.512a2.25 2.25 0 0 1 2.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 0 0-2.15-1.588H6.911a2.25 2.25 0 0 0-2.15 1.588L2.35 12.839a3.342 3.342 0 0 0-.1.661Z" />
-                </svg>
-                Chế độ inbox
-              </button>
-            </div>
-
+          <div class="flex flex-col gap-3 tablet:flex-row tablet:items-center tablet:justify-end">
             <div class="app-toolbar">
               <div class="relative w-full tablet:w-64">
                 <input
@@ -281,7 +265,7 @@ onBeforeUnmount(() => {
                 <button
                   id="ticket-status-filter"
                   type="button"
-                  class="app-button-secondary inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg px-3 text-sm font-medium tablet:w-auto tablet:justify-center"
+                  class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] shadow-xs transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] tablet:w-auto tablet:justify-center"
                   aria-haspopup="menu"
                   aria-expanded="false"
                 >
@@ -300,7 +284,7 @@ onBeforeUnmount(() => {
                 </button>
 
                 <div
-                  class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-48 z-20 mt-2 rounded-xl border border-[var(--stroke)] bg-white p-2 shadow-lg shadow-slate-200/50 ring-1 ring-black/5"
+                  class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-52 z-20 mt-2 rounded-xl border border-[var(--stroke)] bg-white p-2 shadow-lg shadow-slate-200/50 ring-1 ring-black/5"
                   role="menu"
                   aria-orientation="vertical"
                   aria-labelledby="ticket-status-filter"
@@ -324,10 +308,10 @@ onBeforeUnmount(() => {
 
               <button
                 type="button"
-                  class="app-button-primary inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium tablet:w-auto"
+                class="app-button-primary group inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold shadow-xs transition-all hover:-translate-y-px tablet:w-auto"
                 @click="goToAddTicket"
               >
-                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <svg class="size-4 transition-transform group-hover:rotate-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09l2.846.813-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
                 </svg>
                 Tạo ticket
@@ -348,15 +332,16 @@ onBeforeUnmount(() => {
         <div v-loading="loading" class="min-h-[400px]">
           <!-- Table PC View -->
           <div class="app-table-scroll hidden pc:block">
-            <table class="w-full min-w-[1000px] border-collapse text-left">
+            <table class="w-full min-w-[1240px] border-collapse text-left">
               <thead>
                 <tr class="border-b border-[var(--stroke)] bg-[var(--surface-muted)]">
                   <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[140px] whitespace-nowrap">Mã ticket</th>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">Tiêu đề & Nội dung</th>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[140px]">Trạng thái</th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[400px]">Cửa hàng</th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[160px] whitespace-nowrap">Trạng thái</th>
                   <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[180px]">Người xử lý</th>
                   <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[140px]">Ngày tạo</th>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[170px] whitespace-nowrap">Thời gian xử lý</th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[130px] whitespace-nowrap">Tiếp nhận</th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[130px] whitespace-nowrap">Xử lý</th>
                   <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[150px] text-right whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
@@ -374,11 +359,10 @@ onBeforeUnmount(() => {
                     </span>
                   </td>
                   <td class="px-4 py-3">
-                    <p class="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors line-clamp-1">{{ ticket.title || '--' }}</p>
-                    <p class="mt-1 text-xs text-[var(--text-secondary)] line-clamp-1 truncate max-w-md">{{ ticketSubline(ticket) }}</p>
+                    <p class="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors line-clamp-1">{{ storeDisplay(ticket) }}</p>
                   </td>
                   <td class="px-4 py-3 align-top">
-                    <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset" :class="ticketStatusClass(ticket.status)">
+                    <span class="inline-flex items-center whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset" :class="ticketStatusClass(ticket.status)">
                       {{ normalizeTicketStatus(ticket.status) }}
                     </span>
                   </td>
@@ -389,22 +373,16 @@ onBeforeUnmount(() => {
                       </span>
                       <span class="text-sm font-medium text-[var(--text-secondary)] truncate">{{ handlerDisplay(ticket) }}</span>
                     </div>
-                    <span v-else class="text-sm font-medium text-[var(--warning-text)]">Chưa phân công</span>
+                    <span v-else class="text-sm font-medium text-[var(--warning-text)]"></span>
                   </td>
                   <td class="px-4 py-3 align-top">
-                    <p class="text-sm text-[var(--text-secondary)]">{{ formatShortDate(ticketCreatedAt(ticket)) }}</p>
-                    <p class="text-xs text-[var(--text-muted)] mt-0.5">{{ formatDateTime(ticketCreatedAt(ticket)).split(' ')[1] }}</p>
+                    <p class="whitespace-nowrap text-sm text-[var(--text-secondary)]">{{ formatShortDate(ticketCreatedAt(ticket)) }} {{ formatTime(ticketCreatedAt(ticket)) }}</p>
                   </td>
                   <td class="px-4 py-3 align-top">
-                    <p class="text-sm font-medium" :class="ticketProcessingDurationClass(ticket)">
-                      {{ ticketProcessingDurationLabel(ticket) }}
-                    </p>
-                    <p v-if="ticketProcessingAlertHint(ticket)" class="mt-1 flex items-center gap-1 text-xs font-medium text-rose-600">
-                      <svg class="size-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
-                      </svg>
-                      {{ ticketProcessingAlertHint(ticket) }}
-                    </p>
+                    <p class="whitespace-nowrap text-sm" :class="ticketDurationClass(ticketConfirmationMeta(ticket))">{{ ticketConfirmationMeta(ticket).label }}</p>
+                  </td>
+                  <td class="px-4 py-3 align-top">
+                    <p class="whitespace-nowrap text-sm" :class="ticketDurationClass(ticketResolutionMeta(ticket))">{{ ticketResolutionMeta(ticket).label }}</p>
                   </td>
                   <td class="px-4 py-3 align-top">
                     <div v-if="hasTicketActions(ticket)" class="relative flex justify-end">
@@ -425,7 +403,7 @@ onBeforeUnmount(() => {
 
               <tbody v-else>
                 <tr>
-                  <td colspan="7" class="px-4 py-12">
+                  <td colspan="8" class="px-4 py-12">
                     <div class="flex flex-col items-center justify-center text-center">
                       <div class="flex size-16 items-center justify-center rounded-full bg-[var(--surface-muted)] ring-1 ring-slate-100 mb-4">
                         <svg class="size-8 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -466,12 +444,24 @@ onBeforeUnmount(() => {
                       <span class="inline-flex items-center rounded bg-[var(--primary-softer)] px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-[var(--text-secondary)] mb-2 font-mono">
                         {{ ticket.ticket_code || `#${ticket.id}` }}
                       </span>
-                      <h3 class="text-base font-semibold text-[var(--text-primary)] leading-tight group-hover:text-[var(--primary)] transition-colors">{{ ticket.title || '--' }}</h3>
+                      <h3 class="text-base font-semibold text-[var(--text-primary)] leading-tight group-hover:text-[var(--primary)] transition-colors">{{ ticket.title || '' }}</h3>
                       <p class="mt-1 text-sm text-[var(--text-secondary)] line-clamp-2">{{ ticketSubline(ticket) }}</p>
                     </div>
-                    <span class="inline-flex shrink-0 items-center justify-center rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-inset whitespace-nowrap" :class="ticketStatusClass(ticket.status)">
-                      {{ normalizeTicketStatus(ticket.status) }}
-                    </span>
+                    <div class="flex shrink-0 items-start gap-1.5">
+                      <span class="inline-flex items-center justify-center rounded-md px-2 py-1 text-[11px] font-medium ring-1 ring-inset whitespace-nowrap" :class="ticketStatusClass(ticket.status)">
+                        {{ normalizeTicketStatus(ticket.status) }}
+                      </span>
+                      <button
+                        v-if="hasTicketActions(ticket)"
+                        type="button"
+                        class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] focus:outline-none focus:text-[var(--primary)]"
+                        aria-label="Mở menu thao tác"
+                        :aria-expanded="openActionMenuId === ticket.id"
+                        @click.stop="toggleActionMenu($event, ticket.id)"
+                      >
+                        <span class="material-symbols-outlined text-[20px]">more_horiz</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div class="mt-3 border-t border-[var(--stroke)] pt-3">
@@ -489,50 +479,22 @@ onBeforeUnmount(() => {
                         <dt class="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Ngày tạo</dt>
                         <dd class="mt-0.5 font-medium text-[var(--text-secondary)]">{{ formatShortDate(ticketCreatedAt(ticket)) }}</dd>
                       </div>
-                      <div class="col-span-2">
-                        <dt class="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Thời gian xử lý</dt>
-                        <dd class="mt-0.5 font-medium flex items-center justify-between" :class="ticketProcessingDurationClass(ticket)">
-                          <span>{{ ticketProcessingDurationLabel(ticket) }}</span>
-                          <span v-if="ticketProcessingAlertHint(ticket)" class="flex items-center gap-1 text-xs text-rose-600">
-                             <svg class="size-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
-                              </svg>
-                            {{ ticketProcessingAlertHint(ticket) }}
-                          </span>
+                      <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Tiếp nhận</dt>
+                        <dd class="mt-0.5 font-medium" :class="ticketDurationClass(ticketConfirmationMeta(ticket))">
+                          {{ ticketConfirmationMeta(ticket).label }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt class="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Xử lý</dt>
+                        <dd class="mt-0.5 font-medium" :class="ticketDurationClass(ticketResolutionMeta(ticket))">
+                          {{ ticketResolutionMeta(ticket).label }}
                         </dd>
                       </div>
                     </dl>
                   </div>
                 </div>
 
-                <div v-if="canEditTicket || canDeleteTicket(ticket) || canReopenTicket(ticket)" class="border-t border-[var(--stroke)] bg-[var(--surface-muted)] px-3 py-2.5 flex items-center justify-end gap-2">
-                  <button
-                    v-if="canEditTicket && isEditableTicket(ticket)"
-                    type="button"
-                    class="app-button-secondary rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-                    @click.stop="goToEditTicket(ticket.id)"
-                  >
-                    Sửa
-                  </button>
-                  <button
-                    v-if="canReopenTicket(ticket)"
-                    type="button"
-                    class="app-button-warning rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                    :disabled="reopeningId === ticket.id"
-                    @click.stop="handleReopenTicket(ticket)"
-                  >
-                    {{ reopeningId === ticket.id ? 'Đang mở...' : 'Mở lại' }}
-                  </button>
-                  <button
-                    v-if="canDeleteTicket(ticket)"
-                    type="button"
-                    class="app-button-danger rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
-                    :disabled="deletingId === ticket.id"
-                    @click.stop="handleDeleteTicket(ticket)"
-                  >
-                    {{ deletingId === ticket.id ? 'Đang xoá...' : 'Xoá' }}
-                  </button>
-                </div>
               </div>
             </template>
 

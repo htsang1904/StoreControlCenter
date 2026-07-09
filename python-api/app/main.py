@@ -48,14 +48,30 @@ async def log_requests(request: Request, call_next):
     process_time = (time.time() - start_time) * 1000
     
     # Log: METHOD PATH - STATUS - TIME ms
-    logger.info(
+    log_message = (
         f"{request.method} {request.url.path} - "
         f"{response.status_code} - "
         f"{process_time:.2f}ms"
     )
+    if response.status_code >= 400:
+        logger.warning(log_message)
+    else:
+        logger.info(log_message)
     return response
 
 # Global Error Handler — prevents leaking internal details
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    detail = getattr(exc, "detail", None) or str(exc)
+    logger.warning(
+        f"Request Error: {request.method} {request.url.path} - "
+        f"{getattr(exc, 'status_code', 400)} - {detail}"
+    )
+    return JSONResponse(
+        status_code=getattr(exc, "status_code", 400),
+        content={"success": False, "detail": detail, "message": detail},
+    )
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     # Determine if we should show traceback
@@ -66,9 +82,12 @@ async def global_exception_handler(request: Request, exc: Exception):
     else:
         logger.warning(f"Request Error: {request.method} {request.url.path} - {exc}")
 
+    detail = getattr(exc, "detail", None)
+    message = detail or str(exc)
+
     return JSONResponse(
         status_code=getattr(exc, "status_code", 400 if not show_traceback else 500),
-        content={"success": False, "message": str(exc) if not show_traceback else "Lỗi hệ thống. Vui lòng thử lại sau."}
+        content={"success": False, "detail": message, "message": message if not show_traceback else "Lỗi hệ thống. Vui lòng thử lại sau."}
     )
 
 # API Routes

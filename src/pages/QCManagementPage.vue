@@ -578,13 +578,6 @@ onBeforeUnmount(() => {
 
       <section class="app-section">
         <div class="border-b border-[var(--stroke)] p-3 tablet:p-4">
-          <div class="mb-3 flex flex-col gap-1 tablet:flex-row tablet:items-end tablet:justify-between">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">QC overview</p>
-              <h2 class="text-base font-semibold text-[var(--text-primary)]">Tình trạng kiểm tra theo cửa hàng</h2>
-            </div>
-            <p class="text-xs text-[var(--text-secondary)]">Sắp xếp theo phiên, lỗi hoặc điểm trung bình để ưu tiên xử lý.</p>
-          </div>
 
           <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
             <div class="flex min-w-0 flex-1 flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">

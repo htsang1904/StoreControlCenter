@@ -199,7 +199,7 @@ const handleOpenNotification = async (notification) => {
     0
   )
   if (ticketId > 0) {
-    await router.push(`/ticket/${ticketId}`)
+    await router.push({ path: '/ticket/inbox', query: { ticket: String(ticketId) } })
   }
 }
 

@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getAdminQcFormById } from '@/services/admin_service'
+import { confirmDialog } from '@/composables/useConfirmDialog'
+import { deleteAdminQcForm, getAdminQcFormById } from '@/services/admin_service'
 import { useToast } from '@/plugins/toast'
 
 const route = useRoute()
@@ -9,6 +10,7 @@ const router = useRouter()
 const toast = useToast()
 
 const loading = ref(false)
+const deleting = ref(false)
 const errorMessage = ref('')
 const formDetail = ref(null)
 
@@ -79,8 +81,31 @@ const openCreatePage = () => {
   router.push('/tools/qc-forms/create')
 }
 
-const showDeleteComingSoon = () => {
-  toast.info('Tính năng xóa biểu mẫu sẽ được bổ sung ở màn hình này sau')
+const deleteForm = async () => {
+  if (!formId.value || deleting.value) return
+
+  const formName = formDetail.value?.name || 'biểu mẫu QC này'
+  const confirmed = await confirmDialog({
+    title: 'Xóa biểu mẫu QC?',
+    message: `Bạn có chắc muốn xóa ${formName}? Thao tác này chỉ thành công khi biểu mẫu chưa có phiếu QC liên quan.`,
+    confirmText: 'Xóa biểu mẫu',
+    cancelText: 'Huỷ',
+    tone: 'danger',
+  })
+  if (!confirmed) return
+
+  deleting.value = true
+  errorMessage.value = ''
+
+  try {
+    await deleteAdminQcForm(formId.value)
+    toast.success('Đã xóa biểu mẫu QC')
+    router.push('/tools/qc-forms')
+  } catch (error) {
+    errorMessage.value = error?.response?.data?.detail || error?.response?.data?.message || error?.message || 'Không thể xóa biểu mẫu QC'
+  } finally {
+    deleting.value = false
+  }
 }
 
 onMounted(async () => {
@@ -110,10 +135,11 @@ onMounted(async () => {
         <div class="app-toolbar w-full tablet:w-auto tablet:shrink-0 tablet:flex-wrap tablet:justify-end">
           <button
             type="button"
+            :disabled="deleting"
             class="inline-flex w-full items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:w-auto"
-            @click="showDeleteComingSoon"
+            @click="deleteForm"
           >
-            Xóa
+            {{ deleting ? 'Đang xóa...' : 'Xóa' }}
           </button>
           <button
             type="button"

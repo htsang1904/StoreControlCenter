@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 import router from '@/router'
-import { loginBySuite, login, getMe, logout as logoutApi, syncStores as syncStoresApi } from '@/services/auth_service'
+import { loginBySuite, login, loginBySsoTicket, getMe, logout as logoutApi, syncStores as syncStoresApi } from '@/services/auth_service'
 import { useToast } from '@/plugins/toast'
 const state = reactive({
   token: localStorage.getItem('token') || null,
@@ -103,6 +103,41 @@ export function useApp() {
         toast.info('Bạn đã đăng xuất')
     }
 
+    const userLoginBySsoTicket = async (ticket) => {
+        try {
+            const result = await loginBySsoTicket({ ticket })
+            const accessToken = result?.data?.accessToken
+            const refreshToken = result?.data?.refreshToken
+
+            if (!result?.success || !accessToken) {
+                throw new Error(result?.message || 'Đăng nhập thất bại')
+            }
+
+            localStorage.setItem('token', accessToken)
+            if (refreshToken) {
+                localStorage.setItem('refreshToken', refreshToken)
+            }
+            syncAuthStateFromStorage()
+
+            const meResult = await getMe()
+            const user = resolveUserProfile(meResult)
+            if (user) {
+                state.userInfo = user
+            }
+
+            await router.replace('/dashboard')
+            return result
+        } catch (err) {
+            clearAuthState()
+            const message =
+                err?.response?.data?.detail ||
+                err?.response?.data?.message ||
+                err?.message ||
+                'Đăng nhập thất bại'
+            throw new Error(message)
+        }
+    }
+
     const syncUserStores = async () => {
         const result = await syncStoresApi()
         const user = resolveUserProfile(result)
@@ -138,6 +173,7 @@ export function useApp() {
     return {
         state,
         userLogin,
+        userLoginBySsoTicket,
         userLogout,
         syncUserStores,
         logout: userLogout,

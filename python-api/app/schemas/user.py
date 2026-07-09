@@ -33,6 +33,9 @@ class LoginRequest(BaseModel):
 class RefreshRequest(BaseModel):
     refreshToken: str
 
+class SsoCallbackRequest(BaseModel):
+    ticket: str
+
 class AuthTokensResponse(BaseModel):
     tokenType: str
     accessToken: str

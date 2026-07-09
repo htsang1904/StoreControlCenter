@@ -8,6 +8,9 @@ export const loginBySuite = (payload) => {
 export const login = (payload) => {
   return http.post('/api/auth/login', payload)
 }
+export const loginBySsoTicket = (payload) => {
+  return http.post('/api/auth/sso/callback', payload)
+}
 export const getMe = () => {
   return http.get('/api/auth/me')
 }

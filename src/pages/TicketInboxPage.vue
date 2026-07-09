@@ -141,9 +141,7 @@ async function handleSidebarScroll(event) {
 function ticketAssignees(ticket) {
   const source = Array.isArray(ticket?.assignees) && ticket.assignees.length
     ? ticket.assignees
-    : ticket?.assigned_to
-      ? [ticket.assigned_to]
-      : []
+    : []
 
   const seen = new Set()
   return source
@@ -220,7 +218,7 @@ watch(
 </script>
 
 <template>
-  <div class="app-page h-full min-h-0 overflow-hidden">
+  <div class="h-full min-h-0 overflow-hidden">
     <section class="app-inbox-shell">
       <aside
         class="relative min-h-0 border-b border-[var(--stroke)] bg-white text-[var(--text-primary)] pc:border-b-0 pc:border-r pc:border-[var(--stroke)]"

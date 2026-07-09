@@ -132,6 +132,14 @@ const router = createRouter({
                 title: 'Suite App'
             }
         },
+        {
+            name: 'sso-callback',
+            path: '/sso/callback',
+            component: () => import('@/pages/SsoCallbackPage.vue'),
+            meta: {
+                title: 'Suite SSO'
+            }
+        },
     ],
 })
 

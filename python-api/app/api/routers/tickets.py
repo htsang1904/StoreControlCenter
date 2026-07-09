@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, List, Optional
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from sqlalchemy import func, or_, and_, delete as sa_delete, update as sa_update
@@ -47,7 +47,6 @@ async def _get_ticket_with_details(session: AsyncSession, ticket_id: int) -> Opt
     """Helper to fetch a ticket with all nested relationships for rich responses."""
     query = select(Ticket).options(
         selectinload(Ticket.requester),
-        selectinload(Ticket.handler),
         selectinload(Ticket.store),
         selectinload(Ticket.responsible_department),
         selectinload(Ticket.assignees)
@@ -89,7 +88,6 @@ async def _can_access_ticket(session: AsyncSession, ticket: Ticket, current_user
         user_store_ids=_get_user_store_ids(current_user),
         ticket_store_id=ticket.store_id,
         ticket_department_id=ticket.responsible_department_id,
-        ticket_handler_id=ticket.handler_id,
         ticket_requester_id=ticket.requester_id,
         is_assignee=is_assignee,
     )
@@ -131,7 +129,6 @@ async def read_tickets(
     # Base Query
     query = select(Ticket).options(
         selectinload(Ticket.requester),
-        selectinload(Ticket.handler),
         selectinload(Ticket.store),
         selectinload(Ticket.responsible_department),
         selectinload(Ticket.assignees)
@@ -162,7 +159,21 @@ async def read_tickets(
     if status:
         status_list = [s.strip() for s in status.split(",") if s.strip()]
         if status_list:
-            filters.append(Ticket.status.in_(status_list))
+            status_filters = []
+            direct_statuses = [s for s in status_list if s not in {"unconfirmed", "processing_late"}]
+            if direct_statuses:
+                status_filters.append(Ticket.status.in_(direct_statuses))
+            if "unconfirmed" in status_list:
+                status_filters.append(and_(Ticket.processing_started_at.is_(None), Ticket.status.in_(["new", "assigned"])))
+            if "processing_late" in status_list:
+                status_filters.append(and_(
+                    Ticket.processing_started_at.is_not(None),
+                    Ticket.resolved_at.is_(None),
+                    Ticket.status == "in_progress",
+                    Ticket.processing_started_at < _utcnow_naive() - timedelta(hours=24),
+                ))
+            if status_filters:
+                filters.append(or_(*status_filters))
 
     # Date Filters
     if date_from:
@@ -236,25 +247,6 @@ async def create_ticket(
 
     data["store_id"] = resolved_store.id
     
-    incoming_handler_id = data.get("handler_id") or data.pop("initialHandler", None)
-    if incoming_handler_id is not None:
-        try:
-            incoming_handler_id = int(incoming_handler_id)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="initialHandler/handler_id không hợp lệ")
-
-        h_query = select(User).where(User.id == incoming_handler_id)
-        h_result = await session.execute(h_query)
-        handler = h_result.scalar_one_or_none()
-        if not handler or handler.role != "handler":
-            raise HTTPException(status_code=400, detail="Handler không hợp lệ")
-        if data.get("responsible_department_id") and handler.department_id != data["responsible_department_id"]:
-            raise HTTPException(status_code=400, detail="Handler không thuộc đúng bộ phận phụ trách")
-
-        data["handler_id"] = incoming_handler_id
-        data["status"] = "in_progress"
-        data["processing_started_at"] = _utcnow_naive()
-    
     data["requester_id"] = current_user.id
     data["ticket_code"] = f"TCK-{uuid.uuid4().hex[:8].upper()}"
     
@@ -326,7 +318,6 @@ async def read_ticket(
         selectinload(Ticket.store),
         selectinload(Ticket.requester),
         selectinload(Ticket.assignees),
-        selectinload(Ticket.handler),
         selectinload(Ticket.responsible_department)
     ).where(Ticket.id == id)
     result = await session.execute(query)
@@ -388,10 +379,6 @@ async def update_ticket(
     for field, value in update_data.items():
         setattr(ticket, field, value)
 
-    if update_data.get("handler_id") and ticket.status == "new":
-        ticket.status = "in_progress"
-        ticket.processing_started_at = _utcnow_naive()
-        
     session.add(ticket)
     await session.commit()
     
@@ -450,16 +437,16 @@ async def list_assignable_handlers(
     return {"success": True, "data": serialized_handlers}
 
 @router.post("/{id}/assignees", response_model=dict)
-async def assign_handler(
+async def assign_assignee(
     id: int,
     payload: dict,
     session: SessionDep,
     current_user: CurrentUser,
 ) -> Any:
-    """Assign a handler to the ticket."""
-    handler_id = payload.get("handler_id")
-    if not handler_id:
-        raise HTTPException(status_code=400, detail="Thiếu handler_id")
+    """Assign a user to the ticket."""
+    assignee_id = payload.get("assignee_id")
+    if not assignee_id:
+        raise HTTPException(status_code=400, detail="Thiếu assignee_id")
         
     query = select(Ticket).options(selectinload(Ticket.assignees)).where(Ticket.id == id)
     result = await session.execute(query)
@@ -473,7 +460,7 @@ async def assign_handler(
     if not allowed:
         raise HTTPException(status_code=403 if "Chỉ admin" in err else 400, detail=err)
         
-    h_query = select(User).where(User.id == handler_id)
+    h_query = select(User).where(User.id == assignee_id)
     h_result = await session.execute(h_query)
     handler = h_result.scalar_one_or_none()
     

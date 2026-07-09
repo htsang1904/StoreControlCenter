@@ -67,6 +67,33 @@ def build_ticket_base_filters(
 
     return filters
 
+def build_ticket_scope_filters(
+    request: DashboardOverviewRequest,
+    current_user: User,
+) -> list:
+    filters = []
+
+    if request.store_ids:
+        ids = [int(i.strip()) for i in request.store_ids.split(",") if i.strip().isdigit()]
+        if ids:
+            filters.append(Ticket.store_id.in_(ids))
+    if request.department_id:
+        filters.append(Ticket.responsible_department_id == request.department_id)
+
+    if current_user.role == "store":
+        user_store_ids = [s.id for s in current_user.stores]
+        filters.append(or_(
+            Ticket.requester_id == current_user.id,
+            Ticket.store_id.in_(user_store_ids)
+        ))
+    elif current_user.role == "handler":
+        filters.append(or_(
+            Ticket.responsible_department_id == current_user.department_id,
+            Ticket.assignees.any(id=current_user.id)
+        ))
+
+    return filters
+
 
 def calculate_delta(current: float, previous: float, lower_is_better: bool = False) -> dict:
     current_value = float(current or 0)
@@ -95,9 +122,10 @@ def calculate_delta(current: float, previous: float, lower_is_better: bool = Fal
 
 
 async def get_ticket_summary_metrics(session: SessionDep, filters: list, now) -> dict:
+    where_clause = and_(*filters) if filters else literal(True)
     status_query = (
         select(Ticket.status, func.count(Ticket.id))
-        .where(and_(*filters))
+        .where(where_clause)
         .group_by(Ticket.status)
     )
     status_results = await session.execute(status_query)
@@ -115,7 +143,7 @@ async def get_ticket_summary_metrics(session: SessionDep, filters: list, now) ->
             else_=None
         )
     )
-    avg_proc_res = await session.execute(select(avg_support_time_expr).where(and_(*filters)))
+    avg_proc_res = await session.execute(select(avg_support_time_expr).where(where_clause))
     global_avg_sec = avg_proc_res.scalar()
     global_avg_hours = round(float(global_avg_sec) / 3600.0, 1) if global_avg_sec else 0.0
 
@@ -123,7 +151,7 @@ async def get_ticket_summary_metrics(session: SessionDep, filters: list, now) ->
     due_soon_res = await session.execute(
         select(func.count(Ticket.id)).where(
             and_(
-                *filters,
+                where_clause,
                 Ticket.end_date != None,
                 Ticket.end_date >= now,
                 Ticket.end_date <= due_soon_threshold,
@@ -131,13 +159,25 @@ async def get_ticket_summary_metrics(session: SessionDep, filters: list, now) ->
             )
         )
     )
+    confirmation_late_threshold = now - timedelta(hours=2)
+    processing_late_threshold = now - timedelta(hours=24)
     overdue_res = await session.execute(
         select(func.count(Ticket.id)).where(
             and_(
-                *filters,
-                Ticket.end_date != None,
-                Ticket.end_date < now,
-                ~Ticket.status.in_(["resolved", "closed", "rejected"]),
+                where_clause,
+                or_(
+                    and_(
+                        Ticket.processing_started_at.is_(None),
+                        Ticket.created_at < confirmation_late_threshold,
+                        Ticket.status.in_(["new", "assigned"]),
+                    ),
+                    and_(
+                        Ticket.processing_started_at.is_not(None),
+                        Ticket.resolved_at.is_(None),
+                        Ticket.processing_started_at < processing_late_threshold,
+                        Ticket.status == "in_progress",
+                    ),
+                ),
             )
         )
     )
@@ -177,13 +217,30 @@ def build_qc_base_filters(
 
     return filters
 
+def build_qc_scope_filters(
+    request: DashboardOverviewRequest,
+    current_user: User,
+) -> list:
+    filters = []
+
+    if current_user.role != "admin":
+        user_store_ids = [s.id for s in current_user.stores]
+        filters.append(QCSession.store_id.in_(user_store_ids))
+    elif request.store_ids:
+        ids = [int(i.strip()) for i in request.store_ids.split(",") if i.strip().isdigit()]
+        if ids:
+            filters.append(QCSession.store_id.in_(ids))
+
+    return filters
+
 
 async def get_qc_summary_metrics(session: SessionDep, filters: list) -> dict:
+    where_clause = and_(*filters) if filters else literal(True)
     query = select(
         func.count(QCSession.id),
         func.sum(case((QCSession.result == "pass", 1), else_=0)),
         func.sum(case((QCSession.result == "fail", 1), else_=0)),
-    ).where(and_(*filters))
+    ).where(where_clause)
     result = await session.execute(query)
     total_sessions, passed, failed = result.one()
     total_sessions = int(total_sessions or 0)
@@ -245,6 +302,11 @@ async def get_dashboard_overview(
 
     current_metrics = await get_ticket_summary_metrics(session, base_filters, now)
     previous_metrics = await get_ticket_summary_metrics(session, previous_filters, now)
+    live_metrics = await get_ticket_summary_metrics(
+        session,
+        build_ticket_scope_filters(request, current_user),
+        now,
+    )
     current_qc_metrics = await get_qc_summary_metrics(
         session,
         build_qc_base_filters(date_from_dt, date_to_dt, request, current_user),
@@ -252,6 +314,10 @@ async def get_dashboard_overview(
     previous_qc_metrics = await get_qc_summary_metrics(
         session,
         build_qc_base_filters(previous_from_dt, previous_to_dt, request, current_user),
+    )
+    live_qc_metrics = await get_qc_summary_metrics(
+        session,
+        build_qc_scope_filters(request, current_user),
     )
     status_counts = current_metrics["status_counts"]
     avg_support_time_expr = current_metrics["avg_support_time_expr"]
@@ -427,6 +493,20 @@ async def get_dashboard_overview(
                 "due_soon": current_metrics["due_soon"],
                 "overdue": current_metrics["overdue"],
                 "avg_processing_time": current_metrics["avg_processing_time"],
+            },
+            "live_summary": {
+                "total_ticket": live_metrics["total_ticket"],
+                "in_progress": live_metrics["in_progress"],
+                "resolved": live_metrics["resolved"],
+                "closed": live_metrics["closed"],
+                "rejected": live_metrics["rejected"],
+                "due_soon": live_metrics["due_soon"],
+                "overdue": live_metrics["overdue"],
+                "avg_processing_time": live_metrics["avg_processing_time"],
+                "qc_pass_rate": live_qc_metrics["passRate"],
+                "qc_total_sessions": live_qc_metrics["totalSessions"],
+                "qc_passed": live_qc_metrics["passed"],
+                "qc_failed": live_qc_metrics["failed"],
             },
             "previous_summary": {
                 "date_from": previous_from_dt.date().isoformat(),

@@ -90,7 +90,7 @@ async def _count_user_business_references(session: SessionDep, user_id: int) -> 
     ticket_count = int((await session.execute(
         select(func.count())
         .select_from(Ticket)
-        .where(or_(Ticket.requester_id == user_id, Ticket.handler_id == user_id))
+        .where(or_(Ticket.requester_id == user_id, Ticket.assignees.any(id=user_id)))
     )).scalar() or 0)
 
     ticket_log_count = int((await session.execute(

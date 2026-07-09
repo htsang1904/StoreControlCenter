@@ -105,7 +105,7 @@ Once running:
 - **Backend API & Docs** are at: `http://localhost:8000/docs`
 
 **Note on Database setup in Docker:**
-To apply migrations on the newly created Docker database, run:
+When using `docker-compose`, the backend container runs Alembic migrations automatically before starting Uvicorn. To apply migrations manually if needed, run:
 ```bash
 docker exec -it store_control_center_backend alembic upgrade head
 ```

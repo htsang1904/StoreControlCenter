@@ -25,7 +25,6 @@ class Ticket(Base):
     type = Column(String(50), nullable=True) # Type/Category text
     
     requester_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    handler_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
     responsible_department_id = Column(Integer, ForeignKey("departments.id"), nullable=False, index=True)
     ticket_category_id = Column(Integer, nullable=True) # Unmapped external ID?
@@ -44,7 +43,6 @@ class Ticket(Base):
 
     # Relationships
     requester = relationship("User", foreign_keys=[requester_id])
-    handler = relationship("User", foreign_keys=[handler_id])
     store = relationship("Store", backref="tickets")
     responsible_department = relationship("Department", back_populates="tickets")
     assignees = relationship("User", secondary=ticket_assignees, back_populates="assigned_tickets")

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     
     # External APIs
     SUITE_API: str = "https://lab-sapi.guta.asia"
+    SUITE_WEB_URL: str = "https://suite.guta.vn"
+    SUITE_PLATFORM_TOKEN: str = ""
     MAIN_STORE_SYNC_URL: str = "https://gapi.guta.asia/webapi/stores?all_stores=true"
     SUITE_VERIFY_TOKEN: bool = False
     SUITE_PUBLIC_KEY_FILE: str = ""

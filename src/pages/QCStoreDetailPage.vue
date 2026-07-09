@@ -555,16 +555,10 @@ onBeforeUnmount(() => {
       <section class="flex flex-col space-y-4">
         <div class="flex flex-col overflow-visible rounded-xl border border-[var(--stroke)] bg-white">
           <div class="app-section-header relative z-10 tablet:px-6">
-            <div class="mb-3 flex flex-col gap-1 tablet:flex-row tablet:items-end tablet:justify-between">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">QC sessions</p>
-                <h2 class="text-base font-semibold text-[var(--text-primary)]">Lịch sử chấm và phiếu nháp</h2>
-              </div>
-              <p class="text-xs text-[var(--text-secondary)]">Theo dõi phiếu đang chấm, kết quả đã chốt và lỗi cần xử lý.</p>
-            </div>
 
-            <div class="flex flex-col gap-3 pc:flex-row pc:items-center">
-              <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
+
+            <div class="flex flex-col gap-3 pc:flex-row pc:items-center pc:justify-end">
+              <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center tablet:justify-end">
                 <div class="hs-dropdown [--auto-close:inside] relative inline-block">
                   <button
                     id="qc-status-filter"
@@ -616,7 +610,7 @@ onBeforeUnmount(() => {
                 />
               </div>
 
-              <div class="flex flex-col gap-2 tablet:flex-row tablet:items-center pc:ml-auto">
+              <div class="flex flex-col gap-2 tablet:flex-row tablet:items-center tablet:justify-end">
                 <div class="relative w-full tablet:flex-1 pc:w-[300px] pc:flex-none">
                   <input v-model="searchInput" type="text" class="block h-9 w-full rounded-lg border border-[var(--stroke)] px-3 ps-10 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:ring-0" placeholder="Tìm mã phiếu, mẫu QC, ghi chú..." />
                   <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3">
@@ -694,14 +688,14 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
 
-                  <div class="mt-4 flex flex-col gap-2 tablet:flex-row">
-                    <button type="button" class="app-button-secondary inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:flex-1" @click="handleRowAction(session)">
+                  <div class="mt-4 flex flex-col items-stretch gap-2 tablet:flex-row tablet:justify-end">
+                    <button type="button" class="app-button-secondary inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:w-auto" @click="handleRowAction(session)">
                       {{ isDraftRow(session) ? 'Tiếp tục' : 'Chi tiết' }}
                     </button>
-                    <button v-if="isDraftRow(session)" type="button" class="app-button-danger inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:flex-1" @click="confirmRemoveDraftSession(session.id)">
+                    <button v-if="isDraftRow(session)" type="button" class="app-button-danger inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:w-auto" @click="confirmRemoveDraftSession(session.id)">
                       Xóa nháp
                     </button>
-                    <button v-else type="button" class="app-button-danger inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:flex-1" @click="confirmRemoveSession(session.id)">
+                    <button v-else type="button" class="app-button-danger inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:w-auto" @click="confirmRemoveSession(session.id)">
                       Xóa phiên lỗi
                     </button>
                   </div>
@@ -758,16 +752,18 @@ onBeforeUnmount(() => {
                         </span>
                       </td>
                       <td class="px-4 py-2 text-sm text-[var(--text-secondary)]">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</td>
-                      <td class="px-4 py-2 text-end flex gap-2 justify-end">
-                        <button type="button" class="app-button-secondary cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="handleRowAction(session)">
-                          {{ isDraftRow(session) ? 'Tiếp tục' : 'Chi tiết' }}
-                        </button>
-                        <button v-if="isDraftRow(session)" type="button" class="app-button-danger cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="confirmRemoveDraftSession(session.id)">
-                          Xóa
-                        </button>
-                        <button v-else type="button" class="app-button-danger cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="confirmRemoveSession(session.id)">
-                          Xóa
-                        </button>
+                      <td class="px-4 py-2 text-end">
+                        <div class="flex items-center justify-end gap-2">
+                          <button type="button" class="app-button-secondary cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="handleRowAction(session)">
+                            {{ isDraftRow(session) ? 'Tiếp tục' : 'Chi tiết' }}
+                          </button>
+                          <button v-if="isDraftRow(session)" type="button" class="app-button-danger cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="confirmRemoveDraftSession(session.id)">
+                            Xóa
+                          </button>
+                          <button v-else type="button" class="app-button-danger cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="confirmRemoveSession(session.id)">
+                            Xóa
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   </template>
