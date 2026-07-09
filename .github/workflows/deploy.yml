@@ -17,6 +17,7 @@ jobs:
   validate:
     name: Validate frontend
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -35,6 +36,10 @@ jobs:
           APP_ENV: ${{ secrets.APP_ENV }}
         run: |
           printf '%s\n' "$APP_ENV" > .env.production
+          grep -Eq '^VITE_API_BASE_URL=.+' .env.production || {
+            echo "APP_ENV must define a non-empty VITE_API_BASE_URL"
+            exit 1
+          }
           npm run build
 
       - name: Upload frontend build
