@@ -88,6 +88,7 @@ jobs:
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='.env' \
+            --exclude='.user.ini' \
             --exclude='node_modules/' \
             --exclude='dist/' \
             -e "ssh -i ~/.ssh/deploy_key -p ${SSH_PORT:-22} -o BatchMode=yes" \
