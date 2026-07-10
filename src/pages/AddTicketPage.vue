@@ -261,6 +261,7 @@ onMounted(async () => {
     await fetchTicketForEdit()
   } catch (err) {
     formError.value = err?.response?.data?.message || err?.message || 'Không thể tải dữ liệu ticket.'
+    toast.error(formError.value)
   } finally {
     await nextTick()
     if (window.HSStaticMethods?.autoInit) {
@@ -332,10 +333,6 @@ watch(
           <form @submit.prevent="submitTicket">
             <div class="p-4 tablet:p-5 pc:p-6">
               <div class="space-y-5">
-                <div v-if="formError" class="app-state-banner">
-                  {{ formError }}
-                </div>
-
                 <div>
                   <h2 class="text-base font-semibold text-[var(--text-primary)]">Người tạo yêu cầu</h2>
                   <p class="mt-1 text-sm text-[var(--text-secondary)]">Thông tin người gửi được lấy từ tài khoản hiện tại.</p>

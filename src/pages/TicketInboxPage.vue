@@ -28,7 +28,6 @@ const chatState = useTicketCreateChat()
 
 const {
   applySearch: applySearchBase,
-  errorMessage,
   fetchNextPage,
   fetchTickets,
   filters,
@@ -318,11 +317,7 @@ watch(
             class="ticket-inbox-scrollbar min-h-0 flex-1 overflow-y-auto px-4 py-3 tablet:px-5"
             @scroll.passive="handleSidebarScroll"
           >
-            <div v-if="errorMessage" class="app-state-banner">
-              {{ errorMessage }}
-            </div>
-
-            <div v-else-if="loading" class="space-y-3">
+            <div v-if="loading" class="space-y-3">
               <div
                 v-for="item in 6"
                 :key="item"

@@ -2,6 +2,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { deleteTicket as deleteTicketApi, listTickets, reopenTicket } from '@/services/ticket_service'
 import { confirmDialog } from '@/composables/useConfirmDialog'
 import { useRoute } from 'vue-router'
+import { useToast } from '@/plugins/toast'
 
 function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 10, fallbackTotal = 0) {
   const currentPage = Number(payload.page || payload.currentPage || fallbackPage || 1)
@@ -22,6 +23,7 @@ function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 
 }
 
 export function useTicketList(userInfo) {
+  const toast = useToast()
   const loading = ref(false)
   const loadingMore = ref(false)
   const deletingId = ref(null)
@@ -169,6 +171,7 @@ export function useTicketList(userInfo) {
       if (!append) {
         tickets.value = []
         errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể tải danh sách ticket.'
+        toast.error(errorMessage.value)
       }
     } finally {
       if (append) {
@@ -243,6 +246,7 @@ export function useTicketList(userInfo) {
       await fetchTickets()
     } catch (err) {
       errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể xoá ticket.'
+      toast.error(errorMessage.value)
     } finally {
       deletingId.value = null
     }
@@ -268,6 +272,7 @@ export function useTicketList(userInfo) {
       await fetchTickets()
     } catch (err) {
       errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể mở lại ticket.'
+      toast.error(errorMessage.value)
     } finally {
       reopeningId.value = null
     }

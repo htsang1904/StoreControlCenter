@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from 
 import { useRoute, useRouter } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
 import { useApp } from '@/plugins/app'
+import { useToast } from '@/plugins/toast'
 import { getDashboardOverview, listTickets } from '@/services/ticket_service'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
 
@@ -11,6 +12,7 @@ const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'))
 const route = useRoute()
 const router = useRouter()
 const { state } = useApp()
+const toast = useToast()
 
 const loading = ref(false)
 const errorMessage = ref('')
@@ -65,6 +67,11 @@ const chartGroupOptions = [
   { value: 'month', label: 'Theo tháng' },
 ]
 const chartGroupLabel = computed(() => chartGroupOptions.find((option) => option.value === chartGroupBy.value)?.label || 'Theo ngày')
+
+function notifyError(message) {
+  errorMessage.value = message
+  toast.error(message)
+}
 
 const dashboardRange = computed(() => {
   return normalizeDateRangeFromQuery(route.query || {}, getDefaultDateRange())
@@ -548,7 +555,7 @@ async function loadTicketOverview({ showLoading = false } = {}) {
     applyTicketOverviewPayload(ticketPayload)
   } catch (error) {
     resetTicketOverview()
-    errorMessage.value = error?.response?.data?.message || error?.message || 'Không thể tải dữ liệu ticket.'
+    notifyError(error?.response?.data?.message || error?.message || 'Không thể tải dữ liệu ticket.')
   } finally {
     if (showLoading) loading.value = false
   }
@@ -590,7 +597,7 @@ async function loadDashboard() {
     applyTicketOverviewPayload(ticketPayload)
   } else {
     resetTicketOverview()
-    errorMessage.value = ticketOverviewResult.reason?.response?.data?.message || ticketOverviewResult.reason?.message || 'Không thể tải dữ liệu ticket.'
+    notifyError(ticketOverviewResult.reason?.response?.data?.message || ticketOverviewResult.reason?.message || 'Không thể tải dữ liệu ticket.')
   }
 
   if (qcOverviewResult.status === 'fulfilled') {
@@ -618,7 +625,7 @@ async function loadDashboard() {
     }
     qcTopStoresData.value = []
     if (!errorMessage.value) {
-      errorMessage.value = qcOverviewResult.reason?.response?.data?.message || qcOverviewResult.reason?.message || 'Không thể tải dữ liệu QC.'
+      notifyError(qcOverviewResult.reason?.response?.data?.message || qcOverviewResult.reason?.message || 'Không thể tải dữ liệu QC.')
     }
   }
 
@@ -628,7 +635,7 @@ async function loadDashboard() {
   } else {
     recentTickets.value = []
     if (!errorMessage.value) {
-      errorMessage.value = recentTicketsResult.reason?.response?.data?.message || recentTicketsResult.reason?.message || 'Không thể tải danh sách ticket gần đây.'
+      notifyError(recentTicketsResult.reason?.response?.data?.message || recentTicketsResult.reason?.message || 'Không thể tải danh sách ticket gần đây.')
     }
   }
 
@@ -654,11 +661,6 @@ watch(chartGroupBy, () => {
 
 <template>
   <div class="app-page dashboard-shell">
-    <div v-if="errorMessage" class="dashboard-alert">
-      <span class="material-symbols-outlined">error</span>
-      <span>{{ errorMessage }}</span>
-    </div>
-
     <section class="dashboard-kpis" :class="{ 'is-loading': loading }">
       <article
         v-for="card in kpiCards"
@@ -852,20 +854,6 @@ watch(chartGroupBy, () => {
 <style scoped>
 .dashboard-shell {
   color: var(--text-primary);
-}
-
-.dashboard-alert {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  margin-bottom: 1rem;
-  padding: 0.75rem 0.875rem;
-  border: 1px solid var(--danger-border);
-  border-radius: 0.875rem;
-  background: var(--danger-bg);
-  color: var(--danger-text);
-  font-size: 0.875rem;
-  font-weight: 600;
 }
 
 .dashboard-kpis {

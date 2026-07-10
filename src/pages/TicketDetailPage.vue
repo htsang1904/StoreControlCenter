@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import CommonModal from '@/components/CommonModal.vue'
 import { useApp } from '@/plugins/app'
+import { useToast } from '@/plugins/toast'
 import { ticketConfirmationMeta, ticketDurationClass, ticketResolutionMeta } from '@/composables/useTicketPresentation'
 import { createRealtimeConnection } from '@/services/realtime_service'
 import {
@@ -31,6 +32,7 @@ const props = defineProps({
 
 const router = useRouter()
 const { state } = useApp()
+const toast = useToast()
 
 const loading = ref(false)
 const errorMessage = ref('')
@@ -587,7 +589,9 @@ function handleTicketRealtimeEvent(payload = {}) {
 
   if (event === 'ticket.deleted') {
     if (!incomingTicketId || incomingTicketId !== ticketId.value) return
-    errorMessage.value = 'Ticket đã bị xóa hoặc không còn khả dụng.'
+    const message = 'Ticket đã bị xóa hoặc không còn khả dụng.'
+    errorMessage.value = message
+    toast.error(message)
     ticket.value = null
     logs.value = []
     assignees.value = []
@@ -638,6 +642,7 @@ async function fetchTicketDetail() {
     ticket.value = normalizeTicketPayload(detail)
   } catch (err) {
     errorMessage.value = err?.response?.data?.message || err?.message || 'Không thể tải chi tiết yêu cầu.'
+    toast.error(errorMessage.value)
   } finally {
     loading.value = false
   }
@@ -658,6 +663,7 @@ async function fetchTicketLogs() {
   } catch (err) {
     logs.value = []
     logsError.value = err?.response?.data?.message || err?.message || 'Không thể tải trao đổi.'
+    toast.error(logsError.value)
   } finally {
     logsLoading.value = false
   }
@@ -676,6 +682,7 @@ async function fetchTicketAssignees() {
   } catch (err) {
     assignees.value = []
     assigneesError.value = err?.response?.data?.message || err?.message || 'Không thể tải danh sách xử lý.'
+    toast.error(assigneesError.value)
   } finally {
     assigneesLoading.value = false
   }
@@ -703,6 +710,7 @@ async function fetchAssignableHandlers() {
     assignableHandlers.value = []
     selectedAssignableHandlerIds.value = []
     assignableHandlersError.value = err?.response?.data?.message || err?.message || 'Không thể tải danh sách handler khả dụng.'
+    toast.error(assignableHandlersError.value)
   } finally {
     assignableHandlersLoading.value = false
   }
@@ -1000,9 +1008,6 @@ watch(
       v-loading="loading"
     >
       <div v-if="errorMessage" class="p-5 tablet:p-6">
-        <div class="app-state-banner">
-          {{ errorMessage }}
-        </div>
         <div class="mt-4">
           <button
             type="button"
@@ -1213,10 +1218,7 @@ watch(
                 ref="conversationViewportRef"
                 class="ticket-detail-scrollbar h-full overflow-y-auto p-3 tablet:p-4"
               >
-                <p v-if="logsError" class="app-state-banner text-xs tablet:text-sm">
-                  {{ logsError }}
-                </p>
-                <p v-else-if="logsLoading" class="app-state-inline text-xs tablet:text-sm">
+                <p v-if="logsLoading" class="app-state-inline text-xs tablet:text-sm">
                   Đang tải trao đổi...
                 </p>
 
