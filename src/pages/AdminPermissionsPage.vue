@@ -230,7 +230,7 @@ const submitPermission = async () => {
   try {
     await createAdminRole(payload)
     toast.success('Đã tạo nhóm quyền')
-    closeCreatePermission()
+    createModalOpen.value = false
     await loadPermissions()
   } catch (error) {
     const message = error?.response?.data?.message || error?.message || 'Không thể tạo quyền'
@@ -259,7 +259,8 @@ const submitPermissionEdit = async () => {
   try {
     await updateAdminPermission(editingPermissionId.value, payload)
     toast.success('Đã cập nhật quyền')
-    closeEditPermission()
+    editPermissionModalOpen.value = false
+    editingPermissionId.value = null
     await loadPermissions()
   } catch (error) {
     const message = error?.response?.data?.message || error?.message || 'Không thể cập nhật quyền'

@@ -128,7 +128,8 @@ const submitDepartment = async () => {
       await createAdminDepartment(payload)
       toast.success('Đã tạo bộ phận')
     }
-    closeModal()
+    modalOpen.value = false
+    resetForm()
     await loadDepartments(modalMode.value === 'edit' ? currentPage.value : 1)
   } catch (error) {
     const message = error?.response?.data?.message || error?.message || 'Không thể lưu bộ phận'
