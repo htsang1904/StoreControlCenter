@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from .routers import (
     admin_qc,
+    admin_departments,
+    admin_permissions,
     admin_stores,
     admin_users,
     auth,
@@ -34,5 +36,7 @@ api_router.include_router(
 )
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(admin_qc.router, prefix="/admin/qc", tags=["Admin QC"])
+api_router.include_router(admin_departments.router, prefix="/admin/departments", tags=["Admin Departments"])
+api_router.include_router(admin_permissions.router, prefix="/admin/permissions", tags=["Admin Permissions"])
 api_router.include_router(admin_users.router, prefix="/admin/users", tags=["Admin Users"])
 api_router.include_router(admin_stores.router, prefix="/admin/stores", tags=["Admin Stores"])

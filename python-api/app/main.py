@@ -15,6 +15,7 @@ from app.db.database import SessionLocal, engine
 from app.admin.views import UserAdmin, StoreAdmin, DepartmentAdmin
 from app.admin.auth import AdminAuthBackend
 from app.services.bootstrap_admin import ensure_bootstrap_admin_account
+from app.services.permission_service import seed_default_permissions
 
 # Configure logging to be more concise
 logging.basicConfig(
@@ -92,6 +93,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # API Routes
 app.include_router(api_router)
+app.include_router(api_router, prefix="/api", include_in_schema=False)
 
 # Static Files (for uploaded attachments)
 os.makedirs("static", exist_ok=True)
@@ -104,19 +106,25 @@ def root():
 
 @app.on_event("startup")
 async def bootstrap_admin_on_startup() -> None:
-    if not settings.ENABLE_BOOTSTRAP_ADMIN:
-        logger.info("Bootstrap admin is disabled (ENABLE_BOOTSTRAP_ADMIN=false).")
-        return
-
     try:
         async with SessionLocal() as session:
-            changed = await ensure_bootstrap_admin_account(
+            permissions_changed = await seed_default_permissions(session)
+            if permissions_changed:
+                logger.info("Default permissions seed completed with updates.")
+            else:
+                logger.info("Default permissions seed completed with no changes.")
+
+            if not settings.ENABLE_BOOTSTRAP_ADMIN:
+                logger.info("Bootstrap admin is disabled (ENABLE_BOOTSTRAP_ADMIN=false).")
+                return
+
+            admin_changed = await ensure_bootstrap_admin_account(
                 session,
                 email=settings.BOOTSTRAP_ADMIN_EMAIL,
                 name=settings.BOOTSTRAP_ADMIN_NAME,
                 phone_number=settings.BOOTSTRAP_ADMIN_PHONE_NUMBER,
             )
-            if changed:
+            if admin_changed:
                 logger.info("Bootstrap admin check completed with updates.")
             else:
                 logger.info("Bootstrap admin check completed with no changes.")

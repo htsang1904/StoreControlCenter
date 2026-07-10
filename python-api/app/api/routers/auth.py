@@ -18,6 +18,7 @@ from app.api.deps import SessionDep, CurrentUser
 from app.models.user import User, user_stores
 from app.models.org import Store
 from app.schemas.user import LoginRequest, RefreshRequest, SsoCallbackRequest, AuthTokensResponse, UserResponse
+from app.services.permission_service import DEFAULT_ROLE_PERMISSIONS, get_role_permissions, normalize_role
 
 router = APIRouter()
 logger = logging.getLogger("app.auth")
@@ -449,8 +450,9 @@ async def map_suite_stores_to_user(session: AsyncSession, user: User) -> list:
         await session.commit()
     return matched_stores
 
-def serialize_user(user: User) -> dict:
+def serialize_user(user: User, permissions: list[str] | None = None) -> dict:
     """Helper to match Strapi's `sanitizeUser` format."""
+    role = serialize_role(user.role)
     stores = []
     for s in user.stores:
         stores.append({
@@ -469,7 +471,8 @@ def serialize_user(user: User) -> dict:
         "email": user.email,
         "phone_number": user.phone_number,
         "is_active": user.is_active,
-        "role": serialize_role(user.role),
+        "role": role,
+        "permissions": permissions if permissions is not None else list(DEFAULT_ROLE_PERMISSIONS.get(normalize_role(role), [])),
         "department": {
             "id": user.department.id,
             "name": user.department.name,
@@ -482,15 +485,16 @@ def serialize_user(user: User) -> dict:
     }
 
 @router.get("/me", response_model=dict)
-async def get_me(current_user: CurrentUser) -> Any:
+async def get_me(session: SessionDep, current_user: CurrentUser) -> Any:
     """
     Get current user profile including mapped stores.
     """
+    permissions = await get_role_permissions(session, serialize_role(current_user.role))
     return {
         "success": True,
         "message": "Lấy thông tin người dùng thành công",
         "data": {
-            "user": serialize_user(current_user)
+            "user": serialize_user(current_user, permissions)
         }
     }
 
@@ -536,7 +540,7 @@ async def sync_stores(
             "message": "Đồng bộ cửa hàng thành công",
             "data": {
                 "syncedStores": len(matched_stores),
-                "user": serialize_user(updated_user)
+                "user": serialize_user(updated_user, await get_role_permissions(session, serialize_role(updated_user.role)))
             }
         }
     except Exception as e:

@@ -91,6 +91,18 @@ const router = createRouter({
                     meta: { auth: true, roles: ['admin'] }
                 },
                 {
+                    path: 'tools/departments',
+                    name: 'Admin Departments',
+                    component: () => import('@/pages/AdminDepartmentsPage.vue'),
+                    meta: { auth: true, permissions: ['departments.manage'] }
+                },
+                {
+                    path: 'tools/permissions',
+                    name: 'Admin Permissions',
+                    component: () => import('@/pages/AdminPermissionsPage.vue'),
+                    meta: { auth: true, permissions: ['permissions.manage'] }
+                },
+                {
                     path: 'tools/store-sync',
                     name: 'Admin Store Sync',
                     component: () => import('@/pages/AdminStoreSyncPage.vue'),

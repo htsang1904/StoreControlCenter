@@ -90,6 +90,14 @@ function resolveHeaderContext(currentRoute) {
       return { tab: '', title: 'Quản lý cửa hàng', display: 'breadcrumb' }
     }
 
+    if (path.startsWith('/tools/departments')) {
+      return { tab: '', title: 'Quản lý bộ phận', display: 'breadcrumb' }
+    }
+
+    if (path.startsWith('/tools/permissions')) {
+      return { tab: '', title: 'Quản lý quyền', display: 'breadcrumb' }
+    }
+
     if (path.startsWith('/tools/store-sync')) {
       return { tab: '', title: 'Đồng bộ cửa hàng', display: 'breadcrumb' }
     }
@@ -137,6 +145,8 @@ function resolveBreadcrumbItems(currentRoute, context, currentLabelValue) {
   if (
     path.startsWith('/tools/users') ||
     path.startsWith('/tools/stores') ||
+    path.startsWith('/tools/departments') ||
+    path.startsWith('/tools/permissions') ||
     path.startsWith('/tools/store-sync') ||
     path.startsWith('/tools/qc-forms')
   ) {

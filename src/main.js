@@ -8,6 +8,13 @@ import router from './router';
 const { initializeAuth, state } = useApp()
 await initializeAuth()
 
+const hasAnyPermission = (requiredPermissions = []) => {
+  const currentRole = String(state.userInfo?.role || '').toLowerCase()
+  if (currentRole === 'admin') return true
+  const permissions = Array.isArray(state.userInfo?.permissions) ? state.userInfo.permissions : []
+  return requiredPermissions.some((permission) => permissions.includes(permission))
+}
+
 router.beforeEach((to, from, next) => {
   const hasToken = Boolean(state.token)
 
@@ -25,6 +32,13 @@ router.beforeEach((to, from, next) => {
       if (Array.isArray(to.meta.roles) && to.meta.roles.length > 0) {
           const currentRole = String(state.userInfo?.role || '').toLowerCase()
           if (!currentRole || !to.meta.roles.includes(currentRole)) {
+              next('/dashboard')
+              return
+          }
+      }
+
+      if (Array.isArray(to.meta.permissions) && to.meta.permissions.length > 0) {
+          if (!hasAnyPermission(to.meta.permissions)) {
               next('/dashboard')
               return
           }

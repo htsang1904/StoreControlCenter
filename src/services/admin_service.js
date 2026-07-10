@@ -285,6 +285,104 @@ export const listAdminDepartments = async () => {
   }))
 }
 
+const normalizeAdminDepartment = (item = {}) => ({
+  id: Number(item?.id || 0),
+  name: String(item?.name || ''),
+  code: String(item?.code || ''),
+  isActive: item?.is_active !== false && item?.isActive !== false,
+  createdAt: item?.created_at || item?.createdAt || null,
+  updatedAt: item?.updated_at || item?.updatedAt || null,
+})
+
+export const listAdminDepartmentsManaged = async ({
+  page = 1,
+  pageSize = 20,
+  q = '',
+  isActive,
+} = {}) => {
+  const params = { page, pageSize }
+  if (String(q || '').trim()) params.q = String(q).trim()
+  if (typeof isActive === 'boolean') params.isActive = isActive
+
+  const response = await http.get('/api/admin/departments', { params })
+  const rows = Array.isArray(response?.data?.items) ? response.data.items : []
+  const pagination = response?.data?.pagination || {}
+
+  return {
+    items: rows.map((item) => normalizeAdminDepartment(item)),
+    pagination: {
+      page: Number(pagination?.page || page),
+      pageSize: Number(pagination?.pageSize || pageSize),
+      total: Number(pagination?.total || rows.length),
+      pageCount: Number(pagination?.pageCount || 1),
+    },
+  }
+}
+
+export const createAdminDepartment = async (payload = {}) => {
+  const response = await http.post('/api/admin/departments', payload)
+  return normalizeAdminDepartment(response?.data?.item || {})
+}
+
+export const updateAdminDepartment = async (departmentId, payload = {}) => {
+  const response = await http.put(`/api/admin/departments/${departmentId}`, payload)
+  return normalizeAdminDepartment(response?.data?.item || {})
+}
+
+export const deleteAdminDepartment = async (departmentId) => {
+  return http.delete(`/api/admin/departments/${departmentId}`)
+}
+
+const normalizeAdminPermission = (item = {}) => ({
+  id: Number(item?.id || 0),
+  code: String(item?.code || ''),
+  name: String(item?.name || ''),
+  group: String(item?.group || ''),
+  description: String(item?.description || ''),
+  isActive: item?.is_active !== false && item?.isActive !== false,
+})
+
+export const listAdminPermissions = async () => {
+  const response = await http.get('/api/admin/permissions')
+  const rows = Array.isArray(response?.data?.items) ? response.data.items : []
+  return rows.map((item) => normalizeAdminPermission(item))
+}
+
+export const createAdminPermission = async (payload = {}) => {
+  const response = await http.post('/api/admin/permissions', payload)
+  return normalizeAdminPermission(response?.data?.item || {})
+}
+
+export const updateAdminPermission = async (permissionId, payload = {}) => {
+  const response = await http.put(`/api/admin/permissions/actions/${permissionId}`, payload)
+  return normalizeAdminPermission(response?.data?.item || {})
+}
+
+export const listAdminRolePermissions = async () => {
+  const response = await http.get('/api/admin/permissions/roles')
+  return response?.data?.roles || {}
+}
+
+export const listAdminRoles = async () => {
+  const response = await http.get('/api/admin/permissions/roles')
+  return Array.isArray(response?.data?.items) ? response.data.items : []
+}
+
+export const createAdminRole = async (payload = {}) => {
+  const response = await http.post('/api/admin/permissions/roles', payload)
+  return response?.data?.item || {}
+}
+
+export const updateAdminRolePermissions = async (role, permissions = []) => {
+  const response = await http.put(`/api/admin/permissions/roles/${role}`, { permissions })
+  return response?.data || {}
+}
+
+export const updateAdminRole = async (role, payload = {}) => {
+  const response = await http.put(`/api/admin/permissions/roles/${role}`, payload)
+  return response?.data?.item || {}
+}
+
 export const listAdminStores = async ({
   page = 1,
   pageSize = 20,

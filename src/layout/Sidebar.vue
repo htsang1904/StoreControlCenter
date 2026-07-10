@@ -27,6 +27,11 @@ const props = defineProps({
 const emit = defineEmits(['toggle-desktop-sidebar', 'close-drawer'])
 
 const isAdmin = computed(() => String(state.userInfo?.role || '').toLowerCase() === 'admin')
+const hasAnyPermission = (permissions = []) => {
+  if (isAdmin.value) return true
+  const userPermissions = Array.isArray(state.userInfo?.permissions) ? state.userInfo.permissions : []
+  return permissions.some((permission) => userPermissions.includes(permission))
+}
 
 const baseTabs = [
   {
@@ -57,11 +62,25 @@ const adminTabs = [
     key: 'admin_users',
     label: 'Nhân viên',
     path: '/tools/users',
+    permissions: ['users.read', 'users.update'],
   },
   {
     key: 'admin_stores',
     label: 'Cửa hàng',
     path: '/tools/stores',
+    permissions: ['stores.manage'],
+  },
+  {
+    key: 'admin_departments',
+    label: 'Bộ phận',
+    path: '/tools/departments',
+    permissions: ['departments.manage'],
+  },
+  {
+    key: 'admin_permissions',
+    label: 'Phân quyền',
+    path: '/tools/permissions',
+    permissions: ['permissions.manage'],
   },
   {
     key: 'admin_qc_forms',
@@ -71,7 +90,7 @@ const adminTabs = [
 ]
 
 const operationalTabs = computed(() => baseTabs)
-const privilegedTabs = computed(() => (isAdmin.value ? adminTabs : []))
+const privilegedTabs = computed(() => adminTabs.filter((tab) => !tab.permissions || hasAnyPermission(tab.permissions)))
 const isExpanded = computed(() => (props.drawerMode ? props.drawerOpen : props.desktopOpen))
 const sidebarClasses = computed(() => {
   if (props.drawerMode) {
@@ -102,6 +121,8 @@ const tabIcon = (tabKey) => {
   if (tabKey === 'tools') return 'admin_panel_settings'
   if (tabKey === 'admin_users') return 'group'
   if (tabKey === 'admin_stores') return 'storefront'
+  if (tabKey === 'admin_departments') return 'corporate_fare'
+  if (tabKey === 'admin_permissions') return 'admin_panel_settings'
   if (tabKey === 'admin_qc_forms') return 'fact_check'
   return 'settings'
 }
