@@ -571,8 +571,8 @@ export const listQcSessionsApi = async ({
     })
 
     return queryString
-      ? `/api/qc/sessions/overview/?${queryString}`
-      : '/api/qc/sessions/overview/'
+      ? `/api/qc/sessions/overview?${queryString}`
+      : '/api/qc/sessions/overview'
   }
 
   const allSessions = []
@@ -801,8 +801,8 @@ export const getQcStoresOverviewApi = async (params = {}) => {
   })
 
   const endpoint = queryString
-    ? `/api/qc/stores/overview/?${queryString}`
-    : '/api/qc/stores/overview/'
+    ? `/api/qc/stores/overview?${queryString}`
+    : '/api/qc/stores/overview'
 
   const response = await http.get(endpoint)
   return normalizeStoresOverviewResponse(response)
@@ -829,8 +829,8 @@ export const listQcDraftSessions = async ({ storeId, page = 1, pageSize = 100, w
     })
 
     return queryString
-      ? `/api/qc/drafts/?${queryString}`
-      : '/api/qc/drafts/'
+      ? `/api/qc/drafts?${queryString}`
+      : '/api/qc/drafts'
   }
 
   const allRows = []

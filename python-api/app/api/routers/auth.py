@@ -123,6 +123,9 @@ async def upsert_staff_user(session: AsyncSession, staff: dict, suite_token: str
     if not email:
         raise HTTPException(status_code=400, detail="SSO staff thiếu email")
 
+    staff_id = str(staff.get("id") or staff.get("staff_id") or "").strip()
+    suite_staff_ref = f"staff:{staff_id}" if staff_id else None
+
     result = await session.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
@@ -131,7 +134,7 @@ async def upsert_staff_user(session: AsyncSession, staff: dict, suite_token: str
             name=staff.get("name") or staff.get("username") or email,
             email=email,
             phone_number=staff.get("phone_number") or staff.get("phone"),
-            suite_token=suite_token,
+            suite_token=suite_staff_ref or suite_token,
             token_version=0,
             role="store",
             is_active=False,
@@ -142,7 +145,7 @@ async def upsert_staff_user(session: AsyncSession, staff: dict, suite_token: str
     else:
         user.name = staff.get("name") or user.name
         user.phone_number = staff.get("phone_number") or staff.get("phone") or user.phone_number
-        user.suite_token = suite_token or user.suite_token
+        user.suite_token = suite_staff_ref or suite_token or user.suite_token
         session.add(user)
         await session.commit()
         await session.refresh(user)
@@ -410,20 +413,23 @@ from urllib.parse import urljoin
 
 async def map_suite_stores_to_user(session: AsyncSession, user: User) -> list:
     """
-    Fetch user store IDs from Suite API and link them to the local User record.
-    Matches the Strapi logic `mapSuiteStoresToUser`.
+    Fetch current staff stores from Suite Platform API and link them to the local User record.
     """
-    if not user.suite_token:
+    suite_staff_ref = str(user.suite_token or "").strip()
+    staff_id = suite_staff_ref.removeprefix("staff:").strip() if suite_staff_ref.startswith("staff:") else ""
+    if not staff_id:
+        logger.warning(f"[auth] sync suite stores skipped for user {user.id}: missing Suite staff id")
         return []
+    if not settings.SUITE_PLATFORM_TOKEN:
+        raise HTTPException(status_code=500, detail="Thiếu cấu hình SUITE_PLATFORM_TOKEN")
 
-    # Endpoint: /v1/auth/list_store
-    url = urljoin(settings.SUITE_API, "/v1/auth/list_store")
+    url = urljoin(settings.SUITE_API, f"/platform/v1/staffs/{staff_id}/stores")
     
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
-                url, 
-                headers={"Authorization": f"Bearer {user.suite_token}"}
+                url,
+                headers={"Authorization": f"Bearer {settings.SUITE_PLATFORM_TOKEN}"}
             )
             response.raise_for_status()
             payload = response.json()
@@ -435,32 +441,12 @@ async def map_suite_stores_to_user(session: AsyncSession, user: User) -> list:
     if not payload.get("success"):
         return []
 
-    # Extract store IDs
-    suite_store_ids = []
-    if isinstance(payload.get("store_ids"), list):
-        suite_store_ids = [str(sid).strip() for sid in payload["store_ids"] if sid]
-    elif isinstance(payload.get("stores"), dict):
-        for group in payload["stores"].values():
-            if isinstance(group, list):
-                for s in group:
-                    if s.get("id"):
-                        suite_store_ids.append(str(s["id"]).strip())
-    
-    if not suite_store_ids:
+    stores_payload = payload.get("stores") if isinstance(payload.get("stores"), list) else []
+    matched_stores = await map_staff_stores_to_user(session, user, stores_payload)
+    if not matched_stores:
         user.stores = []
         session.add(user)
         await session.commit()
-        return []
-
-    # Match with local stores
-    query = select(Store).where(Store.storeId.in_(suite_store_ids))
-    result = await session.execute(query)
-    matched_stores = result.scalars().all()
-
-    user.stores = list(matched_stores)
-    session.add(user)
-    await session.commit()
-    
     return matched_stores
 
 def serialize_user(user: User) -> dict:
@@ -531,8 +517,9 @@ async def sync_stores(
     current_user: CurrentUser
 ) -> Any:
     """User-specific store sync call."""
-    if not current_user.suite_token:
-        raise HTTPException(status_code=400, detail="Không có suite token để đồng bộ cửa hàng")
+    suite_staff_ref = str(current_user.suite_token or "").strip()
+    if not suite_staff_ref.startswith("staff:"):
+        raise HTTPException(status_code=400, detail="Không có Suite staff id để đồng bộ cửa hàng")
 
     try:
         matched_stores = await map_suite_stores_to_user(session, current_user)
