@@ -91,7 +91,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # API Routes
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router)
 
 # Static Files (for uploaded attachments)
 os.makedirs("static", exist_ok=True)

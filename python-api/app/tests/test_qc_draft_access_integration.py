@@ -37,7 +37,7 @@ def _build_user(role: str, user_id: int, store_ids: list[int]) -> SimpleNamespac
 
 def _build_client(current_user: SimpleNamespace, fake_session: _FakeSession) -> TestClient:
     app = FastAPI()
-    app.include_router(qc_router, prefix="/api/qc")
+    app.include_router(qc_router, prefix="/qc")
 
     async def _override_get_current_user() -> SimpleNamespace:
         return current_user
@@ -65,7 +65,7 @@ def test_store_user_cannot_create_draft_for_unassigned_store():
     session = _FakeSession()
     client = _build_client(user, session)
 
-    response = client.post("/api/qc/drafts", json=_draft_payload(store_id=2))
+    response = client.post("/qc/drafts", json=_draft_payload(store_id=2))
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Không có quyền thao tác nháp cho cửa hàng này"
@@ -76,7 +76,7 @@ def test_store_user_can_create_draft_for_assigned_store():
     session = _FakeSession()
     client = _build_client(user, session)
 
-    response = client.post("/api/qc/drafts", json=_draft_payload(store_id=2))
+    response = client.post("/qc/drafts", json=_draft_payload(store_id=2))
 
     assert response.status_code == 200
     body = response.json()
@@ -91,7 +91,7 @@ def test_admin_can_create_draft_for_any_store():
     session = _FakeSession()
     client = _build_client(user, session)
 
-    response = client.post("/api/qc/drafts", json=_draft_payload(store_id=999))
+    response = client.post("/qc/drafts", json=_draft_payload(store_id=999))
 
     assert response.status_code == 200
     body = response.json()

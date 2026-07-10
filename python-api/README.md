@@ -138,8 +138,10 @@ VITE_API_BASE_URL=http://localhost:8000
 
 Backend now exposes WebSocket channels for ticket conversations and notification bell updates:
 
-- `ws://<host>/api/realtime/ws/notifications?token=<access_token>`
-- `ws://<host>/api/realtime/ws/tickets/{ticket_id}?token=<access_token>`
+- Public proxy: `ws://<host>/api/realtime/ws/notifications?token=<access_token>`
+- Backend direct: `ws://<backend-host>/realtime/ws/notifications?token=<access_token>`
+- Public proxy: `ws://<host>/api/realtime/ws/tickets/{ticket_id}?token=<access_token>`
+- Backend direct: `ws://<backend-host>/realtime/ws/tickets/{ticket_id}?token=<access_token>`
 
 ### Event envelope
 All pushed events use the same envelope:
