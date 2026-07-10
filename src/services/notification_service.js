@@ -11,7 +11,8 @@ export const listNotifications = (params = {}) => {
     }
   })
 
-  return http.get(`/api/notifications?${searchParams.toString()}`)
+  const queryString = searchParams.toString()
+  return http.get(queryString ? `/api/notifications/?${queryString}` : '/api/notifications/')
 }
 
 export const markNotificationRead = (id) => {
@@ -21,4 +22,3 @@ export const markNotificationRead = (id) => {
 export const markAllNotificationsRead = () => {
   return http.patch('/api/notifications/read-all')
 }
-

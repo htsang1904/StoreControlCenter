@@ -74,7 +74,8 @@ export const listTickets = (params = {}) => {
     }
   })
 
-  return http.get(`/api/tickets?${searchParams.toString()}`)
+  const queryString = searchParams.toString()
+  return http.get(queryString ? `/api/tickets/?${queryString}` : '/api/tickets/')
 }
 
 export const deleteTicket = (id) => {
