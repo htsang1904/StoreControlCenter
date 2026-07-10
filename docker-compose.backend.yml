@@ -33,7 +33,9 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
       CORS_ALLOW_CREDENTIALS: ${CORS_ALLOW_CREDENTIALS:-true}
-      SUITE_API: ${SUITE_API:-https://lab-sapi.guta.asia}
+      SUITE_API: ${SUITE_API:-https://sapi.guta.asia}
+      SUITE_WEB_URL: ${SUITE_WEB_URL:-https://suite.guta.vn}
+      SUITE_PLATFORM_TOKEN: ${SUITE_PLATFORM_TOKEN:-}
       MAIN_STORE_SYNC_URL: ${MAIN_STORE_SYNC_URL:-https://gapi.guta.asia/webapi/stores?all_stores=true}
       SUITE_VERIFY_TOKEN: ${SUITE_VERIFY_TOKEN:-false}
       SUITE_PUBLIC_KEY_FILE: ${SUITE_PUBLIC_KEY_FILE:-}
