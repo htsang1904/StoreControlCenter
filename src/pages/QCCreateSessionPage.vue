@@ -688,7 +688,7 @@ onBeforeUnmount(() => {
                     :key="filter.id"
                     type="button"
                     class="cursor-pointer rounded-full border px-3 py-1.5 text-xs font-medium transition"
-                    :class="activeCriterionFilter === filter.id ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-sm' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:border-[var(--primary)] hover:bg-[var(--primary-softer)] hover:text-[var(--primary-strong)]'"
+                    :class="activeCriterionFilter === filter.id ? 'border-[var(--primary)] bg-[var(--primary)] text-white' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:border-[var(--primary)] hover:bg-[var(--primary-softer)] hover:text-[var(--primary-strong)]'"
                     @click="setCriterionFilter(filter.id)"
                   >
                     {{ filter.label }}

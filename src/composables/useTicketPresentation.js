@@ -236,6 +236,13 @@ export function avatarInitials(name) {
   return `${words[0][0] || ''}${words[words.length - 1][0] || ''}`.toUpperCase()
 }
 
+export function userAvatarUrl(user = {}) {
+  const url = user?.avatar_url || user?.avatarUrl || ''
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}${url}`
+}
+
 export function formatDateTime(value) {
   if (!value) return ''
   const date = new Date(value)

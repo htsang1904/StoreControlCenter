@@ -3,9 +3,11 @@ from typing import Any
 import jwt
 import hashlib
 import logging
+import os
+import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete as sa_delete, insert as sa_insert
 from sqlalchemy.future import select
@@ -57,6 +59,13 @@ def resolve_staff_role(staff: dict) -> str:
 
 def serialize_role(role: object) -> str:
     return str(role.value if hasattr(role, "value") else role).strip().lower()
+
+def suite_staff_id_from_profile(profile: dict) -> str:
+    return str(profile.get("id") or profile.get("staff_id") or "").strip()
+
+def suite_staff_ref_from_profile(profile: dict) -> str | None:
+    staff_id = str(profile.get("id") or profile.get("staff_id") or "").strip()
+    return f"staff:{staff_id}" if staff_id else None
 
 async def issue_auth_tokens(session: AsyncSession, user: User) -> dict:
     next_token_version = (user.token_version or 0) + 1
@@ -124,16 +133,20 @@ async def upsert_staff_user(session: AsyncSession, staff: dict, suite_token: str
     if not email:
         raise HTTPException(status_code=400, detail="SSO staff thiếu email")
 
-    staff_id = str(staff.get("id") or staff.get("staff_id") or "").strip()
-    suite_staff_ref = f"staff:{staff_id}" if staff_id else None
+    suite_staff_id = suite_staff_id_from_profile(staff)
+    suite_staff_ref = suite_staff_ref_from_profile(staff)
 
-    result = await session.execute(select(User).where(User.email == email))
+    if not suite_staff_id:
+        raise HTTPException(status_code=400, detail="SSO staff thiếu mã nhân viên")
+
+    result = await session.execute(select(User).where(User.suite_staff_id == suite_staff_id))
     user = result.scalar_one_or_none()
 
     if not user:
         user = User(
             name=staff.get("name") or staff.get("username") or email,
             email=email,
+            suite_staff_id=suite_staff_id,
             phone_number=staff.get("phone_number") or staff.get("phone"),
             suite_token=suite_staff_ref or suite_token,
             token_version=0,
@@ -145,6 +158,8 @@ async def upsert_staff_user(session: AsyncSession, staff: dict, suite_token: str
         await session.refresh(user)
     else:
         user.name = staff.get("name") or user.name
+        user.email = email
+        user.suite_staff_id = suite_staff_id
         user.phone_number = staff.get("phone_number") or staff.get("phone") or user.phone_number
         user.suite_token = suite_staff_ref or suite_token or user.suite_token
         session.add(user)
@@ -200,7 +215,13 @@ async def user_login(
 
     verify_suite_token_if_enabled(request.token)
 
-    query = select(User).where(User.email == suite_user["email"])
+    email = str(suite_user.get("email") or "").strip().lower()
+    suite_staff_id = suite_staff_id_from_profile(suite_user)
+    suite_staff_ref = suite_staff_ref_from_profile(suite_user)
+    if not suite_staff_id:
+        raise HTTPException(status_code=400, detail="Thiếu mã nhân viên từ Suite")
+
+    query = select(User).where(User.suite_staff_id == suite_staff_id)
     result = await session.execute(query)
     user = result.scalar_one_or_none()
 
@@ -212,9 +233,10 @@ async def user_login(
 
         user = User(
             name=suite_user.get("name", ""),
-            email=suite_user["email"],
+            email=email,
+            suite_staff_id=suite_staff_id,
             phone_number=suite_user.get("phone_number") or suite_user.get("phone"),
-            suite_token=request.token,
+            suite_token=suite_staff_ref or request.token,
             token_version=0,
             role=assigned_role,
             is_active=False
@@ -225,8 +247,10 @@ async def user_login(
     else:
         # Update existing user profile info from Suite if changed
         user.name = suite_user.get("name", user.name)
+        user.email = email
+        user.suite_staff_id = suite_staff_id
         user.phone_number = suite_user.get("phone_number") or suite_user.get("phone") or user.phone_number
-        user.suite_token = request.token
+        user.suite_token = suite_staff_ref or request.token
         session.add(user)
 
     if not user.is_active:
@@ -257,7 +281,7 @@ async def user_login(
     user.token_version = next_token_version
     user.refresh_token_hash = hash_refresh_token(refresh_token)
     user.refresh_token_expires_at = utc_now_naive() + timedelta(days=30)
-    user.suite_token = request.token
+    user.suite_token = suite_staff_ref or request.token
     
     session.add(user)
     await session.commit()
@@ -470,6 +494,7 @@ def serialize_user(user: User, permissions: list[str] | None = None) -> dict:
         "name": user.name,
         "email": user.email,
         "phone_number": user.phone_number,
+        "avatar_url": user.avatar_url,
         "is_active": user.is_active,
         "role": role,
         "permissions": permissions if permissions is not None else list(DEFAULT_ROLE_PERMISSIONS.get(normalize_role(role), [])),
@@ -496,6 +521,46 @@ async def get_me(session: SessionDep, current_user: CurrentUser) -> Any:
         "data": {
             "user": serialize_user(current_user, permissions)
         }
+    }
+
+@router.post("/me/avatar", response_model=dict)
+async def update_my_avatar(
+    session: SessionDep,
+    current_user: CurrentUser,
+    file: UploadFile = File(...),
+) -> Any:
+    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Avatar phải là file ảnh JPG, PNG, WEBP hoặc GIF")
+
+    contents = await file.read()
+    max_size = 5 * 1024 * 1024
+    if len(contents) > max_size:
+        raise HTTPException(status_code=400, detail="Avatar tối đa 5MB")
+
+    extension = Path(file.filename or "avatar").suffix.lower()
+    if extension not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        extension = ".jpg"
+
+    upload_dir = "static/uploads/avatars"
+    os.makedirs(upload_dir, exist_ok=True)
+    filename = f"user-{current_user.id}-{uuid.uuid4().hex}{extension}"
+    file_path = os.path.join(upload_dir, filename)
+    with open(file_path, "wb") as output:
+        output.write(contents)
+
+    current_user.avatar_url = f"/static/uploads/avatars/{filename}"
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
+
+    permissions = await get_role_permissions(session, serialize_role(current_user.role))
+    return {
+        "success": True,
+        "message": "Cập nhật avatar thành công",
+        "data": {
+            "user": serialize_user(current_user, permissions),
+        },
     }
 
 @router.post("/logout", response_model=dict)

@@ -62,7 +62,7 @@ const cardToneClass = computed(() => {
   if (currentStatus.value === 'pass') return 'border-[var(--success-border)] bg-[var(--success-bg)]/30 shadow-sm'
   if (currentStatus.value === 'fail') return 'border-[var(--danger-border)] bg-[var(--danger-bg)]/30 shadow-sm'
   if (currentStatus.value === 'na') return 'border-[var(--stroke)] bg-[var(--surface-muted)] opacity-75'
-  return 'border-[var(--stroke)] transition-all hover:border-[var(--primary-soft)] hover:shadow-sm'
+  return 'border-[var(--stroke)] transition-all hover:border-[var(--primary-soft)]'
 })
 
 const statusBadgeClass = computed(() => {

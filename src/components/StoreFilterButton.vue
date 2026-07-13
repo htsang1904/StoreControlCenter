@@ -86,7 +86,7 @@ function applySelection() {
   <div class="relative inline-flex items-center">
     <button
       @click="showStoreFilterPopup = true"
-      class="app-button-secondary flex min-w-[140px] items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+      class="app-button-secondary flex min-w-[140px] items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
     >
       <span class="material-symbols-outlined text-[20px]">store</span>
       <span class="truncate">{{ selectedStoreText }}</span>

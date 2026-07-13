@@ -17,9 +17,11 @@ import {
   ticketStatusOptions,
   storeDisplay,
   ticketSubline,
+  userAvatarUrl,
 } from '@/composables/useTicketPresentation'
 import { useTicketReportSummary } from '@/composables/useTicketReportSummary'
 import { useApp } from '@/plugins/app'
+import { listAdminDepartments, listAdminUsers } from '@/services/admin_service'
 
 const router = useRouter()
 const route = useRoute()
@@ -46,11 +48,34 @@ const {
   visiblePageItems,
 } = useTicketList(userInfo)
 
-const hasTickets = computed(() => tickets.value.length > 0)
+const filteredTickets = computed(() => {
+  const selectedAssigneeId = Number(filters.assigneeId || 0)
+  if (!selectedAssigneeId) return tickets.value
+
+  return tickets.value.filter((ticket) => {
+    const assignees = Array.isArray(ticket?.assignees) ? ticket.assignees : []
+    return assignees.some((assignee) => Number(assignee?.id || 0) === selectedAssigneeId)
+  })
+})
+const hasTickets = computed(() => filteredTickets.value.length > 0)
+const displayPaginationStart = computed(() => (filteredTickets.value.length ? paginationStart.value : 0))
+const displayPaginationEnd = computed(() => (
+  filters.assigneeId ? filteredTickets.value.length : paginationEnd.value
+))
+const displayPaginationTotal = computed(() => (
+  filters.assigneeId ? filteredTickets.value.length : pagination.total
+))
 const openActionMenuId = ref(null)
 const actionMenuPosition = reactive({ top: 0, left: 0 })
+const departmentOptions = ref([])
+const assigneeOptions = ref([])
+const isAdmin = computed(() => String(userInfo.value?.role || '').toLowerCase() === 'admin')
+const currentUserDepartmentId = computed(() => {
+  const source = userInfo.value || {}
+  return String(source.departmentId || source.department_id || source.department?.id || '')
+})
 const activeActionTicket = computed(() => (
-  tickets.value.find((ticket) => ticket.id === openActionMenuId.value) || null
+  filteredTickets.value.find((ticket) => ticket.id === openActionMenuId.value) || null
 ))
 
 const {
@@ -62,6 +87,19 @@ const {
 let previousFilterQueryKey = ''
 let searchDebounceTimer = null
 
+const selectedDepartmentLabel = computed(() => {
+  const selectedId = Number(filters.departmentId || 0)
+  return departmentOptions.value.find((department) => Number(department.id) === selectedId)?.name || 'Bộ phận'
+})
+
+const canShowAssigneeFilter = computed(() => isAdmin.value ? Boolean(filters.departmentId) : Boolean(currentUserDepartmentId.value))
+
+const selectedAssigneeLabel = computed(() => {
+  const selectedId = Number(filters.assigneeId || 0)
+  const assignee = assigneeOptions.value.find((item) => Number(item.id) === selectedId)
+  return assignee?.name || assignee?.email || 'Người xử lý'
+})
+
 function goToTicketDetail(id) {
   router.push({ path: '/ticket/inbox', query: { ticket: id } })
 }
@@ -72,7 +110,7 @@ function goToAddTicket() {
 
 function goToEditTicket(id) {
   openActionMenuId.value = null
-  router.push(`/ticket/${id}/edit`)
+  router.push({ path: '/ticket/inbox', query: { ticket: id, edit: '1' } })
 }
 
 function hasTicketActions(ticket) {
@@ -82,6 +120,10 @@ function hasTicketActions(ticket) {
 function hasAssignedHandler(ticket) {
   const firstAssignee = Array.isArray(ticket?.assignees) ? ticket.assignees[0] : null
   return Boolean(firstAssignee?.name)
+}
+
+function firstAssignee(ticket) {
+  return Array.isArray(ticket?.assignees) ? ticket.assignees[0] : null
 }
 
 function ticketCreatedAt(ticket) {
@@ -156,6 +198,63 @@ function applyStatusQuery() {
   })
 }
 
+function applyDepartmentQuery() {
+  updateTicketQuery({
+    responsible_department_id: filters.departmentId || undefined,
+    assignee: undefined,
+    page: undefined,
+  })
+}
+
+function selectDepartmentFilter(departmentId = '') {
+  if (!isAdmin.value) return
+  filters.departmentId = departmentId ? String(departmentId) : ''
+  filters.assigneeId = ''
+  applyDepartmentQuery()
+}
+
+function applyAssigneeQuery() {
+  updateTicketQuery({
+    assignee: filters.assigneeId || undefined,
+    page: undefined,
+  })
+}
+
+function selectAssigneeFilter(assigneeId = '') {
+  filters.assigneeId = assigneeId ? String(assigneeId) : ''
+  applyAssigneeQuery()
+}
+
+async function fetchFilterOptions() {
+  if (!isAdmin.value) return
+
+  const departmentsResult = await Promise.resolve(listAdminDepartments()).then(
+    (value) => ({ status: 'fulfilled', value }),
+    (reason) => ({ status: 'rejected', reason })
+  )
+
+  if (departmentsResult.status === 'fulfilled') {
+    departmentOptions.value = departmentsResult.value.filter((department) => department.isActive !== false)
+  }
+}
+
+async function fetchAssigneeOptions() {
+  const selectedDepartmentId = Number((isAdmin.value ? filters.departmentId : currentUserDepartmentId.value) || 0)
+  if (!selectedDepartmentId) {
+    assigneeOptions.value = []
+    filters.assigneeId = ''
+    return
+  }
+
+  const result = await listAdminUsers({
+    page: 1,
+    pageSize: 200,
+    isActive: true,
+    departmentId: selectedDepartmentId,
+  })
+  assigneeOptions.value = result.items || []
+}
+
 function goToQueryPage(page) {
   const targetPage = Number(page)
   if (!Number.isInteger(targetPage) || targetPage < 1 || targetPage === pagination.page) return
@@ -173,7 +272,7 @@ function nextQueryPage() {
 }
 
 watch(
-  () => [route.query.date_from, route.query.date_to, route.query.store_ids, route.query.q, route.query.status, route.query.page],
+  () => [route.query.date_from, route.query.date_to, route.query.store_ids, route.query.q, route.query.status, route.query.responsible_department_id, route.query.assignee, route.query.page, isAdmin.value, currentUserDepartmentId.value],
   async () => {
     const filterQueryKey = [
       route.query.date_from || '',
@@ -181,6 +280,8 @@ watch(
       route.query.store_ids || '',
       route.query.q || '',
       route.query.status || '',
+      route.query.responsible_department_id || '',
+      route.query.assignee || '',
     ].join('|')
 
     if (previousFilterQueryKey && previousFilterQueryKey !== filterQueryKey && route.query.page) {
@@ -197,12 +298,20 @@ watch(
       .split(',')
       .map((status) => status.trim())
       .filter(Boolean)
+    const nextDepartmentId = isAdmin.value
+      ? String(route.query.responsible_department_id || '')
+      : currentUserDepartmentId.value
+    const nextAssigneeId = String(route.query.assignee || '')
     const nextPage = Number(route.query.page || 1)
 
     searchInput.value = nextSearch
     filters.q = nextSearch
     filters.statuses = nextStatuses
+    filters.departmentId = nextDepartmentId
+    filters.assigneeId = nextAssigneeId
     pagination.page = Number.isInteger(nextPage) && nextPage > 0 ? nextPage : 1
+
+    await fetchAssigneeOptions()
 
     await Promise.allSettled([
       fetchTicketReports(),
@@ -211,6 +320,8 @@ watch(
   },
   { immediate: true }
 )
+
+fetchFilterOptions()
 
 onBeforeUnmount(() => {
   if (searchDebounceTimer) {
@@ -264,7 +375,7 @@ onBeforeUnmount(() => {
                 <button
                   id="ticket-status-filter"
                   type="button"
-                  class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] shadow-xs transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] tablet:w-auto tablet:justify-center"
+                  class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] tablet:w-auto tablet:justify-center"
                   aria-haspopup="menu"
                   aria-expanded="false"
                 >
@@ -305,9 +416,83 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
+              <div v-if="isAdmin" class="hs-dropdown relative inline-block w-full tablet:w-auto">
+                <button
+                  id="ticket-department-filter"
+                  type="button"
+                  class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] tablet:w-44"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    <svg class="size-4 shrink-0 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15l-.75 18H5.25L4.5 3Zm4.5 4.5h6m-6 3h6m-6 3h6" />
+                    </svg>
+                    <span class="truncate">{{ selectedDepartmentLabel }}</span>
+                  </span>
+                  <span
+                    v-if="filters.departmentId"
+                    class="ml-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[10px] font-bold text-[var(--primary-strong)] ring-1 ring-inset ring-blue-700/10"
+                  >1</span>
+                </button>
+
+                <div
+                  class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-56 z-20 mt-2 rounded-xl border border-[var(--stroke)] bg-white p-2 shadow-lg shadow-slate-200/50 ring-1 ring-black/5"
+                  role="menu"
+                  aria-orientation="vertical"
+                  aria-labelledby="ticket-department-filter"
+                >
+                  <button type="button" class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]" @click="selectDepartmentFilter('')">
+                    <span>Tất cả bộ phận</span>
+                    <svg v-if="!filters.departmentId" class="size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button v-for="department in departmentOptions" :key="department.id" type="button" class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]" @click="selectDepartmentFilter(department.id)">
+                    <span class="truncate">{{ department.name }}</span>
+                    <svg v-if="String(filters.departmentId) === String(department.id)" class="size-3.5 shrink-0 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="canShowAssigneeFilter" class="hs-dropdown relative inline-block w-full tablet:w-auto">
+                <button
+                  id="ticket-assignee-filter"
+                  type="button"
+                  class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)] hover:text-[var(--primary)] tablet:w-48"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    <svg class="size-4 shrink-0 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.25a8.25 8.25 0 0 1 15 0" />
+                    </svg>
+                    <span class="truncate">{{ selectedAssigneeLabel }}</span>
+                  </span>
+                  <span
+                    v-if="filters.assigneeId"
+                    class="ml-1 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[10px] font-bold text-[var(--primary-strong)] ring-1 ring-inset ring-blue-700/10"
+                  >1</span>
+                </button>
+
+                <div
+                  class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-56 z-20 mt-2 rounded-xl border border-[var(--stroke)] bg-white p-2 shadow-lg shadow-slate-200/50 ring-1 ring-black/5"
+                  role="menu"
+                  aria-orientation="vertical"
+                  aria-labelledby="ticket-assignee-filter"
+                >
+                  <button type="button" class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]" @click="selectAssigneeFilter('')">
+                    <span>Tất cả người xử lý</span>
+                    <svg v-if="!filters.assigneeId" class="size-3.5 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                  <button v-for="assignee in assigneeOptions" :key="assignee.id" type="button" class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]" @click="selectAssigneeFilter(assignee.id)">
+                    <span class="truncate">{{ assignee.name || assignee.email }}</span>
+                    <svg v-if="String(filters.assigneeId) === String(assignee.id)" class="size-3.5 shrink-0 text-[var(--text-primary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </button>
+                </div>
+              </div>
+
               <button
                 type="button"
-                class="app-button-primary group inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold shadow-xs transition-all hover:-translate-y-px tablet:w-auto"
+                class="app-button-primary group inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold transition-all hover:-translate-y-px tablet:w-auto"
                 @click="goToAddTicket"
               >
                 <svg class="size-4 transition-transform group-hover:rotate-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -338,7 +523,7 @@ onBeforeUnmount(() => {
 
               <tbody v-if="hasTickets" class="divide-y divide-slate-100 bg-white">
                 <tr
-                  v-for="ticket in tickets"
+                  v-for="ticket in filteredTickets"
                   :key="ticket.id"
                   class="group cursor-pointer transition-colors hover:bg-[var(--surface-muted)]/80"
                   @click="goToTicketDetail(ticket.id)"
@@ -358,8 +543,9 @@ onBeforeUnmount(() => {
                   </td>
                   <td class="px-4 py-3 align-top">
                     <div v-if="hasAssignedHandler(ticket)" class="flex items-center gap-2.5">
-                      <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--primary-softer)] text-xs font-medium uppercase text-[var(--text-secondary)] ring-1 ring-slate-200">
-                        {{ avatarInitials(handlerDisplay(ticket)) }}
+                      <span class="relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-softer)] text-xs font-medium uppercase text-[var(--text-secondary)] ring-1 ring-slate-200">
+                        <span>{{ avatarInitials(handlerDisplay(ticket)) }}</span>
+                        <img v-if="userAvatarUrl(firstAssignee(ticket))" :src="userAvatarUrl(firstAssignee(ticket))" alt="Avatar người xử lý" class="absolute inset-0 size-full object-cover" @error="$event.currentTarget.classList.add('hidden')" />
                       </span>
                       <span class="text-sm font-medium text-[var(--text-secondary)] truncate">{{ handlerDisplay(ticket) }}</span>
                     </div>
@@ -423,9 +609,9 @@ onBeforeUnmount(() => {
           <div class="space-y-3 p-3 pc:hidden">
             <template v-if="hasTickets">
               <div
-                v-for="ticket in tickets"
+                v-for="ticket in filteredTickets"
                 :key="ticket.id"
-                class="group relative cursor-pointer overflow-hidden rounded-xl border border-[var(--stroke)] bg-white shadow-sm transition-all hover:border-[var(--stroke-strong)] hover:shadow-md active:scale-[0.99]"
+                class="group relative cursor-pointer overflow-hidden rounded-xl border border-[var(--stroke)] bg-white transition-all hover:border-[var(--stroke-strong)] active:scale-[0.99]"
                 @click="goToTicketDetail(ticket.id)"
               >
                 <div class="p-3">
@@ -459,8 +645,9 @@ onBeforeUnmount(() => {
                       <div>
                         <dt class="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Người xử lý</dt>
                         <dd class="mt-0.5 flex items-center gap-1.5 font-medium">
-                          <span v-if="hasAssignedHandler(ticket)" class="inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary-softer)] text-[8px] font-bold text-[var(--text-secondary)] uppercase">
-                            {{ avatarInitials(handlerDisplay(ticket)) }}
+                          <span v-if="hasAssignedHandler(ticket)" class="relative inline-flex size-4 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-softer)] text-[8px] font-bold text-[var(--text-secondary)] uppercase">
+                            <span>{{ avatarInitials(handlerDisplay(ticket)) }}</span>
+                            <img v-if="userAvatarUrl(firstAssignee(ticket))" :src="userAvatarUrl(firstAssignee(ticket))" alt="Avatar người xử lý" class="absolute inset-0 size-full object-cover" @error="$event.currentTarget.classList.add('hidden')" />
                           </span>
                           <span class="truncate" :class="hasAssignedHandler(ticket) ? 'text-[var(--text-secondary)]' : 'text-[var(--warning-text)]'">{{ handlerDisplay(ticket) }}</span>
                         </dd>
@@ -514,7 +701,7 @@ onBeforeUnmount(() => {
         <div class="app-pagination-bar">
           <div class="flex flex-col tablet:flex-row tablet:items-center tablet:justify-between gap-3">
             <p class="text-xs text-[var(--text-secondary)] text-center tablet:text-left">
-              Đang xem <span class="font-medium text-[var(--text-primary)]">{{ paginationStart }}</span> đến <span class="font-medium text-[var(--text-primary)]">{{ paginationEnd }}</span> trên tổng <span class="font-medium text-[var(--text-primary)]">{{ pagination.total }}</span> ticket
+              Đang xem <span class="font-medium text-[var(--text-primary)]">{{ displayPaginationStart }}</span> đến <span class="font-medium text-[var(--text-primary)]">{{ displayPaginationEnd }}</span> trên tổng <span class="font-medium text-[var(--text-primary)]">{{ displayPaginationTotal }}</span> ticket
             </p>
 
             <nav class="flex items-center justify-center tablet:justify-end gap-1" aria-label="Pagination">

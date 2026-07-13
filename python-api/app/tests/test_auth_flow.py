@@ -23,6 +23,13 @@ def test_hash_refresh_token_logic():
     assert h1 == h2
     assert len(h1) == 64 # SHA256
 
+def test_suite_staff_id_from_profile():
+    from app.api.routers.auth import suite_staff_id_from_profile
+
+    assert suite_staff_id_from_profile({"id": 100}) == "100"
+    assert suite_staff_id_from_profile({"staff_id": "ABC"}) == "ABC"
+    assert suite_staff_id_from_profile({"email": "same@example.com"}) == ""
+
 @pytest.mark.anyio
 async def test_auth_router_mock_login(monkeypatch):
     from app.api.routers.auth import user_login
@@ -35,6 +42,7 @@ async def test_auth_router_mock_login(monkeypatch):
     mock_user = MagicMock()
     mock_user.id = 1
     mock_user.email = "marketing@gutacafe.com"
+    mock_user.suite_staff_id = "staff-1"
     mock_user.token_version = 1
     mock_user.is_active = True
     mock_user.name = "Test User"
@@ -53,6 +61,7 @@ async def test_auth_router_mock_login(monkeypatch):
     request = LoginRequest(
         token="suite_token_xyz",
         profile={
+            "id": "staff-1",
             "email": "marketing@gutacafe.com",
             "name": "Updated Name",
             "phone": "0987654321"

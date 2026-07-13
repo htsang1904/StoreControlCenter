@@ -50,7 +50,7 @@ function resolveHeaderContext(currentRoute) {
   }
 
   if (path === '/ticket/inbox') {
-    return { tab: '', title: 'Chế độ inbox', display: 'title' }
+    return { tab: '', title: 'Danh sách Ticket', display: 'breadcrumb' }
   }
 
   if (/^\/ticket\/\d+\/edit$/.test(path)) {
@@ -127,6 +127,13 @@ function resolveHeaderContext(currentRoute) {
 function resolveBreadcrumbItems(currentRoute, context, currentLabelValue) {
   const path = currentRoute.path
   const currentLabel = String(currentLabelValue || context.title || '').trim()
+
+  if (path === '/ticket/inbox') {
+    return [
+      { label: 'Quản lý Ticket', to: '/ticket' },
+      { label: currentLabel || context.title },
+    ]
+  }
 
   if (path.startsWith('/ticket/')) {
     return [

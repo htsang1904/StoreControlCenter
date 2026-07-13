@@ -20,6 +20,13 @@ export const logout = () => {
 export const syncStores = () => {
   return http.post('/api/auth/sync-stores')
 }
+export const updateAvatar = (formData) => {
+  return http.post('/api/auth/me/avatar', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+}
 export const refreshToken = (payload) => {
   return http.post('/api/auth/refresh', payload)
 }

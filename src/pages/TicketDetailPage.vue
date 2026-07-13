@@ -1,21 +1,24 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import CommonModal from '@/components/CommonModal.vue'
+import FileUploadItem from '@/components/FileUploadItem.vue'
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
-import { ticketConfirmationMeta, ticketDurationClass, ticketResolutionMeta } from '@/composables/useTicketPresentation'
+import { normalizeTicketStatus, ticketConfirmationMeta, ticketDurationClass, ticketResolutionMeta, ticketStatusClass, userAvatarUrl } from '@/composables/useTicketPresentation'
 import { createRealtimeConnection } from '@/services/realtime_service'
 import {
   assignTicketHandler,
   claimTicket,
   createTicketLog,
+  getActiveDepartments,
   getTicketById,
   listAssignableTicketHandlers,
   listTicketAssignees,
   listTicketLogs,
   reopenTicket,
   resolveTicket,
+  updateTicket,
   uploadTicketAttachments,
 } from '@/services/ticket_service'
 
@@ -28,9 +31,16 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  ticketInfoPanelOpen: {
+    type: Boolean,
+    default: false,
+  },
 })
 
+const emit = defineEmits(['open-ticket-list', 'ticket-info-panel-change', 'update:ticket-info-panel-open'])
+
 const router = useRouter()
+const route = useRoute()
 const { state } = useApp()
 const toast = useToast()
 
@@ -48,19 +58,38 @@ const assignableHandlers = ref([])
 const assignableHandlersLoading = ref(false)
 const assignableHandlersError = ref('')
 const assignPanelOpen = ref(false)
-const actionMenuOpen = ref(false)
 const selectedAssignableHandlerIds = ref([])
 const assigningHandler = ref(false)
 const assigning = ref(false)
 const resolving = ref(false)
 const reopening = ref(false)
+const editModalOpen = ref(false)
+const editSubmitting = ref(false)
+const editDepartments = ref([])
+const editError = ref('')
+const editTicketStoreOption = ref(null)
+const editAutoOpenedFor = ref(null)
+const editSelectOpen = ref('')
+const editForm = reactive({
+  store_id: '',
+  title: '',
+  description: '',
+  responsible_department_id: '',
+  type: '',
+  attachments_media: [],
+})
+const editErrors = reactive({
+  store_id: '',
+  title: '',
+  description: '',
+  responsible_department_id: '',
+})
 
 const replyMessage = ref('')
 const replyError = ref('')
 const submittingReply = ref(false)
 const replyFiles = ref([])
 const replyFileInputRef = ref(null)
-const actionMenuRef = ref(null)
 const MAX_REPLY_FILES = 5
 const MAX_REPLY_FILE_SIZE_BYTES = 5 * 1024 * 1024
 const imagePreview = ref({
@@ -121,6 +150,12 @@ const upsertTicketLog = (incoming) => {
 const getRealtimeToken = () => localStorage.getItem('token') || state?.token || null
 
 const filesSidebarOpen = ref(false)
+const ticketInfoSectionsOpen = ref({
+  overview: true,
+  actions: true,
+  assignees: true,
+  files: true,
+})
 
 const ticketId = computed(() => Number(props.id || 0))
 const isEmbedded = computed(() => props.embedded === true)
@@ -139,6 +174,8 @@ const canAdminAssignHandler = computed(() => {
 const canReply = computed(() => {
   return hasTicket.value && isOpenTicketStatus.value
 })
+const hasReplyContent = computed(() => replyMessage.value.trim().length > 0 || replyFiles.value.length > 0)
+const canSubmitReply = computed(() => canReply.value && !submittingReply.value && hasReplyContent.value)
 const replyBlockedReason = computed(() => {
   if (!hasTicket.value) return 'Không tìm thấy thông tin ticket.'
   if (!isOpenTicketStatus.value) return 'Chỉ có thể phản hồi khi ticket đang mở.'
@@ -152,7 +189,59 @@ const canResolveTicket = computed(() => {
   return canManageAssignment.value && isCurrentUserAssignee.value
 })
 const canReopenTicket = computed(() => hasTicket.value && isResolvedTicket.value && (userRole.value === 'store' || userRole.value === 'admin'))
-const showHeaderActionMenu = computed(() => canClaimTicket.value || canAdminAssignHandler.value || canResolveTicket.value)
+const canEditTicket = computed(() => {
+  if (!hasTicket.value) return false
+
+  const ticketStatus = String(ticket.value?.status || '').toLowerCase()
+  if (!['new', 'assigned', 'in_progress'].includes(ticketStatus)) return false
+  if (userRole.value === 'admin') return true
+  if (userRole.value !== 'store') return false
+
+  const assignedMembers = Array.isArray(ticket.value?.assignees) && ticket.value.assignees.length
+    ? ticket.value.assignees
+    : assignees.value
+  const isAccepted = ticketStatus !== 'new' || Boolean(ticket.value?.processing_started_at || ticket.value?.processingStartedAt) || (Array.isArray(assignedMembers) && assignedMembers.length > 0)
+  if (isAccepted) return false
+
+  return Number(ticket.value?.requester_id || ticket.value?.requester?.id || 0) === currentUserId.value
+})
+const issueTypes = [
+  { label: 'Sự cố hệ thống', value: 'system_issue' },
+  { label: 'Sự cố vận hành', value: 'operation_issue' },
+  { label: 'Yêu cầu hỗ trợ', value: 'support_request' },
+  { label: 'Khác', value: 'other' },
+]
+const editStoreOptions = computed(() => {
+  const userStores = Array.isArray(state.userInfo?.stores)
+    ? state.userInfo.stores
+    : (Array.isArray(state.userInfo?.store_list)
+      ? state.userInfo.store_list
+      : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store : []))
+
+  const options = userStores.map(normalizeStoreOption).filter(Boolean)
+  if (editTicketStoreOption.value?.value && !options.some((store) => store.value === editTicketStoreOption.value.value)) {
+    options.unshift(editTicketStoreOption.value)
+  }
+
+  const fallbackId = String(state.userInfo?.store_id || import.meta.env.VITE_DEFAULT_STORE_ID || '').trim()
+  if (!options.length && fallbackId) {
+    options.push({
+      value: fallbackId,
+      label: state.userInfo?.store_name || import.meta.env.VITE_DEFAULT_STORE_NAME || `Cửa hàng ${fallbackId}`,
+    })
+  }
+
+  return options
+})
+const selectedEditStoreLabel = computed(() => (
+  editStoreOptions.value.find((store) => String(store.value) === String(editForm.store_id))?.label || 'Chọn cửa hàng'
+))
+const selectedEditDepartmentLabel = computed(() => (
+  editDepartments.value.find((department) => String(department?.id) === String(editForm.responsible_department_id))?.name || 'Chọn bộ phận xử lý'
+))
+const selectedEditTypeLabel = computed(() => (
+  issueTypes.find((type) => type.value === editForm.type)?.label || 'Chọn loại yêu cầu'
+))
 const availableAssignableHandlers = computed(() => {
   const assignedIds = new Set(assignees.value.map((item) => Number(item?.id || 0)).filter((id) => id > 0))
   return assignableHandlers.value.filter((item) => !assignedIds.has(Number(item?.id || 0)))
@@ -160,6 +249,7 @@ const availableAssignableHandlers = computed(() => {
 const hasSelectedAssignableHandlers = computed(() => selectedAssignableHandlerIds.value.length > 0)
 
 const ticketCode = computed(() => ticket.value?.ticket_code || `#${ticket.value?.id || props.id}`)
+const ticketStatusLabel = computed(() => normalizeTicketStatus(ticket.value?.status))
 const requesterDisplay = computed(() => {
   if (!ticket.value) return '--'
   return ticket.value.requester?.name || ticket.value.requester_name || `#${ticket.value.requester_id || '--'}`
@@ -229,8 +319,10 @@ const conversationItems = computed(() => {
   const rootAttachments = normalizeAttachmentList(ticket.value.attachments_media)
   const rootCard = {
     id: `ticket-${ticket.value.id}`,
+    sequence: 0,
     sender_id: Number(ticket.value?.requester?.id || ticket.value?.requester_id || 0) || null,
     sender_name: requesterDisplay.value,
+    sender_avatar_url: userAvatarUrl(ticket.value?.requester),
     sender_role: normalizeUserRoleLabel(ticket.value?.requester?.role || 'store'),
     sender_type: 'store',
     createdAt: ticket.value.createdAt || null,
@@ -239,9 +331,11 @@ const conversationItems = computed(() => {
   }
 
   const logCards = logs.value.map((log, index) => ({
-    id: log?.id || `log-${index}`,
+    id: `log-${log?.id || index}`,
+    sequence: index + 1,
     sender_id: Number(log?.sender?.id || log?.sender_id || 0) || null,
     sender_name: log?.sender?.name || '--',
+    sender_avatar_url: userAvatarUrl(log?.sender),
     sender_role: normalizeUserRoleLabel(log?.sender?.role || log?.sender_type || 'handler'),
     sender_type: log?.sender_type || 'handler',
     createdAt: log?.createdAt || log?.created_at || null,
@@ -249,7 +343,12 @@ const conversationItems = computed(() => {
     attachments: normalizeAttachmentList(log?.attachments),
   }))
 
-  return [rootCard, ...logCards]
+  return [rootCard, ...logCards].sort((a, b) => {
+    const timeA = getConversationTime(a.createdAt)
+    const timeB = getConversationTime(b.createdAt)
+    if (timeA !== timeB) return timeA - timeB
+    return a.sequence - b.sequence
+  })
 })
 
 const exchangedFiles = computed(() => {
@@ -398,6 +497,12 @@ function conversationTimestampClass(item) {
     : 'mt-2 self-end text-[11px] text-[var(--text-muted)]'
 }
 
+function getConversationTime(value) {
+  if (!value) return Number.MAX_SAFE_INTEGER
+  const time = new Date(value).getTime()
+  return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER
+}
+
 function scrollConversationToBottom() {
   if (!conversationViewportRef.value) return
   conversationViewportRef.value.scrollTop = conversationViewportRef.value.scrollHeight
@@ -448,6 +553,202 @@ function formatFileSize(size) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function normalizeStoreOption(rawStore) {
+  const storeId = String(
+    rawStore?.storeId ||
+    rawStore?.store_id ||
+    rawStore?.id ||
+    rawStore?.value ||
+    ''
+  ).trim()
+  if (!storeId) return null
+
+  const label = String(
+    rawStore?.shortAddress ||
+    rawStore?.short_address ||
+    rawStore?.store_name ||
+    rawStore?.name ||
+    rawStore?.address ||
+    rawStore?.code ||
+    rawStore?.label ||
+    ''
+  ).trim()
+
+  return {
+    value: storeId,
+    label: label || `Cửa hàng ${storeId}`,
+  }
+}
+
+function ticketStoreOption(sourceTicket) {
+  const storeId = String(sourceTicket?.store?.storeId || sourceTicket?.store_id || '').trim()
+  if (!storeId) return null
+
+  const label = String(
+    sourceTicket?.store?.shortAddress ||
+    sourceTicket?.store?.short_address ||
+    sourceTicket?.store?.name ||
+    sourceTicket?.store?.address ||
+    sourceTicket?.store?.code ||
+    sourceTicket?.store_name ||
+    ''
+  ).trim()
+
+  return {
+    value: storeId,
+    label: label || `Cửa hàng ${storeId}`,
+  }
+}
+
+function resetEditErrors() {
+  editErrors.store_id = ''
+  editErrors.title = ''
+  editErrors.description = ''
+  editErrors.responsible_department_id = ''
+  editError.value = ''
+}
+
+function closeEditSelect() {
+  editSelectOpen.value = ''
+}
+
+function toggleEditSelect(selectKey) {
+  if (editSubmitting.value) return
+  editSelectOpen.value = editSelectOpen.value === selectKey ? '' : selectKey
+}
+
+function selectEditOption(field, value) {
+  editForm[field] = value
+  if (field === 'store_id') editErrors.store_id = ''
+  if (field === 'responsible_department_id') editErrors.responsible_department_id = ''
+  closeEditSelect()
+}
+
+function hydrateEditForm(sourceTicket) {
+  editForm.title = sourceTicket?.title || ''
+  editForm.description = sourceTicket?.description || ''
+  editForm.store_id = String(sourceTicket?.store?.storeId || sourceTicket?.store_id || '').trim()
+  editForm.responsible_department_id = sourceTicket?.responsible_department?.id ? String(sourceTicket.responsible_department.id) : ''
+  editForm.type = sourceTicket?.type || ''
+  editForm.attachments_media = Array.isArray(sourceTicket?.attachments_media) ? [...sourceTicket.attachments_media] : []
+  editTicketStoreOption.value = ticketStoreOption(sourceTicket)
+}
+
+function validateEditForm() {
+  resetEditErrors()
+
+  if (!editForm.store_id) {
+    editErrors.store_id = 'Vui lòng chọn cửa hàng'
+  }
+
+  if (!editForm.title.trim()) {
+    editErrors.title = 'Vui lòng nhập tiêu đề'
+  }
+
+  if (!editForm.description.trim()) {
+    editErrors.description = 'Vui lòng nhập nội dung'
+  }
+
+  if (!editForm.responsible_department_id) {
+    editErrors.responsible_department_id = 'Vui lòng chọn bộ phận xử lý'
+  }
+
+  return !editErrors.store_id && !editErrors.title && !editErrors.description && !editErrors.responsible_department_id
+}
+
+async function fetchEditDepartments() {
+  if (editDepartments.value.length) return
+
+  const result = await getActiveDepartments()
+  const records = result?.data?.departments || result?.data || []
+  editDepartments.value = Array.isArray(records) ? records : []
+}
+
+function closeEditModal() {
+  if (editSubmitting.value) return
+  closeEditSelect()
+  editModalOpen.value = false
+  resetEditErrors()
+  clearEditQuery()
+}
+
+async function openEditModal() {
+  if (!canEditTicket.value || !ticket.value?.id) return
+
+  hydrateEditForm(ticket.value)
+  resetEditErrors()
+  closeEditSelect()
+  editModalOpen.value = true
+
+  try {
+    await fetchEditDepartments()
+  } catch (err) {
+    editError.value = err?.response?.data?.message || err?.message || 'Không thể tải danh sách bộ phận.'
+  }
+}
+
+function clearEditQuery() {
+  if (route.query.edit !== '1') return
+
+  const query = { ...route.query }
+  delete query.edit
+  router.replace({ query })
+}
+
+const handleEditTicketUpload = async (formData) => {
+  const result = await uploadTicketAttachments(formData)
+  return result?.data?.files?.[0] || result?.files?.[0]
+}
+
+async function submitEditTicket() {
+  if (editSubmitting.value || !validateEditForm() || !ticket.value?.id) return
+
+  editSubmitting.value = true
+  editError.value = ''
+  closeEditSelect()
+
+  try {
+    const payload = {
+      title: editForm.title.trim(),
+      description: editForm.description.trim(),
+      store_id: String(editForm.store_id || '').trim(),
+      responsible_department_id: Number(editForm.responsible_department_id),
+      type: editForm.type || null,
+      attachments_media: Array.isArray(editForm.attachments_media)
+        ? editForm.attachments_media.map((file) => ({
+          id: file?.id,
+          name: file?.name,
+          url: file?.url,
+          size: file?.size,
+          mime: file?.mime,
+          ext: file?.ext,
+          formats: file?.formats || null,
+        }))
+        : [],
+    }
+
+    const result = await updateTicket(ticket.value.id, payload)
+    const updatedTicket = result?.data || null
+    if (updatedTicket?.id) {
+      ticket.value = normalizeTicketPayload(updatedTicket)
+      assignees.value = Array.isArray(updatedTicket.assignees) ? updatedTicket.assignees : assignees.value
+    } else {
+      await fetchTicketDetail()
+    }
+    await fetchTicketLogs()
+    await fetchAssignableHandlers()
+    toast.success(result?.message || 'Cập nhật yêu cầu thành công')
+    editModalOpen.value = false
+    clearEditQuery()
+  } catch (err) {
+    const message = err?.response?.data?.message || err?.message || 'Không thể cập nhật yêu cầu. Vui lòng thử lại.'
+    editError.value = message
+    toast.error(message)
+  } finally {
+    editSubmitting.value = false
+  }
+}
+
 function isImageFile(mime, url = '') {
   if (String(mime || '').startsWith('image/')) return true
   if (url && /\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i.test(String(url))) return true
@@ -471,15 +772,6 @@ function closeImagePreview() {
   }
 }
 
-function toggleActionMenu() {
-  if (!showHeaderActionMenu.value) return
-  actionMenuOpen.value = !actionMenuOpen.value
-}
-
-function closeActionMenu() {
-  actionMenuOpen.value = false
-}
-
 function toggleFilesSidebar() {
   filesSidebarOpen.value = !filesSidebarOpen.value
 }
@@ -488,12 +780,27 @@ function closeFilesSidebar() {
   filesSidebarOpen.value = false
 }
 
-function handleDocumentPointerDown(event) {
-  if (!actionMenuOpen.value) return
-  const target = event?.target
-  if (!(target instanceof Node)) return
-  if (actionMenuRef.value?.contains(target)) return
-  closeActionMenu()
+function isTicketInfoSectionOpen(section) {
+  return ticketInfoSectionsOpen.value[section] !== false
+}
+
+function toggleTicketInfoSection(section) {
+  ticketInfoSectionsOpen.value = {
+    ...ticketInfoSectionsOpen.value,
+    [section]: !isTicketInfoSectionOpen(section),
+  }
+}
+
+async function copyTicketCode() {
+  const code = String(ticketCode.value || '').trim()
+  if (!code) return
+
+  try {
+    await navigator.clipboard?.writeText(code)
+    replyError.value = ''
+  } catch {
+    replyError.value = 'Không thể sao chép mã ticket.'
+  }
 }
 
 function goBack() {
@@ -782,11 +1089,6 @@ function closeAssignModal() {
   assignableHandlersError.value = ''
 }
 
-async function openAssignPanelFromMenu() {
-  closeActionMenu()
-  await toggleAssignPanel()
-}
-
 async function handleClaimTicket() {
   if (!canClaimTicket.value || assigning.value || !ticket.value?.id) return
 
@@ -834,11 +1136,6 @@ async function handleResolveTicket() {
   } finally {
     resolving.value = false
   }
-}
-
-async function handleResolveFromMenu() {
-  closeActionMenu()
-  await handleResolveTicket()
 }
 
 async function handleReopenTicket() {
@@ -897,7 +1194,7 @@ async function uploadReplyFiles() {
 }
 
 async function submitReply() {
-  if (submittingReply.value || !canReply.value || !ticket.value?.id) return
+  if (!canSubmitReply.value || !ticket.value?.id) return
 
   const message = replyMessage.value.trim()
   if (!message) {
@@ -934,6 +1231,10 @@ async function submitReply() {
   }
 }
 
+function handleReplyInput(event) {
+  replyMessage.value = event?.target?.value || ''
+}
+
 async function fetchAllData() {
   await fetchTicketDetail()
   if (ticket.value?.id) {
@@ -943,12 +1244,8 @@ async function fetchAllData() {
   }
 }
 
-onMounted(() => {
-  document.addEventListener('mousedown', handleDocumentPointerDown)
-})
-
 onBeforeUnmount(() => {
-  document.removeEventListener('mousedown', handleDocumentPointerDown)
+  emit('ticket-info-panel-change', false)
   stopTicketRealtime()
 })
 
@@ -966,7 +1263,6 @@ watch(
   async (nextId, previousId) => {
     stopTicketRealtime()
     if (!nextId || nextId === previousId) return
-    closeActionMenu()
     closeFilesSidebar()
     await fetchAllData()
     startTicketRealtime()
@@ -986,18 +1282,35 @@ watch(
 )
 
 watch(
-  () => assignPanelOpen.value,
+  () => filesSidebarOpen.value,
   (isOpen) => {
-    if (isOpen) closeActionMenu()
+    emit('update:ticket-info-panel-open', isOpen)
+    emit('ticket-info-panel-change', isOpen)
   }
 )
 
 watch(
-  () => showHeaderActionMenu.value,
-  (visible) => {
-    if (!visible) closeActionMenu()
-  }
+  () => props.ticketInfoPanelOpen,
+  (isOpen) => {
+    const nextOpen = Boolean(isOpen)
+    if (filesSidebarOpen.value === nextOpen) return
+    filesSidebarOpen.value = nextOpen
+  },
+  { immediate: true }
 )
+
+watch(
+  () => [route.query.edit, ticket.value?.id, canEditTicket.value],
+  async ([editFlag, currentTicketId, editable]) => {
+    if (editFlag !== '1' || !currentTicketId || !editable) return
+    if (editAutoOpenedFor.value === currentTicketId) return
+
+    editAutoOpenedFor.value = currentTicketId
+    await openEditModal()
+  },
+  { immediate: true }
+)
+
 </script>
 
 <template>
@@ -1062,69 +1375,20 @@ watch(
             </div>
           </section>
 
-          <section class="shrink-0 border-t border-[var(--stroke)] bg-white px-4 py-4 tablet:px-5 tablet:py-5">
-            <div>
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <h3 class="text-sm font-semibold text-[var(--text-primary)]">Người xử lý</h3>
-                  <p class="mt-1 text-xs text-[var(--text-secondary)]">Danh sách đang phụ trách ticket hiện tại.</p>
-                </div>
-
-                <button
-                  v-if="canAdminAssignHandler"
-                  type="button"
-                  class="app-button-secondary inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold disabled:opacity-50"
-                  aria-label="Phân công handler"
-                  :disabled="assigningHandler || assignableHandlersLoading"
-                  @click="toggleAssignPanel"
-                >
-                  <span class="material-symbols-outlined text-[16px]">person_add</span>
-                  <span class="hidden tablet:inline">Phân công</span>
-                </button>
-              </div>
-
-              <p v-if="assigneesError" class="app-field-error mt-3 tablet:text-sm">{{ assigneesError }}</p>
-              <p v-else-if="assigneesLoading" class="mt-3 text-xs tablet:text-sm text-[var(--text-secondary)]">Đang tải người xử lý...</p>
-
-              <div class="mt-4 flex flex-wrap gap-2">
-                <span
-                  v-for="member in assignees"
-                  :key="member.id"
-                  class="inline-flex items-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)]"
-                >
-                  <span class="app-avatar-neutral inline-flex size-5 items-center justify-center rounded-full text-[10px] font-bold uppercase">
-                    {{ avatarInitial(member.name || `#${member.id}`) }}
-                  </span>
-                  {{ member.name || `#${member.id}` }}
-                </span>
-                <span v-if="!assignees.length" class="text-xs tablet:text-sm text-[var(--text-secondary)]">Chưa có người xử lý.</span>
-              </div>
-
-              <div v-if="canClaimTicket" class="mt-4">
-                <button
-                  type="button"
-                  class="app-button-primary cursor-pointer rounded-lg px-3 py-2 text-xs font-semibold"
-                  :disabled="assigning || resolving"
-                  @click="handleClaimTicket"
-                >
-                  {{ assigning ? 'Đang xử lý...' : 'Nhận xử lý ticket' }}
-                </button>
-              </div>
-            </div>
-          </section>
         </aside>
 
-        <div class="min-h-0 flex-1 flex flex-col relative overflow-hidden" :class="!isEmbedded ? 'pc:order-1 pc:border-r pc:border-[var(--stroke)]' : ''">
-          <section class="flex flex-1 min-h-0 flex-col">
+        <div class="min-h-0 flex-1 flex relative overflow-hidden" :class="!isEmbedded ? 'pc:order-1 pc:border-r pc:border-[var(--stroke)]' : ''">
+          <section class="flex min-w-0 flex-1 min-h-0 flex-col">
             <div class="shrink-0 border-b border-[var(--stroke)] bg-white px-3 py-2.5 tablet:px-4">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex min-w-0 items-center gap-3">
                   <button
-                    v-if="!isEmbedded"
                     type="button"
                     class="app-button-secondary inline-flex size-9 shrink-0 items-center justify-center rounded-lg"
-                    aria-label="Quay lại danh sách ticket"
-                    @click="goBack"
+                    :class="isEmbedded ? 'pc:hidden' : ''"
+                    :aria-label="isEmbedded ? 'Mở danh sách ticket' : 'Quay lại danh sách ticket'"
+                    :title="isEmbedded ? 'Mở danh sách ticket' : 'Quay lại danh sách ticket'"
+                    @click="isEmbedded ? emit('open-ticket-list') : goBack()"
                   >
                     <span class="material-symbols-outlined text-[18px]">arrow_back</span>
                   </button>
@@ -1138,76 +1402,15 @@ watch(
                 </div>
 
                 <div class="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-                  <div ref="actionMenuRef" class="relative">
-                    <button
-                      v-if="showHeaderActionMenu"
-                      type="button"
-                      class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-soft)]"
-                      aria-label="Tùy chọn thao tác"
-                      @click="toggleActionMenu"
-                    >
-                      Tiếp nhận xử lý
-                      <span class="material-symbols-outlined text-[18px]">expand_{{ actionMenuOpen ? 'less' : 'more' }}</span>
-                    </button>
-                    
-                    <Transition name="action-modal">
-                      <div
-                        v-if="actionMenuOpen"
-                        class="absolute right-0 top-full z-[80] mt-2 w-[22rem] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-[var(--stroke)] bg-white shadow-2xl"
-                        @click.stop
-                      >
-                        <div class="max-h-[min(26rem,calc(100vh-7rem))] overflow-y-auto p-1.5 space-y-1">
-                          <button
-                            v-if="canClaimTicket"
-                            type="button"
-                            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-secondary)] transition-all hover:bg-blue-50 hover:text-[var(--primary-strong)] disabled:opacity-50"
-                            :disabled="assigning || resolving"
-                            @click="actionMenuOpen = false; handleClaimTicket()"
-                          >
-                            <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
-                              <span class="material-symbols-outlined text-[18px]">{{ assigning ? 'hourglass_empty' : 'how_to_reg' }}</span>
-                            </span>
-                            <span class="flex-1">{{ assigning ? 'Đang nhận xử lý...' : 'Nhận xử lý việc này' }}</span>
-                          </button>
-
-                          <button
-                            v-if="canAdminAssignHandler"
-                            type="button"
-                            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-secondary)] transition-all hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
-                            :disabled="assigningHandler || assignableHandlersLoading"
-                            @click="openAssignPanelFromMenu"
-                          >
-                            <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
-                              <span class="material-symbols-outlined text-[18px]">person_add</span>
-                            </span>
-                            <span class="flex-1">Giao việc cho nhân viên khác</span>
-                          </button>
-
-                          <button
-                            v-if="canResolveTicket"
-                            type="button"
-                            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-[var(--text-secondary)] transition-all hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-50"
-                            :disabled="assigning || resolving"
-                            @click="handleResolveFromMenu"
-                          >
-                            <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--success-bg)] text-[var(--success-text)]">
-                              <span class="material-symbols-outlined text-[18px]" :class="resolving ? 'animate-spin' : ''">{{ resolving ? 'autorenew' : 'task_alt' }}</span>
-                            </span>
-                            <span class="flex-1">{{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý xong' }}</span>
-                          </button>
-                        </div>
-                      </div>
-                  </Transition>
-                </div>
-
                   <button
                     type="button"
                     class="app-button-secondary inline-flex size-9 shrink-0 items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-soft)]"
-                    aria-label="Danh sách tệp đính kèm"
-                    title="Danh sách tệp đính kèm"
+                    :aria-label="filesSidebarOpen ? 'Đóng bảng thông tin ticket' : 'Mở bảng thông tin ticket'"
+                    :title="filesSidebarOpen ? 'Đóng bảng thông tin ticket' : 'Mở bảng thông tin ticket'"
+                    :class="filesSidebarOpen ? 'bg-[var(--primary-softer)] text-[var(--text-primary)]' : ''"
                     @click="toggleFilesSidebar"
                   >
-                    <span class="material-symbols-outlined text-[18px]">format_list_bulleted</span>
+                    <span class="material-symbols-outlined text-[18px]">{{ filesSidebarOpen ? 'close' : 'info' }}</span>
                   </button>
                 </div>
             </div>
@@ -1222,7 +1425,7 @@ watch(
                   Đang tải trao đổi...
                 </p>
 
-                <div v-else-if="conversationItems.length" class="space-y-5">
+                <div v-else-if="conversationItems.length" class="space-y-3">
                   <article
                     v-for="item in conversationItems"
                     :key="item.id"
@@ -1230,15 +1433,25 @@ watch(
                     :class="conversationRowClass(item)"
                   >
                     <div
+                      v-if="isSystemConversationItem(item)"
+                      class="mx-auto flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full border border-[var(--stroke)] bg-white/85 px-3 py-1.5 text-center shadow-xs"
+                    >
+                      <span class="material-symbols-outlined text-[15px] leading-none text-[var(--text-muted)]">info</span>
+                      <span class="text-xs font-medium leading-5 text-[var(--text-secondary)]">{{ item.message }}</span>
+                      <span class="text-[11px] leading-5 text-[var(--text-muted)]">{{ formatDateTime(item.createdAt) }}</span>
+                    </div>
+
+                    <div
+                      v-else
                       class="flex max-w-full items-start gap-3 pc:max-w-3xl"
                       :class="conversationThreadClass(item)"
                     >
                       <span
-                        v-if="!isSystemConversationItem(item)"
-                        class="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+                        class="relative inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-semibold"
                         :class="avatarClass(item.sender_type)"
                       >
-                        {{ avatarInitial(item.sender_name) }}
+                        <span>{{ avatarInitial(item.sender_name) }}</span>
+                        <img v-if="item.sender_avatar_url" :src="item.sender_avatar_url" alt="Avatar người gửi" class="absolute inset-0 size-full rounded-full object-cover" @error="$event.currentTarget.classList.add('hidden')" />
                       </span>
 
                       <div
@@ -1358,14 +1571,15 @@ watch(
                             rows="1"
                             style="min-height: 46px; max-height: 120px;"
                             :disabled="!canReply || submittingReply"
+                            @input="handleReplyInput"
                           ></textarea>
                        </div>
 
                        <button
                           type="button"
-                          class="app-button-primary shrink-0 flex items-center justify-center h-[46px] w-[46px] tablet:w-auto tablet:px-5 rounded-full shadow-sm disabled:opacity-50 transition-all font-semibold ml-0.5"
+                          class="app-button-primary shrink-0 flex items-center justify-center h-[46px] w-[46px] tablet:w-auto tablet:px-5 rounded-full disabled:opacity-50 transition-all font-semibold ml-0.5"
                           @click="submitReply"
-                          :disabled="!canReply || submittingReply || (!replyMessage.trim() && !replyFiles.length)"
+                          :disabled="!canSubmitReply"
                        >
                          <span v-if="submittingReply" class="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                          <span v-else class="material-symbols-outlined text-[20px] tablet:mr-1.5">send</span>
@@ -1397,65 +1611,212 @@ watch(
             </section>
           </section>
 
-          <!-- Files Sidebar -->
+          <!-- Ticket Options Sidebar -->
           <Transition name="slide-right">
             <aside
               v-if="filesSidebarOpen"
-              class="absolute inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-[var(--stroke)] bg-[var(--surface-muted)] shadow-2xl"
+              class="ticket-info-panel absolute inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-[var(--stroke)] bg-white shadow-2xl pc:static pc:z-auto pc:w-80 pc:max-w-[20rem] pc:shrink-0 pc:shadow-none"
             >
-              <div class="flex shrink-0 items-center justify-between border-b border-[var(--stroke)] bg-white px-4 py-3">
-                <h3 class="text-sm font-semibold text-[var(--text-primary)]">Tệp đính kèm</h3>
-                <button
-                  type="button"
-                  class="flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--primary-softer)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--text-primary)]"
-                  @click="closeFilesSidebar"
-                >
-                  <span class="material-symbols-outlined text-[18px]">close</span>
-                </button>
-              </div>
-
-              <div class="ticket-detail-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
-                <div v-if="!exchangedFiles.length" class="py-10 text-center text-sm text-[var(--text-secondary)]">
-                  Chưa có tệp đính kèm nào được chia sẻ.
-                </div>
-                
-                <div v-else class="space-y-3">
-                  <div
-                    v-for="file in exchangedFiles"
-                    :key="`${file.id}-${file.messageId}`"
-                    class="flex items-start gap-3 rounded-xl border border-[var(--stroke)] bg-white p-3 shadow-xs transition-colors hover:border-[var(--stroke-strong)]"
-                  >
-                    <div
-                      v-if="isImageFile(file.mime, file.url)"
-                      class="relative size-12 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[var(--stroke)] bg-[var(--primary-softer)]"
-                      @click="openImagePreview(file.url, file.name)"
+              <button
+                type="button"
+                class="absolute right-3 top-3 z-10 inline-flex size-8 items-center justify-center rounded-full bg-[var(--primary-softer)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--text-primary)] pc:hidden"
+                aria-label="Đóng bảng thông tin ticket"
+                title="Đóng bảng thông tin ticket"
+                @click="closeFilesSidebar"
+              >
+                <span class="material-symbols-outlined text-[18px]">close</span>
+              </button>
+              <div class="ticket-detail-scrollbar flex-1 overflow-y-auto p-3 pt-12 pc:pt-3">
+                <div class="space-y-1.5">
+                  <section class="rounded-xl bg-white">
+                    <button
+                      type="button"
+                      class="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2 text-left text-xs font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+                      :aria-expanded="isTicketInfoSectionOpen('overview')"
+                      @click="toggleTicketInfoSection('overview')"
                     >
-                      <img :src="toAbsoluteUrl(file.url)" :alt="file.name" class="absolute inset-0 size-full object-cover" />
-                      <div class="absolute inset-x-0 bottom-0 bg-black/40 py-0.5 text-center text-[9px] font-bold text-white backdrop-blur-xs">Ảnh</div>
-                    </div>
-                    <div
-                      v-else
-                      class="flex size-12 shrink-0 items-center justify-center rounded-lg border border-[var(--stroke)] bg-[var(--primary-softer)] text-[var(--text-muted)]"
-                    >
-                      <span class="material-symbols-outlined text-[20px]">description</span>
-                    </div>
-
-                    <div class="min-w-0 flex-1">
-                      <a
-                        :href="toAbsoluteUrl(file.url)"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="block truncate text-sm font-semibold text-[var(--text-primary)] transition-colors hover:text-[var(--primary)] hover:underline"
-                        :title="file.name"
-                      >
-                        {{ file.name }}
-                      </a>
-                      <div class="mt-1 flex flex-col gap-0.5 text-[11px] text-[var(--text-secondary)]">
-                        <span class="truncate font-medium">{{ file.senderName }}</span>
-                        <span>{{ formatDateTime(file.createdAt) }} • {{ formatFileSize(file.size) }}</span>
+                      <span>Thông tin về ticket</span>
+                      <span class="material-symbols-outlined text-[18px]">{{ isTicketInfoSectionOpen('overview') ? 'expand_less' : 'expand_more' }}</span>
+                    </button>
+                    <Transition name="ticket-info-collapse">
+                    <div v-if="isTicketInfoSectionOpen('overview')" class="space-y-1.5 pb-2 text-xs text-[var(--text-secondary)]">
+                      <div class="flex items-center justify-between gap-3 rounded-lg bg-[var(--surface-muted)] px-2.5 py-1.5">
+                        <span>Mã ticket</span>
+                        <span class="truncate font-semibold text-[var(--text-primary)]">{{ ticketCode }}</span>
+                      </div>
+                      <div class="flex items-center justify-between gap-3 rounded-lg bg-[var(--surface-muted)] px-2.5 py-1.5">
+                        <span>Trạng thái</span>
+                        <span class="app-badge rounded-full px-2 py-1 text-[11px] font-semibold" :class="ticketStatusClass(ticket.status)">{{ ticketStatusLabel }}</span>
                       </div>
                     </div>
-                  </div>
+                    </Transition>
+                  </section>
+
+                  <section class="rounded-xl bg-white">
+                    <button
+                      type="button"
+                      class="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2 text-left text-xs font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+                      :aria-expanded="isTicketInfoSectionOpen('actions')"
+                      @click="toggleTicketInfoSection('actions')"
+                    >
+                      <span>Tùy chỉnh ticket</span>
+                      <span class="material-symbols-outlined text-[18px]">{{ isTicketInfoSectionOpen('actions') ? 'expand_less' : 'expand_more' }}</span>
+                    </button>
+                    <Transition name="ticket-info-collapse">
+                    <div v-if="isTicketInfoSectionOpen('actions')" class="space-y-1 pb-2">
+                      <button
+                        type="button"
+                        class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+                        @click="copyTicketCode"
+                      >
+                        <span class="material-symbols-outlined text-[18px]">content_copy</span>
+                        <span>Sao chép mã ticket</span>
+                      </button>
+                      <button
+                        v-if="canEditTicket"
+                        type="button"
+                        class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+                        @click="openEditModal"
+                      >
+                        <span class="material-symbols-outlined text-[18px]">edit</span>
+                        <span>Chỉnh sửa ticket</span>
+                      </button>
+                    </div>
+                    </Transition>
+                  </section>
+
+                  <section class="rounded-xl bg-white">
+                    <button
+                      type="button"
+                      class="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2 text-left text-xs font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+                      :aria-expanded="isTicketInfoSectionOpen('assignees')"
+                      @click="toggleTicketInfoSection('assignees')"
+                    >
+                      <span>Người xử lý và thao tác</span>
+                      <span class="material-symbols-outlined text-[18px]">{{ isTicketInfoSectionOpen('assignees') ? 'expand_less' : 'expand_more' }}</span>
+                    </button>
+
+                    <Transition name="ticket-info-collapse">
+                    <div v-if="isTicketInfoSectionOpen('assignees')" class="space-y-2 pb-2">
+                      <p v-if="assigneesError" class="app-field-error text-xs">{{ assigneesError }}</p>
+                      <p v-else-if="assigneesLoading" class="text-xs text-[var(--text-secondary)]">Đang tải người xử lý...</p>
+
+                      <div v-else class="space-y-1.5">
+                        <div
+                          v-for="member in assignees"
+                          :key="member.id"
+                          class="flex items-center gap-2 rounded-lg bg-[var(--surface-muted)] px-2.5 py-1.5"
+                        >
+                          <span class="app-avatar-neutral relative inline-flex size-7 items-center justify-center overflow-hidden rounded-full text-[11px] font-bold uppercase">
+                            <span>{{ avatarInitial(member.name || `#${member.id}`) }}</span>
+                            <img v-if="userAvatarUrl(member)" :src="userAvatarUrl(member)" alt="Avatar người xử lý" class="absolute inset-0 size-full object-cover" @error="$event.currentTarget.classList.add('hidden')" />
+                          </span>
+                          <div class="min-w-0 flex-1">
+                            <p class="truncate text-xs font-semibold text-[var(--text-primary)]">{{ member.name || `#${member.id}` }}</p>
+                            <p class="text-[11px] text-[var(--text-secondary)]">Đang tiếp nhận xử lý</p>
+                          </div>
+                        </div>
+
+                        <div v-if="!assignees.length" class="rounded-lg bg-[var(--surface-muted)] px-2.5 py-3 text-xs text-[var(--text-secondary)]">
+                          Chưa có người xử lý.
+                        </div>
+                      </div>
+
+                      <div v-if="canClaimTicket || canAdminAssignHandler || canResolveTicket" class="space-y-1 border-t border-[var(--stroke)] pt-2">
+                        <button
+                          v-if="canClaimTicket"
+                          type="button"
+                          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                          :disabled="assigning || resolving"
+                          @click="handleClaimTicket"
+                        >
+                          <span class="material-symbols-outlined text-[18px]">{{ assigning ? 'hourglass_empty' : 'how_to_reg' }}</span>
+                          <span>{{ assigning ? 'Đang nhận xử lý...' : 'Nhận xử lý ticket' }}</span>
+                        </button>
+
+                        <button
+                          v-if="canAdminAssignHandler"
+                          type="button"
+                          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                          :disabled="assigningHandler || assignableHandlersLoading"
+                          @click="toggleAssignPanel"
+                        >
+                          <span class="material-symbols-outlined text-[18px]">person_add</span>
+                          <span>Phân công người xử lý</span>
+                        </button>
+
+                        <button
+                          v-if="canResolveTicket"
+                          type="button"
+                          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                          :disabled="assigning || resolving"
+                          @click="handleResolveTicket"
+                        >
+                          <span class="material-symbols-outlined text-[18px]" :class="resolving ? 'animate-spin' : ''">{{ resolving ? 'autorenew' : 'task_alt' }}</span>
+                          <span>{{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý xong' }}</span>
+                        </button>
+                      </div>
+                    </div>
+                    </Transition>
+                  </section>
+
+                  <section class="rounded-xl bg-white">
+                    <button
+                      type="button"
+                      class="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-2 text-left text-xs font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)]"
+                      :aria-expanded="isTicketInfoSectionOpen('files')"
+                      @click="toggleTicketInfoSection('files')"
+                    >
+                      <span>File phương tiện và file</span>
+                      <span class="material-symbols-outlined text-[18px]">{{ isTicketInfoSectionOpen('files') ? 'expand_less' : 'expand_more' }}</span>
+                    </button>
+
+                    <Transition name="ticket-info-collapse">
+                    <div v-if="isTicketInfoSectionOpen('files')" class="space-y-2 pb-2">
+                      <div v-if="!exchangedFiles.length" class="rounded-lg bg-[var(--surface-muted)] px-2.5 py-6 text-center text-xs text-[var(--text-secondary)]">
+                        Chưa có tệp đính kèm nào được chia sẻ.
+                      </div>
+
+                      <div v-else class="space-y-2">
+                        <div
+                          v-for="file in exchangedFiles"
+                          :key="`${file.id}-${file.messageId}`"
+                          class="flex items-start gap-2 rounded-lg p-1.5 transition-colors hover:bg-[var(--surface-muted)]"
+                        >
+                          <div
+                            v-if="isImageFile(file.mime, file.url)"
+                            class="relative size-10 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[var(--stroke)] bg-[var(--primary-softer)]"
+                            @click="openImagePreview(file.url, file.name)"
+                          >
+                            <img :src="toAbsoluteUrl(file.url)" :alt="file.name" class="absolute inset-0 size-full object-cover" />
+                          </div>
+                          <div
+                            v-else
+                            class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--primary-softer)] text-[var(--text-muted)]"
+                          >
+                            <span class="material-symbols-outlined text-[18px]">description</span>
+                          </div>
+
+                          <div class="min-w-0 flex-1">
+                            <a
+                              :href="toAbsoluteUrl(file.url)"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="block truncate text-xs font-semibold text-[var(--text-primary)] transition-colors hover:text-[var(--primary)] hover:underline"
+                              :title="file.name"
+                            >
+                              {{ file.name }}
+                            </a>
+                            <div class="mt-1 flex flex-col gap-0.5 text-[11px] text-[var(--text-secondary)]">
+                              <span class="truncate font-medium">{{ file.senderName }}</span>
+                              <span>{{ formatDateTime(file.createdAt) }} • {{ formatFileSize(file.size) }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    </Transition>
+                  </section>
                 </div>
               </div>
             </aside>
@@ -1528,45 +1889,315 @@ watch(
               </div>
             </template>
           </CommonModal>
+
+          <CommonModal
+            v-model="editModalOpen"
+            title="Chỉnh sửa ticket"
+            max-width-class="max-w-2xl"
+            body-class="px-4 py-3 tablet:px-5 tablet:py-3"
+            :close-disabled="editSubmitting"
+            container-class="fixed inset-0 z-[120]"
+            @close="closeEditModal"
+          >
+            <form class="space-y-3" @click="closeEditSelect" @submit.prevent="submitEditTicket">
+              <div v-if="editError" class="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger-text)]">
+                {{ editError }}
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 tablet:grid-cols-2">
+                <div class="space-y-1.5">
+                  <label for="ticket-edit-store" class="text-xs font-medium text-[var(--text-primary)]">
+                    Cửa hàng <span class="text-[var(--danger-text)]">*</span>
+                  </label>
+                  <div class="relative" @click.stop>
+                    <button
+                      id="ticket-edit-store"
+                      type="button"
+                      class="app-input flex h-10 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-sm transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                      :class="editErrors.store_id ? 'app-input-invalid' : ''"
+                      :disabled="editSubmitting"
+                      :aria-expanded="editSelectOpen === 'store'"
+                      aria-haspopup="listbox"
+                      @click="toggleEditSelect('store')"
+                    >
+                      <span class="truncate" :class="editForm.store_id ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'">
+                        {{ selectedEditStoreLabel }}
+                      </span>
+                      <span class="material-symbols-outlined flex size-4 shrink-0 items-center justify-center text-[18px] leading-none text-[var(--text-muted)]">
+                        {{ editSelectOpen === 'store' ? 'expand_less' : 'expand_more' }}
+                      </span>
+                    </button>
+
+                    <div
+                      v-if="editSelectOpen === 'store'"
+                      class="absolute left-0 top-[calc(100%+0.25rem)] z-[130] max-h-52 w-full overflow-y-auto rounded-xl border border-[var(--stroke)] bg-white p-1 shadow-lg shadow-slate-200/50 ring-1 ring-black/5"
+                      role="listbox"
+                      aria-labelledby="ticket-edit-store"
+                    >
+                      <button
+                        type="button"
+                        class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+                        @click="selectEditOption('store_id', '')"
+                      >
+                        <span class="truncate">Chọn cửa hàng</span>
+                        <span v-if="!editForm.store_id" class="material-symbols-outlined text-[18px] text-[var(--primary)]">check</span>
+                      </button>
+                      <button
+                        v-for="store in editStoreOptions"
+                        :key="store.value"
+                        type="button"
+                        class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+                        @click="selectEditOption('store_id', store.value)"
+                      >
+                        <span class="truncate">{{ store.label }}</span>
+                        <span v-if="String(editForm.store_id) === String(store.value)" class="material-symbols-outlined shrink-0 text-[18px] text-[var(--primary)]">check</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p v-if="editErrors.store_id" class="app-field-error">{{ editErrors.store_id }}</p>
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="ticket-edit-department" class="text-xs font-medium text-[var(--text-primary)]">
+                    Bộ phận <span class="text-[var(--danger-text)]">*</span>
+                  </label>
+                  <div class="relative" @click.stop>
+                    <button
+                      id="ticket-edit-department"
+                      type="button"
+                      class="app-input flex h-10 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-sm transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                      :class="editErrors.responsible_department_id ? 'app-input-invalid' : ''"
+                      :disabled="editSubmitting"
+                      :aria-expanded="editSelectOpen === 'department'"
+                      aria-haspopup="listbox"
+                      @click="toggleEditSelect('department')"
+                    >
+                      <span class="truncate" :class="editForm.responsible_department_id ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'">
+                        {{ selectedEditDepartmentLabel }}
+                      </span>
+                      <span class="material-symbols-outlined flex size-4 shrink-0 items-center justify-center text-[18px] leading-none text-[var(--text-muted)]">
+                        {{ editSelectOpen === 'department' ? 'expand_less' : 'expand_more' }}
+                      </span>
+                    </button>
+
+                    <div
+                      v-if="editSelectOpen === 'department'"
+                      class="absolute left-0 top-[calc(100%+0.25rem)] z-[130] max-h-52 w-full overflow-y-auto rounded-xl border border-[var(--stroke)] bg-white p-1 shadow-lg shadow-slate-200/50 ring-1 ring-black/5"
+                      role="listbox"
+                      aria-labelledby="ticket-edit-department"
+                    >
+                      <button
+                        type="button"
+                        class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+                        @click="selectEditOption('responsible_department_id', '')"
+                      >
+                        <span class="truncate">Chọn bộ phận xử lý</span>
+                        <span v-if="!editForm.responsible_department_id" class="material-symbols-outlined text-[18px] text-[var(--primary)]">check</span>
+                      </button>
+                      <button
+                        v-for="department in editDepartments"
+                        :key="department.id"
+                        type="button"
+                        class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+                        @click="selectEditOption('responsible_department_id', String(department.id))"
+                      >
+                        <span class="truncate">{{ department.name }}</span>
+                        <span v-if="String(editForm.responsible_department_id) === String(department.id)" class="material-symbols-outlined shrink-0 text-[18px] text-[var(--primary)]">check</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p v-if="editErrors.responsible_department_id" class="app-field-error">{{ editErrors.responsible_department_id }}</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3 tablet:grid-cols-[minmax(0,1fr)_14rem]">
+                <div class="space-y-1.5">
+                  <label for="ticket-edit-title" class="text-xs font-medium text-[var(--text-primary)]">
+                    Tiêu đề <span class="text-[var(--danger-text)]">*</span>
+                  </label>
+                  <input
+                    id="ticket-edit-title"
+                    v-model="editForm.title"
+                    type="text"
+                    class="app-input block w-full rounded-lg px-3 py-2 text-sm"
+                    :class="editErrors.title ? 'app-input-invalid' : ''"
+                    :disabled="editSubmitting"
+                    placeholder="Nhập tiêu đề"
+                  />
+                  <p v-if="editErrors.title" class="app-field-error">{{ editErrors.title }}</p>
+                </div>
+
+                <div class="space-y-1.5">
+                  <label for="ticket-edit-type" class="text-xs font-medium text-[var(--text-primary)]">Phân loại</label>
+                  <div class="relative" @click.stop>
+                    <button
+                      id="ticket-edit-type"
+                      type="button"
+                      class="app-input flex h-10 w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-sm transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+                      :disabled="editSubmitting"
+                      :aria-expanded="editSelectOpen === 'type'"
+                      aria-haspopup="listbox"
+                      @click="toggleEditSelect('type')"
+                    >
+                      <span class="truncate" :class="editForm.type ? 'text-[var(--text-primary)]' : 'text-[var(--text-muted)]'">
+                        {{ selectedEditTypeLabel }}
+                      </span>
+                      <span class="material-symbols-outlined flex size-4 shrink-0 items-center justify-center text-[18px] leading-none text-[var(--text-muted)]">
+                        {{ editSelectOpen === 'type' ? 'expand_less' : 'expand_more' }}
+                      </span>
+                    </button>
+
+                    <div
+                      v-if="editSelectOpen === 'type'"
+                      class="absolute left-0 top-[calc(100%+0.25rem)] z-[130] max-h-52 w-full overflow-y-auto rounded-xl border border-[var(--stroke)] bg-white p-1 shadow-lg shadow-slate-200/50 ring-1 ring-black/5"
+                      role="listbox"
+                      aria-labelledby="ticket-edit-type"
+                    >
+                      <button
+                        type="button"
+                        class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+                        @click="selectEditOption('type', '')"
+                      >
+                        <span class="truncate">Chọn loại yêu cầu</span>
+                        <span v-if="!editForm.type" class="material-symbols-outlined text-[18px] text-[var(--primary)]">check</span>
+                      </button>
+                      <button
+                        v-for="type in issueTypes"
+                        :key="type.value"
+                        type="button"
+                        class="flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+                        @click="selectEditOption('type', type.value)"
+                      >
+                        <span class="truncate">{{ type.label }}</span>
+                        <span v-if="editForm.type === type.value" class="material-symbols-outlined shrink-0 text-[18px] text-[var(--primary)]">check</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-1.5">
+                <label for="ticket-edit-description" class="text-xs font-medium text-[var(--text-primary)]">
+                  Nội dung <span class="text-[var(--danger-text)]">*</span>
+                </label>
+                <textarea
+                  id="ticket-edit-description"
+                  v-model="editForm.description"
+                  class="app-input block w-full rounded-lg px-3 py-2 text-sm"
+                  :class="editErrors.description ? 'app-input-invalid' : ''"
+                  :disabled="editSubmitting"
+                  rows="3"
+                  placeholder="Nhập nội dung"
+                ></textarea>
+                <p v-if="editErrors.description" class="app-field-error">{{ editErrors.description }}</p>
+              </div>
+
+              <div class="space-y-1.5">
+                <label class="text-xs font-medium text-[var(--text-primary)]">Hình ảnh đính kèm</label>
+                <FileUploadItem v-model="editForm.attachments_media" compact :upload-handler="handleEditTicketUpload" />
+              </div>
+            </form>
+
+            <template #footer>
+              <div class="flex flex-col-reverse gap-2 tablet:flex-row tablet:items-center tablet:justify-end">
+                <button
+                  type="button"
+                  class="app-button-secondary inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
+                  :disabled="editSubmitting"
+                  @click="closeEditModal"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  class="app-button-primary inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
+                  :disabled="editSubmitting"
+                  @click="submitEditTicket"
+                >
+                  <span v-if="editSubmitting" class="inline-block size-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                  {{ editSubmitting ? 'Đang lưu...' : 'Lưu thay đổi' }}
+                </button>
+              </div>
+            </template>
+          </CommonModal>
         </div>
       </div>
     </section>
 
-    <div
-      v-if="imagePreview.open"
-      class="fixed inset-0 z-[120] flex items-center justify-center bg-[var(--primary)]/85 p-3 tablet:p-6"
-      @click.self="closeImagePreview"
+    <CommonModal
+      v-model="imagePreview.open"
+      :title="imagePreview.name || 'Ảnh đính kèm'"
+      max-width-class="max-w-5xl"
+      panel-class="rounded-2xl"
+      body-class="p-2 tablet:p-3"
+      container-class="fixed inset-0 z-[120]"
+      @close="closeImagePreview"
     >
-      <div class="relative w-full max-w-5xl">
-        <button
-          type="button"
-          class="cursor-pointer absolute -top-11 right-0 inline-flex size-9 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white hover:bg-black/50"
-          aria-label="Đóng xem trước ảnh"
-          @click="closeImagePreview"
-        >
-          <svg class="size-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6 6 18" />
-            <path d="m6 6 12 12" />
-          </svg>
-        </button>
+      <div class="flex min-h-[18rem] items-center justify-center rounded-xl bg-[var(--surface-muted)] p-2 tablet:min-h-[28rem]">
         <img
           :src="imagePreview.src"
           :alt="imagePreview.name"
-          class="w-full max-h-[82vh] object-contain rounded-xl border border-white/20 bg-black/20"
+          class="max-h-[calc(100vh-12rem)] w-full rounded-lg object-contain"
         />
       </div>
-    </div>
+    </CommonModal>
   </div>
 </template>
 
 <style scoped>
 .slide-right-enter-active,
 .slide-right-leave-active {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease;
 }
 .slide-right-enter-from,
 .slide-right-leave-to {
+  opacity: 0;
   transform: translateX(100%);
+}
+
+@media (min-width: 1024px) {
+  .slide-right-enter-active,
+  .slide-right-leave-active {
+    overflow: hidden;
+    transition: width 220ms ease, max-width 220ms ease, opacity 160ms ease, border-color 160ms ease;
+  }
+
+  .ticket-info-panel.slide-right-enter-from,
+  .ticket-info-panel.slide-right-leave-to {
+    width: 0;
+    max-width: 0;
+    border-left-color: transparent;
+    opacity: 0;
+    transform: none;
+  }
+
+.ticket-info-panel.slide-right-enter-to,
+  .ticket-info-panel.slide-right-leave-from {
+    width: 20rem;
+    max-width: 20rem;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ticket-info-collapse-enter-active,
+.ticket-info-collapse-leave-active {
+  overflow: hidden;
+  transition: opacity 160ms ease, transform 160ms ease, max-height 180ms ease;
+}
+
+.ticket-info-collapse-enter-from,
+.ticket-info-collapse-leave-to {
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-0.25rem);
+}
+
+.ticket-info-collapse-enter-to,
+.ticket-info-collapse-leave-from {
+  max-height: 28rem;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .inbox-reply-textarea:focus-visible {

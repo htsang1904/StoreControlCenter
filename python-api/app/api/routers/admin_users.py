@@ -61,6 +61,7 @@ def _serialize_user(user: User) -> dict:
         "name": user.name or "",
         "email": user.email,
         "phone_number": user.phone_number,
+        "avatar_url": user.avatar_url,
         "is_active": bool(user.is_active),
         "role": _normalize_role(user.role),
         "department_id": user.department_id,

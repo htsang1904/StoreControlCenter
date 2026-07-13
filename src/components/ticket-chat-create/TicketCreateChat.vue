@@ -1,7 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { CHAT_STEPS } from '@/composables/useTicketCreateChat'
-import FileUploadItem from '@/components/FileUploadItem.vue'
 import { getActiveDepartments, createTicket, uploadTicketAttachments } from '@/services/ticket_service'
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
@@ -27,6 +26,7 @@ const {
   selectTicketType,
   selectStore,
   selectDepartment,
+  submitTitle,
   submitContent
 } = props.chatState
 
@@ -72,8 +72,23 @@ const filteredStores = computed(() => {
 })
 
 // Content inputs
+const inputTitle = ref('')
 const inputDescription = ref('')
 const inputAttachments = ref([])
+const attachmentInputRef = ref(null)
+const uploadingAttachments = ref(false)
+const titleHasInput = ref(false)
+const contentHasInput = ref(false)
+
+function handleTitleInput(event) {
+  inputTitle.value = event?.target?.value || ''
+  titleHasInput.value = inputTitle.value.length > 0
+}
+
+function handleDescriptionInput(event) {
+  inputDescription.value = event?.target?.value || ''
+  contentHasInput.value = inputDescription.value.length > 0
+}
 
 onMounted(async () => {
   resetState()
@@ -104,8 +119,10 @@ watch(() => messages.value.length, async () => {
 })
 
 const ticketTypes = [
-  { value: 'thay_moi', label: 'Thay mới' },
-  { value: 'sua_chua', label: 'Sửa chữa' }
+  { label: 'Sự cố hệ thống', value: 'system_issue' },
+  { label: 'Sự cố vận hành', value: 'operation_issue' },
+  { label: 'Yêu cầu hỗ trợ', value: 'support_request' },
+  { label: 'Khác', value: 'other' },
 ]
 
 function handleSelectTicketType(type) {
@@ -123,6 +140,16 @@ function handleSelectDepartment(dept) {
   selectDepartment(dept.id, dept.name)
 }
 
+function handleTitleSubmit() {
+  if (currentStep.value !== CHAT_STEPS.INPUT_TITLE) return
+  const title = inputTitle.value.trim()
+  if (!title) {
+    toast.error('Vui lòng nhập tiêu đề yêu cầu.')
+    return
+  }
+  submitTitle(title)
+}
+
 function handleContentSubmit() {
   if (currentStep.value !== CHAT_STEPS.INPUT_CONTENT) return
   if (!inputDescription.value.trim()) {
@@ -132,9 +159,56 @@ function handleContentSubmit() {
   submitContent(inputDescription.value, inputAttachments.value)
 }
 
-const handleTicketUpload = async (fileData) => {
-  const result = await uploadTicketAttachments(fileData)
-  return result?.data?.files?.[0] || result?.files?.[0]
+function triggerAttachmentInput() {
+  if (uploadingAttachments.value || inputAttachments.value.length >= 5) return
+  document.getElementById('ticket-create-attachment-input')?.click()
+}
+
+async function handleAttachmentFiles(event) {
+  const selectedFiles = Array.from(event?.target?.files || [])
+  event.target.value = ''
+  if (!selectedFiles.length) return
+
+  const remainingSlots = 5 - inputAttachments.value.length
+  if (remainingSlots <= 0) {
+    toast.error('Chỉ được đính kèm tối đa 5 ảnh.')
+    return
+  }
+
+  const files = selectedFiles.slice(0, remainingSlots)
+  if (selectedFiles.length > remainingSlots) {
+    toast.error(`Chỉ còn có thể đính kèm thêm ${remainingSlots} ảnh.`)
+  }
+
+  const invalidFile = files.find((file) => !String(file.type || '').startsWith('image/'))
+  if (invalidFile) {
+    toast.error('Chỉ cho phép đính kèm file ảnh.')
+    return
+  }
+
+  const oversizedFile = files.find((file) => Number(file.size || 0) > 5 * 1024 * 1024)
+  if (oversizedFile) {
+    toast.error(`Ảnh ${oversizedFile.name} vượt quá 5MB.`)
+    return
+  }
+
+  uploadingAttachments.value = true
+  try {
+    const formData = new FormData()
+    files.forEach((file) => formData.append('files', file))
+    const result = await uploadTicketAttachments(formData)
+    const uploadedFiles = result?.data?.files || result?.files || []
+    if (!Array.isArray(uploadedFiles) || uploadedFiles.length === 0) {
+      throw new Error(result?.message || 'Upload không trả về file hợp lệ')
+    }
+    inputAttachments.value = [...inputAttachments.value, ...uploadedFiles]
+    toast.success(`Đã đính kèm ${uploadedFiles.length} ảnh.`)
+  } catch (error) {
+    const message = error?.response?.data?.detail || error?.response?.data?.message || error?.message || 'Tải ảnh lên thất bại'
+    toast.error(message)
+  } finally {
+    uploadingAttachments.value = false
+  }
 }
 
 function removeAttachment(index) {
@@ -170,11 +244,6 @@ async function handleConfirm() {
           ext: file?.ext,
           formats: file?.formats || null,
         }))
-        : [],
-      attachment_file_ids: Array.isArray(formData.attachments_media)
-        ? formData.attachments_media
-          .map((file) => Number(file?.id))
-          .filter((id) => Number.isInteger(id) && id > 0)
         : [],
     }
 
@@ -316,6 +385,32 @@ function renderMessage(content) {
                 </div>
               </div>
 
+              <!-- Title Input Action -->
+              <div v-if="msg.type === 'action_title'" class="min-w-[280px] rounded-2xl rounded-tl-none bg-[var(--surface-muted)] p-4 shadow-sm tablet:min-w-[400px]">
+                <p class="text-sm text-[var(--text-secondary)] leading-relaxed mb-4 font-medium">{{ msg.content }}</p>
+                <div v-if="currentStep === CHAT_STEPS.INPUT_TITLE" class="flex flex-col gap-3">
+                  <input
+                    v-model="inputTitle"
+                    type="text"
+                    maxlength="120"
+                    placeholder="Ví dụ: Máy POS không in được hóa đơn"
+                    class="app-input h-11 w-full rounded-xl bg-white px-4 text-sm text-[var(--text-secondary)]"
+                    @input="handleTitleInput"
+                    @keyup.enter="handleTitleSubmit"
+                  />
+                  <div class="flex justify-end">
+                    <button
+                      type="button"
+                      class="app-button-primary inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold outline-none transition-opacity"
+                      :style="{ opacity: titleHasInput ? 1 : 0.6 }"
+                      @click="handleTitleSubmit"
+                    >
+                      Tiếp tục
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <!-- Content Input Action -->
               <div v-if="msg.type === 'action_content'" class="min-w-[280px] rounded-2xl rounded-tl-none bg-[var(--surface-muted)] p-4 shadow-sm tablet:min-w-[400px]">
                 <p class="text-sm text-[var(--text-secondary)] leading-relaxed mb-4 font-medium">{{ msg.content }}</p>
@@ -326,10 +421,29 @@ function renderMessage(content) {
                       rows="4" 
                       placeholder="Mô tả chi tiết nội dung (Bắt buộc)..." 
                       class="app-input block w-full resize-none border-0 bg-transparent px-4 py-3.5 text-sm leading-relaxed text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                      @input="handleDescriptionInput"
                     ></textarea>
                     
                     <div class="flex items-center gap-2 px-3 pb-3">
-                      <FileUploadItem v-model="inputAttachments" :upload-handler="handleTicketUpload" icon-only hide-previews />
+                      <input
+                        id="ticket-create-attachment-input"
+                        ref="attachmentInputRef"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        class="hidden"
+                        :disabled="uploadingAttachments || inputAttachments.length >= 5"
+                        @change="handleAttachmentFiles"
+                      />
+                      <label
+                        for="ticket-create-attachment-input"
+                        class="inline-flex items-center justify-center rounded-xl p-2 text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] hover:text-[var(--primary-strong)]"
+                        :class="uploadingAttachments || inputAttachments.length >= 5 ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'"
+                        title="Đính kèm hình ảnh"
+                      >
+                        <span v-if="uploadingAttachments" class="inline-block size-5 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent"></span>
+                        <span v-else class="material-symbols-outlined text-[22px]">image</span>
+                      </label>
                       
                       <div v-if="inputAttachments.length > 0" class="flex flex-wrap gap-2 ml-2">
                         <div v-for="(file, index) in inputAttachments" :key="file.id" class="flex items-center gap-1.5 rounded-md border border-[var(--stroke)] bg-[var(--app-bg)] pl-2.5 pr-1.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] shadow-xs max-w-[160px]">
@@ -344,10 +458,11 @@ function renderMessage(content) {
                   </div>
                   
                   <div class="flex justify-end">
-                    <button 
+                    <button
+                      type="button"
                       @click="handleContentSubmit"
-                      class="app-button-primary inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-50 outline-none"
-                      :disabled="!inputDescription.trim()"
+                      class="app-button-primary inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold outline-none transition-opacity"
+                      :style="{ opacity: contentHasInput ? 1 : 0.6 }"
                     >
                       Tiếp tục
                     </button>

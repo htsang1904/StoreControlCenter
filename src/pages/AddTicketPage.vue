@@ -19,6 +19,7 @@ const pageLoading = ref(true)
 const submitting = ref(false)
 const departments = ref([])
 const formError = ref('')
+const editTicketStoreOption = ref(null)
 const formData = reactive({
   store_id: '',
   title: '',
@@ -73,8 +74,13 @@ const availableStores = computed(() => {
     .map(normalizeStoreOption)
     .filter(Boolean)
 
-  if (normalized.length > 0) {
-    return normalized
+  const options = [...normalized]
+  if (editTicketStoreOption.value?.value && !options.some((store) => store.value === editTicketStoreOption.value.value)) {
+    options.unshift(editTicketStoreOption.value)
+  }
+
+  if (options.length > 0) {
+    return options
   }
 
   const fallbackId = String(state.userInfo?.store_id || import.meta.env.VITE_DEFAULT_STORE_ID || '').trim()
@@ -144,6 +150,26 @@ function validateForm() {
   return !errors.store_id && !errors.title && !errors.description && !errors.responsible_department_id && !formError.value
 }
 
+function ticketStoreOption(ticket) {
+  const storeId = String(ticket?.store?.storeId || ticket?.store_id || '').trim()
+  if (!storeId) return null
+
+  const label = String(
+    ticket?.store?.shortAddress ||
+    ticket?.store?.short_address ||
+    ticket?.store?.name ||
+    ticket?.store?.address ||
+    ticket?.store?.code ||
+    ticket?.store_name ||
+    ''
+  ).trim()
+
+  return {
+    value: storeId,
+    label: label || `Cửa hàng ${storeId}`,
+  }
+}
+
 async function fetchDepartments() {
   const result = await getActiveDepartments()
   const records = result?.data?.departments || result?.data || []
@@ -167,6 +193,7 @@ async function fetchTicketForEdit() {
   formData.title = ticket.title || ''
   formData.description = ticket.description || ''
   formData.store_id = String(ticket?.store?.storeId || ticket?.store_id || '').trim()
+  editTicketStoreOption.value = ticketStoreOption(ticket)
   formData.responsible_department_id = ticket.responsible_department?.id ? String(ticket.responsible_department.id) : ''
   formData.type = ticket.type || ''
   formData.attachments_media = Array.isArray(ticket.attachments_media) ? ticket.attachments_media : []
@@ -224,6 +251,11 @@ async function submitTicket() {
     const successMsg = result?.message || (isEditMode.value ? 'Cập nhật yêu cầu thành công' : 'Tạo yêu cầu thành công')
     toast.success(successMsg)
     await new Promise((resolve) => setTimeout(resolve, 220))
+    if (isEditMode.value && route.query.returnTo === 'inbox') {
+      await router.push({ path: '/ticket/inbox', query: { ticket: String(editTicketId.value) } })
+      return
+    }
+
     const targetRoute = isEditMode.value ? '/ticket' : '/ticket/inbox'
     await router.push(targetRoute)
   } catch (err) {

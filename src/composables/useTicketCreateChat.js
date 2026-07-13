@@ -4,6 +4,7 @@ export const CHAT_STEPS = {
   SELECT_TICKET_TYPE: 'select_ticket_type',
   SELECT_STORE: 'select_store',
   SELECT_DEPARTMENT: 'select_department',
+  INPUT_TITLE: 'input_title',
   INPUT_CONTENT: 'input_content',
   CONFIRM: 'confirm',
   CREATING: 'creating',
@@ -39,7 +40,7 @@ export function useTicketCreateChat() {
   }
 
   function resetState() {
-    currentStep.value = CHAT_STEPS.SELECT_STORE
+    currentStep.value = CHAT_STEPS.SELECT_TICKET_TYPE
     formData.type = ''
     formData.type_name = ''
     formData.store_id = ''
@@ -52,7 +53,7 @@ export function useTicketCreateChat() {
     messages.value = []
     
     addMessage('bot', 'text', 'Xin chào! Bạn đang muốn tạo một yêu cầu hỗ trợ mới.')
-    addMessage('bot', 'action_store', 'Vui lòng chọn cửa hàng cần hỗ trợ.')
+    addMessage('bot', 'action_ticket_type', 'Trước tiên, vui lòng chọn phân loại yêu cầu.')
   }
 
   function selectTicketType(typeValue, typeLabel) {
@@ -80,12 +81,18 @@ export function useTicketCreateChat() {
     formData.department_name = deptName
     addMessage('user', 'text', `Bộ phận: **${deptName}**`)
     
+    currentStep.value = CHAT_STEPS.INPUT_TITLE
+    addMessage('bot', 'action_title', 'Vui lòng nhập tiêu đề ngắn gọn cho yêu cầu này.')
+  }
+
+  function submitTitle(title) {
+    formData.title = title
+    addMessage('user', 'text', `**Tiêu đề:** ${title}`)
     currentStep.value = CHAT_STEPS.INPUT_CONTENT
     addMessage('bot', 'action_content', 'Vui lòng nhập nội dung chi tiết và đính kèm hình ảnh (nếu có).')
   }
 
   function submitContent(description, attachments) {
-    formData.title = formData.store_name || 'Yêu cầu hỗ trợ'
     formData.description = description
     formData.attachments_media = attachments
     
@@ -107,6 +114,7 @@ export function useTicketCreateChat() {
     selectTicketType,
     selectStore,
     selectDepartment,
+    submitTitle,
     submitContent
   }
 }

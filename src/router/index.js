@@ -39,13 +39,6 @@ const router = createRouter({
                     meta: { auth: true }
                 },
                 {
-                    path: 'ticket/:id/edit',
-                    name: 'Ticket Edit',
-                    component: () => import('@/pages/AddTicketPage.vue'),
-                    meta: { auth: true },
-                    props: true
-                },
-                {
                     path: 'ticket/:id',
                     name: 'Ticket Detail',
                     component: () => import('@/pages/TicketDetailPage.vue'),
@@ -94,13 +87,13 @@ const router = createRouter({
                     path: 'tools/departments',
                     name: 'Admin Departments',
                     component: () => import('@/pages/AdminDepartmentsPage.vue'),
-                    meta: { auth: true, permissions: ['departments.manage'] }
+                    meta: { auth: true, roles: ['admin'], permissions: ['departments.manage'] }
                 },
                 {
                     path: 'tools/permissions',
                     name: 'Admin Permissions',
                     component: () => import('@/pages/AdminPermissionsPage.vue'),
-                    meta: { auth: true, permissions: ['permissions.manage'] }
+                    meta: { auth: true, roles: ['admin'], permissions: ['permissions.manage'] }
                 },
                 {
                     path: 'tools/store-sync',

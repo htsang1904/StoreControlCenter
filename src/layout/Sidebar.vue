@@ -3,12 +3,17 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
+import CommonModal from '@/components/CommonModal.vue'
 
 const route = useRoute()
-const { state, logout, syncUserStores } = useApp()
+const { state, logout, syncUserStores, updateUserAvatar } = useApp()
 const toast = useToast()
 const syncingStores = ref(false)
+const savingAvatar = ref(false)
 const userMenuOpen = ref(false)
+const profileModalOpen = ref(false)
+const storesModalOpen = ref(false)
+const avatarPreviewUrl = ref('')
 const userMenuRef = ref(null)
 const props = defineProps({
   desktopOpen: {
@@ -90,7 +95,10 @@ const adminTabs = [
 ]
 
 const operationalTabs = computed(() => baseTabs)
-const privilegedTabs = computed(() => adminTabs.filter((tab) => !tab.permissions || hasAnyPermission(tab.permissions)))
+const privilegedTabs = computed(() => {
+  if (!isAdmin.value) return []
+  return adminTabs.filter((tab) => !tab.permissions || hasAnyPermission(tab.permissions))
+})
 const isExpanded = computed(() => (props.drawerMode ? props.drawerOpen : props.desktopOpen))
 const sidebarClasses = computed(() => {
   if (props.drawerMode) {
@@ -160,6 +168,51 @@ const userInitials = computed(() => {
     .join('')
 })
 const userMonogram = computed(() => userInitials.value?.slice(0, 1) || 'S')
+const userDepartmentName = computed(() => state.userInfo?.department?.name || state.userInfo?.department_name || '')
+const userEmail = computed(() => state.userInfo?.email || '')
+const userPhone = computed(() => state.userInfo?.phone_number || state.userInfo?.phoneNumber || '')
+const userStores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))
+const userStoreCount = computed(() => userStores.value.length)
+const userStoreLabel = computed(() => `${userStoreCount.value} cửa hàng`)
+const userAvatarUrl = computed(() => {
+  const url = state.userInfo?.avatar_url || state.userInfo?.avatarUrl || ''
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}${url}`
+})
+const displayAvatarUrl = computed(() => avatarPreviewUrl.value || userAvatarUrl.value)
+
+const storeDisplayName = (store) => store.shortAddress || store.address || store.name || store.code || store.storeId || `Cửa hàng #${store.id}`
+
+const handleAvatarImageError = (event) => {
+  event.currentTarget?.classList.add('hidden')
+}
+
+const handleAvatarChange = async (event) => {
+  const file = event.target?.files?.[0]
+  if (!file) return
+
+  if (avatarPreviewUrl.value) {
+    URL.revokeObjectURL(avatarPreviewUrl.value)
+  }
+  avatarPreviewUrl.value = URL.createObjectURL(file)
+
+  savingAvatar.value = true
+  try {
+    await updateUserAvatar(file)
+    if (avatarPreviewUrl.value) {
+      URL.revokeObjectURL(avatarPreviewUrl.value)
+      avatarPreviewUrl.value = ''
+    }
+    toast.success('Đã cập nhật avatar')
+  } catch (error) {
+    const message = error?.response?.data?.detail || error?.response?.data?.message || error?.message || 'Không thể cập nhật avatar'
+    toast.error(message)
+  } finally {
+    savingAvatar.value = false
+    event.target.value = ''
+  }
+}
 
 const toggleUserMenu = () => {
   userMenuOpen.value = !userMenuOpen.value
@@ -167,6 +220,11 @@ const toggleUserMenu = () => {
 
 const closeUserMenu = () => {
   userMenuOpen.value = false
+}
+
+const openProfileModal = () => {
+  closeUserMenu()
+  profileModalOpen.value = true
 }
 
 const handleLogout = () => {
@@ -216,6 +274,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleUserMenuOutside)
+  if (avatarPreviewUrl.value) {
+    URL.revokeObjectURL(avatarPreviewUrl.value)
+  }
 })
 </script>
 
@@ -343,8 +404,9 @@ onBeforeUnmount(() => {
             :class="userMenuOpen ? 'border-[var(--stroke)] bg-white' : 'border-transparent bg-[var(--surface-muted)] hover:border-[var(--stroke)] hover:bg-white'"
             @click.stop="toggleUserMenu"
           >
-            <div class="inline-flex size-10 items-center justify-center rounded-full bg-[var(--primary-soft)] text-sm font-semibold text-[var(--text-secondary)]">
-              {{ userInitials }}
+            <div class="relative inline-flex size-10 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-soft)] text-sm font-semibold text-[var(--text-secondary)]">
+              <span>{{ userInitials }}</span>
+              <img v-if="userAvatarUrl" :src="userAvatarUrl" alt="User avatar" class="absolute inset-0 size-full object-cover" @error="handleAvatarImageError" />
             </div>
             <div class="min-w-0 flex-1 text-left">
               <p class="truncate text-sm font-semibold text-[var(--text-primary)]">{{ userName }}</p>
@@ -362,7 +424,14 @@ onBeforeUnmount(() => {
           >
             <button
               type="button"
-              class="inline-flex w-full items-center justify-center rounded-lg border border-[var(--stroke)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
+              class="inline-flex w-full items-center justify-center rounded-lg border border-[var(--stroke)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
+              @click="openProfileModal"
+            >
+              Thông tin tài khoản
+            </button>
+            <button
+              type="button"
+              class="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-[var(--stroke)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="syncingStores"
               @click="handleSyncStoresFromMenu"
             >
@@ -381,13 +450,106 @@ onBeforeUnmount(() => {
 
       <div class="hidden mt-auto border-t border-[var(--stroke)] px-2 py-4 pc:justify-center" :class="isExpanded ? 'pc:hidden' : 'pc:flex'">
         <div class="flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)]">
-          <div class="inline-flex size-9 items-center justify-center rounded-full bg-[var(--primary-soft)] text-xl font-semibold text-[var(--text-secondary)]">
-            {{ userMonogram }}
+          <div class="relative inline-flex size-9 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-soft)] text-xl font-semibold text-[var(--text-secondary)]">
+            <span>{{ userMonogram }}</span>
+            <img v-if="userAvatarUrl" :src="userAvatarUrl" alt="User avatar" class="absolute inset-0 size-full object-cover" @error="handleAvatarImageError" />
           </div>
         </div>
       </div>
     </div>
   </aside>
+
+  <CommonModal
+    v-model="profileModalOpen"
+    title="Thông tin tài khoản"
+    max-width-class="max-w-lg"
+    body-class="px-0 py-0"
+  >
+    <div class="divide-y divide-[var(--stroke)]">
+      <div class="px-4 py-3.5 tablet:px-5">
+        <div class="flex items-center gap-2.5">
+          <div class="relative inline-flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-soft)] text-base font-bold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--stroke)]">
+            <span>{{ userInitials }}</span>
+            <img v-if="displayAvatarUrl" :src="displayAvatarUrl" alt="Avatar preview" class="absolute inset-0 size-full object-cover" @error="handleAvatarImageError" />
+          </div>
+          <div class="min-w-0">
+            <p class="truncate text-base font-semibold text-[var(--text-primary)]">{{ userName }}</p>
+            <p v-if="userEmail" class="truncate text-xs text-[var(--text-secondary)]">{{ userEmail }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-2.5 px-4 py-4 tablet:px-5">
+        <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2.5">
+          <label class="text-xs font-bold text-[var(--text-secondary)]">Tên</label>
+          <input :value="userName" type="text" disabled class="app-input h-9 w-full rounded-lg bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)] disabled:opacity-100" />
+        </div>
+
+        <div v-if="userEmail" class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2.5">
+          <label class="text-xs font-bold text-[var(--text-secondary)]">Email</label>
+          <input :value="userEmail" type="text" disabled class="app-input h-9 w-full rounded-lg bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)] disabled:opacity-100" />
+        </div>
+
+        <div v-if="userPhone" class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2.5">
+          <label class="text-xs font-bold text-[var(--text-secondary)]">Số điện thoại</label>
+          <input :value="userPhone" type="text" disabled class="app-input h-9 w-full rounded-lg bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)] disabled:opacity-100" />
+        </div>
+
+        <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2.5">
+          <label class="text-xs font-bold text-[var(--text-secondary)]">Vai trò</label>
+          <input :value="userRoleLabel" type="text" disabled class="app-input h-9 w-full rounded-lg bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)] disabled:opacity-100" />
+        </div>
+
+        <div v-if="userDepartmentName" class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2.5">
+          <label class="text-xs font-bold text-[var(--text-secondary)]">Bộ phận</label>
+          <input :value="userDepartmentName" type="text" disabled class="app-input h-9 w-full rounded-lg bg-[var(--surface-muted)] px-3 text-sm text-[var(--text-primary)] disabled:opacity-100" />
+        </div>
+
+        <div class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2.5">
+          <label class="text-xs font-bold text-[var(--text-secondary)]">Avatar</label>
+          <div class="flex items-center gap-2.5">
+            <div class="relative inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-soft)] text-xs font-bold text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--stroke)]">
+              <span>{{ userInitials }}</span>
+              <img v-if="displayAvatarUrl" :src="displayAvatarUrl" alt="Avatar preview" class="absolute inset-0 size-full object-cover" @error="handleAvatarImageError" />
+            </div>
+            <label class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]" :class="savingAvatar ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
+              {{ savingAvatar ? 'Đang lưu...' : 'Thay avatar' }}
+              <input type="file" accept="image/*" class="sr-only" :disabled="savingAvatar" @change="handleAvatarChange" />
+            </label>
+          </div>
+        </div>
+
+        <div v-if="userStoreCount" class="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2.5">
+          <label class="text-xs font-bold text-[var(--text-secondary)]">Cửa hàng</label>
+          <button type="button" class="inline-flex h-8 w-fit items-center gap-1.5 rounded-lg border border-[var(--stroke)] bg-white px-3 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]" @click="storesModalOpen = true">
+            {{ userStoreLabel }}
+            <span class="material-symbols-outlined text-[16px]">visibility</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </CommonModal>
+
+  <CommonModal
+    v-model="storesModalOpen"
+    title="Cửa hàng đang quản lý"
+    max-width-class="max-w-xl"
+  >
+    <div class="space-y-2">
+      <div
+        v-for="store in userStores"
+        :key="store.id || store.storeId || store.code"
+        class="rounded-xl border border-[var(--stroke)] bg-white p-3"
+      >
+        <p class="font-semibold text-[var(--text-primary)]">{{ storeDisplayName(store) }}</p>
+        <p v-if="store.code || store.storeId" class="mt-1 text-xs text-[var(--text-secondary)]">
+          <span v-if="store.code">Mã: {{ store.code }}</span>
+          <span v-if="store.code && store.storeId"> · </span>
+          <span v-if="store.storeId">Store ID: {{ store.storeId }}</span>
+        </p>
+      </div>
+    </div>
+  </CommonModal>
 </template>
 
 <style scoped>

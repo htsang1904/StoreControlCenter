@@ -8,6 +8,7 @@ class UserBase(BaseModel):
     name: str
     email: EmailStr
     phone_number: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 class UserMinimalResponse(UserBase):
     id: int

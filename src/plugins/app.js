@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 import router from '@/router'
-import { loginBySuite, login, loginBySsoTicket, getMe, logout as logoutApi, syncStores as syncStoresApi } from '@/services/auth_service'
+import { loginBySuite, login, loginBySsoTicket, getMe, logout as logoutApi, syncStores as syncStoresApi, updateAvatar as updateAvatarApi } from '@/services/auth_service'
 import { useToast } from '@/plugins/toast'
 const state = reactive({
   token: localStorage.getItem('token') || null,
@@ -147,6 +147,17 @@ export function useApp() {
         return result
     }
 
+    const updateUserAvatar = async (file) => {
+        const formData = new FormData()
+        formData.append('file', file)
+        const result = await updateAvatarApi(formData)
+        const user = resolveUserProfile(result)
+        if (result?.success && user) {
+            state.userInfo = user
+        }
+        return result
+    }
+
     const initializeAuth = async () => {
         syncAuthStateFromStorage()
 
@@ -176,6 +187,7 @@ export function useApp() {
         userLoginBySsoTicket,
         userLogout,
         syncUserStores,
+        updateUserAvatar,
         logout: userLogout,
         initializeAuth,
         router,

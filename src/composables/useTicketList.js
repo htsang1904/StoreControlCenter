@@ -35,6 +35,8 @@ export function useTicketList(userInfo) {
   const filters = reactive({
     q: '',
     statuses: [],
+    departmentId: '',
+    assigneeId: '',
     dateFrom: '',
     dateTo: '',
     storeIds: '',
@@ -99,7 +101,16 @@ export function useTicketList(userInfo) {
 
   function isEditableTicket(ticket) {
     if (!ticket) return false
-    return ticket.status === 'new' && (!Array.isArray(ticket.assignees) || ticket.assignees.length === 0)
+    const status = String(ticket.status || '').toLowerCase()
+    if (!['new', 'assigned', 'in_progress'].includes(status)) return false
+    if (userRole.value === 'admin') return true
+    if (userRole.value !== 'store') return false
+
+    const assignees = Array.isArray(ticket.assignees) ? ticket.assignees : []
+    const isAccepted = status !== 'new' || Boolean(ticket.processing_started_at || ticket.processingStartedAt) || assignees.length > 0
+    if (isAccepted) return false
+
+    return Number(ticket.requester_id || ticket.requester?.id || 0) === userId.value
   }
 
   function canReopenTicket(ticket) {
@@ -131,6 +142,7 @@ export function useTicketList(userInfo) {
         pageSize: pagination.pageSize,
         q: filters.q,
         status: filters.statuses.join(','),
+        responsible_department_id: filters.departmentId || undefined,
         date_from: filters.dateFrom || undefined,
         date_to: filters.dateTo || undefined,
         store_ids: filters.storeIds || undefined,

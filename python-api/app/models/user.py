@@ -46,8 +46,10 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255))
-    email = Column(String(255), unique=True, index=True, nullable=False)
+    email = Column(String(255), index=True, nullable=False)
+    suite_staff_id = Column(String(64), unique=True, index=True, nullable=True)
     phone_number = Column(String(20), nullable=True) # Mới: Lưu số điện thoại từ Suite
+    avatar_url = Column(String(500), nullable=True)
     suite_token = Column(Text, nullable=True)
     is_active = Column(Boolean, default=False) # Created as False by default pending admin approval
     

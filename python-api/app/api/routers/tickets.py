@@ -16,7 +16,7 @@ from app.models.notification import Notification
 from app.models.ticket import Ticket, TicketLog, ticket_assignees
 from app.models.user import User
 from app.schemas.ticket import TicketResponse, TicketCreate, TicketDetailResponse, TicketLogResponse, TicketUpdate
-from app.schemas.user import UserResponse
+from app.schemas.user import UserMinimalResponse
 from app.services.realtime import realtime_manager
 from app.services.ticket_policy import (
     can_access_ticket,
@@ -403,7 +403,7 @@ async def list_ticket_assignees(
 
     await _ensure_ticket_access(session, ticket, current_user)
         
-    serialized_assignees = [UserResponse.model_validate(u) for u in ticket.assignees]
+    serialized_assignees = [UserMinimalResponse.model_validate(u) for u in ticket.assignees]
     return {"success": True, "data": serialized_assignees}
 
 @router.get("/{id}/assignable-handlers", response_model=dict)
@@ -432,7 +432,7 @@ async def list_assignable_handlers(
     )
     h_result = await session.execute(h_query)
     handlers = h_result.scalars().all()
-    serialized_handlers = [UserResponse.model_validate(h) for h in handlers]
+    serialized_handlers = [UserMinimalResponse.model_validate(h) for h in handlers]
     
     return {"success": True, "data": serialized_handlers}
 
