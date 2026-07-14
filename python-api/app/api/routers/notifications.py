@@ -4,6 +4,7 @@ from sqlalchemy import func, update
 from sqlalchemy.future import select
 
 from app.api.deps import SessionDep, CurrentUser
+from app.core.config import settings
 from app.models.notification import Notification
 from app.models.notification_subscription import NotificationSubscription
 from app.schemas.notification import (
@@ -12,6 +13,7 @@ from app.schemas.notification import (
     NotificationSubscriptionResponse,
 )
 from app.services.notification_service import emit_notification_unread_count_event
+from app.services.onesignal_client import get_last_push_result, send_push_to_subscriptions
 
 router = APIRouter()
 
@@ -113,6 +115,88 @@ async def read_notification_subscription_status(
             "subscribed": active_count > 0,
             "active_count": active_count,
             "subscription_id": latest_subscription.subscription_id if latest_subscription else None,
+        },
+    }
+
+@router.get("/subscriptions/debug", response_model=dict)
+async def read_notification_subscription_debug_status(
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    result = await session.execute(
+        select(NotificationSubscription)
+        .where(NotificationSubscription.user_id == current_user.id)
+        .order_by(NotificationSubscription.is_active.desc(), NotificationSubscription.last_seen_at.desc(), NotificationSubscription.id.desc())
+    )
+    subscriptions = result.scalars().all()
+
+    return {
+        "success": True,
+        "data": {
+            "backend_app_id": settings.ONESIGNAL_APP_ID,
+            "api_url": settings.ONESIGNAL_API_URL,
+            "has_rest_api_key": bool(settings.ONESIGNAL_REST_API_KEY),
+            "subscriptions": [
+                {
+                    "id": subscription.id,
+                    "subscription_id": subscription.subscription_id,
+                    "platform": subscription.platform,
+                    "is_active": subscription.is_active,
+                    "last_seen_at": subscription.last_seen_at.isoformat() if subscription.last_seen_at else None,
+                    "created_at": subscription.created_at.isoformat() if subscription.created_at else None,
+                    "updated_at": subscription.updated_at.isoformat() if subscription.updated_at else None,
+                }
+                for subscription in subscriptions
+            ],
+            "last_push_result": get_last_push_result(),
+        },
+    }
+
+@router.post("/subscriptions/test-push", response_model=dict)
+async def send_current_user_test_push(
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    result = await session.execute(
+        select(NotificationSubscription).where(
+            NotificationSubscription.user_id == current_user.id,
+            NotificationSubscription.is_active == True,
+        )
+    )
+    subscriptions = result.scalars().all()
+    subscription_ids = [subscription.subscription_id for subscription in subscriptions]
+    if not subscription_ids:
+        return {
+            "success": False,
+            "message": "Không có subscription active để gửi test push",
+            "data": {"subscription_ids": []},
+        }
+
+    target_url = f"{settings.APP_PUBLIC_URL.rstrip('/')}/notifications" if settings.APP_PUBLIC_URL else "/notifications"
+    send_result = await send_push_to_subscriptions(
+        subscription_ids=subscription_ids,
+        heading="Kiểm tra thông báo",
+        content="Đây là thông báo test từ Store Control Center.",
+        url=target_url,
+        data={"kind": "debug_test", "url": target_url},
+        recipient_id=int(current_user.id),
+    )
+    if send_result.invalid_subscription_ids:
+        await session.execute(
+            update(NotificationSubscription)
+            .where(NotificationSubscription.subscription_id.in_(send_result.invalid_subscription_ids))
+            .values(is_active=False, last_seen_at=func.now())
+        )
+        await session.commit()
+
+    return {
+        "success": send_result.success,
+        "data": {
+            "status_code": send_result.status_code,
+            "response_body": send_result.response_body,
+            "error": send_result.error,
+            "invalid_subscription_ids": send_result.invalid_subscription_ids,
+            "subscription_ids": subscription_ids,
         },
     }
 

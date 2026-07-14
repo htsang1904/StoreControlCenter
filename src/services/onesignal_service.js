@@ -1,7 +1,6 @@
 import { reactive } from 'vue'
 import {
   registerNotificationSubscription,
-  unregisterNotificationSubscription,
 } from './notification_service'
 
 const ONESIGNAL_SCRIPT_ID = 'onesignal-sdk'
@@ -12,7 +11,6 @@ const SUBSCRIPTION_ID_RETRY_DELAY_MS = 500
 
 let initialized = false
 let initializingPromise = null
-let registeredSubscriptionId = null
 
 const getPushOptOutKey = (userId) => `onesignal-push-opt-out:${userId}`
 
@@ -37,7 +35,7 @@ export const pushState = reactive({
   lastError: '',
 })
 
-const getAppId = () => String(import.meta.env.VITE_ONESIGNAL_APP_ID || '').trim()
+export const getOneSignalAppId = () => String(import.meta.env.VITE_ONESIGNAL_APP_ID || '').trim()
 
 const isBrowserSupported = () => (
   typeof window !== 'undefined' &&
@@ -58,7 +56,7 @@ const withTimeout = (promise, message) => Promise.race([
 ])
 
 const refreshBrowserState = () => {
-  pushState.configured = Boolean(getAppId())
+  pushState.configured = Boolean(getOneSignalAppId())
   pushState.supported = isBrowserSupported()
   pushState.permission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
 }
@@ -138,7 +136,7 @@ const waitForSubscriptionId = async (OneSignal) => {
 
 export const initializeOneSignal = async () => {
   refreshBrowserState()
-  const appId = getAppId()
+  const appId = getOneSignalAppId()
   if (!appId || !pushState.supported) return false
   if (initialized) return true
   if (initializingPromise) return initializingPromise
@@ -169,24 +167,21 @@ export const initializeOneSignal = async () => {
   return initializingPromise
 }
 
-export const refreshOneSignalSubscriptionState = async () => {
+export const getBrowserOneSignalSubscriptionId = async () => {
   refreshBrowserState()
-  if (!pushState.configured || !pushState.supported) return pushState
+  if (!pushState.configured || !pushState.supported) return null
 
   try {
     const ready = await initializeOneSignal()
-    if (!ready) return pushState
+    if (!ready) return null
 
-    await withOneSignal(async (OneSignal) => {
-      const subscriptionId = await readSubscriptionId(OneSignal)
-      registeredSubscriptionId = subscriptionId || registeredSubscriptionId
-      pushState.subscribed = Boolean(subscriptionId) && pushState.permission === 'granted'
+    return await withOneSignal(async (OneSignal) => {
+      return readSubscriptionId(OneSignal)
     })
   } catch (error) {
     pushState.lastError = error?.message || 'Không thể kiểm tra trạng thái thông báo'
+    return null
   }
-
-  return pushState
 }
 
 export const bindOneSignalUser = async (user, { requestPermission = true } = {}) => {
@@ -220,7 +215,6 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
       platform: 'web',
     })
 
-    registeredSubscriptionId = subscriptionId
     pushState.subscribed = true
     pushState.lastError = ''
     return subscriptionId
@@ -228,11 +222,5 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
 }
 
 export const unbindOneSignalUser = async () => {
-  const subscriptionId = registeredSubscriptionId
-  registeredSubscriptionId = null
   pushState.subscribed = false
-
-  if (subscriptionId) {
-    await unregisterNotificationSubscription(subscriptionId).catch(() => {})
-  }
 }

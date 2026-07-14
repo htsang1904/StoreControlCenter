@@ -1,8 +1,7 @@
 import logging
 from typing import Iterable
 
-import httpx
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -10,6 +9,7 @@ from app.core.config import settings
 from app.core.datetime_utils import utc_now_naive
 from app.models.notification import Notification
 from app.models.notification_subscription import NotificationSubscription
+from app.services.onesignal_client import send_push_to_subscriptions
 from app.services.realtime import realtime_manager
 
 logger = logging.getLogger(__name__)
@@ -212,14 +212,6 @@ async def send_onesignal_notifications(
 ) -> None:
     if not notifications:
         return
-    if not settings.ONESIGNAL_APP_ID or not settings.ONESIGNAL_REST_API_KEY:
-        logger.info(
-            "OneSignal push skipped: missing config app_id=%s api_key=%s.",
-            bool(settings.ONESIGNAL_APP_ID),
-            bool(settings.ONESIGNAL_REST_API_KEY),
-        )
-        return
-
     recipient_ids = normalize_recipient_ids([item.recipient_id for item in notifications])
     if not recipient_ids:
         return
@@ -229,39 +221,41 @@ async def send_onesignal_notifications(
         logger.info("OneSignal push skipped: no active subscriptions for recipients=%s.", recipient_ids)
         return
 
-    headers = {
-        "Authorization": f"Key {settings.ONESIGNAL_REST_API_KEY}",
-        "Content-Type": "application/json; charset=utf-8",
-    }
+    for notification in notifications:
+        subscription_ids = subscriptions_by_user.get(int(notification.recipient_id), [])
+        if not subscription_ids:
+            continue
 
-    async with httpx.AsyncClient(timeout=10) as client:
-        for notification in notifications:
-            subscription_ids = subscriptions_by_user.get(int(notification.recipient_id), [])
-            if not subscription_ids:
-                continue
+        payload = _build_onesignal_payload(notification)
+        result = await send_push_to_subscriptions(
+            subscription_ids=subscription_ids,
+            heading=notification.title,
+            content=notification.message,
+            url=payload["url"],
+            data=payload["data"],
+            notification_id=int(notification.id),
+            recipient_id=int(notification.recipient_id),
+        )
+        if result.success:
+            logger.info(
+                "OneSignal push sent: notification_id=%s recipient_id=%s subscriptions=%s.",
+                notification.id,
+                notification.recipient_id,
+                len(subscription_ids),
+            )
+            if result.response_body:
+                logger.debug("OneSignal push response: %s", result.response_body[:500])
+            continue
 
-            payload = _build_onesignal_payload(notification, subscription_ids)
-            try:
-                response = await client.post(settings.ONESIGNAL_API_URL, json=payload, headers=headers)
-                response.raise_for_status()
-                logger.info(
-                    "OneSignal push sent: notification_id=%s recipient_id=%s subscriptions=%s.",
-                    notification.id,
-                    notification.recipient_id,
-                    len(subscription_ids),
-                )
-                if response.text:
-                    logger.debug("OneSignal push response: %s", response.text[:500])
-            except httpx.HTTPStatusError as exc:
-                response = exc.response
-                logger.warning(
-                    "Failed to send OneSignal notification %s: status=%s body=%s",
-                    notification.id,
-                    response.status_code,
-                    response.text[:500],
-                )
-            except Exception as exc:
-                logger.warning("Failed to send OneSignal notification %s: %s", notification.id, exc)
+        logger.warning(
+            "Failed to send OneSignal notification %s: status=%s error=%s body=%s",
+            notification.id,
+            result.status_code,
+            result.error,
+            (result.response_body or "")[:500],
+        )
+        if result.invalid_subscription_ids:
+            await _deactivate_subscription_ids(session, result.invalid_subscription_ids)
 
 
 async def _load_active_subscription_ids_by_user(
@@ -281,7 +275,18 @@ async def _load_active_subscription_ids_by_user(
     return subscriptions_by_user
 
 
-def _build_onesignal_payload(notification: Notification, subscription_ids: list[str]) -> dict:
+async def _deactivate_subscription_ids(session: AsyncSession, subscription_ids: list[str]) -> None:
+    if not subscription_ids:
+        return
+    await session.execute(
+        update(NotificationSubscription)
+        .where(NotificationSubscription.subscription_id.in_(subscription_ids))
+        .values(is_active=False, last_seen_at=func.now())
+    )
+    await session.commit()
+
+
+def _build_onesignal_payload(notification: Notification) -> dict:
     meta_info = notification.meta_info or {}
     ticket_id = notification.ticket_id or meta_info.get("ticket_id")
     target_path = f"/ticket/inbox?ticket={ticket_id}" if ticket_id else "/dashboard"
@@ -289,10 +294,6 @@ def _build_onesignal_payload(notification: Notification, subscription_ids: list[
     target_url = f"{public_url}{target_path}" if public_url else target_path
 
     return {
-        "app_id": settings.ONESIGNAL_APP_ID,
-        "include_subscription_ids": subscription_ids,
-        "headings": {"vi": notification.title, "en": notification.title},
-        "contents": {"vi": notification.message, "en": notification.message},
         "url": target_url,
         "data": {
             "notification_id": notification.id,

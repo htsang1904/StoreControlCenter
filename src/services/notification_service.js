@@ -31,6 +31,14 @@ export const getNotificationSubscriptionStatus = () => {
   return http.get('/api/notifications/subscriptions/status')
 }
 
+export const getNotificationSubscriptionDebug = () => {
+  return http.get('/api/notifications/subscriptions/debug')
+}
+
+export const sendNotificationTestPush = () => {
+  return http.post('/api/notifications/subscriptions/test-push')
+}
+
 export const unregisterCurrentNotificationSubscriptions = () => {
   return http.delete('/api/notifications/subscriptions')
 }
