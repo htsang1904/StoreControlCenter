@@ -45,6 +45,10 @@ services:
       - BOOTSTRAP_ADMIN_EMAIL=${BOOTSTRAP_ADMIN_EMAIL}
       - BOOTSTRAP_ADMIN_NAME=${BOOTSTRAP_ADMIN_NAME:-System Administrator}
       - BOOTSTRAP_ADMIN_PHONE_NUMBER=${BOOTSTRAP_ADMIN_PHONE_NUMBER:-}
+      - APP_PUBLIC_URL=${APP_PUBLIC_URL:-}
+      - ONESIGNAL_APP_ID=${ONESIGNAL_APP_ID:-}
+      - ONESIGNAL_REST_API_KEY=${ONESIGNAL_REST_API_KEY:-}
+      - ONESIGNAL_API_URL=${ONESIGNAL_API_URL:-https://api.onesignal.com/notifications}
     ports:
       - "${BACKEND_PORT:-8001}:${BACKEND_PORT:-8001}"
     command: sh ./scripts/start-dev.sh
@@ -66,6 +70,7 @@ services:
       - VITE_APP_VERSION=${VITE_APP_VERSION:-}
       - VITE_DEFAULT_STORE_ID=${VITE_DEFAULT_STORE_ID:-}
       - VITE_DEFAULT_STORE_NAME=${VITE_DEFAULT_STORE_NAME:-}
+      - VITE_ONESIGNAL_APP_ID=${VITE_ONESIGNAL_APP_ID:-}
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     depends_on:
