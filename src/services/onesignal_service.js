@@ -6,6 +6,7 @@ import {
 
 const ONESIGNAL_SCRIPT_ID = 'onesignal-sdk'
 const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
+const ONESIGNAL_OPERATION_TIMEOUT_MS = 12000
 
 let initialized = false
 let initializingPromise = null
@@ -25,6 +26,13 @@ const getAppId = () => String(import.meta.env.VITE_ONESIGNAL_APP_ID || '').trim(
 const isAlreadyInitializedError = (error) => (
   String(error?.message || error || '').toLowerCase().includes('already initialized')
 )
+
+const withTimeout = (promise, message = 'Thao tác thông báo quá thời gian chờ') => Promise.race([
+  promise,
+  new Promise((_, reject) => {
+    window.setTimeout(() => reject(new Error(message)), ONESIGNAL_OPERATION_TIMEOUT_MS)
+  }),
+])
 
 const isBrowserSupported = () => (
   typeof window !== 'undefined' &&
@@ -68,7 +76,7 @@ const ensureSdkScript = () => new Promise((resolve, reject) => {
 const withOneSignal = async (callback) => {
   await ensureSdkScript()
   window.OneSignalDeferred = window.OneSignalDeferred || []
-  return new Promise((resolve, reject) => {
+  return withTimeout(new Promise((resolve, reject) => {
     window.OneSignalDeferred.push(async (OneSignal) => {
       try {
         resolve(await callback(OneSignal))
@@ -76,7 +84,7 @@ const withOneSignal = async (callback) => {
         reject(error)
       }
     })
-  })
+  }), 'Không thể kết nối OneSignal. Vui lòng thử lại sau.')
 }
 
 const readSubscriptionId = async (OneSignal) => {
@@ -157,7 +165,10 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
       OneSignal.Notifications?.permission !== true &&
       typeof OneSignal.Notifications?.requestPermission === 'function'
     ) {
-      await OneSignal.Notifications.requestPermission()
+      await withTimeout(
+        OneSignal.Notifications.requestPermission(),
+        'Trình duyệt chưa phản hồi yêu cầu bật thông báo. Vui lòng thử lại.'
+      )
     }
 
     refreshBrowserState()

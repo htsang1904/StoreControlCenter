@@ -6,6 +6,7 @@ import { bindOneSignalUser, pushState, refreshOneSignalSubscriptionState } from 
 const { state } = useApp()
 const dismissed = ref(false)
 const loading = ref(false)
+const errorMessage = ref('')
 
 const shouldShowPrompt = computed(() => (
   Boolean(state.token && state.userInfo) &&
@@ -20,10 +21,14 @@ const permissionDenied = computed(() => pushState.permission === 'denied')
 const enableNotifications = async () => {
   if (!state.userInfo || loading.value || permissionDenied.value) return
   loading.value = true
+  errorMessage.value = ''
   try {
     await bindOneSignalUser(state.userInfo, { requestPermission: true })
     await refreshOneSignalSubscriptionState()
     if (pushState.subscribed) dismissed.value = true
+    else errorMessage.value = 'Chưa bật được thông báo. Vui lòng kiểm tra quyền thông báo của trình duyệt.'
+  } catch (error) {
+    errorMessage.value = error?.message || 'Không thể bật thông báo. Vui lòng thử lại.'
   } finally {
     loading.value = false
   }
@@ -63,6 +68,7 @@ onMounted(() => {
         <p v-else class="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
           Bật thông báo để nhận cảnh báo ticket mới và phản hồi mới kịp thời.
         </p>
+        <p v-if="errorMessage" class="mt-1 text-xs leading-5 text-[var(--danger-text)]">{{ errorMessage }}</p>
       </div>
     </div>
     <div class="mt-3 flex flex-wrap justify-end gap-2">
