@@ -13,7 +13,7 @@ from app.schemas.notification import (
     NotificationSubscriptionResponse,
 )
 from app.services.notification_service import emit_notification_unread_count_event
-from app.services.onesignal_client import get_last_push_result, send_push_to_subscriptions
+from app.services.onesignal_client import get_last_push_result, get_subscription_status, send_push_to_subscriptions
 
 router = APIRouter()
 
@@ -129,6 +129,15 @@ async def read_notification_subscription_debug_status(
         .order_by(NotificationSubscription.is_active.desc(), NotificationSubscription.last_seen_at.desc(), NotificationSubscription.id.desc())
     )
     subscriptions = result.scalars().all()
+    subscription_statuses = {}
+    for subscription in subscriptions:
+        status = await get_subscription_status(subscription.subscription_id)
+        subscription_statuses[subscription.subscription_id] = {
+            "exists": status.exists,
+            "active": status.active,
+            "status_code": status.status_code,
+            "error": status.error,
+        }
 
     return {
         "success": True,
@@ -145,6 +154,7 @@ async def read_notification_subscription_debug_status(
                     "last_seen_at": subscription.last_seen_at.isoformat() if subscription.last_seen_at else None,
                     "created_at": subscription.created_at.isoformat() if subscription.created_at else None,
                     "updated_at": subscription.updated_at.isoformat() if subscription.updated_at else None,
+                    "onesignal_status": subscription_statuses.get(subscription.subscription_id),
                 }
                 for subscription in subscriptions
             ],
@@ -164,12 +174,32 @@ async def send_current_user_test_push(
         )
     )
     subscriptions = result.scalars().all()
-    subscription_ids = [subscription.subscription_id for subscription in subscriptions]
+    active_subscription_ids = []
+    inactive_subscription_ids = []
+    for subscription in subscriptions:
+        status = await get_subscription_status(subscription.subscription_id)
+        if status.exists and status.active:
+            active_subscription_ids.append(subscription.subscription_id)
+        else:
+            inactive_subscription_ids.append(subscription.subscription_id)
+
+    if inactive_subscription_ids:
+        await session.execute(
+            update(NotificationSubscription)
+            .where(NotificationSubscription.subscription_id.in_(inactive_subscription_ids))
+            .values(is_active=False, last_seen_at=func.now())
+        )
+        await session.commit()
+
+    subscription_ids = active_subscription_ids
     if not subscription_ids:
         return {
             "success": False,
-            "message": "Không có subscription active để gửi test push",
-            "data": {"subscription_ids": []},
+            "message": "Không có subscription active/subscribed trên OneSignal để gửi test push",
+            "data": {
+                "subscription_ids": [],
+                "deactivated_subscription_ids": inactive_subscription_ids,
+            },
         }
 
     target_url = f"{settings.APP_PUBLIC_URL.rstrip('/')}/notifications" if settings.APP_PUBLIC_URL else "/notifications"

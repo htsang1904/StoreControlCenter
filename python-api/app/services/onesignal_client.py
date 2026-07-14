@@ -27,6 +27,14 @@ class OneSignalSendResult:
     error: str | None = None
     invalid_subscription_ids: list[str] = field(default_factory=list)
 
+@dataclass
+class OneSignalSubscriptionStatus:
+    exists: bool
+    active: bool
+    status_code: int | None = None
+    response_body: str | None = None
+    error: str | None = None
+
 
 _last_push_result: dict[str, Any] | None = None
 
@@ -48,6 +56,53 @@ def _extract_invalid_subscription_ids(response_body: str, subscription_ids: list
     if not any(marker in normalized_body for marker in INVALID_SUBSCRIPTION_MARKERS):
         return []
     return subscription_ids
+
+def _headers() -> dict[str, str]:
+    return {
+        "Authorization": f"Key {settings.ONESIGNAL_REST_API_KEY}",
+        "Content-Type": "application/json; charset=utf-8",
+    }
+
+def _subscription_url(subscription_id: str) -> str:
+    return f"https://api.onesignal.com/apps/{settings.ONESIGNAL_APP_ID}/subscriptions/{subscription_id}"
+
+def _is_subscription_active(payload: dict[str, Any]) -> bool:
+    if payload.get("enabled") is False:
+        return False
+    notification_types = payload.get("notification_types")
+    if isinstance(notification_types, int) and notification_types < 1:
+        return False
+    if str(payload.get("status") or "").lower() in {"unsubscribed", "disabled"}:
+        return False
+    return True
+
+async def get_subscription_status(subscription_id: str) -> OneSignalSubscriptionStatus:
+    if not settings.ONESIGNAL_APP_ID or not settings.ONESIGNAL_REST_API_KEY:
+        return OneSignalSubscriptionStatus(exists=False, active=False, error="missing_onesignal_config")
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(_subscription_url(subscription_id), headers=_headers())
+        response_text = response.text[:1000]
+        if response.status_code == 404:
+            return OneSignalSubscriptionStatus(exists=False, active=False, status_code=404, response_body=response_text)
+        response.raise_for_status()
+        payload = response.json()
+        return OneSignalSubscriptionStatus(
+            exists=True,
+            active=_is_subscription_active(payload),
+            status_code=response.status_code,
+            response_body=response_text,
+        )
+    except httpx.HTTPStatusError as exc:
+        return OneSignalSubscriptionStatus(
+            exists=False,
+            active=False,
+            status_code=exc.response.status_code,
+            response_body=exc.response.text[:1000],
+        )
+    except Exception as exc:
+        return OneSignalSubscriptionStatus(exists=False, active=False, error=str(exc))
 
 
 async def send_push_to_subscriptions(
@@ -87,14 +142,9 @@ async def send_push_to_subscriptions(
         "url": url,
         "data": data or {},
     }
-    headers = {
-        "Authorization": f"Key {settings.ONESIGNAL_REST_API_KEY}",
-        "Content-Type": "application/json; charset=utf-8",
-    }
-
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.post(settings.ONESIGNAL_API_URL, json=payload, headers=headers)
+            response = await client.post(settings.ONESIGNAL_API_URL, json=payload, headers=_headers())
         response_text = response.text[:1000]
         response.raise_for_status()
         _set_last_push_result({

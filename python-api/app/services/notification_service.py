@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.datetime_utils import utc_now_naive
 from app.models.notification import Notification
 from app.models.notification_subscription import NotificationSubscription
-from app.services.onesignal_client import send_push_to_subscriptions
+from app.services.onesignal_client import get_subscription_status, send_push_to_subscriptions
 from app.services.realtime import realtime_manager
 
 logger = logging.getLogger(__name__)
@@ -226,6 +226,10 @@ async def send_onesignal_notifications(
         if not subscription_ids:
             continue
 
+        subscription_ids = await _filter_active_onesignal_subscription_ids(session, subscription_ids)
+        if not subscription_ids:
+            continue
+
         payload = _build_onesignal_payload(notification)
         result = await send_push_to_subscriptions(
             subscription_ids=subscription_ids,
@@ -285,6 +289,26 @@ async def _deactivate_subscription_ids(session: AsyncSession, subscription_ids: 
     )
     await session.commit()
 
+
+async def _filter_active_onesignal_subscription_ids(
+    session: AsyncSession,
+    subscription_ids: list[str],
+) -> list[str]:
+    active_subscription_ids: list[str] = []
+    inactive_subscription_ids: list[str] = []
+
+    for subscription_id in subscription_ids:
+        status = await get_subscription_status(subscription_id)
+        if status.exists and status.active:
+            active_subscription_ids.append(subscription_id)
+        else:
+            inactive_subscription_ids.append(subscription_id)
+
+    if inactive_subscription_ids:
+        await _deactivate_subscription_ids(session, inactive_subscription_ids)
+        logger.info("OneSignal inactive subscriptions deactivated: %s", inactive_subscription_ids)
+
+    return active_subscription_ids
 
 def _build_onesignal_payload(notification: Notification) -> dict:
     meta_info = notification.meta_info or {}
