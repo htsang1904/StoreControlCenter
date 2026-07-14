@@ -152,10 +152,6 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
   return withOneSignal(async (OneSignal) => {
     const externalId = String(userId)
 
-    if (typeof OneSignal.login === 'function') {
-      await OneSignal.login(externalId)
-    }
-
     if (
       requestPermission &&
       OneSignal.Notifications?.permission !== true &&
