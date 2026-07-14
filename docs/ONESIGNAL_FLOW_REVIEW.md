@@ -79,7 +79,7 @@ bindOneSignalUser(user, { requestPermission: false })
 5. Khi user bấm `Bật thông báo`:
    - App init OneSignal SDK.
    - App gọi `OneSignal.Notifications.requestPermission()`.
-   - App đọc `OneSignal.User.PushSubscription.id` hoặc fallback sang browser Push API endpoint.
+   - App đọc `OneSignal.User.PushSubscription.id`.
    - App gọi `POST /api/notifications/subscriptions` để lưu subscription.
 
 ### Flow tại trang `/notifications`
@@ -120,7 +120,6 @@ Payload:
 ```json
 {
   "subscription_id": "...",
-  "external_id": "<user_id>",
   "platform": "web"
 }
 ```

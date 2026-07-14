@@ -103,15 +103,7 @@ const withOneSignal = async (callback) => {
 }
 
 const readSubscriptionId = async (OneSignal) => {
-  if (OneSignal?.User?.PushSubscription?.id) {
-    return OneSignal.User.PushSubscription.id
-  }
-
-  const pushSubscription = await navigator.serviceWorker.ready
-    .then((registration) => registration.pushManager.getSubscription())
-    .catch(() => null)
-
-  return pushSubscription?.endpoint || null
+  return OneSignal?.User?.PushSubscription?.id || null
 }
 
 export const initializeOneSignal = async () => {
@@ -175,8 +167,6 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
   if (!ready) return null
 
   return withOneSignal(async (OneSignal) => {
-    const externalId = String(userId)
-
     if (
       requestPermission &&
       OneSignal.Notifications?.permission !== true &&
@@ -197,7 +187,6 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
 
     await registerNotificationSubscription({
       subscription_id: subscriptionId,
-      external_id: externalId,
       platform: 'web',
     })
 
