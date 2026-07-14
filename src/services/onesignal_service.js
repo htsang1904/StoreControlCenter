@@ -185,7 +185,9 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
       await withTimeout(
         OneSignal.Notifications.requestPermission(),
         'Trình duyệt chưa phản hồi yêu cầu bật thông báo. Vui lòng thử lại.'
-      )
+      ).catch((error) => {
+        pushState.lastError = error?.message || 'Không thể đồng bộ quyền thông báo với OneSignal'
+      })
     }
 
     refreshBrowserState()
