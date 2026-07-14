@@ -6,6 +6,7 @@ import { useResponsive } from '@/composables/useResponsive'
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
 import {
   bindOneSignalUser,
+  cleanupLegacyOneSignalState,
   isOneSignalPushOptedOut,
   pushState,
   refreshPushBrowserState,
@@ -54,6 +55,12 @@ const requestNativePushPermissionIfNeeded = async () => {
   if (!currentUserId.value || checkingPushSubscription.value) return
   if (isOneSignalPushOptedOut(currentUserId.value)) return
   if (promptedPushUserId.value === currentUserId.value && !shouldRequestPushOnInteraction.value) return
+
+  const didCleanup = await cleanupLegacyOneSignalState()
+  if (didCleanup) {
+    window.location.reload()
+    return
+  }
 
   refreshPushBrowserState()
   if (!pushState.configured || !pushState.supported || pushState.permission === 'denied') return

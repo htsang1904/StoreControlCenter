@@ -8,11 +8,59 @@ const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.p
 const ONESIGNAL_TIMEOUT_MS = 12000
 const SUBSCRIPTION_ID_RETRY_COUNT = 12
 const SUBSCRIPTION_ID_RETRY_DELAY_MS = 500
+const ONESIGNAL_LEGACY_CLEANUP_KEY = 'onesignal-legacy-cleanup:v3'
+const ONESIGNAL_RELOAD_KEY = 'onesignal-legacy-cleanup-reloaded:v3'
 
 let initialized = false
 let initializingPromise = null
 
 const getPushOptOutKey = (userId) => `onesignal-push-opt-out:${userId}`
+
+const deleteIndexedDatabase = (databaseName) => new Promise((resolve) => {
+  if (!databaseName || !window.indexedDB) {
+    resolve()
+    return
+  }
+
+  const request = window.indexedDB.deleteDatabase(databaseName)
+  request.onsuccess = () => resolve()
+  request.onerror = () => resolve()
+  request.onblocked = () => resolve()
+})
+
+export const cleanupLegacyOneSignalState = async () => {
+  if (typeof window === 'undefined' || !window.localStorage) return false
+  if (window.localStorage.getItem(ONESIGNAL_LEGACY_CLEANUP_KEY) === '1') return false
+
+  window.localStorage.setItem(ONESIGNAL_LEGACY_CLEANUP_KEY, '1')
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(registrations.map((registration) => registration.unregister().catch(() => false)))
+    }
+
+    if (window.indexedDB?.databases) {
+      const databases = await window.indexedDB.databases().catch(() => [])
+      await Promise.all(
+        databases
+          .map((database) => database?.name)
+          .filter((name) => name && name.toLowerCase().includes('onesignal'))
+          .map((name) => deleteIndexedDatabase(name))
+      )
+    }
+
+    Object.keys(window.localStorage)
+      .filter((key) => key.toLowerCase().includes('onesignal'))
+      .forEach((key) => {
+        if (key !== ONESIGNAL_LEGACY_CLEANUP_KEY && key !== ONESIGNAL_RELOAD_KEY) {
+          window.localStorage.removeItem(key)
+        }
+      })
+  } catch (_error) {}
+
+  return true
+}
 
 export const isOneSignalPushOptedOut = (userId) => {
   if (!userId || typeof localStorage === 'undefined') return false
@@ -135,6 +183,13 @@ const waitForSubscriptionId = async (OneSignal) => {
 }
 
 export const initializeOneSignal = async () => {
+  const didCleanup = await cleanupLegacyOneSignalState()
+  if (didCleanup && window.localStorage.getItem(ONESIGNAL_RELOAD_KEY) !== '1') {
+    window.localStorage.setItem(ONESIGNAL_RELOAD_KEY, '1')
+    window.location.reload()
+    return false
+  }
+
   refreshBrowserState()
   const appId = getOneSignalAppId()
   if (!appId || !pushState.supported) return false
