@@ -265,10 +265,15 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
     pushState.subscribed = Boolean(subscriptionId) && pushState.permission === 'granted'
     if (!subscriptionId || pushState.permission !== 'granted') return null
 
-    await registerNotificationSubscription({
+    const result = await registerNotificationSubscription({
       subscription_id: subscriptionId,
       platform: 'web',
     })
+    if (result?.success === false) {
+      pushState.subscribed = false
+      pushState.lastError = result?.message || 'Subscription OneSignal chưa active'
+      return null
+    }
 
     pushState.subscribed = true
     pushState.lastError = ''

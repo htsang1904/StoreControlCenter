@@ -296,6 +296,28 @@ async def upsert_notification_subscription(
     if not subscription_id:
         raise HTTPException(status_code=400, detail="Subscription ID không hợp lệ")
 
+    onesignal_status = await get_subscription_status(subscription_id)
+    if not onesignal_status.exists or not onesignal_status.active:
+        await session.execute(
+            update(NotificationSubscription)
+            .where(NotificationSubscription.subscription_id == subscription_id)
+            .values(is_active=False, last_seen_at=func.now())
+        )
+        await session.commit()
+        return {
+            "success": False,
+            "message": "Subscription trên OneSignal đang không active. Vui lòng reset quyền thông báo và đăng ký lại.",
+            "data": {
+                "subscription_id": subscription_id,
+                "onesignal_status": {
+                    "exists": onesignal_status.exists,
+                    "active": onesignal_status.active,
+                    "status_code": onesignal_status.status_code,
+                    "error": onesignal_status.error,
+                },
+            },
+        }
+
     result = await session.execute(
         select(NotificationSubscription).where(
             NotificationSubscription.subscription_id == subscription_id

@@ -50,7 +50,7 @@ const pagination = reactive({
 
 const canGoPrevious = computed(() => pagination.page > 1 && !loading.value)
 const canGoNext = computed(() => pagination.page < pagination.pageCount && !loading.value)
-const pushEnabled = computed(() => subscribedInBackend.value || (pushState.subscribed && pushState.permission === 'granted'))
+const pushEnabled = computed(() => subscribedInBackend.value)
 const pushBlocked = computed(() => pushState.permission === 'denied')
 const frontendAppId = computed(() => getOneSignalAppId() || 'Chưa cấu hình')
 const pushStatusLabel = computed(() => {
@@ -129,8 +129,12 @@ const checkPushSubscriptionStatus = async () => {
   try {
     const result = await getNotificationSubscriptionStatus()
     subscribedInBackend.value = Boolean(result?.data?.subscribed)
+    if (!subscribedInBackend.value) {
+      pushState.subscribed = false
+    }
   } catch (_error) {
     subscribedInBackend.value = false
+    pushState.subscribed = false
   }
 }
 
@@ -174,6 +178,7 @@ const disablePushNotifications = async () => {
     const userId = state.userInfo?.id || state.userInfo?.user_id || state.userInfo?.staff_id
     setOneSignalPushOptOut(userId, true)
     subscribedInBackend.value = false
+    pushState.subscribed = false
     await refreshDebugStatus()
     toast.success('Đã tắt thông báo trên máy tính')
   } catch (error) {
