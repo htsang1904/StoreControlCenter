@@ -1,115 +1,179 @@
 # OneSignal Notification Flow Review
 
-## 1. Mục tiêu hiện tại
+## 1. Tóm tắt luồng hiện tại
 
-Tích hợp OneSignal Web Push để người dùng nhận thông báo ticket trên máy tính, song song với hệ thống in-app notification hiện có.
-
-Luồng hiện tại giữ 2 lớp:
+Ứng dụng có 2 loại thông báo:
 
 1. **In-app notification**
-   - Lưu record trong bảng `notifications`.
-   - Bell popover và trang `/notifications` đọc từ backend.
-   - Realtime bằng WebSocket `/api/realtime/ws/notifications`.
+   - Lưu trong bảng `notifications`.
+   - Hiển thị ở bell popover và trang `/notifications`.
+   - Realtime qua WebSocket `/api/realtime/ws/notifications`.
 
-2. **Web Push notification**
-   - Frontend đăng ký browser/device với OneSignal.
-   - Backend lưu mapping `user_id -> subscription_id`.
-   - Backend gọi OneSignal REST API để gửi push theo `subscription_id`.
+2. **Device push notification bằng OneSignal**
+   - Frontend dùng OneSignal Web SDK để đăng ký browser/device.
+   - Frontend lấy `OneSignal.User.PushSubscription.id`.
+   - Frontend gửi subscription id về backend.
+   - Backend lưu mapping `user_id -> subscription_id` trong bảng `notification_subscriptions`.
+   - Backend gửi push bằng OneSignal REST API với `include_subscription_ids`.
 
-## 2. Cấu hình cần có
+Nguyên tắc hiện tại:
 
-### Frontend build-time env
+- Không dùng `OneSignal.login()`.
+- Không dùng `addTag`, `addTags`, `addAlias` từ frontend.
+- Không gọi `api.onesignal.com` từ frontend.
+- Không đưa `ONESIGNAL_REST_API_KEY` lên frontend.
+- Backend là nơi duy nhất gọi OneSignal REST API.
 
-Biến này phải có khi GitHub Actions chạy `npm run build`:
+## 2. Cấu hình bắt buộc
+
+### 2.1 App ID phải đồng nhất
+
+Frontend, backend và OneSignal Dashboard phải dùng **cùng một OneSignal App ID**.
+
+Frontend build-time env:
 
 ```env
-VITE_ONESIGNAL_APP_ID=1c4f879e-5e79-4460-bd90-2edd71bafdcd
+VITE_ONESIGNAL_APP_ID=<onesignal-app-id>
 ```
 
-### Backend runtime env
-
-Các biến này phải có khi backend container/process chạy:
+Backend runtime env:
 
 ```env
-ONESIGNAL_APP_ID=1c4f879e-5e79-4460-bd90-2edd71bafdcd
-ONESIGNAL_REST_API_KEY=<secret>
+ONESIGNAL_APP_ID=<onesignal-app-id>
+ONESIGNAL_REST_API_KEY=<rest-api-key-cua-cung-app-id>
 APP_PUBLIC_URL=https://ops.guta.asia
-```
-
-`ONESIGNAL_API_URL` có default trong code:
-
-```env
 ONESIGNAL_API_URL=https://api.onesignal.com/notifications
 ```
 
-### Worker file
+Lưu ý:
 
-Frontend phải serve được file này từ root domain:
+- `VITE_ONESIGNAL_APP_ID` được embed vào bundle lúc build, đổi biến này phải build/deploy frontend lại.
+- `ONESIGNAL_REST_API_KEY` phải thuộc cùng app với `ONESIGNAL_APP_ID`.
+- Nếu frontend dùng app A, backend dùng app B, hoặc dashboard đang mở app C thì sẽ thấy trạng thái rất khó hiểu.
+
+### 2.2 Case đang nghi ngờ hiện tại
+
+Log browser gần đây cho thấy app đang init với App ID:
 
 ```text
-/OneSignalSDKWorker.js
+25a0ae6f-8f3f-4747-8bc8-e5234f8c41f3
 ```
 
-File hiện tại:
+Trong khi trước đó App ID từng được cung cấp là:
+
+```text
+1c4f879e-5e79-4460-bd90-2edd71bafdcd
+```
+
+Nếu đang mở dashboard của `1c4...` nhưng app đang chạy `25a0...`, thì bật trong app sẽ không thấy subscription/user xuất hiện ở dashboard `1c4...`.
+
+Cần chốt một App ID duy nhất rồi cấu hình đồng bộ:
+
+```env
+VITE_ONESIGNAL_APP_ID=<same-app-id>
+ONESIGNAL_APP_ID=<same-app-id>
+ONESIGNAL_REST_API_KEY=<rest-api-key-of-same-app>
+```
+
+### 2.3 Worker file
+
+Production phải serve được file này tại root domain:
+
+```text
+https://ops.guta.asia/OneSignalSDKWorker.js
+```
+
+Nội dung file hiện tại:
 
 ```js
 importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js')
 ```
 
-## 3. Frontend flow hiện tại
+Nếu worker không serve đúng root path, OneSignal Web Push có thể không subscribe được hoặc không nhận push nền.
 
-### File chính
+### 2.4 OneSignal Dashboard Web Config
 
-- `src/services/onesignal_service.js`
-- `src/pages/NotificationsPage.vue`
-- `src/plugins/app.js`
-- `src/services/notification_service.js`
+Trong OneSignal Dashboard, Web Push origin phải đúng domain đang chạy app:
 
-### Flow sau khi user login
-
-1. `src/plugins/app.js` fetch profile user sau login hoặc khi app initialize.
-2. App gọi:
-
-```js
-bindOneSignalUser(user, { requestPermission: false })
+```text
+https://ops.guta.asia
 ```
 
-3. Vì `requestPermission=false`, app chỉ cố bind nếu browser đã có permission/subscription; không bật native permission prompt ngay.
-4. User vào trang `/notifications` để bật thông báo.
-5. Khi user bấm `Bật thông báo`:
-   - App init OneSignal SDK.
-   - App gọi `OneSignal.Notifications.requestPermission()`.
-   - App đọc `OneSignal.User.PushSubscription.id`.
-   - App gọi `POST /api/notifications/subscriptions` để lưu subscription.
+Nếu test local, origin local cũng phải được OneSignal cho phép nếu app id đó hỗ trợ whitelist local.
 
-### Flow tại trang `/notifications`
+Lỗi domain thường gặp:
 
-Trang `/notifications` cũng có block bật thông báo:
+```text
+Can only be used on: https://ops.guta.asia
+```
 
-1. Check `pushState`.
-2. Nếu chưa bật, user có thể bấm `Bật thông báo`.
-3. Gọi cùng flow `bindOneSignalUser(user, { requestPermission: true })`.
+## 3. Frontend flow hiện tại
 
-### Điểm đã xử lý trên frontend
+### 3.1 File chính
 
-- Có timeout 12 giây cho thao tác OneSignal để tránh kẹt `Đang bật...`.
-- Nếu SDK đã init trước đó và báo `already initialized`, app xem như init thành công.
-- Không dùng `OneSignal.login()` nữa vì production từng lỗi ở `LoginManager.ts`.
-- App đang tự lưu mapping user/subscription trong backend, nên không phụ thuộc OneSignal external identity.
+- `src/services/onesignal_service.js`
+- `src/layout/default.vue`
+- `src/pages/NotificationsPage.vue`
+- `src/services/notification_service.js`
+- `public/OneSignalSDKWorker.js`
 
-## 4. Backend flow hiện tại
+### 3.2 Khi user login/vào app
 
-### File chính
+Layout authenticated kiểm tra trạng thái subscription:
 
-- `python-api/app/api/routers/notifications.py`
-- `python-api/app/models/notification_subscription.py`
-- `python-api/app/services/notification_service.py`
-- `python-api/app/api/routers/tickets.py`
-- `python-api/app/api/routers/ticket_logs.py`
+```http
+GET /api/notifications/subscriptions/status
+```
 
-### API subscription
+Nếu backend báo user đã có subscription active:
 
-Frontend đăng ký subscription qua:
+- Không hiện prompt.
+- Không đăng ký lại.
+
+Nếu backend báo chưa có subscription active:
+
+- App kiểm tra user có opt-out local chưa.
+- Nếu user chưa opt-out, app thử gọi native browser/OneSignal permission prompt.
+- Nếu browser chặn prompt vì chưa có user gesture, app đợi click/keydown đầu tiên rồi gọi lại.
+
+Không có custom prompt UI.
+
+### 3.3 Khi user bấm bật ở trang `/notifications`
+
+Flow bật thủ công:
+
+1. Clear opt-out local của user.
+2. Load OneSignal SDK:
+
+```text
+https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js
+```
+
+3. Init SDK:
+
+```js
+OneSignal.init({ appId })
+```
+
+4. Gọi native permission prompt:
+
+```js
+OneSignal.Notifications.requestPermission()
+```
+
+5. Nếu browser permission đã `granted`, gọi opt-in lại OneSignal subscription:
+
+```js
+OneSignal.User.PushSubscription.optIn()
+```
+
+6. Đọc subscription id:
+
+```js
+OneSignal.User.PushSubscription.id
+```
+
+7. Gửi subscription id về backend:
 
 ```http
 POST /api/notifications/subscriptions
@@ -124,293 +188,365 @@ Payload:
 }
 ```
 
-Backend upsert theo `subscription_id`:
+### 3.4 Khi user bấm tắt ở trang `/notifications`
 
-- Nếu subscription đã tồn tại, chuyển nó sang user hiện tại.
-- Set `is_active=true`.
-- Update `last_seen_at`.
+Flow tắt hiện tại:
 
-Logout gọi:
+1. Frontend gọi:
+
+```http
+DELETE /api/notifications/subscriptions
+```
+
+2. Backend set tất cả subscription active của user hiện tại thành `is_active=false` trong DB app.
+3. Frontend lưu opt-out local theo user:
+
+```text
+onesignal-push-opt-out:<userId> = 1
+```
+
+4. Auto prompt sẽ không tự bật lại cho user đã opt-out.
+
+Lưu ý quan trọng:
+
+- Tắt trong app chủ yếu tắt ở DB app, để backend không gửi push nữa.
+- Nếu muốn trạng thái OneSignal Dashboard chuyển về subscribed lại sau khi đã unsubscribe, flow bật lại phải gọi `PushSubscription.optIn()`.
+- Nếu dashboard vẫn hiển thị `unsubscribed`, cần kiểm tra SDK opt-in có thành công không và App ID có đúng dashboard không.
+
+## 4. Backend flow hiện tại
+
+### 4.1 File chính
+
+- `python-api/app/api/routers/notifications.py`
+- `python-api/app/models/notification_subscription.py`
+- `python-api/app/services/notification_service.py`
+- `python-api/app/api/routers/tickets.py`
+- `python-api/app/api/routers/ticket_logs.py`
+- `python-api/app/core/config.py`
+
+### 4.2 API subscription
+
+Check trạng thái user hiện tại:
+
+```http
+GET /api/notifications/subscriptions/status
+```
+
+Đăng ký subscription:
+
+```http
+POST /api/notifications/subscriptions
+```
+
+Tắt tất cả subscription active của user hiện tại:
+
+```http
+DELETE /api/notifications/subscriptions
+```
+
+Tắt một subscription cụ thể:
 
 ```http
 DELETE /api/notifications/subscriptions/{subscription_id}
 ```
 
-Backend set `is_active=false` nếu subscription thuộc user hiện tại.
+### 4.3 Chỗ gửi OneSignal thật sự
 
-### Khi tạo notification
-
-Hiện có 2 nhóm event tạo notification:
-
-1. **Ticket created**
-   - Gửi cho admin active.
-   - Gửi cho handler active cùng `responsible_department_id`.
-   - Không gửi cho chính người tạo.
-
-2. **Ticket reply**
-   - Gửi cho requester.
-   - Gửi cho assignees.
-   - Hiện tại `include_actor=True`, nghĩa là người phản hồi cũng có thể nhận notification của chính họ.
-
-Sau khi notification được lưu DB:
-
-1. Backend emit WebSocket event `notification.created`.
-2. Backend gọi OneSignal REST API nếu có config và có active subscriptions.
-3. Backend gửi payload OneSignal bằng `include_subscription_ids`.
-
-## 5. Database/migration
-
-### Bảng mới
+Chỉ có một hàm backend gọi OneSignal REST API:
 
 ```text
-notification_subscriptions
+python-api/app/services/notification_service.py
+send_onesignal_notifications(...)
 ```
 
-Các field chính:
+Hàm này:
 
-- `user_id`
-- `subscription_id`
-- `external_id`
-- `platform`
-- `is_active`
-- `last_seen_at`
-- `created_at`
-- `updated_at`
+1. Check `ONESIGNAL_APP_ID` và `ONESIGNAL_REST_API_KEY`.
+2. Load active subscriptions từ `notification_subscriptions`.
+3. Gửi OneSignal payload bằng `include_subscription_ids`.
 
-### Migration liên quan
+Payload chính:
 
-- `b8f4c2d9e7a1_add_notification_subscriptions.py`
-  - Tạo bảng `notification_subscriptions`.
-
-- `c9e1f2a3b4d5_backfill_notification_timestamps.py`
-  - Backfill `notifications.created_at` bị null.
-  - Set default `now()` cho `notifications.created_at` và `updated_at`.
-
-Production phải chạy:
-
-```sh
-cd python-api
-alembic upgrade head
+```json
+{
+  "app_id": "<ONESIGNAL_APP_ID>",
+  "include_subscription_ids": ["..."],
+  "headings": {"vi": "...", "en": "..."},
+  "contents": {"vi": "...", "en": "..."},
+  "url": "..."
+}
 ```
 
-## 6. Những điểm đang bất hợp lý/rủi ro
+### 4.4 Những event hiện đang gửi OneSignal
 
-### 6.1 Không dùng `OneSignal.login()`
+Hiện chỉ có 2 luồng nghiệp vụ kích hoạt OneSignal:
 
-Hiện tại app đã bỏ `OneSignal.login()` vì production lỗi SDK nội bộ:
+1. **Tạo ticket mới**
+   - Tạo notification kiểu `ticket_created`.
+   - Gửi cho admin/handler phù hợp.
 
-```text
-Cannot read properties of undefined (reading 'Qe')
-```
+2. **Phản hồi/chat ticket**
+   - Tạo notification kiểu `ticket_reply`.
+   - Gửi cho requester/assignees phù hợp.
 
-Tác động:
-
-- Push vẫn hoạt động vì backend gửi bằng `include_subscription_ids`.
-- Nhưng OneSignal dashboard có thể không map user đẹp theo external user id.
-- Nếu sau này muốn gửi push theo external id hoặc segment user trên OneSignal thì cần xử lý lại.
-
-Đánh giá: **chấp nhận được cho thiết kế hiện tại**, vì source of truth là DB app.
-
-### 6.2 `subscription_id` có unique global và có thể bị chuyển user
-
-Backend upsert theo `subscription_id`. Nếu cùng browser đăng nhập user A rồi user B:
-
-- Subscription đó sẽ chuyển từ user A sang user B.
-- Đây là hợp lý nếu browser/device hiện tại thuộc session user B.
-
-Rủi ro:
-
-- Nếu logout không gọi được API deactivate, record cũ vẫn active cho user cũ cho đến khi user khác login và upsert lại.
-- Có thể gửi nhầm push tới browser shared nếu người dùng dùng chung máy nhưng không logout đúng.
-
-Đề xuất:
-
-- Khi login user mới, nên đảm bảo subscription hiện tại được upsert sang user mới như hiện tại.
-- Có thể bổ sung cleanup inactive/last_seen về lâu dài.
-
-### 6.3 Logout chỉ deactivate subscription đang nhớ trong memory
-
-`registeredSubscriptionId` là biến memory trong frontend. Nếu reload app rồi logout trước khi refresh subscription đọc lại được id, có thể không deactivate đúng subscription.
-
-Đề xuất:
-
-- Lưu `registeredSubscriptionId` vào `localStorage` để logout ổn định hơn.
-- Hoặc thêm API `DELETE /api/notifications/subscriptions/current-device` sau khi đọc lại subscription từ SDK.
-
-### 6.4 Prompt có thể hiện lại sau mỗi session nếu user bấm `Để sau`
-
-Hiện `dismissed` chỉ là state runtime. Reload/logout-login có thể hiện lại.
-
-Đánh giá:
-
-- Có lợi vì ép user cũ bật thông báo.
-- Nhưng có thể gây phiền nếu user cố tình chưa muốn bật.
-
-Đề xuất:
-
-- Nếu muốn mềm hơn, lưu `dismissedUntil` vào localStorage theo user, ví dụ nhắc lại sau 1 ngày.
-- Nếu muốn bắt buộc nghiệp vụ, giữ như hiện tại.
-
-### 6.5 Timeout chỉ tránh treo UI, không đảm bảo OneSignal hoàn tất
-
-Timeout 12 giây giúp nút không kẹt `Đang bật...`, nhưng nếu OneSignal SDK phản hồi chậm hơn thì thao tác có thể fail dù sau đó SDK hoàn tất.
-
-Đề xuất:
-
-- Giữ timeout để UX không treo.
-- Cho user bấm thử lại.
-- Log lỗi ở frontend nếu cần debug production.
-
-### 6.6 `include_actor=True` ở ticket reply
-
-Hiện reply ticket có thể tạo notification cho chính người vừa reply.
-
-Tác động:
-
-- User có thể nhận push cho hành động của chính mình.
-- Có thể gây nhiễu.
-
-Đề xuất:
-
-- Nếu nghiệp vụ không cần tự nhận, đổi `include_actor=False` ở `ticket_logs.py`.
-- Nếu muốn mọi người trong ticket đều có timeline notification, giữ như hiện tại.
-
-### 6.7 Event coverage còn hạn chế
-
-Hiện push mới có cho:
-
-- Tạo ticket.
-- Reply ticket.
-
-Chưa có cho:
+Chưa gửi OneSignal cho:
 
 - Assign handler.
 - Nhận xử lý.
 - Rời xử lý.
 - Resolve.
 - Reopen.
-- Update ticket/store/department.
+- Update ticket.
 
-Đề xuất:
+## 5. Vì sao bật trong app nhưng OneSignal Dashboard không thấy subscription/user
 
-- Xác định danh sách event cần push trước khi mở rộng.
-- Không nên push mọi update để tránh spam.
+Đây là checklist quan trọng nhất cho lỗi hiện tại.
 
-### 6.8 Production không được inject OneSignal init bên ngoài app
+### 5.1 Đang nhìn sai OneSignal App ID
 
-Nếu production template/CDN/tag manager còn đoạn:
+Dấu hiệu:
 
-```html
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({ appId: "..." });
-  });
-</script>
+- Browser log có `appId=<id-a>`.
+- Dashboard đang mở app `<id-b>`.
+- DB app có subscription id nhưng dashboard đang xem không thấy user/subscription.
+
+Cách kiểm tra:
+
+1. Mở console browser, xem log OneSignal có appId nào.
+2. Kiểm tra frontend bundle đang dùng App ID nào:
+
+```js
+import.meta.env.VITE_ONESIGNAL_APP_ID
 ```
 
-thì có nguy cơ SDK init trùng.
+Trong production không đọc trực tiếp được `import.meta.env`, có thể search built bundle hoặc log tạm trong dev.
 
-Hiện app đã có xử lý `already initialized`, nhưng best practice vẫn là:
+3. Kiểm tra env:
 
-- Chỉ để Vue app quản lý SDK/init.
-- Không inject init snippet bên ngoài.
+```sh
+VITE_ONESIGNAL_APP_ID
+ONESIGNAL_APP_ID
+```
 
-## 7. Đề xuất cải thiện tiếp theo
+4. Kiểm tra OneSignal Dashboard URL/app đang mở có đúng app đó không.
 
-### Ưu tiên cao
+Kỳ vọng:
 
-1. **Quyết định có gửi notification cho actor không**
-   - Nếu không muốn người reply nhận thông báo của chính họ, đổi `include_actor=False`.
+```text
+Frontend VITE_ONESIGNAL_APP_ID == Backend ONESIGNAL_APP_ID == Dashboard App ID
+```
 
-2. **Lưu subscription id vào localStorage**
-   - Giúp logout deactivate ổn định hơn.
+### 5.2 REST API Key không cùng app
 
-3. **Thêm trạng thái debug nhẹ cho admin/dev**
-   - Không show technical error cho user thường.
-   - Có thể log `pushState` ở dev mode.
+Dấu hiệu:
 
-### Ưu tiên trung bình
+- Frontend subscribe được.
+- DB có subscription active.
+- Backend gửi push fail hoặc dashboard app không thấy delivery đúng.
 
-4. **Thêm unsubscribe/current-device endpoint**
-   - Backend có endpoint deactivate subscription hiện tại dễ hơn.
+Cách kiểm tra:
 
-5. **Thêm retry hoặc refresh subscription định kỳ**
-   - Khi user vào app, nếu permission đã granted nhưng DB chưa có subscription thì auto register lại.
+- `ONESIGNAL_REST_API_KEY` phải lấy từ cùng app với `ONESIGNAL_APP_ID`.
+- Không dùng REST API key của app khác.
 
-6. **Mở rộng event push có kiểm soát**
-   - Assign handler.
-   - Resolve/reopen.
-   - Claim/release handler.
+### 5.3 Service worker/site data còn cache app cũ
 
-### Ưu tiên thấp
+Dấu hiệu:
 
-7. **Khôi phục OneSignal external identity nếu cần dashboard segmentation**
-   - Chỉ làm khi chắc SDK không bị init trùng và cần gửi theo external id.
-   - Hiện tại không bắt buộc.
+- Đã đổi env/build nhưng browser log vẫn hiện App ID cũ.
+- OneSignal dashboard vẫn hiện trạng thái cũ.
+- Browser vẫn gửi operation `update-subscription` với app id cũ.
 
-## 8. Checklist test production
+Cách reset sạch:
 
-### Test subscription
+1. DevTools > Application > Service Workers.
+2. Unregister service worker của domain.
+3. DevTools > Application > Storage.
+4. Clear site data.
+5. Hard refresh.
+6. Login lại và bật lại notification.
 
-1. Login user nhận thông báo.
-2. Bấm `Bật thông báo`.
-3. Browser permission chọn `Allow`.
-4. Kiểm tra Network có:
+### 5.4 Browser permission là granted nhưng OneSignal subscription là unsubscribed
+
+Dấu hiệu:
+
+- Browser permission vẫn `granted`.
+- OneSignal dashboard subscription status là `unsubscribed`.
+- Bấm bật không thấy native permission prompt vì browser đã được cấp quyền rồi.
+
+Cách xử lý trong code hiện tại:
+
+- Khi bật lại, app gọi `OneSignal.User.PushSubscription.optIn()`.
+- Sau đó app đọc lại `OneSignal.User.PushSubscription.id`.
+- Nếu opt-in fail, dashboard vẫn có thể giữ trạng thái `unsubscribed`.
+
+Cần kiểm tra console có lỗi dạng:
+
+```text
+Op failed (no retry): update-subscription
+```
+
+Nếu có lỗi này, kiểm tra App ID, service worker cache, domain config, và browser/site data.
+
+### 5.5 App chỉ lưu DB, không đồng bộ ngược từ OneSignal Dashboard
+
+Nếu bạn xoá user/subscription trong OneSignal Dashboard:
+
+- DB app không tự biết.
+- `/notifications` có thể vẫn báo đã bật nếu DB app còn `is_active=true`.
+- Cần bấm `Tắt thông báo` trong app hoặc update DB app để set inactive.
+
+Nếu muốn sync hai chiều thật sự cần thêm webhook hoặc reconcile job từ OneSignal, hiện chưa có.
+
+### 5.6 Native prompt không hiện khi gọi tự động
+
+Browser có thể không cho hiện permission prompt nếu không có user gesture.
+
+Code hiện tại đã xử lý:
+
+- Thử gọi sau login.
+- Nếu không hiện, chờ click/keydown đầu tiên rồi gọi lại.
+
+Nếu permission đã `denied`, browser sẽ không hiện prompt nữa. User phải tự vào Site settings để Allow.
+
+## 6. Checklist test sạch từ đầu
+
+### 6.1 Reset browser
+
+1. Mở `https://ops.guta.asia`.
+2. DevTools > Application > Service Workers > Unregister.
+3. DevTools > Application > Storage > Clear site data.
+4. Đóng tab, mở lại domain.
+
+### 6.2 Verify env/app id
+
+Kiểm tra production đang dùng cùng App ID ở cả frontend/backend:
+
+```env
+VITE_ONESIGNAL_APP_ID=<same-app-id>
+ONESIGNAL_APP_ID=<same-app-id>
+ONESIGNAL_REST_API_KEY=<same-app-rest-key>
+```
+
+Nếu đổi `VITE_ONESIGNAL_APP_ID`, phải build/deploy frontend lại.
+
+### 6.3 Bật notification
+
+1. Login.
+2. Vào `/notifications`.
+3. Bấm `Bật thông báo` nếu chưa tự prompt.
+4. Cho phép native browser notification.
+5. Kiểm tra Network có:
 
 ```http
 POST /api/notifications/subscriptions
 ```
 
-5. Kiểm tra DB:
+6. Kiểm tra DB:
 
 ```sql
 select id, user_id, subscription_id, is_active, created_at, last_seen_at
 from notification_subscriptions
-order by id desc
-limit 10;
+where user_id = <USER_ID>
+order by id desc;
 ```
 
-Kỳ vọng `is_active=true` cho user đang login.
+Kỳ vọng:
 
-### Test push
+- Có record `is_active=true`.
+- `subscription_id` giống subscription id bên OneSignal Dashboard của cùng app.
 
-1. User B bật thông báo.
-2. User A tạo/reply ticket có liên quan tới User B.
+### 6.4 Kiểm tra OneSignal Dashboard
+
+Trong đúng OneSignal app:
+
+- Vào Audience/Subscriptions.
+- Search subscription id nếu dashboard hỗ trợ.
+- Kiểm tra trạng thái không phải `unsubscribed`.
+- Gửi test push từ dashboard tới subscription đó.
+
+### 6.5 Test app gửi push
+
+1. User nhận đã bật notification.
+2. User khác tạo ticket hoặc reply ticket có liên quan.
 3. Backend log kỳ vọng:
 
 ```text
 OneSignal push sent: notification_id=... recipient_id=... subscriptions=1.
 ```
 
-4. User B nhận:
-   - Bell notification.
-   - Browser push notification.
-
-### Test lỗi thường gặp
-
-- Nếu log:
+Nếu log:
 
 ```text
 OneSignal push skipped: no active subscriptions for recipients=[...]
 ```
 
-thì user nhận chưa đăng ký subscription hoặc subscription inactive.
+thì DB app chưa có subscription active cho user nhận.
 
-- Nếu log:
+Nếu log:
 
 ```text
-OneSignal push skipped: missing config app_id=True api_key=False.
+Failed to send OneSignal notification ... status=... body=...
 ```
 
-thì backend thiếu `ONESIGNAL_REST_API_KEY`.
+thì xem body OneSignal trả về để biết sai app id, key, subscription id hoặc payload.
 
-- Nếu frontend báo domain OneSignal không đúng, kiểm tra domain trong OneSignal Dashboard phải khớp production origin.
+## 7. Ý nghĩa log `Op failed update-subscription`
 
-## 9. Kết luận
+Ví dụ log:
 
-Thiết kế hiện tại phù hợp với hướng app tự quản lý subscription trong DB và backend gửi push theo `subscription_id`. Điểm bất hợp lý lớn nhất hiện tại là không dùng OneSignal external identity do lỗi production SDK, nhưng điều này không ảnh hưởng đến luồng push ticket hiện tại.
+```text
+Op failed (no retry): update-subscription appId=... subscriptionId=...
+```
 
-Nếu muốn luồng đơn giản và ổn định: giữ thiết kế hiện tại, tập trung làm chắc subscription registration, logout cleanup và event coverage.
+Ý nghĩa:
 
-Nếu muốn dùng sâu OneSignal dashboard/segment/external id: cần xử lý triệt để vấn đề init SDK trùng và khôi phục `OneSignal.login()` sau.
+- OneSignal SDK/service worker đang cố update subscription lên OneSignal.
+- Operation này xảy ra trong browser SDK, không phải backend app.
+- Nếu operation fail, dashboard có thể không cập nhật user/subscription đúng dù app có lấy được subscription id.
+
+Nguyên nhân thường gặp:
+
+1. App ID không đúng dashboard đang kiểm tra.
+2. Service worker/site data còn cache app cũ.
+3. Domain không khớp Web Push config trong OneSignal Dashboard.
+4. Subscription đang `unsubscribed` và opt-in fail.
+5. Browser/extension/network chặn request của OneSignal SDK.
+
+Cách xử lý ưu tiên:
+
+1. Đồng bộ App ID frontend/backend/dashboard.
+2. Clear site data + unregister service worker.
+3. Bật lại notification.
+4. Kiểm tra dashboard đúng app.
+5. Nếu vẫn lỗi, copy full console log và Network request OneSignal liên quan.
+
+## 8. Checklist CI/CD
+
+Frontend GitHub Actions cần set:
+
+```env
+VITE_ONESIGNAL_APP_ID=<same-app-id>
+```
+
+Backend production runtime cần set:
+
+```env
+ONESIGNAL_APP_ID=<same-app-id>
+ONESIGNAL_REST_API_KEY=<same-app-rest-key>
+APP_PUBLIC_URL=https://ops.guta.asia
+ONESIGNAL_API_URL=https://api.onesignal.com/notifications
+```
+
+Không set `ONESIGNAL_REST_API_KEY` vào frontend build env.
+
+## 9. Kết luận hiện tại
+
+Nếu bật thông báo trong app nhưng OneSignal Dashboard không thấy subscription/user, khả năng cao nhất hiện tại là:
+
+1. Đang lệch OneSignal App ID giữa app và dashboard.
+2. Browser/service worker vẫn cache App ID cũ.
+3. Subscription đang `unsubscribed` và OneSignal SDK update/opt-in fail.
+4. DB app còn active nhưng OneSignal Dashboard đã xoá subscription, hai bên không tự sync.
+
+Trước khi sửa code thêm, cần chốt một App ID duy nhất và test sạch sau khi clear service worker/site data.

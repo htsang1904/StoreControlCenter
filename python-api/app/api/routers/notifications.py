@@ -84,6 +84,38 @@ async def read_notifications(
         }
     }
 
+@router.get("/subscriptions/status", response_model=dict)
+async def read_notification_subscription_status(
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    count_result = await session.execute(
+        select(func.count()).select_from(NotificationSubscription).where(
+            NotificationSubscription.user_id == current_user.id,
+            NotificationSubscription.is_active == True,
+        )
+    )
+    active_count = int(count_result.scalar() or 0)
+    latest_result = await session.execute(
+        select(NotificationSubscription)
+        .where(
+            NotificationSubscription.user_id == current_user.id,
+            NotificationSubscription.is_active == True,
+        )
+        .order_by(NotificationSubscription.last_seen_at.desc(), NotificationSubscription.id.desc())
+        .limit(1)
+    )
+    latest_subscription = latest_result.scalar_one_or_none()
+
+    return {
+        "success": True,
+        "data": {
+            "subscribed": active_count > 0,
+            "active_count": active_count,
+            "subscription_id": latest_subscription.subscription_id if latest_subscription else None,
+        },
+    }
+
 @router.patch("/{id}/read", response_model=dict)
 async def mark_notification_as_read(
     id: int,
@@ -174,6 +206,16 @@ async def upsert_notification_subscription(
         )
         session.add(subscription)
 
+    await session.execute(
+        update(NotificationSubscription)
+        .where(
+            NotificationSubscription.user_id == current_user.id,
+            NotificationSubscription.subscription_id != subscription_id,
+            NotificationSubscription.is_active == True,
+        )
+        .values(is_active=False, last_seen_at=func.now())
+    )
+
     await session.commit()
     await session.refresh(subscription)
 
@@ -182,6 +224,27 @@ async def upsert_notification_subscription(
         "data": NotificationSubscriptionResponse.model_validate(subscription),
     }
 
+
+@router.delete("/subscriptions", response_model=dict)
+async def deactivate_current_user_notification_subscriptions(
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    stmt = (
+        update(NotificationSubscription)
+        .where(
+            NotificationSubscription.user_id == current_user.id,
+            NotificationSubscription.is_active == True,
+        )
+        .values(is_active=False, last_seen_at=func.now())
+    )
+    result = await session.execute(stmt)
+    await session.commit()
+
+    return {
+        "success": True,
+        "deactivated_count": int(result.rowcount or 0),
+    }
 
 @router.delete("/subscriptions/{subscription_id:path}", response_model=dict)
 async def deactivate_notification_subscription(

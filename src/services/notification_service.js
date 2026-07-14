@@ -27,6 +27,14 @@ export const registerNotificationSubscription = (payload) => {
   return http.post('/api/notifications/subscriptions', payload)
 }
 
+export const getNotificationSubscriptionStatus = () => {
+  return http.get('/api/notifications/subscriptions/status')
+}
+
+export const unregisterCurrentNotificationSubscriptions = () => {
+  return http.delete('/api/notifications/subscriptions')
+}
+
 export const unregisterNotificationSubscription = (subscriptionId) => {
   return http.delete(`/api/notifications/subscriptions/${encodeURIComponent(subscriptionId)}`)
 }

@@ -1,13 +1,20 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { useApp } from '@/plugins/app'
 import { useResponsive } from '@/composables/useResponsive'
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
+import {
+  bindOneSignalUser,
+  isOneSignalPushOptedOut,
+  pushState,
+  refreshPushBrowserState,
+} from '@/services/onesignal_service'
+import { getNotificationSubscriptionStatus } from '@/services/notification_service'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
 
-useApp()
+const { state } = useApp()
 const route = useRoute()
 const { isPcViewport } = useResponsive()
 
@@ -16,6 +23,11 @@ const drawerOpen = ref(false)
 const drawerMode = computed(() => !isPcViewport.value)
 const shouldOffsetLayout = computed(() => isPcViewport.value)
 const effectiveDesktopSidebarOpen = computed(() => (isPcViewport.value ? desktopSidebarOpen.value : false))
+const currentUserId = computed(() => state.userInfo?.id || state.userInfo?.user_id || state.userInfo?.staff_id || null)
+
+const checkingPushSubscription = ref(false)
+const promptedPushUserId = ref(null)
+const shouldRequestPushOnInteraction = ref(false)
 
 const toggleDesktopSidebar = () => {
   if (!isPcViewport.value) {
@@ -37,6 +49,60 @@ watch(
     closeSidebarDrawer()
   }
 )
+
+const requestNativePushPermissionIfNeeded = async () => {
+  if (!currentUserId.value || checkingPushSubscription.value) return
+  if (isOneSignalPushOptedOut(currentUserId.value)) return
+  if (promptedPushUserId.value === currentUserId.value && !shouldRequestPushOnInteraction.value) return
+
+  refreshPushBrowserState()
+  if (!pushState.configured || !pushState.supported || pushState.permission === 'denied') return
+
+  checkingPushSubscription.value = true
+
+  try {
+    const result = await getNotificationSubscriptionStatus()
+    if (result?.data?.subscribed) {
+      shouldRequestPushOnInteraction.value = false
+      promptedPushUserId.value = currentUserId.value
+      return
+    }
+
+    const subscriptionId = await bindOneSignalUser(state.userInfo, { requestPermission: true })
+    promptedPushUserId.value = currentUserId.value
+    shouldRequestPushOnInteraction.value = !subscriptionId && pushState.permission === 'default'
+  } catch (_error) {
+    shouldRequestPushOnInteraction.value = pushState.permission === 'default'
+  } finally {
+    checkingPushSubscription.value = false
+  }
+}
+
+const requestNativePushPermissionFromInteraction = () => {
+  if (!shouldRequestPushOnInteraction.value) return
+  shouldRequestPushOnInteraction.value = false
+  promptedPushUserId.value = null
+  void requestNativePushPermissionIfNeeded()
+}
+
+watch(
+  () => [currentUserId.value, route.fullPath],
+  () => {
+    void requestNativePushPermissionIfNeeded()
+  },
+  { immediate: true }
+)
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('click', requestNativePushPermissionFromInteraction, true)
+  window.addEventListener('keydown', requestNativePushPermissionFromInteraction, true)
+}
+
+onUnmounted(() => {
+  if (typeof window === 'undefined') return
+  window.removeEventListener('click', requestNativePushPermissionFromInteraction, true)
+  window.removeEventListener('keydown', requestNativePushPermissionFromInteraction, true)
+})
 
 watch(
   () => isPcViewport.value,

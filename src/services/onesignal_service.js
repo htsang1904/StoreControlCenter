@@ -14,6 +14,20 @@ let initialized = false
 let initializingPromise = null
 let registeredSubscriptionId = null
 
+const getPushOptOutKey = (userId) => `onesignal-push-opt-out:${userId}`
+
+export const isOneSignalPushOptedOut = (userId) => {
+  if (!userId || typeof localStorage === 'undefined') return false
+  return localStorage.getItem(getPushOptOutKey(userId)) === '1'
+}
+
+export const setOneSignalPushOptOut = (userId, optedOut) => {
+  if (!userId || typeof localStorage === 'undefined') return
+  const key = getPushOptOutKey(userId)
+  if (optedOut) localStorage.setItem(key, '1')
+  else localStorage.removeItem(key)
+}
+
 export const pushState = reactive({
   supported: false,
   configured: false,
@@ -122,6 +136,16 @@ const waitForSubscriptionId = async (OneSignal) => {
   return null
 }
 
+const optInPushSubscription = async (OneSignal) => {
+  const pushSubscription = OneSignal?.User?.PushSubscription
+  if (typeof pushSubscription?.optIn !== 'function') return
+
+  await withTimeout(
+    pushSubscription.optIn(),
+    'Trình duyệt chưa phản hồi yêu cầu đăng ký lại thông báo. Vui lòng thử lại.'
+  )
+}
+
 export const initializeOneSignal = async () => {
   refreshBrowserState()
   const appId = getAppId()
@@ -197,6 +221,10 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
     }
 
     refreshBrowserState()
+    if (requestPermission && pushState.permission === 'granted') {
+      await optInPushSubscription(OneSignal)
+    }
+
     const subscriptionId = await waitForSubscriptionId(OneSignal)
     pushState.subscribed = Boolean(subscriptionId) && pushState.permission === 'granted'
     if (!subscriptionId || pushState.permission !== 'granted') return null

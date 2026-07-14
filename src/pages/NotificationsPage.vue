@@ -11,8 +11,15 @@ import {
   normalizeNotificationItem,
   normalizeNotificationList,
   getNotificationDisplayTitle,
+  getNotificationSubscriptionStatus,
+  unregisterCurrentNotificationSubscriptions,
 } from '@/services/notification_service'
-import { bindOneSignalUser, pushState, refreshPushBrowserState } from '@/services/onesignal_service'
+import {
+  bindOneSignalUser,
+  pushState,
+  refreshPushBrowserState,
+  setOneSignalPushOptOut,
+} from '@/services/onesignal_service'
 
 const PAGE_SIZE = 20
 
@@ -23,6 +30,8 @@ const { state } = useApp()
 const loading = ref(false)
 const markingAllRead = ref(false)
 const enablingPush = ref(false)
+const disablingPush = ref(false)
+const subscribedInBackend = ref(false)
 const notifications = ref([])
 const unreadCount = ref(0)
 const pagination = reactive({
@@ -34,7 +43,7 @@ const pagination = reactive({
 
 const canGoPrevious = computed(() => pagination.page > 1 && !loading.value)
 const canGoNext = computed(() => pagination.page < pagination.pageCount && !loading.value)
-const pushEnabled = computed(() => pushState.subscribed && pushState.permission === 'granted')
+const pushEnabled = computed(() => subscribedInBackend.value || (pushState.subscribed && pushState.permission === 'granted'))
 const pushBlocked = computed(() => pushState.permission === 'denied')
 const pushStatusLabel = computed(() => {
   if (!pushState.configured) return 'Chưa cấu hình OneSignal'
@@ -107,12 +116,24 @@ const handleMarkAllRead = async () => {
   }
 }
 
+const checkPushSubscriptionStatus = async () => {
+  refreshPushBrowserState()
+  try {
+    const result = await getNotificationSubscriptionStatus()
+    subscribedInBackend.value = Boolean(result?.data?.subscribed)
+  } catch (_error) {
+    subscribedInBackend.value = false
+  }
+}
+
 const enablePushNotifications = async () => {
   if (!state.userInfo || enablingPush.value || pushBlocked.value) return
   enablingPush.value = true
   try {
+    const userId = state.userInfo?.id || state.userInfo?.user_id || state.userInfo?.staff_id
+    setOneSignalPushOptOut(userId, false)
     const subscriptionId = await bindOneSignalUser(state.userInfo, { requestPermission: true })
-    refreshPushBrowserState()
+    await checkPushSubscriptionStatus()
     if (subscriptionId || pushEnabled.value) {
       toast.success('Đã bật thông báo trên máy tính')
     } else if (!pushBlocked.value) {
@@ -126,15 +147,32 @@ const enablePushNotifications = async () => {
   }
 }
 
+const disablePushNotifications = async () => {
+  if (disablingPush.value) return
+  disablingPush.value = true
+  try {
+    await unregisterCurrentNotificationSubscriptions()
+    const userId = state.userInfo?.id || state.userInfo?.user_id || state.userInfo?.staff_id
+    setOneSignalPushOptOut(userId, true)
+    subscribedInBackend.value = false
+    toast.success('Đã tắt thông báo trên máy tính')
+  } catch (error) {
+    const message = error?.response?.data?.message || error?.message || 'Không thể tắt thông báo trên máy tính'
+    toast.error(message)
+  } finally {
+    disablingPush.value = false
+  }
+}
+
 const changePage = (page) => {
   if (page < 1 || page > pagination.pageCount || page === pagination.page) return
   void fetchNotifications(page)
 }
 
 onMounted(async () => {
-  refreshPushBrowserState()
   await Promise.all([
     fetchNotifications(1),
+    checkPushSubscriptionStatus(),
   ])
 })
 </script>
@@ -178,15 +216,28 @@ onMounted(async () => {
               <p v-if="pushBlocked" class="mt-1 text-xs leading-5 text-[var(--danger-text)]">Hãy mở Site settings của trình duyệt và cho phép Notification cho website này.</p>
             </div>
           </div>
-          <button
-            type="button"
-            class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="enablingPush || pushEnabled || pushBlocked || !pushState.configured || !pushState.supported"
-            @click="enablePushNotifications"
-          >
-            <span class="material-symbols-outlined text-[18px]">notifications</span>
-            {{ pushEnabled ? 'Đã bật' : (enablingPush ? 'Đang bật...' : 'Bật thông báo') }}
-          </button>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              v-if="pushEnabled"
+              type="button"
+              class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="disablingPush"
+              @click="disablePushNotifications"
+            >
+              <span class="material-symbols-outlined text-[18px]">notifications_off</span>
+              {{ disablingPush ? 'Đang tắt...' : 'Tắt thông báo' }}
+            </button>
+            <button
+              v-else
+              type="button"
+              class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="enablingPush || pushBlocked || !pushState.configured || !pushState.supported"
+              @click="enablePushNotifications"
+            >
+              <span class="material-symbols-outlined text-[18px]">notifications</span>
+              {{ enablingPush ? 'Đang bật...' : 'Bật thông báo' }}
+            </button>
+          </div>
         </div>
       </div>
 
