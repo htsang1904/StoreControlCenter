@@ -250,6 +250,16 @@ async def send_onesignal_notifications(
                     notification.recipient_id,
                     len(subscription_ids),
                 )
+                if response.text:
+                    logger.debug("OneSignal push response: %s", response.text[:500])
+            except httpx.HTTPStatusError as exc:
+                response = exc.response
+                logger.warning(
+                    "Failed to send OneSignal notification %s: status=%s body=%s",
+                    notification.id,
+                    response.status_code,
+                    response.text[:500],
+                )
             except Exception as exc:
                 logger.warning("Failed to send OneSignal notification %s: %s", notification.id, exc)
 

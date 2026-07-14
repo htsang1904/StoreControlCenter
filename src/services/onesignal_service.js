@@ -7,6 +7,8 @@ import {
 const ONESIGNAL_SCRIPT_ID = 'onesignal-sdk'
 const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
 const ONESIGNAL_TIMEOUT_MS = 12000
+const SUBSCRIPTION_ID_RETRY_COUNT = 12
+const SUBSCRIPTION_ID_RETRY_DELAY_MS = 500
 
 let initialized = false
 let initializingPromise = null
@@ -45,6 +47,11 @@ const refreshBrowserState = () => {
   pushState.configured = Boolean(getAppId())
   pushState.supported = isBrowserSupported()
   pushState.permission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+}
+
+export const refreshPushBrowserState = () => {
+  refreshBrowserState()
+  return pushState
 }
 
 refreshBrowserState()
@@ -104,6 +111,15 @@ const withOneSignal = async (callback) => {
 
 const readSubscriptionId = async (OneSignal) => {
   return OneSignal?.User?.PushSubscription?.id || null
+}
+
+const waitForSubscriptionId = async (OneSignal) => {
+  for (let attempt = 0; attempt < SUBSCRIPTION_ID_RETRY_COUNT; attempt += 1) {
+    const subscriptionId = await readSubscriptionId(OneSignal)
+    if (subscriptionId) return subscriptionId
+    await new Promise((resolve) => window.setTimeout(resolve, SUBSCRIPTION_ID_RETRY_DELAY_MS))
+  }
+  return null
 }
 
 export const initializeOneSignal = async () => {
@@ -181,7 +197,7 @@ export const bindOneSignalUser = async (user, { requestPermission = true } = {})
     }
 
     refreshBrowserState()
-    const subscriptionId = await readSubscriptionId(OneSignal)
+    const subscriptionId = await waitForSubscriptionId(OneSignal)
     pushState.subscribed = Boolean(subscriptionId) && pushState.permission === 'granted'
     if (!subscriptionId || pushState.permission !== 'granted') return null
 

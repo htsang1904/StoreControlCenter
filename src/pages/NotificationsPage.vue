@@ -12,7 +12,7 @@ import {
   normalizeNotificationList,
   getNotificationDisplayTitle,
 } from '@/services/notification_service'
-import { bindOneSignalUser, pushState, refreshOneSignalSubscriptionState } from '@/services/onesignal_service'
+import { bindOneSignalUser, pushState, refreshPushBrowserState } from '@/services/onesignal_service'
 
 const PAGE_SIZE = 20
 
@@ -112,7 +112,7 @@ const enablePushNotifications = async () => {
   enablingPush.value = true
   try {
     const subscriptionId = await bindOneSignalUser(state.userInfo, { requestPermission: true })
-    await refreshOneSignalSubscriptionState()
+    refreshPushBrowserState()
     if (subscriptionId || pushEnabled.value) {
       toast.success('Đã bật thông báo trên máy tính')
     } else if (!pushBlocked.value) {
@@ -132,9 +132,9 @@ const changePage = (page) => {
 }
 
 onMounted(async () => {
+  refreshPushBrowserState()
   await Promise.all([
     fetchNotifications(1),
-    refreshOneSignalSubscriptionState(),
   ])
 })
 </script>

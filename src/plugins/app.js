@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
 import router from '@/router'
 import { loginBySuite, login, loginBySsoTicket, getMe, logout as logoutApi, syncStores as syncStoresApi, updateAvatar as updateAvatarApi } from '@/services/auth_service'
-import { bindOneSignalUser, unbindOneSignalUser } from '@/services/onesignal_service'
+import { unbindOneSignalUser } from '@/services/onesignal_service'
 import { useToast } from '@/plugins/toast'
 const state = reactive({
   token: localStorage.getItem('token') || null,
@@ -49,11 +49,6 @@ const resolveUserProfile = (payload) => {
     }
 }
 
-const syncPushSubscription = (user) => {
-    if (!user) return
-    bindOneSignalUser(user, { requestPermission: false }).catch(() => {})
-}
-
 export function useApp() {
     const toast = useToast()
     const userLogin = async (payload) => {
@@ -83,7 +78,6 @@ export function useApp() {
                 const user = resolveUserProfile(meResult)
                 if (user) {
                     state.userInfo = user
-                    syncPushSubscription(user)
                 }
             } catch (_err) {}
 
@@ -131,7 +125,6 @@ export function useApp() {
             const user = resolveUserProfile(meResult)
             if (user) {
                 state.userInfo = user
-                syncPushSubscription(user)
             }
 
             await router.replace('/dashboard')
@@ -183,7 +176,6 @@ export function useApp() {
             }
             syncAuthStateFromStorage()
             state.userInfo = user
-            syncPushSubscription(user)
         } catch (_err) {
             clearAuthState()
         } finally {
