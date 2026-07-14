@@ -22,6 +22,10 @@ export const pushState = reactive({
 
 const getAppId = () => String(import.meta.env.VITE_ONESIGNAL_APP_ID || '').trim()
 
+const isAlreadyInitializedError = (error) => (
+  String(error?.message || error || '').toLowerCase().includes('already initialized')
+)
+
 const isBrowserSupported = () => (
   typeof window !== 'undefined' &&
   'Notification' in window &&
@@ -96,12 +100,17 @@ export const initializeOneSignal = async () => {
 
   pushState.initializing = true
   initializingPromise = withOneSignal(async (OneSignal) => {
-    await OneSignal.init({ appId })
+    try {
+      await OneSignal.init({ appId })
+    } catch (error) {
+      if (!isAlreadyInitializedError(error)) throw error
+    }
     initialized = true
     pushState.lastError = ''
     return true
   }).catch((error) => {
-    initialized = false
+    initialized = isAlreadyInitializedError(error)
+    if (initialized) return true
     pushState.lastError = error?.message || 'Không thể khởi tạo thông báo'
     throw error
   }).finally(() => {
