@@ -6,7 +6,7 @@ import {
 
 const ONESIGNAL_SCRIPT_ID = 'onesignal-sdk'
 const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
-const ONESIGNAL_OPERATION_TIMEOUT_MS = 12000
+const ONESIGNAL_TIMEOUT_MS = 12000
 
 let initialized = false
 let initializingPromise = null
@@ -23,23 +23,23 @@ export const pushState = reactive({
 
 const getAppId = () => String(import.meta.env.VITE_ONESIGNAL_APP_ID || '').trim()
 
-const isAlreadyInitializedError = (error) => (
-  String(error?.message || error || '').toLowerCase().includes('already initialized')
-)
-
-const withTimeout = (promise, message = 'Thao tác thông báo quá thời gian chờ') => Promise.race([
-  promise,
-  new Promise((_, reject) => {
-    window.setTimeout(() => reject(new Error(message)), ONESIGNAL_OPERATION_TIMEOUT_MS)
-  }),
-])
-
 const isBrowserSupported = () => (
   typeof window !== 'undefined' &&
   'Notification' in window &&
   'serviceWorker' in navigator &&
   'PushManager' in window
 )
+
+const isAlreadyInitializedError = (error) => (
+  String(error?.message || error || '').toLowerCase().includes('already initialized')
+)
+
+const withTimeout = (promise, message) => Promise.race([
+  promise,
+  new Promise((_, reject) => {
+    window.setTimeout(() => reject(new Error(message)), ONESIGNAL_TIMEOUT_MS)
+  }),
+])
 
 const refreshBrowserState = () => {
   pushState.configured = Boolean(getAppId())
@@ -49,33 +49,48 @@ const refreshBrowserState = () => {
 
 refreshBrowserState()
 
-const ensureSdkScript = () => new Promise((resolve, reject) => {
+const ensureSdkScript = () => withTimeout(new Promise((resolve, reject) => {
   if (typeof window === 'undefined') {
     resolve()
     return
   }
 
+  window.OneSignalDeferred = window.OneSignalDeferred || []
+
   const existingScript = document.getElementById(ONESIGNAL_SCRIPT_ID)
   if (existingScript) {
-    if (window.OneSignalDeferred) resolve()
-    existingScript.addEventListener('load', resolve, { once: true })
+    if (existingScript.dataset.loaded === 'true' || window.OneSignal) {
+      resolve()
+      return
+    }
+    existingScript.addEventListener('load', () => {
+      existingScript.dataset.loaded = 'true'
+      resolve()
+    }, { once: true })
     existingScript.addEventListener('error', reject, { once: true })
     return
   }
 
-  window.OneSignalDeferred = window.OneSignalDeferred || []
   const script = document.createElement('script')
   script.id = ONESIGNAL_SCRIPT_ID
   script.src = ONESIGNAL_SDK_URL
   script.defer = true
-  script.onload = resolve
+  script.onload = () => {
+    script.dataset.loaded = 'true'
+    resolve()
+  }
   script.onerror = reject
   document.head.appendChild(script)
-})
+}), 'Không tải được OneSignal SDK. Vui lòng kiểm tra kết nối hoặc trình duyệt.')
 
 const withOneSignal = async (callback) => {
   await ensureSdkScript()
   window.OneSignalDeferred = window.OneSignalDeferred || []
+
+  if (window.OneSignal) {
+    return callback(window.OneSignal)
+  }
+
   return withTimeout(new Promise((resolve, reject) => {
     window.OneSignalDeferred.push(async (OneSignal) => {
       try {
@@ -113,12 +128,14 @@ export const initializeOneSignal = async () => {
     } catch (error) {
       if (!isAlreadyInitializedError(error)) throw error
     }
+
     initialized = true
     pushState.lastError = ''
     return true
   }).catch((error) => {
     initialized = isAlreadyInitializedError(error)
     if (initialized) return true
+
     pushState.lastError = error?.message || 'Không thể khởi tạo thông báo'
     throw error
   }).finally(() => {
@@ -197,12 +214,4 @@ export const unbindOneSignalUser = async () => {
   if (subscriptionId) {
     await unregisterNotificationSubscription(subscriptionId).catch(() => {})
   }
-
-  if (!initialized) return
-
-  await withOneSignal(async (OneSignal) => {
-    if (typeof OneSignal.logout === 'function') {
-      await OneSignal.logout()
-    }
-  }).catch(() => {})
 }

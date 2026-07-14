@@ -4,7 +4,6 @@ import { RouterView, useRoute } from 'vue-router'
 import { useApp } from '@/plugins/app'
 import { useResponsive } from '@/composables/useResponsive'
 import AppConfirmDialog from '@/components/AppConfirmDialog.vue'
-import PushPermissionPrompt from '@/components/PushPermissionPrompt.vue'
 import Sidebar from './Sidebar.vue'
 import Header from './Header.vue'
 
@@ -74,6 +73,5 @@ watch(
     </div>
 
     <AppConfirmDialog />
-    <PushPermissionPrompt />
   </div>
 </template>
