@@ -23,30 +23,6 @@ export const markAllNotificationsRead = () => {
   return http.patch('/api/notifications/read-all')
 }
 
-export const registerNotificationSubscription = (payload) => {
-  return http.post('/api/notifications/subscriptions', payload)
-}
-
-export const getNotificationSubscriptionStatus = () => {
-  return http.get('/api/notifications/subscriptions/status')
-}
-
-export const getNotificationSubscriptionDebug = () => {
-  return http.get('/api/notifications/subscriptions/debug')
-}
-
-export const sendNotificationTestPush = () => {
-  return http.post('/api/notifications/subscriptions/test-push')
-}
-
-export const unregisterCurrentNotificationSubscriptions = () => {
-  return http.delete('/api/notifications/subscriptions')
-}
-
-export const unregisterNotificationSubscription = (subscriptionId) => {
-  return http.delete(`/api/notifications/subscriptions/${encodeURIComponent(subscriptionId)}`)
-}
-
 export const normalizeNotificationItem = (item = {}) => {
   const meta = item?.meta || item?.meta_info || {}
   const normalized = {

@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
 import router from '@/router'
 import { loginBySuite, login, loginBySsoTicket, getMe, logout as logoutApi, syncStores as syncStoresApi, updateAvatar as updateAvatarApi } from '@/services/auth_service'
-import { unbindOneSignalUser } from '@/services/onesignal_service'
+import { disconnectOneSignalUser } from '@/services/onesignal_service'
 import { useToast } from '@/plugins/toast'
 const state = reactive({
   token: localStorage.getItem('token') || null,
@@ -95,7 +95,7 @@ export function useApp() {
     }
 
     const userLogout = () => {
-        unbindOneSignalUser().catch(() => {})
+        disconnectOneSignalUser().catch(() => {})
         if (state.token) {
             logoutApi().catch(() => {})
         }

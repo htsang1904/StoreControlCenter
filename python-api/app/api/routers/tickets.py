@@ -18,6 +18,7 @@ from app.models.user import User
 from app.schemas.ticket import TicketResponse, TicketCreate, TicketDetailResponse, TicketLogResponse, TicketUpdate
 from app.schemas.user import UserMinimalResponse
 from app.services.notification_service import (
+    build_ticket_activity_notifications,
     build_ticket_created_notifications,
     emit_notification_created_events,
 )
@@ -33,6 +34,15 @@ from app.services.ticket_policy import (
 )
 
 router = APIRouter()
+
+TICKET_STATUS_LABELS = {
+    "new": "Mới",
+    "assigned": "Đã phân công",
+    "in_progress": "Đang xử lý",
+    "resolved": "Đã xử lý",
+    "closed": "Đã đóng",
+    "rejected": "Từ chối",
+}
 
 def _utcnow_naive() -> datetime:
     return utc_now_naive()
@@ -129,6 +139,43 @@ async def _load_ticket_created_notification_recipient_ids(session: AsyncSession,
     )
     result = await session.execute(recipient_query)
     return [int(user_id) for user_id in result.scalars().all()]
+
+
+def _ticket_participant_ids(ticket: Ticket, *additional_user_ids: int | None) -> list[int | None]:
+    return [
+        ticket.requester_id,
+        *[assignee.id for assignee in ticket.assignees],
+        *additional_user_ids,
+    ]
+
+
+def _stage_ticket_activity_notifications(
+    session: AsyncSession,
+    *,
+    ticket: Ticket,
+    current_user: CurrentUser,
+    recipient_ids: list[int | None],
+    title: str,
+    message: str,
+    kind: str,
+    notification_type: str = "info",
+    extra_meta: dict | None = None,
+) -> list[Notification]:
+    notifications = build_ticket_activity_notifications(
+        recipient_ids=recipient_ids,
+        actor_id=current_user.id,
+        actor_name=current_user.name or "",
+        ticket_id=ticket.id,
+        ticket_code=ticket.ticket_code,
+        title=title,
+        message=message,
+        kind=kind,
+        notification_type=notification_type,
+        extra_meta=extra_meta,
+    )
+    if notifications:
+        session.add_all(notifications)
+    return notifications
 
 @router.get("/", response_model=dict)
 async def read_tickets(
@@ -374,7 +421,7 @@ async def update_ticket(
     ticket_in: TicketUpdate
 ) -> Any:
     """Update ticket info."""
-    query = select(Ticket).where(Ticket.id == id)
+    query = select(Ticket).options(selectinload(Ticket.assignees)).where(Ticket.id == id)
     result = await session.execute(query)
     ticket = result.scalar_one_or_none()
     
@@ -384,6 +431,7 @@ async def update_ticket(
     await _ensure_ticket_access(session, ticket, current_user)
     
     update_data = ticket_in.model_dump(exclude_unset=True)
+    previous_status = ticket.status
 
     if "store_id" in update_data:
         resolved_store = await _resolve_store_entity(session, update_data.get("store_id"))
@@ -413,12 +461,31 @@ async def update_ticket(
     for field, value in update_data.items():
         setattr(ticket, field, value)
 
+    notifications: list[Notification] = []
+    if "status" in update_data and ticket.status != previous_status:
+        previous_label = TICKET_STATUS_LABELS.get(previous_status, previous_status)
+        current_label = TICKET_STATUS_LABELS.get(ticket.status, ticket.status)
+        notifications = _stage_ticket_activity_notifications(
+            session,
+            ticket=ticket,
+            current_user=current_user,
+            recipient_ids=_ticket_participant_ids(ticket),
+            title=f"Trạng thái thay đổi - {ticket.ticket_code}",
+            message=(
+                "{actor_name} đã chuyển ticket {ticket_code} "
+                f"từ {previous_label} sang {current_label}."
+            ),
+            kind="ticket_status_changed",
+            extra_meta={"old_status": previous_status, "status": ticket.status},
+        )
+
     session.add(ticket)
     await session.commit()
     
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
     serialized_ticket = TicketResponse.model_validate(updated_ticket)
     await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    await emit_notification_created_events(session, notifications)
     return {"success": True, "message": "Cập nhật phiếu thành công", "data": serialized_ticket}
 
 @router.get("/{id}/assignees", response_model=dict)
@@ -507,6 +574,7 @@ async def assign_assignee(
         ticket.status = "in_progress"
         ticket.processing_started_at = _utcnow_naive()
         
+    notifications: list[Notification] = []
     if handler not in ticket.assignees:
         ticket.assignees.append(handler)
         
@@ -517,6 +585,17 @@ async def assign_assignee(
             sender_id=current_user.id
         )
         session.add(system_log)
+
+        notifications = _stage_ticket_activity_notifications(
+            session,
+            ticket=ticket,
+            current_user=current_user,
+            recipient_ids=[ticket.requester_id, handler.id],
+            title=f"Được phân công - {ticket.ticket_code}",
+            message=f"{{actor_name}} đã phân công {handler.name} xử lý ticket {{ticket_code}}.",
+            kind="ticket_assigned",
+            extra_meta={"assignee_id": handler.id, "status": ticket.status},
+        )
         
     session.add(ticket)
     await session.commit()
@@ -524,6 +603,7 @@ async def assign_assignee(
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
     serialized_ticket = TicketResponse.model_validate(updated_ticket)
     await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    await emit_notification_created_events(session, notifications)
     return {"success": True, "message": "Phân công thành công", "data": serialized_ticket}
 
 @router.post("/{id}/resolve", response_model=dict)
@@ -533,7 +613,7 @@ async def resolve_ticket(
     current_user: CurrentUser,
 ) -> Any:
     """Mark ticket as resolved."""
-    query = select(Ticket).where(Ticket.id == id)
+    query = select(Ticket).options(selectinload(Ticket.assignees)).where(Ticket.id == id)
     result = await session.execute(query)
     ticket = result.scalar_one_or_none()
     
@@ -559,6 +639,18 @@ async def resolve_ticket(
         sender_id=current_user.id
     )
     session.add(system_log)
+
+    notifications = _stage_ticket_activity_notifications(
+        session,
+        ticket=ticket,
+        current_user=current_user,
+        recipient_ids=_ticket_participant_ids(ticket),
+        title=f"Ticket đã xử lý - {ticket.ticket_code}",
+        message="{actor_name} đã đánh dấu ticket {ticket_code} là đã xử lý.",
+        kind="ticket_resolved",
+        notification_type="success",
+        extra_meta={"status": ticket.status},
+    )
     
     session.add(ticket)
     await session.commit()
@@ -566,6 +658,7 @@ async def resolve_ticket(
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
     serialized_ticket = TicketResponse.model_validate(updated_ticket)
     await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    await emit_notification_created_events(session, notifications)
     return {"success": True, "message": "Đã giải quyết phiếu", "data": serialized_ticket}
 
 @router.post("/{id}/reopen", response_model=dict)
@@ -575,7 +668,7 @@ async def reopen_ticket(
     current_user: CurrentUser,
 ) -> Any:
     """Reopen a ticket."""
-    query = select(Ticket).where(Ticket.id == id)
+    query = select(Ticket).options(selectinload(Ticket.assignees)).where(Ticket.id == id)
     result = await session.execute(query)
     ticket = result.scalar_one_or_none()
     
@@ -597,6 +690,18 @@ async def reopen_ticket(
         sender_id=current_user.id
     )
     session.add(system_log)
+
+    notifications = _stage_ticket_activity_notifications(
+        session,
+        ticket=ticket,
+        current_user=current_user,
+        recipient_ids=_ticket_participant_ids(ticket),
+        title=f"Ticket được mở lại - {ticket.ticket_code}",
+        message="{actor_name} đã mở lại ticket {ticket_code}.",
+        kind="ticket_reopened",
+        notification_type="warning",
+        extra_meta={"status": ticket.status},
+    )
     
     session.add(ticket)
     await session.commit()
@@ -604,6 +709,7 @@ async def reopen_ticket(
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
     serialized_ticket = TicketResponse.model_validate(updated_ticket)
     await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    await emit_notification_created_events(session, notifications)
     return {"success": True, "message": "Đã mở lại phiếu", "data": serialized_ticket}
 
 @router.post("/{id}/reject", response_model=dict)
@@ -613,7 +719,7 @@ async def reject_ticket(
     current_user: CurrentUser,
 ) -> Any:
     """Reject a ticket."""
-    query = select(Ticket).where(Ticket.id == id)
+    query = select(Ticket).options(selectinload(Ticket.assignees)).where(Ticket.id == id)
     result = await session.execute(query)
     ticket = result.scalar_one_or_none()
     
@@ -626,12 +732,24 @@ async def reject_ticket(
         raise HTTPException(status_code=403 if "Chỉ admin" in err else 400, detail=err)
         
     ticket.status = "rejected"
+    notifications = _stage_ticket_activity_notifications(
+        session,
+        ticket=ticket,
+        current_user=current_user,
+        recipient_ids=_ticket_participant_ids(ticket),
+        title=f"Ticket bị từ chối - {ticket.ticket_code}",
+        message="{actor_name} đã từ chối ticket {ticket_code}.",
+        kind="ticket_rejected",
+        notification_type="error",
+        extra_meta={"status": ticket.status},
+    )
     session.add(ticket)
     await session.commit()
     
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
     serialized_ticket = TicketResponse.model_validate(updated_ticket)
     await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    await emit_notification_created_events(session, notifications)
     return {"success": True, "message": "Đã từ chối phiếu", "data": serialized_ticket}
 
 @router.post("/{id}/assignees/me", response_model=dict)
@@ -656,6 +774,7 @@ async def assign_ticket_to_me(
             detail=err,
         )
         
+    notifications: list[Notification] = []
     if current_user not in ticket.assignees:
         ticket.assignees.append(current_user)
         if ticket.status == "new":
@@ -669,6 +788,17 @@ async def assign_ticket_to_me(
             sender_id=current_user.id
         )
         session.add(system_log)
+
+        notifications = _stage_ticket_activity_notifications(
+            session,
+            ticket=ticket,
+            current_user=current_user,
+            recipient_ids=_ticket_participant_ids(ticket),
+            title=f"Ticket đang được xử lý - {ticket.ticket_code}",
+            message="{actor_name} đã nhận xử lý ticket {ticket_code}.",
+            kind="ticket_claimed",
+            extra_meta={"assignee_id": current_user.id, "status": ticket.status},
+        )
         
         session.add(ticket)
         await session.commit()
@@ -676,6 +806,7 @@ async def assign_ticket_to_me(
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
     serialized_ticket = TicketResponse.model_validate(updated_ticket)
     await _emit_ticket_event(ticket.id, "ticket.updated", serialized_ticket)
+    await emit_notification_created_events(session, notifications)
     return {"success": True, "message": "Đã nhận xử lý", "data": serialized_ticket}
 
 @router.get("/{id}/logs", response_model=dict)

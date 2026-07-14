@@ -1,89 +1,102 @@
 import { reactive } from 'vue'
-import {
-  registerNotificationSubscription,
-} from './notification_service'
 
 const ONESIGNAL_SCRIPT_ID = 'onesignal-sdk'
 const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
 const ONESIGNAL_TIMEOUT_MS = 12000
-const SUBSCRIPTION_ID_RETRY_COUNT = 12
-const SUBSCRIPTION_ID_RETRY_DELAY_MS = 500
-const ONESIGNAL_LEGACY_CLEANUP_KEY = 'onesignal-legacy-cleanup:v3'
-const ONESIGNAL_RELOAD_KEY = 'onesignal-legacy-cleanup-reloaded:v3'
+const LEGACY_RESET_VERSION = 'v2'
 
 let initialized = false
 let initializingPromise = null
+let subscriptionListenerAttached = false
+let identifiedUserId = null
 
-const getPushOptOutKey = (userId) => `onesignal-push-opt-out:${userId}`
+export const pushState = reactive({
+  configured: false,
+  supported: false,
+  ready: false,
+  permission: 'default',
+  optedIn: false,
+  subscriptionId: null,
+  lastError: '',
+})
+
+export const getOneSignalAppId = () => String(import.meta.env.VITE_ONESIGNAL_APP_ID || '').trim()
+
+const getUserId = (user) => user?.id || user?.user_id || user?.staff_id || null
+
+const isAlreadyInitializedError = (error) => (
+  String(error?.message || error || '').toLowerCase().includes('already initialized')
+)
+
+const isExpectedIdentityConflict = (error) => {
+  const status = Number(
+    error?.status ||
+    error?.statusCode ||
+    error?.response?.status ||
+    error?.response?.statusCode ||
+    0
+  )
+  const message = String(error?.message || error || '').toLowerCase()
+
+  return status === 409 || (message.includes('409') && message.includes('conflict'))
+}
 
 const deleteIndexedDatabase = (databaseName) => new Promise((resolve) => {
-  if (!databaseName || !window.indexedDB) {
-    resolve()
-    return
-  }
-
   const request = window.indexedDB.deleteDatabase(databaseName)
   request.onsuccess = () => resolve()
   request.onerror = () => resolve()
   request.onblocked = () => resolve()
 })
 
-export const cleanupLegacyOneSignalState = async () => {
-  if (typeof window === 'undefined' || !window.localStorage) return false
-  if (window.localStorage.getItem(ONESIGNAL_LEGACY_CLEANUP_KEY) === '1') return false
+const resetLegacyOneSignalState = async () => {
+  const resetKey = `push-integration-reset:${LEGACY_RESET_VERSION}:${getOneSignalAppId()}`
+  if (window.localStorage.getItem(resetKey) === '1') return false
 
-  window.localStorage.setItem(ONESIGNAL_LEGACY_CLEANUP_KEY, '1')
+  if ('serviceWorker' in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations()
+    await Promise.all(
+      registrations
+        .filter((registration) => {
+          const scriptUrl = (
+            registration.active?.scriptURL ||
+            registration.waiting?.scriptURL ||
+            registration.installing?.scriptURL ||
+            ''
+          )
+          return scriptUrl.includes('OneSignalSDKWorker.js')
+        })
+        .map(async (registration) => {
+          const subscription = await registration.pushManager?.getSubscription().catch(() => null)
+          await subscription?.unsubscribe().catch(() => false)
+          return registration.unregister().catch(() => false)
+        })
+    )
+  }
 
-  try {
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations()
-      await Promise.all(registrations.map((registration) => registration.unregister().catch(() => false)))
-    }
+  if (window.indexedDB?.databases) {
+    const databases = await window.indexedDB.databases().catch(() => [])
+    await Promise.all(
+      databases
+        .map((database) => database?.name)
+        .filter((name) => name?.toLowerCase().includes('onesignal'))
+        .map((name) => deleteIndexedDatabase(name))
+    )
+  }
 
-    if (window.indexedDB?.databases) {
-      const databases = await window.indexedDB.databases().catch(() => [])
-      await Promise.all(
-        databases
-          .map((database) => database?.name)
-          .filter((name) => name && name.toLowerCase().includes('onesignal'))
-          .map((name) => deleteIndexedDatabase(name))
-      )
-    }
+  Object.keys(window.localStorage)
+    .filter((key) => (
+      key.toLowerCase().includes('onesignal') ||
+      key.startsWith('push-integration-reset:')
+    ))
+    .forEach((key) => window.localStorage.removeItem(key))
 
-    Object.keys(window.localStorage)
-      .filter((key) => key.toLowerCase().includes('onesignal'))
-      .forEach((key) => {
-        if (key !== ONESIGNAL_LEGACY_CLEANUP_KEY && key !== ONESIGNAL_RELOAD_KEY) {
-          window.localStorage.removeItem(key)
-        }
-      })
-  } catch (_error) {}
+  Object.keys(window.sessionStorage)
+    .filter((key) => key.toLowerCase().includes('onesignal'))
+    .forEach((key) => window.sessionStorage.removeItem(key))
 
+  window.localStorage.setItem(resetKey, '1')
   return true
 }
-
-export const isOneSignalPushOptedOut = (userId) => {
-  if (!userId || typeof localStorage === 'undefined') return false
-  return localStorage.getItem(getPushOptOutKey(userId)) === '1'
-}
-
-export const setOneSignalPushOptOut = (userId, optedOut) => {
-  if (!userId || typeof localStorage === 'undefined') return
-  const key = getPushOptOutKey(userId)
-  if (optedOut) localStorage.setItem(key, '1')
-  else localStorage.removeItem(key)
-}
-
-export const pushState = reactive({
-  supported: false,
-  configured: false,
-  initializing: false,
-  subscribed: false,
-  permission: 'default',
-  lastError: '',
-})
-
-export const getOneSignalAppId = () => String(import.meta.env.VITE_ONESIGNAL_APP_ID || '').trim()
 
 const isBrowserSupported = () => (
   typeof window !== 'undefined' &&
@@ -92,36 +105,22 @@ const isBrowserSupported = () => (
   'PushManager' in window
 )
 
-const isAlreadyInitializedError = (error) => (
-  String(error?.message || error || '').toLowerCase().includes('already initialized')
-)
-
-const withTimeout = (promise, message) => Promise.race([
-  promise,
-  new Promise((_, reject) => {
-    window.setTimeout(() => reject(new Error(message)), ONESIGNAL_TIMEOUT_MS)
-  }),
-])
-
 const refreshBrowserState = () => {
   pushState.configured = Boolean(getOneSignalAppId())
   pushState.supported = isBrowserSupported()
-  pushState.permission = typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
+  pushState.permission = typeof Notification === 'undefined' ? 'unsupported' : Notification.permission
 }
 
-export const refreshPushBrowserState = () => {
-  refreshBrowserState()
-  return pushState
-}
+const withTimeout = (promise, message) => {
+  let timeoutId
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), ONESIGNAL_TIMEOUT_MS)
+  })
 
-refreshBrowserState()
+  return Promise.race([promise, timeoutPromise]).finally(() => window.clearTimeout(timeoutId))
+}
 
 const ensureSdkScript = () => withTimeout(new Promise((resolve, reject) => {
-  if (typeof window === 'undefined') {
-    resolve()
-    return
-  }
-
   window.OneSignalDeferred = window.OneSignalDeferred || []
 
   const existingScript = document.getElementById(ONESIGNAL_SCRIPT_ID)
@@ -130,10 +129,7 @@ const ensureSdkScript = () => withTimeout(new Promise((resolve, reject) => {
       resolve()
       return
     }
-    existingScript.addEventListener('load', () => {
-      existingScript.dataset.loaded = 'true'
-      resolve()
-    }, { once: true })
+    existingScript.addEventListener('load', resolve, { once: true })
     existingScript.addEventListener('error', reject, { once: true })
     return
   }
@@ -146,17 +142,15 @@ const ensureSdkScript = () => withTimeout(new Promise((resolve, reject) => {
     script.dataset.loaded = 'true'
     resolve()
   }
-  script.onerror = reject
+  script.onerror = () => reject(new Error('Không tải được OneSignal SDK'))
   document.head.appendChild(script)
-}), 'Không tải được OneSignal SDK. Vui lòng kiểm tra kết nối hoặc trình duyệt.')
+}), 'Không thể kết nối OneSignal. Vui lòng kiểm tra kết nối mạng.')
 
 const withOneSignal = async (callback) => {
   await ensureSdkScript()
   window.OneSignalDeferred = window.OneSignalDeferred || []
 
-  if (window.OneSignal) {
-    return callback(window.OneSignal)
-  }
+  if (window.OneSignal) return callback(window.OneSignal)
 
   return withTimeout(new Promise((resolve, reject) => {
     window.OneSignalDeferred.push(async (OneSignal) => {
@@ -166,121 +160,160 @@ const withOneSignal = async (callback) => {
         reject(error)
       }
     })
-  }), 'Không thể kết nối OneSignal. Vui lòng thử lại sau.')
+  }), 'OneSignal SDK không phản hồi. Vui lòng thử lại.')
 }
 
-const readSubscriptionId = async (OneSignal) => {
-  return OneSignal?.User?.PushSubscription?.id || null
+const syncSubscriptionState = (OneSignal) => {
+  refreshBrowserState()
+  pushState.optedIn = OneSignal?.User?.PushSubscription?.optedIn === true
+  pushState.subscriptionId = OneSignal?.User?.PushSubscription?.id || null
+  pushState.ready = true
 }
 
-const waitForSubscriptionId = async (OneSignal) => {
-  for (let attempt = 0; attempt < SUBSCRIPTION_ID_RETRY_COUNT; attempt += 1) {
-    const subscriptionId = await readSubscriptionId(OneSignal)
-    if (subscriptionId) return subscriptionId
-    await new Promise((resolve) => window.setTimeout(resolve, SUBSCRIPTION_ID_RETRY_DELAY_MS))
+const attachSubscriptionListener = (OneSignal) => {
+  if (subscriptionListenerAttached) return
+
+  OneSignal.User.PushSubscription.addEventListener('change', (event) => {
+    refreshBrowserState()
+    pushState.optedIn = event.current.optedIn === true
+    pushState.subscriptionId = event.current.id || null
+  })
+  subscriptionListenerAttached = true
+}
+
+const waitForActiveSubscription = (OneSignal) => {
+  syncSubscriptionState(OneSignal)
+  if (pushState.permission === 'granted' && pushState.optedIn && pushState.subscriptionId) {
+    return Promise.resolve(pushState.subscriptionId)
   }
-  return null
+  if (pushState.permission === 'denied') {
+    return Promise.reject(new Error('Trình duyệt đang chặn quyền thông báo'))
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      OneSignal.User.PushSubscription.removeEventListener('change', handleChange)
+      reject(new Error('Chưa nhận được subscription từ OneSignal. Vui lòng thử lại.'))
+    }, ONESIGNAL_TIMEOUT_MS)
+
+    const handleChange = (event) => {
+      refreshBrowserState()
+      pushState.optedIn = event.current.optedIn === true
+      pushState.subscriptionId = event.current.id || null
+
+      if (pushState.permission === 'granted' && pushState.optedIn && pushState.subscriptionId) {
+        window.clearTimeout(timeoutId)
+        OneSignal.User.PushSubscription.removeEventListener('change', handleChange)
+        resolve(pushState.subscriptionId)
+      }
+    }
+
+    OneSignal.User.PushSubscription.addEventListener('change', handleChange)
+  })
 }
 
-export const initializeOneSignal = async () => {
-  const didCleanup = await cleanupLegacyOneSignalState()
-  if (didCleanup && window.localStorage.getItem(ONESIGNAL_RELOAD_KEY) !== '1') {
-    window.localStorage.setItem(ONESIGNAL_RELOAD_KEY, '1')
+export const initializeOneSignal = async (user = null) => {
+  const didResetLegacyState = await resetLegacyOneSignalState()
+  if (didResetLegacyState) {
     window.location.reload()
     return false
   }
 
   refreshBrowserState()
-  const appId = getOneSignalAppId()
-  if (!appId || !pushState.supported) return false
-  if (initialized) return true
-  if (initializingPromise) return initializingPromise
+  if (!pushState.configured || !pushState.supported) return false
 
-  pushState.initializing = true
-  initializingPromise = withOneSignal(async (OneSignal) => {
-    try {
-      await OneSignal.init({ appId })
-    } catch (error) {
-      if (!isAlreadyInitializedError(error)) throw error
-    }
+  if (!initializingPromise) {
+    initializingPromise = withOneSignal(async (OneSignal) => {
+      if (!initialized) {
+        try {
+          await OneSignal.init({
+            appId: getOneSignalAppId(),
+            notifyButton: {
+              enable: false,
+            },
+            promptOptions: {
+              slidedown: {
+                prompts: [
+                  {
+                    type: 'push',
+                    autoPrompt: false,
+                  },
+                ],
+              },
+            },
+          })
+        } catch (error) {
+          if (!isAlreadyInitializedError(error)) throw error
+        }
+        initialized = true
+      }
 
-    initialized = true
-    pushState.lastError = ''
-    return true
-  }).catch((error) => {
-    initialized = isAlreadyInitializedError(error)
-    if (initialized) return true
-
-    pushState.lastError = error?.message || 'Không thể khởi tạo thông báo'
-    throw error
-  }).finally(() => {
-    initializingPromise = null
-    pushState.initializing = false
-    refreshBrowserState()
-  })
-
-  return initializingPromise
-}
-
-export const getBrowserOneSignalSubscriptionId = async () => {
-  refreshBrowserState()
-  if (!pushState.configured || !pushState.supported) return null
-
-  try {
-    const ready = await initializeOneSignal()
-    if (!ready) return null
-
-    return await withOneSignal(async (OneSignal) => {
-      return readSubscriptionId(OneSignal)
+      attachSubscriptionListener(OneSignal)
+      syncSubscriptionState(OneSignal)
+      return true
+    }).catch((error) => {
+      pushState.ready = false
+      pushState.lastError = error?.message || 'Không thể khởi tạo OneSignal'
+      throw error
+    }).finally(() => {
+      initializingPromise = null
     })
-  } catch (error) {
-    pushState.lastError = error?.message || 'Không thể kiểm tra trạng thái thông báo'
-    return null
   }
+
+  await initializingPromise
+
+  const userId = getUserId(user)
+  if (userId && identifiedUserId !== String(userId)) {
+    await withOneSignal(async (OneSignal) => {
+      try {
+        await OneSignal.login(String(userId))
+      } catch (error) {
+        // OneSignal returns 409 while moving this subscription to an existing
+        // user with the same External ID. This is an expected login outcome.
+        if (!isExpectedIdentityConflict(error)) throw error
+      }
+      identifiedUserId = String(userId)
+      syncSubscriptionState(OneSignal)
+    })
+  }
+
+  pushState.lastError = ''
+  return true
 }
 
-export const bindOneSignalUser = async (user, { requestPermission = true } = {}) => {
-  const userId = user?.id || user?.user_id || user?.staff_id
-  if (!userId) return null
-
-  const ready = await initializeOneSignal()
+export const enableOneSignalPush = async (user) => {
+  const ready = await initializeOneSignal(user)
   if (!ready) return null
 
   return withOneSignal(async (OneSignal) => {
-    if (
-      requestPermission &&
-      OneSignal.Notifications?.permission !== true &&
-      typeof OneSignal.Notifications?.requestPermission === 'function'
-    ) {
-      await withTimeout(
-        OneSignal.Notifications.requestPermission(),
-        'Trình duyệt chưa phản hồi yêu cầu bật thông báo. Vui lòng thử lại.'
-      ).catch((error) => {
-        pushState.lastError = error?.message || 'Không thể đồng bộ quyền thông báo với OneSignal'
-      })
+    if (OneSignal.Notifications.permission !== true) {
+      await OneSignal.Notifications.requestPermission()
+      refreshBrowserState()
+
+      if (pushState.permission !== 'granted') {
+        throw new Error('Bạn chưa cấp quyền thông báo cho trình duyệt')
+      }
     }
 
-    refreshBrowserState()
-    const subscriptionId = await waitForSubscriptionId(OneSignal)
-    pushState.subscribed = Boolean(subscriptionId) && pushState.permission === 'granted'
-    if (!subscriptionId || pushState.permission !== 'granted') return null
-
-    const result = await registerNotificationSubscription({
-      subscription_id: subscriptionId,
-      platform: 'web',
-    })
-    if (result?.success === false) {
-      pushState.subscribed = false
-      pushState.lastError = result?.message || 'Subscription OneSignal chưa active'
-      return null
-    }
-
-    pushState.subscribed = true
+    await OneSignal.User.PushSubscription.optIn()
+    const subscriptionId = await waitForActiveSubscription(OneSignal)
     pushState.lastError = ''
     return subscriptionId
+  }).catch((error) => {
+    refreshBrowserState()
+    pushState.lastError = error?.message || 'Không thể bật thông báo'
+    throw error
   })
 }
 
-export const unbindOneSignalUser = async () => {
-  pushState.subscribed = false
+export const disconnectOneSignalUser = async () => {
+  if (!initialized) return
+
+  await withOneSignal(async (OneSignal) => {
+    await OneSignal.logout()
+    identifiedUserId = null
+    syncSubscriptionState(OneSignal)
+  }).catch(() => {})
 }
+
+refreshBrowserState()

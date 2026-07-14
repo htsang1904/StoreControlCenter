@@ -40,6 +40,28 @@ jobs:
             echo "APP_ENV must define a non-empty VITE_API_BASE_URL"
             exit 1
           }
+          grep -Eq '^VITE_ONESIGNAL_APP_ID=.+' .env.production || {
+            echo "APP_ENV must define a non-empty VITE_ONESIGNAL_APP_ID"
+            exit 1
+          }
+          grep -Eq '^ONESIGNAL_APP_ID=.+' .env.production || {
+            echo "APP_ENV must define a non-empty ONESIGNAL_APP_ID"
+            exit 1
+          }
+          grep -Eq '^ONESIGNAL_REST_API_KEY=.+' .env.production || {
+            echo "APP_ENV must define a non-empty ONESIGNAL_REST_API_KEY"
+            exit 1
+          }
+          grep -Eq '^APP_PUBLIC_URL=https://.+' .env.production || {
+            echo "APP_ENV must define an HTTPS APP_PUBLIC_URL"
+            exit 1
+          }
+          frontend_onesignal_app_id="$(grep '^VITE_ONESIGNAL_APP_ID=' .env.production | tail -1 | cut -d= -f2-)"
+          backend_onesignal_app_id="$(grep '^ONESIGNAL_APP_ID=' .env.production | tail -1 | cut -d= -f2-)"
+          [ "$frontend_onesignal_app_id" = "$backend_onesignal_app_id" ] || {
+            echo "VITE_ONESIGNAL_APP_ID and ONESIGNAL_APP_ID must match"
+            exit 1
+          }
           npm run build
 
       - name: Upload frontend build

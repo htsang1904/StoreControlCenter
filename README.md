@@ -55,13 +55,18 @@ Frontend env:
 VITE_ONESIGNAL_APP_ID=
 ```
 
-Backend env in `python-api/.env`:
+Backend env:
 
 ```env
+APP_PUBLIC_URL=https://your-production-domain.example
 ONESIGNAL_APP_ID=
 ONESIGNAL_REST_API_KEY=
-ONESIGNAL_API_URL=https://api.onesignal.com/notifications
-APP_PUBLIC_URL=https://your-frontend-domain.example
 ```
 
-The service worker file must be served from the site root at `/OneSignalSDKWorker.js`.
+Frontend đăng ký thiết bị và gắn `external_id` bằng ID user sau khi đăng nhập. Backend gửi push theo cùng `external_id` cho mọi notification đã được tạo trong ứng dụng; REST API key chỉ được giữ ở backend.
+
+Các sự kiện ticket hiện phát đồng thời notification trong ứng dụng, realtime và OneSignal gồm: tạo ticket, phản hồi, phân công, nhận xử lý, thay đổi trạng thái, xử lý xong, mở lại và từ chối ticket.
+
+Ứng dụng hiển thị hộp hỏi quyền thông báo; nếu chọn `Để sau`, hộp hỏi sẽ xuất hiện lại ở lần mở ứng dụng tiếp theo.
+
+The service worker file must be served from the site root at `/OneSignalSDKWorker.js`. The OneSignal Dashboard web origin must match the deployed frontend origin.

@@ -1,15 +1,15 @@
 import logging
+from collections import defaultdict
 from typing import Iterable
 
-from sqlalchemy import func, update
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.core.config import settings
 from app.core.datetime_utils import utc_now_naive
 from app.models.notification import Notification
-from app.models.notification_subscription import NotificationSubscription
-from app.services.onesignal_client import get_subscription_status, send_push_to_subscriptions
+from app.services.onesignal_client import send_push_to_external_ids
 from app.services.realtime import realtime_manager
 
 logger = logging.getLogger(__name__)
@@ -148,6 +148,48 @@ def build_ticket_created_notifications(
     return notifications
 
 
+def build_ticket_activity_notifications(
+    *,
+    recipient_ids: Iterable[int | None],
+    actor_id: int,
+    actor_name: str,
+    ticket_id: int,
+    ticket_code: str,
+    title: str,
+    message: str,
+    kind: str,
+    notification_type: str = "info",
+    extra_meta: dict | None = None,
+) -> list[Notification]:
+    recipients = normalize_recipient_ids(recipient_ids, exclude_user_id=actor_id)
+    if not recipients:
+        return []
+
+    actor_display_name = actor_name.strip() if actor_name and actor_name.strip() else f"User #{actor_id}"
+    now = utc_now_naive()
+    meta_info = {
+        "ticket_id": ticket_id,
+        "ticket_code": ticket_code,
+        "kind": kind,
+        **(extra_meta or {}),
+    }
+
+    return [
+        Notification(
+            title=title,
+            message=message.format(actor_name=actor_display_name, ticket_code=ticket_code),
+            type=notification_type,
+            recipient_id=recipient_id,
+            actor_id=actor_id,
+            ticket_id=ticket_id,
+            meta_info=meta_info,
+            created_at=now,
+            updated_at=now,
+        )
+        for recipient_id in recipients
+    ]
+
+
 async def emit_notification_created_events(
     session: AsyncSession,
     notifications: list[Notification],
@@ -170,8 +212,7 @@ async def emit_notification_created_events(
             },
         )
 
-    await send_onesignal_notifications(session, notifications)
-
+    await send_onesignal_notifications(notifications)
 
 async def emit_notification_unread_count_event(user_id: int, unread_count: int) -> None:
     await realtime_manager.emit_user_event(
@@ -206,123 +247,61 @@ async def _load_unread_count_by_user(
     return unread_count_by_user
 
 
-async def send_onesignal_notifications(
-    session: AsyncSession,
-    notifications: list[Notification],
-) -> None:
-    if not notifications:
-        return
-    recipient_ids = normalize_recipient_ids([item.recipient_id for item in notifications])
-    if not recipient_ids:
-        return
-
-    subscriptions_by_user = await _load_active_subscription_ids_by_user(session, recipient_ids)
-    if not subscriptions_by_user:
-        logger.info("OneSignal push skipped: no active subscriptions for recipients=%s.", recipient_ids)
-        return
-
-    for notification in notifications:
-        subscription_ids = subscriptions_by_user.get(int(notification.recipient_id), [])
-        if not subscription_ids:
-            continue
-
-        subscription_ids = await _filter_active_onesignal_subscription_ids(session, subscription_ids)
-        if not subscription_ids:
-            continue
-
-        payload = _build_onesignal_payload(notification)
-        result = await send_push_to_subscriptions(
-            subscription_ids=subscription_ids,
-            heading=notification.title,
-            content=notification.message,
-            url=payload["url"],
-            data=payload["data"],
-            notification_id=int(notification.id),
-            recipient_id=int(notification.recipient_id),
-        )
-        if result.success:
-            logger.info(
-                "OneSignal push sent: notification_id=%s recipient_id=%s subscriptions=%s.",
-                notification.id,
-                notification.recipient_id,
-                len(subscription_ids),
-            )
-            if result.response_body:
-                logger.debug("OneSignal push response: %s", result.response_body[:500])
-            continue
-
-        logger.warning(
-            "Failed to send OneSignal notification %s: status=%s error=%s body=%s",
-            notification.id,
-            result.status_code,
-            result.error,
-            (result.response_body or "")[:500],
-        )
-        if result.invalid_subscription_ids:
-            await _deactivate_subscription_ids(session, result.invalid_subscription_ids)
-
-
-async def _load_active_subscription_ids_by_user(
-    session: AsyncSession,
-    recipient_ids: list[int],
-) -> dict[int, list[str]]:
-    query = select(NotificationSubscription).where(
-        NotificationSubscription.user_id.in_(recipient_ids),
-        NotificationSubscription.is_active == True,  # noqa: E712
-    )
-    result = await session.execute(query)
-    subscriptions = result.scalars().all()
-
-    subscriptions_by_user: dict[int, list[str]] = {}
-    for subscription in subscriptions:
-        subscriptions_by_user.setdefault(int(subscription.user_id), []).append(subscription.subscription_id)
-    return subscriptions_by_user
-
-
-async def _deactivate_subscription_ids(session: AsyncSession, subscription_ids: list[str]) -> None:
-    if not subscription_ids:
-        return
-    await session.execute(
-        update(NotificationSubscription)
-        .where(NotificationSubscription.subscription_id.in_(subscription_ids))
-        .values(is_active=False, last_seen_at=func.now())
-    )
-    await session.commit()
-
-
-async def _filter_active_onesignal_subscription_ids(
-    session: AsyncSession,
-    subscription_ids: list[str],
-) -> list[str]:
-    active_subscription_ids: list[str] = []
-    inactive_subscription_ids: list[str] = []
-
-    for subscription_id in subscription_ids:
-        status = await get_subscription_status(subscription_id)
-        if status.exists and status.active:
-            active_subscription_ids.append(subscription_id)
-        else:
-            inactive_subscription_ids.append(subscription_id)
-
-    if inactive_subscription_ids:
-        await _deactivate_subscription_ids(session, inactive_subscription_ids)
-        logger.info("OneSignal inactive subscriptions deactivated: %s", inactive_subscription_ids)
-
-    return active_subscription_ids
-
-def _build_onesignal_payload(notification: Notification) -> dict:
+def _build_push_target(notification: Notification) -> tuple[str | None, dict]:
     meta_info = notification.meta_info or {}
     ticket_id = notification.ticket_id or meta_info.get("ticket_id")
     target_path = f"/ticket/inbox?ticket={ticket_id}" if ticket_id else "/dashboard"
     public_url = settings.APP_PUBLIC_URL.rstrip("/")
-    target_url = f"{public_url}{target_path}" if public_url else target_path
+    target_url = f"{public_url}{target_path}" if public_url else None
 
-    return {
-        "url": target_url,
-        "data": {
-            "notification_id": notification.id,
-            "ticket_id": ticket_id,
-            "kind": meta_info.get("kind"),
-            "url": target_url,
-        },
+    return target_url, {
+        "ticket_id": ticket_id,
+        "kind": meta_info.get("kind"),
+        "url": target_url or target_path,
     }
+
+
+async def send_onesignal_notifications(notifications: list[Notification]) -> None:
+    grouped_notifications: dict[tuple[str, str, str | None, int | None, str | None], list[Notification]] = defaultdict(list)
+
+    for notification in notifications:
+        target_url, data = _build_push_target(notification)
+        key = (
+            notification.title,
+            notification.message,
+            target_url,
+            data.get("ticket_id"),
+            data.get("kind"),
+        )
+        grouped_notifications[key].append(notification)
+
+    for (heading, content, target_url, ticket_id, kind), grouped_items in grouped_notifications.items():
+        external_ids = [str(item.recipient_id) for item in grouped_items]
+        result = await send_push_to_external_ids(
+            external_ids=external_ids,
+            heading=heading,
+            content=content,
+            url=target_url,
+            data={
+                "ticket_id": ticket_id,
+                "kind": kind,
+                "url": target_url or (f"/ticket/inbox?ticket={ticket_id}" if ticket_id else "/dashboard"),
+            },
+        )
+        if result.success:
+            logger.info(
+                "OneSignal push sent: message_id=%s recipients=%s kind=%s.",
+                result.message_id,
+                len(external_ids),
+                kind,
+            )
+            continue
+
+        logger.warning(
+            "OneSignal push failed: recipients=%s kind=%s status=%s error=%s body=%s",
+            external_ids,
+            kind,
+            result.status_code,
+            result.error,
+            (result.response_body or "")[:500],
+        )

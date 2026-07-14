@@ -2,7 +2,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from '@/plugins/toast'
-import { useApp } from '@/plugins/app'
 import {
   formatNotificationTime,
   listNotifications,
@@ -11,34 +10,15 @@ import {
   normalizeNotificationItem,
   normalizeNotificationList,
   getNotificationDisplayTitle,
-  getNotificationSubscriptionDebug,
-  getNotificationSubscriptionStatus,
-  sendNotificationTestPush,
-  unregisterCurrentNotificationSubscriptions,
 } from '@/services/notification_service'
-import {
-  bindOneSignalUser,
-  getBrowserOneSignalSubscriptionId,
-  getOneSignalAppId,
-  pushState,
-  refreshPushBrowserState,
-  setOneSignalPushOptOut,
-} from '@/services/onesignal_service'
 
 const PAGE_SIZE = 20
 
 const router = useRouter()
 const toast = useToast()
-const { state } = useApp()
 
 const loading = ref(false)
 const markingAllRead = ref(false)
-const enablingPush = ref(false)
-const disablingPush = ref(false)
-const testingPush = ref(false)
-const subscribedInBackend = ref(false)
-const browserSubscriptionId = ref(null)
-const debugStatus = ref(null)
 const notifications = ref([])
 const unreadCount = ref(0)
 const pagination = reactive({
@@ -50,16 +30,6 @@ const pagination = reactive({
 
 const canGoPrevious = computed(() => pagination.page > 1 && !loading.value)
 const canGoNext = computed(() => pagination.page < pagination.pageCount && !loading.value)
-const pushEnabled = computed(() => subscribedInBackend.value)
-const pushBlocked = computed(() => pushState.permission === 'denied')
-const frontendAppId = computed(() => getOneSignalAppId() || 'Chưa cấu hình')
-const pushStatusLabel = computed(() => {
-  if (!pushState.configured) return 'Chưa cấu hình OneSignal'
-  if (!pushState.supported) return 'Trình duyệt không hỗ trợ'
-  if (pushEnabled.value) return 'Đã bật thông báo trên máy tính'
-  if (pushBlocked.value) return 'Trình duyệt đang chặn thông báo'
-  return 'Chưa bật thông báo trên máy tính'
-})
 
 const fetchNotifications = async (page = pagination.page) => {
   loading.value = true
@@ -124,101 +94,13 @@ const handleMarkAllRead = async () => {
   }
 }
 
-const checkPushSubscriptionStatus = async () => {
-  refreshPushBrowserState()
-  try {
-    const result = await getNotificationSubscriptionStatus()
-    subscribedInBackend.value = Boolean(result?.data?.subscribed)
-    if (!subscribedInBackend.value) {
-      pushState.subscribed = false
-    }
-  } catch (_error) {
-    subscribedInBackend.value = false
-    pushState.subscribed = false
-  }
-}
-
-const refreshDebugStatus = async () => {
-  refreshPushBrowserState()
-  const [subscriptionId, backendDebug] = await Promise.all([
-    getBrowserOneSignalSubscriptionId(),
-    getNotificationSubscriptionDebug().catch(() => null),
-  ])
-  browserSubscriptionId.value = subscriptionId
-  debugStatus.value = backendDebug?.data || null
-}
-
-const enablePushNotifications = async () => {
-  if (!state.userInfo || enablingPush.value || pushBlocked.value) return
-  enablingPush.value = true
-  try {
-    const userId = state.userInfo?.id || state.userInfo?.user_id || state.userInfo?.staff_id
-    setOneSignalPushOptOut(userId, false)
-    const subscriptionId = await bindOneSignalUser(state.userInfo, { requestPermission: true })
-    await checkPushSubscriptionStatus()
-    await refreshDebugStatus()
-    if (subscriptionId || pushEnabled.value) {
-      toast.success('Đã bật thông báo trên máy tính')
-    } else if (!pushBlocked.value) {
-      toast.info('Bạn cần cho phép thông báo trên trình duyệt để hoàn tất')
-    }
-  } catch (error) {
-    const message = error?.message || 'Không thể bật thông báo trên máy tính'
-    toast.error(message)
-  } finally {
-    enablingPush.value = false
-  }
-}
-
-const disablePushNotifications = async () => {
-  if (disablingPush.value) return
-  disablingPush.value = true
-  try {
-    await unregisterCurrentNotificationSubscriptions()
-    const userId = state.userInfo?.id || state.userInfo?.user_id || state.userInfo?.staff_id
-    setOneSignalPushOptOut(userId, true)
-    subscribedInBackend.value = false
-    pushState.subscribed = false
-    await refreshDebugStatus()
-    toast.success('Đã tắt thông báo trên máy tính')
-  } catch (error) {
-    const message = error?.response?.data?.message || error?.message || 'Không thể tắt thông báo trên máy tính'
-    toast.error(message)
-  } finally {
-    disablingPush.value = false
-  }
-}
-
-const handleTestPush = async () => {
-  if (testingPush.value) return
-  testingPush.value = true
-  try {
-    const result = await sendNotificationTestPush()
-    await refreshDebugStatus()
-    if (result?.success) {
-      toast.success('Đã gửi test push')
-    } else {
-      toast.error(result?.message || result?.data?.error || 'Gửi test push thất bại')
-    }
-  } catch (error) {
-    const message = error?.response?.data?.message || error?.message || 'Gửi test push thất bại'
-    toast.error(message)
-  } finally {
-    testingPush.value = false
-  }
-}
-
 const changePage = (page) => {
   if (page < 1 || page > pagination.pageCount || page === pagination.page) return
   void fetchNotifications(page)
 }
 
-onMounted(async () => {
-  await Promise.all([
-    fetchNotifications(1),
-    checkPushSubscriptionStatus(),
-    refreshDebugStatus(),
-  ])
+onMounted(() => {
+  void fetchNotifications(1)
 })
 </script>
 
@@ -229,7 +111,7 @@ onMounted(async () => {
         <div class="app-page-header">
           <div class="app-page-heading">
             <h3 class="app-page-title">Thông báo</h3>
-            <p class="app-page-subtitle">Theo dõi ticket mới, phản hồi và cấu hình thông báo trên máy tính.</p>
+            <p class="app-page-subtitle">Theo dõi ticket mới và các phản hồi cần xử lý.</p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
@@ -245,76 +127,6 @@ onMounted(async () => {
               <span class="material-symbols-outlined text-[18px]">done_all</span>
               {{ markingAllRead ? 'Đang cập nhật...' : 'Đánh dấu đã đọc' }}
             </button>
-          </div>
-        </div>
-      </div>
-
-      <div class="border-b border-[var(--stroke)] p-4">
-        <div class="flex flex-col gap-3 rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-4 tablet:flex-row tablet:items-center tablet:justify-between">
-          <div class="flex items-start gap-3">
-            <div class="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-[var(--primary)]">
-              <span class="material-symbols-outlined text-[22px]">notifications_active</span>
-            </div>
-            <div class="min-w-0">
-              <p class="text-sm font-semibold text-[var(--text-primary)]">Thông báo trên máy tính</p>
-              <p class="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{{ pushStatusLabel }}</p>
-              <p v-if="pushBlocked" class="mt-1 text-xs leading-5 text-[var(--danger-text)]">Hãy mở Site settings của trình duyệt và cho phép Notification cho website này.</p>
-            </div>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button
-              v-if="pushEnabled"
-              type="button"
-              class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="disablingPush"
-              @click="disablePushNotifications"
-            >
-              <span class="material-symbols-outlined text-[18px]">notifications_off</span>
-              {{ disablingPush ? 'Đang tắt...' : 'Tắt thông báo' }}
-            </button>
-            <button
-              v-else
-              type="button"
-              class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="enablingPush || pushBlocked || !pushState.configured || !pushState.supported"
-              @click="enablePushNotifications"
-            >
-              <span class="material-symbols-outlined text-[18px]">notifications</span>
-              {{ enablingPush ? 'Đang bật...' : 'Bật thông báo' }}
-            </button>
-          </div>
-        </div>
-
-        <div class="mt-3 rounded-xl border border-dashed border-[var(--stroke)] bg-white p-3">
-          <div class="flex flex-col gap-3 tablet:flex-row tablet:items-start tablet:justify-between">
-            <div class="min-w-0 space-y-1 text-xs leading-5 text-[var(--text-secondary)]">
-              <p class="font-semibold text-[var(--text-primary)]">Debug OneSignal</p>
-              <p>Frontend App ID: <span class="font-mono text-[var(--text-primary)]">{{ frontendAppId }}</span></p>
-              <p>Browser permission: <span class="font-mono text-[var(--text-primary)]">{{ pushState.permission }}</span></p>
-              <p>Browser subscription ID: <span class="break-all font-mono text-[var(--text-primary)]">{{ browserSubscriptionId || '--' }}</span></p>
-              <p>Backend App ID: <span class="font-mono text-[var(--text-primary)]">{{ debugStatus?.backend_app_id || '--' }}</span></p>
-              <p>Backend active subscriptions: <span class="font-mono text-[var(--text-primary)]">{{ debugStatus?.subscriptions?.filter((item) => item.is_active).length ?? '--' }}</span></p>
-              <p>Last push: <span class="font-mono text-[var(--text-primary)]">{{ debugStatus?.last_push_result?.success === true ? 'success' : (debugStatus?.last_push_result?.success === false ? 'failed' : '--') }}</span></p>
-            </div>
-            <div class="flex shrink-0 flex-wrap gap-2">
-              <button
-                type="button"
-                class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-60"
-                @click="refreshDebugStatus"
-              >
-                <span class="material-symbols-outlined text-[18px]">refresh</span>
-                Làm mới
-              </button>
-              <button
-                type="button"
-                class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                :disabled="testingPush || !pushEnabled"
-                @click="handleTestPush"
-              >
-                <span class="material-symbols-outlined text-[18px]">send</span>
-                {{ testingPush ? 'Đang gửi...' : 'Test push' }}
-              </button>
-            </div>
           </div>
         </div>
       </div>

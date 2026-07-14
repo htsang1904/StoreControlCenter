@@ -26,12 +26,12 @@ class Settings(BaseSettings):
     SUITE_VERIFY_TOKEN: bool = False
     SUITE_PUBLIC_KEY_FILE: str = ""
 
-    # OneSignal Web Push
+    # OneSignal transactional web push
     ONESIGNAL_APP_ID: str = ""
     ONESIGNAL_REST_API_KEY: str = ""
     ONESIGNAL_API_URL: str = "https://api.onesignal.com/notifications"
     APP_PUBLIC_URL: str = ""
-    
+
     # CORS
     ALLOWED_ORIGINS: str = "*"
     CORS_ALLOW_CREDENTIALS: bool = True
