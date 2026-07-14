@@ -8,6 +8,10 @@ import {
   listNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  normalizeNotificationItem,
+  normalizeNotificationList,
+  formatNotificationTime,
+  getNotificationDisplayTitle,
 } from '@/services/notification_service'
 
 const NOTIFICATION_PAGE_SIZE = 12
@@ -26,35 +30,13 @@ const markingAllRead = ref(false)
 let pollingTimer = null
 let notificationsConnection = null
 
-const normalizeNotificationItem = (item = {}) => {
-  const normalized = {
-    ...item,
-    createdAt: item?.createdAt || item?.created_at || null,
-    updatedAt: item?.updatedAt || item?.updated_at || null,
-    read_at: item?.read_at || item?.readAt || null,
-    ticket_id: Number(item?.ticket_id || item?.ticket?.id || item?.meta?.ticket_id || item?.meta_info?.ticket_id || 0) || null,
-    meta: item?.meta || item?.meta_info || {},
-  }
-
-  if (!normalized.ticket && normalized.ticket_id) {
-    normalized.ticket = { id: normalized.ticket_id }
-  }
-
-  return normalized
-}
-
-const normalizeNotificationList = (items = []) => {
-  if (!Array.isArray(items)) return []
-  return items.map((item) => normalizeNotificationItem(item))
-}
-
 const getRealtimeToken = () => localStorage.getItem('token') || state?.token || null
 
 const upsertNotification = (incoming) => {
   const notification = normalizeNotificationItem(incoming)
   const incomingId = Number(notification?.id || 0)
   if (incomingId <= 0) {
-    notifications.value = [notification, ...notifications.value].slice(0, NOTIFICATION_PAGE_SIZE)
+    notifications.value = normalizeNotificationList([notification, ...notifications.value]).slice(0, NOTIFICATION_PAGE_SIZE)
     return
   }
 
@@ -65,11 +47,11 @@ const upsertNotification = (incoming) => {
       ...nextItems[existingIndex],
       ...notification,
     }
-    notifications.value = nextItems
+    notifications.value = normalizeNotificationList(nextItems).slice(0, NOTIFICATION_PAGE_SIZE)
     return
   }
 
-  notifications.value = [notification, ...notifications.value].slice(0, NOTIFICATION_PAGE_SIZE)
+  notifications.value = normalizeNotificationList([notification, ...notifications.value]).slice(0, NOTIFICATION_PAGE_SIZE)
 }
 
 const handleNotificationRealtimeEvent = (payload = {}) => {
@@ -104,19 +86,6 @@ const handleNotificationRealtimeEvent = (payload = {}) => {
       unreadCount.value = nextUnreadCount
     }
   }
-}
-
-const formatNotificationTime = (value) => {
-  if (!value) return '--'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '--'
-
-  return new Intl.DateTimeFormat('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
 }
 
 const updateNotificationReadState = (notificationId) => {
@@ -163,6 +132,11 @@ const handleToggleNotification = async () => {
   if (notificationOpen.value) {
     await fetchNotifications({ silent: true })
   }
+}
+
+const handleOpenAllNotifications = async () => {
+  notificationOpen.value = false
+  await router.push('/notifications')
 }
 
 const handleClickOutside = (event) => {
@@ -324,11 +298,21 @@ onBeforeUnmount(() => {
           @click="handleOpenNotification(item)"
         >
           <div class="flex items-start justify-between gap-2">
-            <p class="text-sm font-semibold text-[var(--text-primary)]">{{ item.title || 'Thông báo' }}</p>
+            <p class="text-sm font-semibold text-[var(--text-primary)]">{{ getNotificationDisplayTitle(item) }}</p>
             <span v-if="!item.is_read" class="mt-1 inline-flex size-2 rounded-full bg-[var(--primary)]"></span>
           </div>
           <p class="mt-1 line-clamp-2 text-xs text-[var(--text-secondary)]">{{ item.message }}</p>
           <p class="mt-1 text-[11px] text-[var(--text-muted)]">{{ formatNotificationTime(item.createdAt) }}</p>
+        </button>
+      </div>
+
+      <div class="border-t border-[var(--stroke)] p-2">
+        <button
+          type="button"
+          class="flex w-full items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--primary-softer)]"
+          @click="handleOpenAllNotifications"
+        >
+          <span>Xem tất cả thông báo</span>
         </button>
       </div>
     </div>

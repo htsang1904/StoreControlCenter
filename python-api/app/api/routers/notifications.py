@@ -2,14 +2,41 @@ from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, update
 from sqlalchemy.future import select
-from sqlalchemy.orm import selectinload
 
 from app.api.deps import SessionDep, CurrentUser
 from app.models.notification import Notification
-from app.schemas.notification import NotificationResponse
+from app.models.notification_subscription import NotificationSubscription
+from app.schemas.notification import (
+    NotificationResponse,
+    NotificationSubscriptionCreate,
+    NotificationSubscriptionResponse,
+)
 from app.services.notification_service import emit_notification_unread_count_event
 
 router = APIRouter()
+
+
+def serialize_notification(notification: Notification) -> dict:
+    created_at = notification.created_at.isoformat() if notification.created_at else None
+    updated_at = notification.updated_at.isoformat() if notification.updated_at else None
+    read_at = notification.read_at.isoformat() if notification.read_at else None
+    return {
+        "id": notification.id,
+        "title": notification.title,
+        "message": notification.message,
+        "type": notification.type,
+        "is_read": notification.is_read,
+        "read_at": read_at,
+        "meta_info": notification.meta_info,
+        "meta": notification.meta_info or {},
+        "recipient_id": notification.recipient_id,
+        "actor_id": notification.actor_id,
+        "ticket_id": notification.ticket_id,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "createdAt": created_at,
+        "updatedAt": updated_at,
+    }
 
 @router.get("/", response_model=Any)
 async def read_notifications(
@@ -44,7 +71,7 @@ async def read_notifications(
     unread_result = await session.execute(unread_query)
     unread_count = unread_result.scalar() or 0
     
-    serialized_items = [NotificationResponse.model_validate(item) for item in items]
+    serialized_items = [serialize_notification(item) for item in items]
     return {
         "success": True,
         "data": serialized_items,
@@ -111,3 +138,67 @@ async def mark_all_notifications_as_read(
     await emit_notification_unread_count_event(current_user.id, 0)
     
     return {"success": True, "unread_count": 0, "message": "Đã đánh dấu tất cả đã đọc"}
+
+
+@router.post("/subscriptions", response_model=dict)
+async def upsert_notification_subscription(
+    payload: NotificationSubscriptionCreate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    subscription_id = payload.subscription_id.strip()
+    if not subscription_id:
+        raise HTTPException(status_code=400, detail="Subscription ID không hợp lệ")
+
+    result = await session.execute(
+        select(NotificationSubscription).where(
+            NotificationSubscription.subscription_id == subscription_id
+        )
+    )
+    subscription = result.scalar_one_or_none()
+
+    if subscription:
+        subscription.user_id = current_user.id
+        subscription.external_id = payload.external_id
+        subscription.platform = payload.platform or "web"
+        subscription.is_active = True
+        subscription.last_seen_at = func.now()
+    else:
+        subscription = NotificationSubscription(
+            user_id=current_user.id,
+            subscription_id=subscription_id,
+            external_id=payload.external_id,
+            platform=payload.platform or "web",
+            is_active=True,
+            last_seen_at=func.now(),
+        )
+        session.add(subscription)
+
+    await session.commit()
+    await session.refresh(subscription)
+
+    return {
+        "success": True,
+        "data": NotificationSubscriptionResponse.model_validate(subscription),
+    }
+
+
+@router.delete("/subscriptions/{subscription_id:path}", response_model=dict)
+async def deactivate_notification_subscription(
+    subscription_id: str,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    result = await session.execute(
+        select(NotificationSubscription).where(
+            NotificationSubscription.subscription_id == subscription_id,
+            NotificationSubscription.user_id == current_user.id,
+        )
+    )
+    subscription = result.scalar_one_or_none()
+    if subscription:
+        subscription.is_active = False
+        subscription.last_seen_at = func.now()
+        await session.commit()
+
+    return {"success": True}

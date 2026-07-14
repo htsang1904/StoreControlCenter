@@ -21,6 +21,12 @@ const router = createRouter({
                     meta: { auth: true }
                 },
                 {
+                    path: 'notifications',
+                    name: 'Notifications',
+                    component: () => import('@/pages/NotificationsPage.vue'),
+                    meta: { auth: true }
+                },
+                {
                     path: 'ticket',
                     name: 'Ticket Management',
                     component: () => import('@/pages/TicketManagementPage.vue'),

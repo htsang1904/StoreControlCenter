@@ -17,6 +17,10 @@ from app.models.ticket import Ticket, TicketLog, ticket_assignees
 from app.models.user import User
 from app.schemas.ticket import TicketResponse, TicketCreate, TicketDetailResponse, TicketLogResponse, TicketUpdate
 from app.schemas.user import UserMinimalResponse
+from app.services.notification_service import (
+    build_ticket_created_notifications,
+    emit_notification_created_events,
+)
 from app.services.realtime import realtime_manager
 from app.services.ticket_policy import (
     can_access_ticket,
@@ -110,6 +114,21 @@ async def _is_handler_assignee(session: AsyncSession, ticket_id: int, user_id: i
         .where(Ticket.id == ticket_id, Ticket.assignees.any(id=user_id))
     )
     return (assigned_result.scalar() or 0) > 0
+
+
+async def _load_ticket_created_notification_recipient_ids(session: AsyncSession, ticket: Ticket) -> list[int]:
+    recipient_query = select(User.id).where(
+        User.is_active == True,  # noqa: E712
+        or_(
+            User.role == "admin",
+            and_(
+                User.role == "handler",
+                User.department_id == ticket.responsible_department_id,
+            ),
+        ),
+    )
+    result = await session.execute(recipient_query)
+    return [int(user_id) for user_id in result.scalars().all()]
 
 @router.get("/", response_model=dict)
 async def read_tickets(
@@ -257,11 +276,26 @@ async def create_ticket(
     
     ticket = Ticket(**data)
     session.add(ticket)
+    await session.flush()
+
+    notification_recipient_ids = await _load_ticket_created_notification_recipient_ids(session, ticket)
+    notifications = build_ticket_created_notifications(
+        recipient_ids=notification_recipient_ids,
+        actor_id=current_user.id,
+        actor_name=current_user.name or "",
+        ticket_id=ticket.id,
+        ticket_code=ticket.ticket_code,
+        ticket_title=ticket.title,
+    )
+    if notifications:
+        session.add_all(notifications)
+
     await session.commit()
     
     updated_ticket = await _get_ticket_with_details(session, ticket.id)
     serialized_ticket = TicketResponse.model_validate(updated_ticket)
     await _emit_ticket_event(ticket.id, "ticket.created", serialized_ticket)
+    await emit_notification_created_events(session, notifications)
     return {"success": True, "message": "Tạo phiếu thành công", "data": serialized_ticket}
 
 @router.post("/upload-attachments", response_model=dict)

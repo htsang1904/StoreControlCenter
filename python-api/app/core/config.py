@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     MAIN_STORE_SYNC_URL: str = "https://gapi.guta.asia/webapi/stores?all_stores=true"
     SUITE_VERIFY_TOKEN: bool = False
     SUITE_PUBLIC_KEY_FILE: str = ""
+
+    # OneSignal Web Push
+    ONESIGNAL_APP_ID: str = ""
+    ONESIGNAL_REST_API_KEY: str = ""
+    ONESIGNAL_API_URL: str = "https://api.onesignal.com/notifications"
+    APP_PUBLIC_URL: str = ""
     
     # CORS
     ALLOWED_ORIGINS: str = "*"

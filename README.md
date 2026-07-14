@@ -46,3 +46,22 @@ npm run dev
 ```sh
 npm run build
 ```
+
+## OneSignal Web Push
+
+Frontend env:
+
+```env
+VITE_ONESIGNAL_APP_ID=
+```
+
+Backend env in `python-api/.env`:
+
+```env
+ONESIGNAL_APP_ID=
+ONESIGNAL_REST_API_KEY=
+ONESIGNAL_API_URL=https://api.onesignal.com/notifications
+APP_PUBLIC_URL=https://your-frontend-domain.example
+```
+
+The service worker file must be served from the site root at `/OneSignalSDKWorker.js`.
