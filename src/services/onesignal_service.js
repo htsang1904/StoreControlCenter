@@ -290,8 +290,6 @@ export const enableOneSignalPush = async (user) => {
       if (!ready) return null
 
       return withOneSignal(async (OneSignal) => {
-        await identifyOneSignalUser(OneSignal, user)
-
         syncSubscriptionState(OneSignal)
         if (!pushState.optedIn) {
           await OneSignal.User.PushSubscription.optIn()
@@ -304,6 +302,7 @@ export const enableOneSignalPush = async (user) => {
 
         const subscriptionId = await waitForActiveSubscription(OneSignal)
         await assertBrowserPushSubscription()
+        await identifyOneSignalUser(OneSignal, user)
         pushState.lastError = ''
         return subscriptionId
       })
