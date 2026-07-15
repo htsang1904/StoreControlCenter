@@ -3,7 +3,7 @@ import { reactive } from 'vue'
 const ONESIGNAL_SCRIPT_ID = 'onesignal-sdk'
 const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
 const ONESIGNAL_TIMEOUT_MS = 12000
-const LEGACY_RESET_VERSION = 'v2'
+const LEGACY_RESET_VERSION = 'v3'
 
 let initialized = false
 let initializingPromise = null
@@ -227,7 +227,7 @@ const waitForActiveSubscription = (OneSignal) => {
   })
 }
 
-export const initializeOneSignal = async (user = null) => {
+export const initializeOneSignal = async () => {
   const didResetLegacyState = await resetLegacyOneSignalState()
   if (didResetLegacyState) {
     window.location.reload()
@@ -267,47 +267,51 @@ export const initializeOneSignal = async (user = null) => {
 
   await initializingPromise
 
-  const userId = getUserId(user)
-  if (userId && identifiedUserId !== String(userId)) {
-    await withOneSignal(async (OneSignal) => {
-      try {
-        await OneSignal.login(String(userId))
-      } catch (error) {
-        // OneSignal returns 409 while moving this subscription to an existing
-        // user with the same External ID. This is an expected login outcome.
-        if (!isExpectedIdentityConflict(error)) throw error
-      }
-      identifiedUserId = String(userId)
-      syncSubscriptionState(OneSignal)
-    })
-  }
-
   pushState.lastError = ''
   return true
+}
+
+const identifyOneSignalUser = async (OneSignal, user) => {
+  const userId = getUserId(user)
+  if (!userId || identifiedUserId === String(userId)) return
+
+  try {
+    await OneSignal.login(String(userId))
+  } catch (error) {
+    if (!isExpectedIdentityConflict(error)) throw error
+  }
+  identifiedUserId = String(userId)
+  syncSubscriptionState(OneSignal)
+}
+
+const assertBrowserPushSubscription = async () => {
+  const registration = await navigator.serviceWorker.ready
+  const subscription = await registration.pushManager.getSubscription()
+  if (!subscription?.endpoint) {
+    throw new Error('Chrome chưa tạo push token. Hãy kiểm tra Service Worker và thử lại.')
+  }
 }
 
 export const enableOneSignalPush = async (user) => {
   if (!enablingPromise) {
     enablingPromise = (async () => {
-      const ready = await initializeOneSignal(user)
+      const ready = await initializeOneSignal()
       if (!ready) return null
 
       return withOneSignal(async (OneSignal) => {
-        if (OneSignal.Notifications.permission !== true) {
-          await OneSignal.Notifications.requestPermission()
-          refreshBrowserState()
-
-          if (pushState.permission !== 'granted') {
-            throw new Error('Bạn chưa cấp quyền thông báo cho trình duyệt')
-          }
-        }
-
         syncSubscriptionState(OneSignal)
         if (!pushState.optedIn) {
           await OneSignal.User.PushSubscription.optIn()
         }
 
+        refreshBrowserState()
+        if (pushState.permission !== 'granted') {
+          throw new Error('Bạn chưa cấp quyền thông báo cho trình duyệt')
+        }
+
         const subscriptionId = await waitForActiveSubscription(OneSignal)
+        await assertBrowserPushSubscription()
+        await identifyOneSignalUser(OneSignal, user)
         pushState.lastError = ''
         return subscriptionId
       })

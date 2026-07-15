@@ -45,7 +45,7 @@ const prepareOneSignal = async () => {
   errorMessage.value = ''
 
   try {
-    await initializeOneSignal(state.userInfo)
+    await initializeOneSignal()
   } catch (error) {
     errorMessage.value = error?.message || 'Không thể khởi tạo thông báo'
   } finally {
