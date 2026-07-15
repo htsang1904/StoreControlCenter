@@ -23,7 +23,8 @@ const currentUserId = computed(() => (
 const isSubscribed = computed(() => (
   pushState.permission === 'granted' &&
   pushState.optedIn &&
-  Boolean(pushState.subscriptionId)
+  Boolean(pushState.subscriptionId) &&
+  Boolean(pushState.subscriptionToken)
 ))
 
 const permissionDenied = computed(() => pushState.permission === 'denied')

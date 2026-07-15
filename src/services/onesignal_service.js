@@ -7,6 +7,7 @@ const LEGACY_RESET_VERSION = 'v2'
 
 let initialized = false
 let initializingPromise = null
+let enablingPromise = null
 let subscriptionListenerAttached = false
 let identifiedUserId = null
 
@@ -17,6 +18,7 @@ export const pushState = reactive({
   permission: 'default',
   optedIn: false,
   subscriptionId: null,
+  subscriptionToken: null,
   lastError: '',
 })
 
@@ -167,6 +169,7 @@ const syncSubscriptionState = (OneSignal) => {
   refreshBrowserState()
   pushState.optedIn = OneSignal?.User?.PushSubscription?.optedIn === true
   pushState.subscriptionId = OneSignal?.User?.PushSubscription?.id || null
+  pushState.subscriptionToken = OneSignal?.User?.PushSubscription?.token || null
   pushState.ready = true
 }
 
@@ -177,13 +180,19 @@ const attachSubscriptionListener = (OneSignal) => {
     refreshBrowserState()
     pushState.optedIn = event.current.optedIn === true
     pushState.subscriptionId = event.current.id || null
+    pushState.subscriptionToken = event.current.token || null
   })
   subscriptionListenerAttached = true
 }
 
 const waitForActiveSubscription = (OneSignal) => {
   syncSubscriptionState(OneSignal)
-  if (pushState.permission === 'granted' && pushState.optedIn && pushState.subscriptionId) {
+  if (
+    pushState.permission === 'granted' &&
+    pushState.optedIn &&
+    pushState.subscriptionId &&
+    pushState.subscriptionToken
+  ) {
     return Promise.resolve(pushState.subscriptionId)
   }
   if (pushState.permission === 'denied') {
@@ -200,8 +209,14 @@ const waitForActiveSubscription = (OneSignal) => {
       refreshBrowserState()
       pushState.optedIn = event.current.optedIn === true
       pushState.subscriptionId = event.current.id || null
+      pushState.subscriptionToken = event.current.token || null
 
-      if (pushState.permission === 'granted' && pushState.optedIn && pushState.subscriptionId) {
+      if (
+        pushState.permission === 'granted' &&
+        pushState.optedIn &&
+        pushState.subscriptionId &&
+        pushState.subscriptionToken
+      ) {
         window.clearTimeout(timeoutId)
         OneSignal.User.PushSubscription.removeEventListener('change', handleChange)
         resolve(pushState.subscriptionId)
@@ -230,16 +245,6 @@ export const initializeOneSignal = async (user = null) => {
             appId: getOneSignalAppId(),
             notifyButton: {
               enable: false,
-            },
-            promptOptions: {
-              slidedown: {
-                prompts: [
-                  {
-                    type: 'push',
-                    autoPrompt: false,
-                  },
-                ],
-              },
             },
           })
         } catch (error) {
@@ -282,28 +287,40 @@ export const initializeOneSignal = async (user = null) => {
 }
 
 export const enableOneSignalPush = async (user) => {
-  const ready = await initializeOneSignal(user)
-  if (!ready) return null
+  if (!enablingPromise) {
+    enablingPromise = (async () => {
+      const ready = await initializeOneSignal(user)
+      if (!ready) return null
 
-  return withOneSignal(async (OneSignal) => {
-    if (OneSignal.Notifications.permission !== true) {
-      await OneSignal.Notifications.requestPermission()
+      return withOneSignal(async (OneSignal) => {
+        if (OneSignal.Notifications.permission !== true) {
+          await OneSignal.Notifications.requestPermission()
+          refreshBrowserState()
+
+          if (pushState.permission !== 'granted') {
+            throw new Error('Bạn chưa cấp quyền thông báo cho trình duyệt')
+          }
+        }
+
+        syncSubscriptionState(OneSignal)
+        if (!pushState.optedIn) {
+          await OneSignal.User.PushSubscription.optIn()
+        }
+
+        const subscriptionId = await waitForActiveSubscription(OneSignal)
+        pushState.lastError = ''
+        return subscriptionId
+      })
+    })().catch((error) => {
       refreshBrowserState()
+      pushState.lastError = error?.message || 'Không thể bật thông báo'
+      throw error
+    }).finally(() => {
+      enablingPromise = null
+    })
+  }
 
-      if (pushState.permission !== 'granted') {
-        throw new Error('Bạn chưa cấp quyền thông báo cho trình duyệt')
-      }
-    }
-
-    await OneSignal.User.PushSubscription.optIn()
-    const subscriptionId = await waitForActiveSubscription(OneSignal)
-    pushState.lastError = ''
-    return subscriptionId
-  }).catch((error) => {
-    refreshBrowserState()
-    pushState.lastError = error?.message || 'Không thể bật thông báo'
-    throw error
-  })
+  return enablingPromise
 }
 
 export const disconnectOneSignalUser = async () => {
