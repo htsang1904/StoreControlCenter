@@ -173,6 +173,12 @@ const syncSubscriptionState = (OneSignal) => {
   pushState.ready = true
 }
 
+const syncIdentifiedUser = (OneSignal) => {
+  identifiedUserId = OneSignal?.User?.externalId
+    ? String(OneSignal.User.externalId)
+    : null
+}
+
 const attachSubscriptionListener = (OneSignal) => {
   if (subscriptionListenerAttached) return
 
@@ -255,6 +261,7 @@ export const initializeOneSignal = async () => {
 
       attachSubscriptionListener(OneSignal)
       syncSubscriptionState(OneSignal)
+      syncIdentifiedUser(OneSignal)
       return true
     }).catch((error) => {
       pushState.ready = false
@@ -273,6 +280,7 @@ export const initializeOneSignal = async () => {
 
 const identifyOneSignalUser = async (OneSignal, user) => {
   const userId = getUserId(user)
+  syncIdentifiedUser(OneSignal)
   if (!userId || identifiedUserId === String(userId)) return
 
   try {
