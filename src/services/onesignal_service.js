@@ -30,19 +30,6 @@ const isAlreadyInitializedError = (error) => (
   String(error?.message || error || '').toLowerCase().includes('already initialized')
 )
 
-const isExpectedIdentityConflict = (error) => {
-  const status = Number(
-    error?.status ||
-    error?.statusCode ||
-    error?.response?.status ||
-    error?.response?.statusCode ||
-    0
-  )
-  const message = String(error?.message || error || '').toLowerCase()
-
-  return status === 409 || (message.includes('409') && message.includes('conflict'))
-}
-
 const deleteIndexedDatabase = (databaseName) => new Promise((resolve) => {
   const request = window.indexedDB.deleteDatabase(databaseName)
   request.onsuccess = () => resolve()
@@ -283,11 +270,7 @@ const identifyOneSignalUser = async (OneSignal, user) => {
   syncIdentifiedUser(OneSignal)
   if (!userId || identifiedUserId === String(userId)) return
 
-  try {
-    await OneSignal.login(String(userId))
-  } catch (error) {
-    if (!isExpectedIdentityConflict(error)) throw error
-  }
+  await OneSignal.login(String(userId))
   identifiedUserId = String(userId)
   syncSubscriptionState(OneSignal)
 }
@@ -307,6 +290,8 @@ export const enableOneSignalPush = async (user) => {
       if (!ready) return null
 
       return withOneSignal(async (OneSignal) => {
+        await identifyOneSignalUser(OneSignal, user)
+
         syncSubscriptionState(OneSignal)
         if (!pushState.optedIn) {
           await OneSignal.User.PushSubscription.optIn()
@@ -319,7 +304,6 @@ export const enableOneSignalPush = async (user) => {
 
         const subscriptionId = await waitForActiveSubscription(OneSignal)
         await assertBrowserPushSubscription()
-        await identifyOneSignalUser(OneSignal, user)
         pushState.lastError = ''
         return subscriptionId
       })
