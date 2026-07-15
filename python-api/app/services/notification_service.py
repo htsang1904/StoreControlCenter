@@ -9,7 +9,8 @@ from sqlalchemy.future import select
 from app.core.config import settings
 from app.core.datetime_utils import utc_now_naive
 from app.models.notification import Notification
-from app.services.onesignal_client import send_push_to_external_ids
+from app.models.notification_subscription import NotificationSubscription
+from app.services.onesignal_client import send_push_to_subscription_ids
 from app.services.realtime import realtime_manager
 
 logger = logging.getLogger(__name__)
@@ -212,7 +213,7 @@ async def emit_notification_created_events(
             },
         )
 
-    await send_onesignal_notifications(notifications)
+    await send_onesignal_notifications(session, notifications)
 
 async def emit_notification_unread_count_event(user_id: int, unread_count: int) -> None:
     await realtime_manager.emit_user_event(
@@ -261,7 +262,21 @@ def _build_push_target(notification: Notification) -> tuple[str | None, dict]:
     }
 
 
-async def send_onesignal_notifications(notifications: list[Notification]) -> None:
+async def send_onesignal_notifications(
+    session: AsyncSession,
+    notifications: list[Notification],
+) -> None:
+    recipient_ids = normalize_recipient_ids([item.recipient_id for item in notifications])
+    result = await session.execute(
+        select(NotificationSubscription).where(
+            NotificationSubscription.user_id.in_(recipient_ids),
+            NotificationSubscription.is_active == True,
+        )
+    )
+    subscriptions_by_user: dict[int, list[str]] = {}
+    for subscription in result.scalars().all():
+        subscriptions_by_user.setdefault(int(subscription.user_id), []).append(subscription.subscription_id)
+
     grouped_notifications: dict[tuple[str, str, str | None, int | None, str | None], list[Notification]] = defaultdict(list)
 
     for notification in notifications:
@@ -276,9 +291,16 @@ async def send_onesignal_notifications(notifications: list[Notification]) -> Non
         grouped_notifications[key].append(notification)
 
     for (heading, content, target_url, ticket_id, kind), grouped_items in grouped_notifications.items():
-        external_ids = [str(item.recipient_id) for item in grouped_items]
-        result = await send_push_to_external_ids(
-            external_ids=external_ids,
+        subscription_ids = [
+            subscription_id
+            for item in grouped_items
+            for subscription_id in subscriptions_by_user.get(int(item.recipient_id), [])
+        ]
+        if not subscription_ids:
+            continue
+
+        result = await send_push_to_subscription_ids(
+            subscription_ids=subscription_ids,
             heading=heading,
             content=content,
             url=target_url,
@@ -292,14 +314,14 @@ async def send_onesignal_notifications(notifications: list[Notification]) -> Non
             logger.info(
                 "OneSignal push sent: message_id=%s recipients=%s kind=%s.",
                 result.message_id,
-                len(external_ids),
+                len(subscription_ids),
                 kind,
             )
             continue
 
         logger.warning(
             "OneSignal push failed: recipients=%s kind=%s status=%s error=%s body=%s",
-            external_ids,
+            subscription_ids,
             kind,
             result.status_code,
             result.error,

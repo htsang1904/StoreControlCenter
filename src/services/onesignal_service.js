@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { registerNotificationSubscription } from './notification_service'
 
 const ONESIGNAL_SCRIPT_ID = 'onesignal-sdk'
 const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
@@ -9,7 +10,6 @@ let initialized = false
 let initializingPromise = null
 let enablingPromise = null
 let subscriptionListenerAttached = false
-let identifiedUserId = null
 
 export const pushState = reactive({
   configured: false,
@@ -23,8 +23,6 @@ export const pushState = reactive({
 })
 
 export const getOneSignalAppId = () => String(import.meta.env.VITE_ONESIGNAL_APP_ID || '').trim()
-
-const getUserId = (user) => user?.id || user?.user_id || user?.staff_id || null
 
 const isAlreadyInitializedError = (error) => (
   String(error?.message || error || '').toLowerCase().includes('already initialized')
@@ -160,12 +158,6 @@ const syncSubscriptionState = (OneSignal) => {
   pushState.ready = true
 }
 
-const syncIdentifiedUser = (OneSignal) => {
-  identifiedUserId = OneSignal?.User?.externalId
-    ? String(OneSignal.User.externalId)
-    : null
-}
-
 const attachSubscriptionListener = (OneSignal) => {
   if (subscriptionListenerAttached) return
 
@@ -248,7 +240,6 @@ export const initializeOneSignal = async () => {
 
       attachSubscriptionListener(OneSignal)
       syncSubscriptionState(OneSignal)
-      syncIdentifiedUser(OneSignal)
       return true
     }).catch((error) => {
       pushState.ready = false
@@ -265,16 +256,6 @@ export const initializeOneSignal = async () => {
   return true
 }
 
-const identifyOneSignalUser = async (OneSignal, user) => {
-  const userId = getUserId(user)
-  syncIdentifiedUser(OneSignal)
-  if (!userId || identifiedUserId === String(userId)) return
-
-  await OneSignal.login(String(userId))
-  identifiedUserId = String(userId)
-  syncSubscriptionState(OneSignal)
-}
-
 const assertBrowserPushSubscription = async () => {
   const registration = await navigator.serviceWorker.ready
   const subscription = await registration.pushManager.getSubscription()
@@ -283,7 +264,7 @@ const assertBrowserPushSubscription = async () => {
   }
 }
 
-export const enableOneSignalPush = async (user) => {
+export const enableOneSignalPush = async () => {
   if (!enablingPromise) {
     enablingPromise = (async () => {
       const ready = await initializeOneSignal()
@@ -302,7 +283,13 @@ export const enableOneSignalPush = async (user) => {
 
         const subscriptionId = await waitForActiveSubscription(OneSignal)
         await assertBrowserPushSubscription()
-        await identifyOneSignalUser(OneSignal, user)
+        const result = await registerNotificationSubscription({
+          subscription_id: subscriptionId,
+          platform: 'web',
+        })
+        if (result?.success === false) {
+          throw new Error(result?.message || 'Không thể lưu thiết bị nhận thông báo')
+        }
         pushState.lastError = ''
         return subscriptionId
       })
@@ -319,13 +306,7 @@ export const enableOneSignalPush = async (user) => {
 }
 
 export const disconnectOneSignalUser = async () => {
-  if (!initialized) return
-
-  await withOneSignal(async (OneSignal) => {
-    await OneSignal.logout()
-    identifiedUserId = null
-    syncSubscriptionState(OneSignal)
-  }).catch(() => {})
+  return Promise.resolve()
 }
 
 refreshBrowserState()

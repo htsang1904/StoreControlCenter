@@ -21,3 +21,7 @@ class NotificationResponse(NotificationBase):
     updatedAt: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
+
+class NotificationSubscriptionCreate(BaseModel):
+    subscription_id: str
+    platform: str = "web"

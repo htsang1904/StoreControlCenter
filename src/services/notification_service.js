@@ -23,6 +23,10 @@ export const markAllNotificationsRead = () => {
   return http.patch('/api/notifications/read-all')
 }
 
+export const registerNotificationSubscription = (payload) => {
+  return http.post('/api/notifications/subscriptions', payload)
+}
+
 export const normalizeNotificationItem = (item = {}) => {
   const meta = item?.meta || item?.meta_info || {}
   const normalized = {

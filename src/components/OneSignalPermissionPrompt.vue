@@ -59,7 +59,7 @@ const enableNotifications = async () => {
   errorMessage.value = ''
 
   try {
-    const subscriptionId = await enableOneSignalPush(state.userInfo)
+    const subscriptionId = await enableOneSignalPush()
     if (subscriptionId) {
       dismissed.value = true
       toast.success('Đã đăng ký nhận thông báo')

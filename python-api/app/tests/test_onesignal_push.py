@@ -62,10 +62,42 @@ async def test_send_push_targets_external_user_ids(monkeypatch):
     assert _FakeAsyncClient.captured["json"]["target_channel"] == "push"
     assert _FakeAsyncClient.captured["headers"]["Authorization"] == "Key rest-key"
 
+@pytest.mark.anyio
+async def test_send_push_targets_subscription_ids(monkeypatch):
+    monkeypatch.setattr(settings, "ONESIGNAL_APP_ID", "app-id")
+    monkeypatch.setattr(settings, "ONESIGNAL_REST_API_KEY", "rest-key")
+    monkeypatch.setattr(settings, "ONESIGNAL_API_URL", "https://api.onesignal.test/notifications")
+    monkeypatch.setattr(onesignal_client.httpx, "AsyncClient", _FakeAsyncClient)
+
+    result = await onesignal_client.send_push_to_subscription_ids(
+        subscription_ids=["sub-12", "sub-12", "sub-18"],
+        heading="Ticket mới",
+        content="Có ticket cần xử lý",
+    )
+
+    assert result.success is True
+    assert _FakeAsyncClient.captured["json"]["include_subscription_ids"] == ["sub-12", "sub-18"]
+    assert "include_aliases" not in _FakeAsyncClient.captured["json"]
+
 
 @pytest.mark.anyio
 async def test_notification_dispatch_batches_same_event_by_recipient(monkeypatch):
     captured_calls = []
+
+    class _Scalars:
+        def all(self):
+            return [
+                SimpleNamespace(user_id=12, subscription_id="sub-12"),
+                SimpleNamespace(user_id=18, subscription_id="sub-18"),
+            ]
+
+    class _Result:
+        def scalars(self):
+            return _Scalars()
+
+    class _Session:
+        async def execute(self, _query):
+            return _Result()
 
     async def _capture_send(**kwargs):
         captured_calls.append(kwargs)
@@ -78,7 +110,7 @@ async def test_notification_dispatch_batches_same_event_by_recipient(monkeypatch
         )
 
     monkeypatch.setattr(settings, "APP_PUBLIC_URL", "https://app.example/")
-    monkeypatch.setattr(notification_service, "send_push_to_external_ids", _capture_send)
+    monkeypatch.setattr(notification_service, "send_push_to_subscription_ids", _capture_send)
 
     notifications = [
         SimpleNamespace(
@@ -97,10 +129,10 @@ async def test_notification_dispatch_batches_same_event_by_recipient(monkeypatch
         ),
     ]
 
-    await notification_service.send_onesignal_notifications(notifications)
+    await notification_service.send_onesignal_notifications(_Session(), notifications)
 
     assert len(captured_calls) == 1
-    assert captured_calls[0]["external_ids"] == ["12", "18"]
+    assert captured_calls[0]["subscription_ids"] == ["sub-12", "sub-18"]
     assert captured_calls[0]["url"] == "https://app.example/ticket/inbox?ticket=7"
     assert captured_calls[0]["data"]["kind"] == "ticket_reply"
 
@@ -116,7 +148,7 @@ async def test_created_event_also_dispatches_onesignal(monkeypatch):
     async def _emit_user_event(*args):
         realtime_calls.append(args)
 
-    async def _send_push(notifications):
+    async def _send_push(_session, notifications):
         push_calls.append(notifications)
 
     monkeypatch.setattr(notification_service, "_load_unread_count_by_user", _load_unread)

@@ -5,9 +5,47 @@ from sqlalchemy.future import select
 
 from app.api.deps import SessionDep, CurrentUser
 from app.models.notification import Notification
+from app.models.notification_subscription import NotificationSubscription
+from app.schemas.notification import NotificationSubscriptionCreate
 from app.services.notification_service import emit_notification_unread_count_event
 
 router = APIRouter()
+
+@router.post("/subscriptions", response_model=dict)
+async def upsert_notification_subscription(
+    payload: NotificationSubscriptionCreate,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    subscription_id = payload.subscription_id.strip()
+    if not subscription_id:
+        raise HTTPException(status_code=400, detail="Subscription ID không hợp lệ")
+
+    result = await session.execute(
+        select(NotificationSubscription).where(
+            NotificationSubscription.subscription_id == subscription_id
+        )
+    )
+    subscription = result.scalar_one_or_none()
+
+    if subscription:
+        subscription.user_id = current_user.id
+        subscription.platform = payload.platform or "web"
+        subscription.is_active = True
+        subscription.last_seen_at = func.now()
+    else:
+        subscription = NotificationSubscription(
+            user_id=current_user.id,
+            subscription_id=subscription_id,
+            platform=payload.platform or "web",
+            is_active=True,
+            last_seen_at=func.now(),
+        )
+        session.add(subscription)
+
+    await session.commit()
+    await session.refresh(subscription)
+    return {"success": True, "data": {"subscription_id": subscription.subscription_id}}
 
 
 def serialize_notification(notification: Notification) -> dict:
