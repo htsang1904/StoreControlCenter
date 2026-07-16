@@ -36,6 +36,7 @@ const shouldShowPrompt = computed(() => (
   !initializing.value &&
   (pushState.ready || Boolean(errorMessage.value)) &&
   !isSubscribed.value &&
+  !pushState.userDisabled &&
   !dismissed.value
 ))
 

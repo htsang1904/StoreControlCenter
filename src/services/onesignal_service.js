@@ -8,6 +8,7 @@ const ONESIGNAL_SCRIPT_ID = 'onesignal-sdk'
 const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
 const ONESIGNAL_TIMEOUT_MS = 12000
 const LEGACY_RESET_VERSION = 'v4'
+const PUSH_DISABLED_KEY = 'onesignal-push-disabled'
 
 let initialized = false
 let initializingPromise = null
@@ -23,6 +24,7 @@ export const pushState = reactive({
   subscriptionId: null,
   subscriptionToken: null,
   onesignalId: null,
+  userDisabled: window.localStorage.getItem(PUSH_DISABLED_KEY) === '1',
   lastError: '',
 })
 
@@ -474,6 +476,8 @@ export const enableOneSignalPush = async () => {
         if (result?.success === false) {
           throw new Error(result?.message || 'Không thể lưu thiết bị nhận thông báo')
         }
+        window.localStorage.removeItem(PUSH_DISABLED_KEY)
+        pushState.userDisabled = false
         pushState.lastError = ''
         return subscriptionId
       })
@@ -487,6 +491,34 @@ export const enableOneSignalPush = async () => {
   }
 
   return enablingPromise
+}
+
+export const disableOneSignalPush = async () => {
+  const ready = await initializeOneSignal()
+  if (!ready) return false
+
+  return withOneSignal(async (OneSignal) => {
+    syncSubscriptionState(OneSignal)
+    const subscriptionId = pushState.subscriptionId
+
+    if (subscriptionId) {
+      await deactivateNotificationSubscription(subscriptionId)
+    }
+
+    if (pushState.optedIn) {
+      await OneSignal.User.PushSubscription.optOut()
+    }
+
+    syncSubscriptionState(OneSignal)
+    window.localStorage.setItem(PUSH_DISABLED_KEY, '1')
+    pushState.userDisabled = true
+    pushState.lastError = ''
+    return true
+  }).catch((error) => {
+    refreshBrowserState()
+    pushState.lastError = error?.message || 'Không thể tắt thông báo'
+    throw error
+  })
 }
 
 export const disconnectOneSignalUser = async () => {

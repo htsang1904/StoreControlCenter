@@ -11,6 +11,12 @@ import {
   normalizeNotificationList,
   getNotificationDisplayTitle,
 } from '@/services/notification_service'
+import {
+  disableOneSignalPush,
+  enableOneSignalPush,
+  initializeOneSignal,
+  pushState,
+} from '@/services/onesignal_service'
 
 const PAGE_SIZE = 20
 
@@ -19,6 +25,7 @@ const toast = useToast()
 
 const loading = ref(false)
 const markingAllRead = ref(false)
+const updatingPush = ref(false)
 const notifications = ref([])
 const unreadCount = ref(0)
 const pagination = reactive({
@@ -30,6 +37,17 @@ const pagination = reactive({
 
 const canGoPrevious = computed(() => pagination.page > 1 && !loading.value)
 const canGoNext = computed(() => pagination.page < pagination.pageCount && !loading.value)
+const pushEnabled = computed(() => (
+  pushState.permission === 'granted' &&
+  pushState.optedIn &&
+  Boolean(pushState.subscriptionId) &&
+  Boolean(pushState.subscriptionToken)
+))
+const pushBlocked = computed(() => pushState.permission === 'denied')
+const pushStatusText = computed(() => {
+  if (pushBlocked.value) return 'Đang bị trình duyệt chặn'
+  return pushEnabled.value ? 'Đang bật trên thiết bị này' : 'Đang tắt trên thiết bị này'
+})
 
 const fetchNotifications = async (page = pagination.page) => {
   loading.value = true
@@ -99,7 +117,28 @@ const changePage = (page) => {
   void fetchNotifications(page)
 }
 
+const togglePushNotifications = async () => {
+  if (updatingPush.value || (pushBlocked.value && !pushEnabled.value)) return
+  updatingPush.value = true
+
+  try {
+    if (pushEnabled.value) {
+      await disableOneSignalPush()
+      toast.success('Đã tắt thông báo trên thiết bị này')
+    } else {
+      await enableOneSignalPush()
+      toast.success('Đã bật thông báo trên thiết bị này')
+    }
+  } catch (error) {
+    const message = error?.response?.data?.message || error?.message || 'Không thể cập nhật cài đặt thông báo'
+    toast.error(message)
+  } finally {
+    updatingPush.value = false
+  }
+}
+
 onMounted(() => {
+  void initializeOneSignal()
   void fetchNotifications(1)
 })
 </script>
@@ -129,6 +168,35 @@ onMounted(() => {
             </button>
           </div>
         </div>
+      </div>
+
+      <div class="mx-4 my-5 flex flex-col gap-3 rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-4 tablet:mx-6 tablet:flex-row tablet:items-center tablet:justify-between">
+        <div class="flex min-w-0 items-start gap-3">
+          <span class="material-symbols-outlined mt-0.5 text-[22px] text-[var(--primary)]">notifications_active</span>
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-[var(--text-primary)]">Thông báo đẩy</p>
+            <p class="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">{{ pushStatusText }}</p>
+            <p v-if="pushBlocked" class="mt-1 text-xs leading-5 text-[var(--danger-text)]">Mở Site settings và cho phép quyền Thông báo để bật lại.</p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          role="switch"
+          :aria-checked="pushEnabled"
+          :aria-label="pushEnabled ? 'Tắt thông báo đẩy' : 'Bật thông báo đẩy'"
+          class="relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50"
+          :class="pushEnabled ? 'bg-[var(--primary)]' : 'bg-[var(--stroke-strong)]'"
+          :disabled="updatingPush || (pushBlocked && !pushEnabled)"
+          @click="togglePushNotifications"
+        >
+          <span
+            class="pointer-events-none absolute top-1 inline-flex size-5 items-center justify-center rounded-full bg-white shadow-sm transition-transform"
+            :class="pushEnabled ? 'translate-x-6' : 'translate-x-1'"
+          >
+            <span v-if="updatingPush" class="size-3 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent"></span>
+          </span>
+        </button>
       </div>
 
       <div v-if="loading" class="app-state-inline p-6">Đang tải thông báo...</div>
