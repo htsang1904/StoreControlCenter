@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useToast } from '@/plugins/toast'
+import appLogo from '@/assets/images/logo-color.png'
 
 const toast = useToast()
 const loading = ref(false)
@@ -37,12 +38,7 @@ function redirectToSuiteSso() {
   <div class="flex h-[100dvh] flex-col overflow-hidden bg-[var(--app-bg)]">
     <header class="z-50 flex w-full shrink-0 items-center justify-between border-b border-[var(--stroke)] bg-white px-5 py-3.5 tablet:px-6 tablet:py-4">
       <div class="flex items-center gap-3">
-        <span class="text-[var(--primary)]">
-          <svg class="h-8 w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 48 48">
-            <path fill="currentColor" fill-rule="evenodd" d="M47.2426 24L24 47.2426L0.757355 24L24 0.757355L47.2426 24ZM12.2426 21H35.7574L24 9.24264L12.2426 21Z" clip-rule="evenodd" />
-          </svg>
-        </span>
-        <h1 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">Trung tâm Điều hành Cửa hàng</h1>
+        <img :src="appLogo" alt="Store OPS" class="h-auto w-[132px] object-contain" />
       </div>
       <span class="text-sm font-medium text-[var(--text-secondary)]">{{ appVersion }}</span>
     </header>
@@ -107,7 +103,7 @@ function redirectToSuiteSso() {
     </main>
 
     <footer class="w-full shrink-0 py-3 text-center text-xs text-[var(--text-muted)] tablet:py-4">
-      <p>© 2023 Trung tâm Điều hành Cửa hàng. Tất cả quyền được bảo lưu.</p>
+      <p>© 2023 Store OPS. Tất cả quyền được bảo lưu.</p>
     </footer>
   </div>
 </template>

@@ -1,7 +1,6 @@
 from datetime import timedelta
 from typing import Any
 import jwt
-import hashlib
 import logging
 import os
 import uuid
@@ -15,11 +14,10 @@ from sqlalchemy.orm import selectinload
 
 from app.core import security
 from app.core.config import settings
-from app.core.datetime_utils import utc_now_naive
 from app.api.deps import SessionDep, CurrentUser
 from app.models.user import User, user_stores
 from app.models.org import Store
-from app.schemas.user import LoginRequest, RefreshRequest, SsoCallbackRequest, AuthTokensResponse, UserResponse
+from app.schemas.user import LoginRequest, SsoCallbackRequest, UserResponse
 from app.services.permission_service import DEFAULT_ROLE_PERMISSIONS, get_role_permissions, normalize_role
 
 router = APIRouter()
@@ -27,11 +25,6 @@ logger = logging.getLogger("app.auth")
 
 # Strapi compatibility logic ported from Node.js
 # -----------------------------------------------
-
-def hash_refresh_token(token: str) -> str:
-    # Use SECRET_KEY as salt for refresh token hashing if no specific salt is defined
-    salt = settings.SECRET_KEY
-    return hashlib.sha256(f"{token}{salt}".encode()).hexdigest()
 
 def resolve_staff_role(staff: dict) -> str:
     roles = staff.get("roles") if isinstance(staff.get("roles"), list) else []
@@ -68,31 +61,15 @@ def suite_staff_ref_from_profile(profile: dict) -> str | None:
     return f"staff:{staff_id}" if staff_id else None
 
 async def issue_auth_tokens(session: AsyncSession, user: User) -> dict:
-    next_token_version = (user.token_version or 0) + 1
-    access_payload = {"sub": str(user.id), "email": user.email, "tokenVersion": next_token_version, "type": "access"}
+    access_payload = {"sub": str(user.id), "email": user.email, "type": "access"}
     access_token = security.create_access_token(
         user.id,
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         data=access_payload,
     )
-    refresh_payload = {"sub": str(user.id), "tokenVersion": next_token_version, "type": "refresh"}
-    refresh_token = security.create_access_token(
-        user.id,
-        expires_delta=timedelta(days=30),
-        data=refresh_payload,
-    )
-
-    user.token_version = next_token_version
-    user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = utc_now_naive() + timedelta(days=30)
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-
     return {
         "tokenType": "Bearer",
         "accessToken": access_token,
-        "refreshToken": refresh_token,
     }
 
 async def map_staff_stores_to_user(session: AsyncSession, user: User, stores_payload: list | None) -> list:
@@ -259,28 +236,7 @@ async def user_login(
             detail="Tài khoản chưa được cấp quyền. Vui lòng liên hệ IT để được cấp quyền truy cập."
         )
 
-    # Generate Auth Tokens (AccessToken + RefreshToken)
-    next_token_version = (user.token_version or 0) + 1
-    
-    # Payload similar to existing access token
-    access_payload = {"sub": str(user.id), "email": user.email, "tokenVersion": next_token_version, "type": "access"}
-    access_token = security.create_access_token(
-        (user.id), 
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
-        data=access_payload
-    )
-    
-    refresh_payload = {"sub": str(user.id), "tokenVersion": next_token_version, "type": "refresh"}
-    refresh_token = security.create_access_token(
-        (user.id), 
-        expires_delta=timedelta(days=30),
-        data=refresh_payload
-    )
-    
-    # Store token metadata in user table
-    user.token_version = next_token_version
-    user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = utc_now_naive() + timedelta(days=30)
+    tokens = await issue_auth_tokens(session, user)
     user.suite_token = suite_staff_ref or request.token
     
     session.add(user)
@@ -296,11 +252,7 @@ async def user_login(
     return {
         "success": True,
         "message": "Đăng nhập thành công",
-        "data": {
-            "tokenType": "Bearer",
-            "accessToken": access_token,
-            "refreshToken": refresh_token
-        }
+        "data": tokens,
     }
 
 @router.post("/sso/callback", response_model=dict)
@@ -355,83 +307,6 @@ async def sso_callback(
         "data": tokens,
     }
 
-@router.post("/refresh", response_model=dict)
-async def refresh_token(
-    session: SessionDep, request: RefreshRequest
-) -> Any:
-    # Similar to strapi `/refresh` endpoint
-    try:
-        payload = jwt.decode(
-            request.refreshToken,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM],
-            options={"require": ["exp", "sub", "type"]},
-        )
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Refresh token không hợp lệ hoặc đã hết hạn")
-
-    if payload.get("type") != "refresh":
-        raise HTTPException(status_code=401, detail="Token không đúng loại refresh token")
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
-
-    try:
-        user_id = int(user_id)
-    except (TypeError, ValueError):
-        raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
-    
-    # Retrieve User
-    query = select(User).where(User.id == user_id)
-    user = (await session.execute(query)).scalar_one_or_none()
-    
-    if not user or not user.is_active:
-        raise HTTPException(status_code=401, detail="Tài khoản không hợp lệ")
-        
-    if user.refresh_token_hash != hash_refresh_token(request.refreshToken):
-        raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
-    if user.refresh_token_expires_at and user.refresh_token_expires_at < utc_now_naive():
-        raise HTTPException(status_code=401, detail="Refresh token đã hết hạn")
-
-    token_version = payload.get("tokenVersion")
-    if token_version is not None and user.token_version is not None:
-        try:
-            token_version = int(token_version)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=401, detail="Refresh token không hợp lệ")
-        if token_version != int(user.token_version):
-            raise HTTPException(status_code=401, detail="Refresh token đã bị vô hiệu hóa")
-        
-    # Issue new pair - keeping same token version
-    access_payload = {"sub": str(user.id), "email": user.email, "tokenVersion": user.token_version, "type": "access"}
-    access_token = security.create_access_token(
-        (user.id), 
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
-        data=access_payload
-    )
-    
-    refresh_payload = {"sub": str(user.id), "tokenVersion": user.token_version, "type": "refresh"}
-    refresh_token = security.create_access_token(
-        (user.id), 
-        expires_delta=timedelta(days=30),
-        data=refresh_payload
-    )
-    
-    user.refresh_token_hash = hash_refresh_token(refresh_token)
-    user.refresh_token_expires_at = utc_now_naive() + timedelta(days=30)
-    session.add(user)
-    await session.commit()
-    
-    return {
-        "success": True,
-        "message": "Làm mới token thành công",
-        "data": {
-            "tokenType": "Bearer",
-            "accessToken": access_token,
-            "refreshToken": refresh_token
-        }
-    }
 
 import httpx
 from urllib.parse import urljoin
@@ -565,16 +440,6 @@ async def update_my_avatar(
 
 @router.post("/logout", response_model=dict)
 async def logout(current_user: CurrentUser, session: SessionDep) -> Any:
-    """
-    Invalidate refresh token payload for the current user.
-    """
-    current_user.refresh_token_hash = None
-    current_user.refresh_token_expires_at = None
-    current_user.token_version = (current_user.token_version or 0) + 1
-    
-    session.add(current_user)
-    await session.commit()
-    
     return {
         "success": True,
         "message": "Đăng xuất thành công"

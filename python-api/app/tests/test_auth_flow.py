@@ -6,22 +6,14 @@ from app.core.config import settings
 
 def test_create_access_token_with_payload():
     subject = 123
-    data = {"email": "test@example.com", "tokenVersion": 5}
+    data = {"email": "test@example.com", "type": "access"}
     token = security.create_access_token(subject, data=data)
     
     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     assert payload["sub"] == str(subject)
     assert payload["email"] == "test@example.com"
-    assert payload["tokenVersion"] == 5
+    assert payload["type"] == "access"
     assert "exp" in payload
-
-def test_hash_refresh_token_logic():
-    from app.api.routers.auth import hash_refresh_token
-    token = "some_random_token"
-    h1 = hash_refresh_token(token)
-    h2 = hash_refresh_token(token)
-    assert h1 == h2
-    assert len(h1) == 64 # SHA256
 
 def test_suite_staff_id_from_profile():
     from app.api.routers.auth import suite_staff_id_from_profile
@@ -77,6 +69,9 @@ async def test_auth_router_mock_login(monkeypatch):
     assert mock_user.phone_number == "0987654321"
     assert mock_user.name == "Updated Name"
     
-    # Verify JWT payload contains tokenVersion
+    assert "refreshToken" not in response["data"]
+
+    # Access tokens are independent across devices and expire by JWT exp only.
     payload = jwt.decode(response["data"]["accessToken"], settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-    assert payload["tokenVersion"] == 2 # 1 + 1
+    assert payload["type"] == "access"
+    assert "tokenVersion" not in payload

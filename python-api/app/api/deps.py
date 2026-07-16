@@ -37,8 +37,6 @@ async def get_user_from_token(session: AsyncSession, token: str) -> User:
         )
     
     user_id = int(token_data)
-    token_version = payload.get("tokenVersion")
-    
     result = await session.execute(
         select(User).options(selectinload(User.department)).options(selectinload(User.stores)).where(User.id == user_id)
     )
@@ -49,14 +47,6 @@ async def get_user_from_token(session: AsyncSession, token: str) -> User:
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
-    # Kiểm tra tokenVersion để hỗ trợ logout/vô hiệu hóa token cũ
-    if token_version is not None and user.token_version is not None:
-        if int(token_version) != user.token_version:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been invalidated",
-            )
-    
     return user
 
 async def get_current_user(session: SessionDep, token: TokenDep) -> User:

@@ -5,22 +5,54 @@ import { disconnectOneSignalUser } from '@/services/onesignal_service'
 import { useToast } from '@/plugins/toast'
 const state = reactive({
   token: localStorage.getItem('token') || null,
-  refreshToken: localStorage.getItem('refreshToken') || null,
   userInfo: null,
   initialized: false,
 })
+let authExpiryTimer = null
+
+const readTokenExpiry = (token) => {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+        return Number(payload?.exp || 0) * 1000
+    } catch (_err) {
+        return 0
+    }
+}
+
+const clearAuthExpiryTimer = () => {
+    if (authExpiryTimer) window.clearTimeout(authExpiryTimer)
+    authExpiryTimer = null
+}
+
+const scheduleAuthExpiry = () => {
+    clearAuthExpiryTimer()
+    if (!state.token) return
+
+    const expiresAt = readTokenExpiry(state.token)
+    const remainingMs = expiresAt - Date.now()
+    if (!expiresAt || remainingMs <= 0) {
+        clearAuthState()
+        if (router.currentRoute.value.path !== '/login') router.replace('/login')
+        return
+    }
+
+    authExpiryTimer = window.setTimeout(() => {
+        clearAuthState()
+        if (router.currentRoute.value.path !== '/login') router.replace('/login')
+    }, Math.min(remainingMs, 2147483647))
+}
 
 const syncAuthStateFromStorage = () => {
     state.token = localStorage.getItem('token') || null
-    state.refreshToken = localStorage.getItem('refreshToken') || null
+    scheduleAuthExpiry()
 }
 
 const clearAuthState = () => {
     state.token = null
-    state.refreshToken = null
     state.userInfo = null
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
+    clearAuthExpiryTimer()
 }
 
 const normalizeStores = (user) => {
@@ -60,16 +92,12 @@ export function useApp() {
 
             const result = await login(suiteResult)
             const accessToken = result?.data?.accessToken
-            const refreshToken = result?.data?.refreshToken
 
             if (!result?.success || !accessToken) {
                 throw new Error(result?.message || 'Đăng nhập vào hệ thống thất bại')
             }
 
             localStorage.setItem('token', accessToken)
-            if (refreshToken) {
-                localStorage.setItem('refreshToken', refreshToken)
-            }
             syncAuthStateFromStorage()
 
             // Do not block navigation if profile fetch has transient issues.
@@ -109,16 +137,12 @@ export function useApp() {
         try {
             const result = await loginBySsoTicket({ ticket })
             const accessToken = result?.data?.accessToken
-            const refreshToken = result?.data?.refreshToken
 
             if (!result?.success || !accessToken) {
                 throw new Error(result?.message || 'Đăng nhập thất bại')
             }
 
             localStorage.setItem('token', accessToken)
-            if (refreshToken) {
-                localStorage.setItem('refreshToken', refreshToken)
-            }
             syncAuthStateFromStorage()
 
             const meResult = await getMe()
@@ -163,7 +187,7 @@ export function useApp() {
     const initializeAuth = async () => {
         syncAuthStateFromStorage()
 
-        if (!state.token && !state.refreshToken) {
+        if (!state.token) {
             state.initialized = true
             return
         }

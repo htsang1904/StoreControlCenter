@@ -27,6 +27,3 @@ export const updateAvatar = (formData) => {
     },
   })
 }
-export const refreshToken = (payload) => {
-  return http.post('/api/auth/refresh', payload)
-}

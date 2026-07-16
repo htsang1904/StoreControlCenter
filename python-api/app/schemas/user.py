@@ -31,13 +31,9 @@ class LoginRequest(BaseModel):
     token: str
     profile: dict
     
-class RefreshRequest(BaseModel):
-    refreshToken: str
-
 class SsoCallbackRequest(BaseModel):
     ticket: str
 
 class AuthTokensResponse(BaseModel):
     tokenType: str
     accessToken: str
-    refreshToken: str
