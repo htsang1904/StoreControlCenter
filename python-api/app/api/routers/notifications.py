@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import func, update
@@ -8,8 +9,10 @@ from app.models.notification import Notification
 from app.models.notification_subscription import NotificationSubscription
 from app.schemas.notification import NotificationSubscriptionCreate
 from app.services.notification_service import emit_notification_unread_count_event
+from app.services.onesignal_client import set_subscription_staff_tag
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/subscriptions", response_model=dict)
 async def upsert_notification_subscription(
@@ -21,6 +24,8 @@ async def upsert_notification_subscription(
     if not subscription_id:
         raise HTTPException(status_code=400, detail="Subscription ID không hợp lệ")
 
+    staff_id = str(current_user.suite_staff_id or current_user.id).strip()
+    onesignal_id = str(payload.onesignal_id or "").strip()
     result = await session.execute(
         select(NotificationSubscription).where(
             NotificationSubscription.subscription_id == subscription_id
@@ -30,6 +35,7 @@ async def upsert_notification_subscription(
 
     if subscription:
         subscription.user_id = current_user.id
+        subscription.external_id = staff_id
         subscription.platform = payload.platform or "web"
         subscription.is_active = True
         subscription.last_seen_at = func.now()
@@ -37,6 +43,7 @@ async def upsert_notification_subscription(
         subscription = NotificationSubscription(
             user_id=current_user.id,
             subscription_id=subscription_id,
+            external_id=staff_id,
             platform=payload.platform or "web",
             is_active=True,
             last_seen_at=func.now(),
@@ -45,8 +52,54 @@ async def upsert_notification_subscription(
 
     await session.commit()
     await session.refresh(subscription)
-    return {"success": True, "data": {"subscription_id": subscription.subscription_id}}
 
+    tag_result = (
+        await set_subscription_staff_tag(
+            onesignal_id=onesignal_id,
+            staff_id=staff_id,
+        )
+        if onesignal_id
+        else None
+    )
+    if tag_result and not tag_result.success:
+        logger.warning(
+            "OneSignal staff tag sync failed: subscription_id=%s staff_id=%s status=%s error=%s body=%s",
+            subscription_id,
+            staff_id,
+            tag_result.status_code,
+            tag_result.error,
+            (tag_result.response_body or "")[:500],
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "subscription_id": subscription.subscription_id,
+            "tag_synced": bool(tag_result and tag_result.success),
+        },
+    }
+
+
+@router.delete("/subscriptions/{subscription_id}", response_model=dict)
+async def deactivate_notification_subscription(
+    subscription_id: str,
+    session: SessionDep,
+    current_user: CurrentUser,
+) -> Any:
+    result = await session.execute(
+        select(NotificationSubscription).where(
+            NotificationSubscription.subscription_id == subscription_id.strip(),
+            NotificationSubscription.user_id == current_user.id,
+        )
+    )
+    subscription = result.scalar_one_or_none()
+    if not subscription:
+        return {"success": True}
+
+    subscription.is_active = False
+    subscription.last_seen_at = func.now()
+    await session.commit()
+    return {"success": True}
 
 def serialize_notification(notification: Notification) -> dict:
     created_at = notification.created_at.isoformat() if notification.created_at else None

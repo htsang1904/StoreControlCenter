@@ -24,4 +24,5 @@ class NotificationResponse(NotificationBase):
 
 class NotificationSubscriptionCreate(BaseModel):
     subscription_id: str
+    onesignal_id: Optional[str] = None
     platform: str = "web"

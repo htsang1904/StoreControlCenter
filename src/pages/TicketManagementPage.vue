@@ -92,7 +92,7 @@ const selectedDepartmentLabel = computed(() => {
   return departmentOptions.value.find((department) => Number(department.id) === selectedId)?.name || 'Bộ phận'
 })
 
-const canShowAssigneeFilter = computed(() => isAdmin.value ? Boolean(filters.departmentId) : Boolean(currentUserDepartmentId.value))
+const canShowAssigneeFilter = computed(() => isAdmin.value && Boolean(filters.departmentId))
 
 const selectedAssigneeLabel = computed(() => {
   const selectedId = Number(filters.assigneeId || 0)
@@ -239,7 +239,13 @@ async function fetchFilterOptions() {
 }
 
 async function fetchAssigneeOptions() {
-  const selectedDepartmentId = Number((isAdmin.value ? filters.departmentId : currentUserDepartmentId.value) || 0)
+  if (!isAdmin.value) {
+    assigneeOptions.value = []
+    filters.assigneeId = ''
+    return
+  }
+
+  const selectedDepartmentId = Number(filters.departmentId || 0)
   if (!selectedDepartmentId) {
     assigneeOptions.value = []
     filters.assigneeId = ''
@@ -301,7 +307,7 @@ watch(
     const nextDepartmentId = isAdmin.value
       ? String(route.query.responsible_department_id || '')
       : currentUserDepartmentId.value
-    const nextAssigneeId = String(route.query.assignee || '')
+    const nextAssigneeId = isAdmin.value ? String(route.query.assignee || '') : ''
     const nextPage = Number(route.query.page || 1)
 
     searchInput.value = nextSearch

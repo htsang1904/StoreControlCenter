@@ -38,6 +38,31 @@ class _FakeAsyncClient:
         _FakeAsyncClient.captured = self.captured
         return _FakeResponse()
 
+@pytest.mark.anyio
+async def test_set_subscription_staff_tag(monkeypatch):
+    captured = {}
+
+    class _TagClient(_FakeAsyncClient):
+        async def patch(self, url, *, json, headers):
+            captured["patch_url"] = url
+            captured["json"] = json
+            captured["headers"] = headers
+            return _FakeResponse()
+
+    monkeypatch.setattr(settings, "ONESIGNAL_APP_ID", "app-id")
+    monkeypatch.setattr(settings, "ONESIGNAL_REST_API_KEY", "rest-key")
+    monkeypatch.setattr(onesignal_client.httpx, "AsyncClient", _TagClient)
+
+    result = await onesignal_client.set_subscription_staff_tag(
+        onesignal_id="user-123",
+        staff_id="staff-6",
+    )
+
+    assert result.success is True
+    assert captured["patch_url"].endswith("/apps/app-id/users/by/onesignal_id/user-123")
+    assert captured["json"] == {"properties": {"tags": {"staff_id": "staff-6"}}}
+    assert captured["headers"]["Authorization"] == "Key rest-key"
+
 
 @pytest.mark.anyio
 async def test_send_push_targets_external_user_ids(monkeypatch):

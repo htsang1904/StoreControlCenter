@@ -27,6 +27,10 @@ export const registerNotificationSubscription = (payload) => {
   return http.post('/api/notifications/subscriptions', payload)
 }
 
+export const deactivateNotificationSubscription = (subscriptionId) => {
+  return http.delete(`/api/notifications/subscriptions/${encodeURIComponent(subscriptionId)}`)
+}
+
 export const normalizeNotificationItem = (item = {}) => {
   const meta = item?.meta || item?.meta_info || {}
   const normalized = {

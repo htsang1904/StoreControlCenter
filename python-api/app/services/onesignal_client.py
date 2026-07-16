@@ -17,12 +17,54 @@ class OneSignalSendResult:
     response_body: str | None = None
     error: str | None = None
 
+@dataclass
+class OneSignalTagResult:
+    success: bool
+    status_code: int | None = None
+    response_body: str | None = None
+    error: str | None = None
+
 
 def _headers() -> dict[str, str]:
     return {
         "Authorization": f"Key {settings.ONESIGNAL_REST_API_KEY}",
         "Content-Type": "application/json; charset=utf-8",
     }
+
+def _user_url(onesignal_id: str) -> str:
+    return f"https://api.onesignal.com/apps/{settings.ONESIGNAL_APP_ID}/users/by/onesignal_id/{onesignal_id}"
+
+async def set_subscription_staff_tag(
+    *,
+    onesignal_id: str,
+    staff_id: str,
+) -> OneSignalTagResult:
+    if not settings.ONESIGNAL_APP_ID or not settings.ONESIGNAL_REST_API_KEY:
+        return OneSignalTagResult(success=False, error="missing_onesignal_config")
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.patch(
+                _user_url(onesignal_id),
+                json={"properties": {"tags": {"staff_id": str(staff_id)}}},
+                headers=_headers(),
+            )
+        response_text = response.text[:1000]
+        response.raise_for_status()
+        return OneSignalTagResult(
+            success=True,
+            status_code=response.status_code,
+            response_body=response_text,
+        )
+    except httpx.HTTPStatusError as exc:
+        return OneSignalTagResult(
+            success=False,
+            status_code=exc.response.status_code,
+            response_body=exc.response.text[:1000],
+            error="onesignal_http_error",
+        )
+    except Exception as exc:
+        return OneSignalTagResult(success=False, error=str(exc))
 
 
 async def send_push_to_external_ids(

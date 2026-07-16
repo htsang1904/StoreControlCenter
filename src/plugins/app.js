@@ -122,15 +122,17 @@ export function useApp() {
         }
     }
 
-    const userLogout = () => {
-        disconnectOneSignalUser().catch(() => {})
-        if (state.token) {
-            logoutApi().catch(() => {})
+    const userLogout = async () => {
+        try {
+            await disconnectOneSignalUser()
+            if (state.token) await logoutApi()
+        } catch (_err) {
+        } finally {
+            clearAuthState()
+            state.initialized = true
+            router.push(`/login`)
+            toast.info('Bạn đã đăng xuất')
         }
-        clearAuthState()
-        state.initialized = true
-        router.push(`/login`)
-        toast.info('Bạn đã đăng xuất')
     }
 
     const userLoginBySsoTicket = async (ticket) => {

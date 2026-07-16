@@ -1,10 +1,13 @@
 import { reactive } from 'vue'
-import { registerNotificationSubscription } from './notification_service'
+import {
+  deactivateNotificationSubscription,
+  registerNotificationSubscription,
+} from './notification_service'
 
 const ONESIGNAL_SCRIPT_ID = 'onesignal-sdk'
 const ONESIGNAL_SDK_URL = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'
 const ONESIGNAL_TIMEOUT_MS = 12000
-const LEGACY_RESET_VERSION = 'v3'
+const LEGACY_RESET_VERSION = 'v4'
 
 let initialized = false
 let initializingPromise = null
@@ -19,6 +22,7 @@ export const pushState = reactive({
   optedIn: false,
   subscriptionId: null,
   subscriptionToken: null,
+  onesignalId: null,
   lastError: '',
 })
 
@@ -28,61 +32,135 @@ const isAlreadyInitializedError = (error) => (
   String(error?.message || error || '').toLowerCase().includes('already initialized')
 )
 
-const deleteIndexedDatabase = (databaseName) => new Promise((resolve) => {
-  const request = window.indexedDB.deleteDatabase(databaseName)
-  request.onsuccess = () => resolve()
-  request.onerror = () => resolve()
-  request.onblocked = () => resolve()
-})
+const deleteIndexedDatabase = (databaseName) =>
+  new Promise((resolve, reject) => {
+    const request = window.indexedDB.deleteDatabase(databaseName)
+
+    request.onsuccess = () => {
+      resolve(true)
+    }
+
+    request.onerror = () => {
+      reject(
+        request.error ||
+          new Error(`Không thể xoá IndexedDB: ${databaseName}`),
+      )
+    }
+
+    request.onblocked = () => {
+      reject(
+        new Error(
+          `IndexedDB "${databaseName}" đang được tab khác sử dụng`,
+        ),
+      )
+    }
+  })
 
 const resetLegacyOneSignalState = async () => {
-  const resetKey = `push-integration-reset:${LEGACY_RESET_VERSION}:${getOneSignalAppId()}`
-  if (window.localStorage.getItem(resetKey) === '1') return false
+  const appId = getOneSignalAppId()
+  const resetKey =
+    `push-integration-reset:${LEGACY_RESET_VERSION}:${appId}`
 
-  if ('serviceWorker' in navigator) {
-    const registrations = await navigator.serviceWorker.getRegistrations()
-    await Promise.all(
-      registrations
-        .filter((registration) => {
-          const scriptUrl = (
-            registration.active?.scriptURL ||
-            registration.waiting?.scriptURL ||
-            registration.installing?.scriptURL ||
-            ''
-          )
-          return scriptUrl.includes('OneSignalSDKWorker.js')
-        })
-        .map(async (registration) => {
-          const subscription = await registration.pushManager?.getSubscription().catch(() => null)
-          await subscription?.unsubscribe().catch(() => false)
-          return registration.unregister().catch(() => false)
-        })
-    )
+  if (window.localStorage.getItem(resetKey) === '1') {
+    return false
   }
 
-  if (window.indexedDB?.databases) {
-    const databases = await window.indexedDB.databases().catch(() => [])
-    await Promise.all(
-      databases
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations =
+        await navigator.serviceWorker.getRegistrations()
+
+      await Promise.all(
+        registrations
+          .filter((registration) => {
+            const scriptUrl =
+              registration.active?.scriptURL ||
+              registration.waiting?.scriptURL ||
+              registration.installing?.scriptURL ||
+              ''
+
+            return scriptUrl.includes(
+              'OneSignalSDKWorker.js',
+            )
+          })
+          .map(async (registration) => {
+            const subscription =
+              await registration.pushManager
+                ?.getSubscription()
+                .catch(() => null)
+
+            await subscription
+              ?.unsubscribe()
+              .catch(() => false)
+
+            const unregistered =
+              await registration.unregister()
+
+            if (!unregistered) {
+              throw new Error(
+                'Không thể unregister OneSignal Service Worker',
+              )
+            }
+          }),
+      )
+    }
+
+    if (window.indexedDB?.databases) {
+      const databases =
+        await window.indexedDB.databases()
+
+      const oneSignalDatabases = databases
         .map((database) => database?.name)
-        .filter((name) => name?.toLowerCase().includes('onesignal'))
-        .map((name) => deleteIndexedDatabase(name))
+        .filter(
+          (name) =>
+            name &&
+            name.toLowerCase().includes('onesignal'),
+        )
+
+      for (const databaseName of oneSignalDatabases) {
+        await deleteIndexedDatabase(databaseName)
+      }
+    }
+
+    Object.keys(window.localStorage)
+      .filter((key) => {
+        const normalizedKey = key.toLowerCase()
+
+        return (
+          normalizedKey.includes('onesignal') ||
+          (
+            key.startsWith('push-integration-reset:') &&
+            key !== resetKey
+          )
+        )
+      })
+      .forEach((key) => {
+        window.localStorage.removeItem(key)
+      })
+
+    Object.keys(window.sessionStorage)
+      .filter((key) =>
+        key.toLowerCase().includes('onesignal'),
+      )
+      .forEach((key) => {
+        window.sessionStorage.removeItem(key)
+      })
+
+    // Chỉ đánh dấu hoàn tất khi toàn bộ quá trình thật sự thành công.
+    window.localStorage.setItem(resetKey, '1')
+
+    return true
+  } catch (error) {
+    // Không set resetKey để lần tải sau còn thử lại.
+    console.error(
+      '[OneSignal] Không thể xoá trạng thái cũ:',
+      error,
     )
+
+    window.localStorage.removeItem(resetKey)
+
+    throw error
   }
-
-  Object.keys(window.localStorage)
-    .filter((key) => (
-      key.toLowerCase().includes('onesignal') ||
-      key.startsWith('push-integration-reset:')
-    ))
-    .forEach((key) => window.localStorage.removeItem(key))
-
-  Object.keys(window.sessionStorage)
-    .filter((key) => key.toLowerCase().includes('onesignal'))
-    .forEach((key) => window.sessionStorage.removeItem(key))
-
-  window.localStorage.setItem(resetKey, '1')
-  return true
 }
 
 const isBrowserSupported = () => (
@@ -155,8 +233,15 @@ const syncSubscriptionState = (OneSignal) => {
   pushState.optedIn = OneSignal?.User?.PushSubscription?.optedIn === true
   pushState.subscriptionId = OneSignal?.User?.PushSubscription?.id || null
   pushState.subscriptionToken = OneSignal?.User?.PushSubscription?.token || null
+  pushState.onesignalId = getOneSignalUserId(OneSignal)
   pushState.ready = true
 }
+
+const getOneSignalUserId = (OneSignal) => (
+  OneSignal?.User?.onesignalId ||
+  OneSignal?.User?.onesignal_id ||
+  null
+)
 
 const attachSubscriptionListener = (OneSignal) => {
   if (subscriptionListenerAttached) return
@@ -213,44 +298,142 @@ const waitForActiveSubscription = (OneSignal) => {
 }
 
 export const initializeOneSignal = async () => {
-  const didResetLegacyState = await resetLegacyOneSignalState()
-  if (didResetLegacyState) {
-    window.location.reload()
-    return false
+  try {
+    const didResetLegacyState =
+      await resetLegacyOneSignalState()
+
+    if (didResetLegacyState) {
+      window.location.reload()
+      return false
+    }
+  } catch (error) {
+    console.error(
+      '[OneSignal] Không thể reset dữ liệu cũ:',
+      error,
+    )
+
+    pushState.ready = false
+    pushState.lastError =
+      error?.message ||
+      'Không thể xoá dữ liệu OneSignal cũ'
+
+    throw error
   }
 
   refreshBrowserState()
-  if (!pushState.configured || !pushState.supported) return false
 
-  if (!initializingPromise) {
-    initializingPromise = withOneSignal(async (OneSignal) => {
-      if (!initialized) {
-        try {
-          await OneSignal.init({
-            appId: getOneSignalAppId(),
-            notifyButton: {
-              enable: false,
-            },
-          })
-        } catch (error) {
-          if (!isAlreadyInitializedError(error)) throw error
-        }
-        initialized = true
-      }
+  if (!pushState.configured) {
+    pushState.ready = false
+    pushState.lastError =
+      'Chưa cấu hình VITE_ONESIGNAL_APP_ID'
 
-      attachSubscriptionListener(OneSignal)
-      syncSubscriptionState(OneSignal)
-      return true
-    }).catch((error) => {
-      pushState.ready = false
-      pushState.lastError = error?.message || 'Không thể khởi tạo OneSignal'
-      throw error
-    }).finally(() => {
-      initializingPromise = null
-    })
+    return false
   }
 
-  await initializingPromise
+  if (!pushState.supported) {
+    pushState.ready = false
+    pushState.lastError =
+      'Trình duyệt không hỗ trợ Web Push'
+
+    return false
+  }
+
+  if (!initializingPromise) {
+    initializingPromise = withOneSignal(
+      async (OneSignal) => {
+        if (!initialized) {
+          try {
+            await OneSignal.init({
+              appId: getOneSignalAppId(),
+
+              notifyButton: {
+                enable: false,
+              },
+            })
+          } catch (error) {
+            if (!isAlreadyInitializedError(error)) {
+              throw error
+            }
+          }
+
+          initialized = true
+        }
+
+        attachSubscriptionListener(OneSignal)
+        syncSubscriptionState(OneSignal)
+
+        return true
+      },
+    )
+      .catch((error) => {
+        initialized = false
+        pushState.ready = false
+        pushState.lastError =
+          error?.message ||
+          'Không thể khởi tạo OneSignal'
+
+        console.error(
+          '[OneSignal] Khởi tạo thất bại:',
+          error,
+        )
+
+        throw error
+      })
+      .finally(() => {
+        initializingPromise = null
+      })
+  }
+
+  try {
+    await initializingPromise
+  } catch (error) {
+    return false
+  }
+
+  const hasAuthenticatedUser = Boolean(
+    window.localStorage.getItem('token'),
+  )
+
+  const hasActiveSubscription =
+    pushState.permission === 'granted' &&
+    pushState.optedIn === true &&
+    Boolean(pushState.subscriptionId) &&
+    Boolean(pushState.subscriptionToken)
+
+  if (hasAuthenticatedUser && hasActiveSubscription) {
+    try {
+      const result =
+        await registerNotificationSubscription({
+          subscription_id:
+            pushState.subscriptionId,
+          onesignal_id: pushState.onesignalId,
+          platform: 'web',
+        })
+
+      if (result?.success === false) {
+        throw new Error(
+          result?.message ||
+            'Không thể lưu thiết bị nhận thông báo',
+        )
+      }
+    } catch (error) {
+      console.error(
+        '[OneSignal] Không thể đăng ký subscription với backend:',
+        error,
+      )
+
+      pushState.lastError =
+        error?.message ||
+        'Không thể lưu thiết bị nhận thông báo'
+
+      /*
+       * OneSignal đã khởi tạo thành công nên vẫn trả về true.
+       * Việc backend không lưu được subscription không nên khiến
+       * SDK bị init lại hoặc tạo vòng lặp reload.
+       */
+      return true
+    }
+  }
 
   pushState.lastError = ''
   return true
@@ -285,6 +468,7 @@ export const enableOneSignalPush = async () => {
         await assertBrowserPushSubscription()
         const result = await registerNotificationSubscription({
           subscription_id: subscriptionId,
+          onesignal_id: getOneSignalUserId(OneSignal),
           platform: 'web',
         })
         if (result?.success === false) {
@@ -306,7 +490,9 @@ export const enableOneSignalPush = async () => {
 }
 
 export const disconnectOneSignalUser = async () => {
-  return Promise.resolve()
+  const ready = await initializeOneSignal().catch(() => false)
+  if (!ready || !pushState.subscriptionId) return
+  await deactivateNotificationSubscription(pushState.subscriptionId)
 }
 
 refreshBrowserState()
