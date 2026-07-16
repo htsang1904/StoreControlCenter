@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useToast } from '@/plugins/toast'
+import AppPagination from '@/components/AppPagination.vue'
 import {
   createAdminStore,
   listAdminStores,
@@ -17,7 +18,8 @@ const loadError = ref('')
 
 const stores = ref([])
 const currentPage = ref(1)
-const pageSize = ref(12)
+const pageSize = ref(20)
+const pageSizeOptions = [20, 50, 100]
 const totalStores = ref(0)
 const pageCount = ref(1)
 
@@ -145,6 +147,11 @@ const goToPage = async (page) => {
   if (loadingStores.value) return
   if (page < 1 || page > pageCount.value || page === currentPage.value) return
   await loadStores(page)
+}
+
+const changePageSize = async (size) => {
+  pageSize.value = size
+  await loadStores(1)
 }
 
 const resetForm = () => {
@@ -363,27 +370,7 @@ onMounted(async () => {
         </table>
       </div>
 
-      <div class="app-pagination-bar flex items-center justify-between">
-        <p class="text-sm text-[var(--text-secondary)]">Trang {{ currentPage }} / {{ pageCount }}</p>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="currentPage <= 1"
-            @click="goToPage(currentPage - 1)"
-          >
-            Trước
-          </button>
-          <button
-            type="button"
-            class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="currentPage >= pageCount"
-            @click="goToPage(currentPage + 1)"
-          >
-            Sau
-          </button>
-        </div>
-      </div>
+      <AppPagination :page="currentPage" :page-count="pageCount" :page-size="pageSize" :page-size-options="pageSizeOptions" :total="totalStores" :loading="loadingStores" item-label="cửa hàng" @update:page="goToPage" @update:page-size="changePageSize" />
     </section>
   </div>
 

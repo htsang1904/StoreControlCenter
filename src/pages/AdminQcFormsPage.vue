@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import AppPagination from '@/components/AppPagination.vue'
 import { listAdminQcForms } from '@/services/admin_service'
 
 const router = useRouter()
@@ -11,7 +12,8 @@ const qcForms = ref([])
 const searchInput = ref('')
 const statusFilter = ref('')
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(20)
+const pageSizeOptions = [20, 50, 100]
 const totalForms = ref(0)
 const pageCount = ref(1)
 
@@ -49,37 +51,6 @@ const displayForms = computed(() => {
 })
 
 const summaryTotalForms = computed(() => (hasLocalFilters.value ? displayForms.value.length : totalForms.value))
-
-const rangeStart = computed(() => {
-  if (!displayForms.value.length) return 0
-  if (hasLocalFilters.value) return 1
-  return (currentPage.value - 1) * pageSize.value + 1
-})
-
-const rangeEnd = computed(() => {
-  if (!displayForms.value.length) return 0
-  if (hasLocalFilters.value) return displayForms.value.length
-  return rangeStart.value + displayForms.value.length - 1
-})
-
-const visiblePageItems = computed(() => {
-  const total = pageCount.value
-  const page = currentPage.value
-
-  if (total <= 7) {
-    return Array.from({ length: total }, (_, index) => index + 1)
-  }
-
-  if (page <= 4) {
-    return [1, 2, 3, 4, 5, 'end-ellipsis', total]
-  }
-
-  if (page >= total - 3) {
-    return [1, 'start-ellipsis', total - 4, total - 3, total - 2, total - 1, total]
-  }
-
-  return [1, 'start-ellipsis', page - 1, page, page + 1, 'end-ellipsis', total]
-})
 
 const syncPrelineSelectValue = (elementId, value) => {
   const selectElement = document.getElementById(elementId)
@@ -171,6 +142,11 @@ const goToPage = async (page) => {
   if (loadingForms.value) return
   if (page < 1 || page > pageCount.value || page === currentPage.value) return
   await loadQcForms(page)
+}
+
+const changePageSize = async (size) => {
+  pageSize.value = size
+  await loadQcForms(1)
 }
 
 onMounted(async () => {
@@ -290,55 +266,7 @@ onMounted(async () => {
         </table>
       </div>
 
-      <div class="app-pagination-bar app-page-header tablet:items-center">
-        <p class="text-sm text-[var(--text-secondary)]">
-          Hiển thị
-          <span class="font-semibold text-[var(--text-primary)]">{{ rangeStart }}-{{ rangeEnd }}</span>
-          trong
-          <span class="font-semibold text-[var(--text-primary)]">{{ summaryTotalForms }}</span>
-          kết quả
-        </p>
-
-        <div class="flex max-w-full items-center justify-between gap-3 tablet:justify-end">
-          <button
-            type="button"
-            class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] disabled:opacity-50"
-            :disabled="currentPage <= 1 || loadingForms"
-            @click="goToPage(currentPage - 1)"
-          >
-            <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m15 18-6-6 6-6" />
-            </svg>
-          </button>
-
-          <div class="flex min-w-0 items-center gap-1 overflow-x-auto py-1">
-            <template v-for="item in visiblePageItems" :key="String(item)">
-              <button
-                v-if="typeof item === 'number'"
-                type="button"
-                class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold transition-colors"
-                :class="item === currentPage ? 'bg-[var(--primary)] text-white' : 'text-[var(--text-secondary)] hover:bg-[var(--primary-soft)]'"
-                :disabled="item === currentPage || loadingForms"
-                @click="goToPage(item)"
-              >
-                {{ item }}
-              </button>
-              <span v-else class="px-1 text-xs text-[var(--text-muted)]">...</span>
-            </template>
-          </div>
-
-          <button
-            type="button"
-            class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-soft)] disabled:opacity-50"
-            :disabled="currentPage >= pageCount || loadingForms || pageCount === 0"
-            @click="goToPage(currentPage + 1)"
-          >
-            <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m9 18 6-6-6-6" />
-            </svg>
-          </button>
-        </div>
-      </div>
+      <AppPagination :page="currentPage" :page-count="pageCount" :page-size="pageSize" :page-size-options="pageSizeOptions" :total="summaryTotalForms" :loading="loadingForms" item-label="biểu mẫu" @update:page="goToPage" @update:page-size="changePageSize" />
     </section>
   </div>
 </template>

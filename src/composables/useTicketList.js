@@ -4,9 +4,9 @@ import { confirmDialog } from '@/composables/useConfirmDialog'
 import { useRoute } from 'vue-router'
 import { useToast } from '@/plugins/toast'
 
-function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 10, fallbackTotal = 0) {
+function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 20, fallbackTotal = 0) {
   const currentPage = Number(payload.page || payload.currentPage || fallbackPage || 1)
-  const pageSize = Number(payload.pageSize || payload.limit || fallbackPageSize || 10)
+  const pageSize = Number(payload.pageSize || payload.limit || fallbackPageSize || 20)
   const total = Number(payload.total || payload.totalItems || fallbackTotal || 0)
   const pageCount = Number(
     payload.pageCount ||
@@ -17,7 +17,7 @@ function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 
   return {
     total: Number.isFinite(total) ? total : 0,
     page: Number.isFinite(currentPage) && currentPage > 0 ? currentPage : 1,
-    pageSize: Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 10,
+    pageSize: Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 20,
     pageCount: Number.isFinite(pageCount) && pageCount > 0 ? pageCount : 1,
   }
 }
@@ -58,7 +58,7 @@ export function useTicketList(userInfo) {
 
   const pagination = reactive({
     page: 1,
-    pageSize: 10,
+    pageSize: 20,
     total: 0,
     pageCount: 0,
   })

@@ -66,6 +66,7 @@ const displayPaginationTotal = computed(() => (
   filters.assigneeId ? filteredTickets.value.length : pagination.total
 ))
 const openActionMenuId = ref(null)
+const pageSizeOptions = [20, 50, 100]
 const actionMenuPosition = reactive({ top: 0, left: 0 })
 const departmentOptions = ref([])
 const assigneeOptions = ref([])
@@ -277,8 +278,17 @@ function nextQueryPage() {
   goToQueryPage(pagination.page + 1)
 }
 
+function changePageSize(value) {
+  const nextPageSize = Number(value || 20)
+  if (!pageSizeOptions.includes(nextPageSize) || nextPageSize === pagination.pageSize) return
+  updateTicketQuery({
+    page_size: String(nextPageSize),
+    page: undefined,
+  })
+}
+
 watch(
-  () => [route.query.date_from, route.query.date_to, route.query.store_ids, route.query.q, route.query.status, route.query.responsible_department_id, route.query.assignee, route.query.page, isAdmin.value, currentUserDepartmentId.value],
+  () => [route.query.date_from, route.query.date_to, route.query.store_ids, route.query.q, route.query.status, route.query.responsible_department_id, route.query.assignee, route.query.page, route.query.page_size, isAdmin.value, currentUserDepartmentId.value],
   async () => {
     const filterQueryKey = [
       route.query.date_from || '',
@@ -309,6 +319,8 @@ watch(
       : currentUserDepartmentId.value
     const nextAssigneeId = isAdmin.value ? String(route.query.assignee || '') : ''
     const nextPage = Number(route.query.page || 1)
+    const requestedPageSize = Number(route.query.page_size || 20)
+    const nextPageSize = pageSizeOptions.includes(requestedPageSize) ? requestedPageSize : 20
 
     searchInput.value = nextSearch
     filters.q = nextSearch
@@ -316,6 +328,7 @@ watch(
     filters.departmentId = nextDepartmentId
     filters.assigneeId = nextAssigneeId
     pagination.page = Number.isInteger(nextPage) && nextPage > 0 ? nextPage : 1
+    pagination.pageSize = nextPageSize
 
     await fetchAssigneeOptions()
 
@@ -512,10 +525,10 @@ onBeforeUnmount(() => {
 
         <div v-loading="loading" class="min-h-[400px]">
           <!-- Table PC View -->
-          <div class="app-table-scroll hidden pc:block">
-            <table class="w-full min-w-[1240px] border-collapse text-left">
+          <div class="app-table-scroll ticket-table-scroll hidden pc:block">
+            <table class="ticket-table w-full min-w-[1120px] border-separate border-spacing-0 text-left">
               <thead>
-                <tr class="border-b border-[var(--stroke)] bg-[var(--surface-muted)]">
+                <tr>
                   <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[140px] whitespace-nowrap">Mã ticket</th>
                   <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[400px]">Cửa hàng</th>
                   <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[160px] whitespace-nowrap">Trạng thái</th>
@@ -527,14 +540,14 @@ onBeforeUnmount(() => {
                 </tr>
               </thead>
 
-              <tbody v-if="hasTickets" class="divide-y divide-slate-100 bg-white">
+              <tbody v-if="hasTickets" class="bg-white">
                 <tr
                   v-for="ticket in filteredTickets"
                   :key="ticket.id"
-                  class="group cursor-pointer transition-colors hover:bg-[var(--surface-muted)]/80"
+                  class="group cursor-pointer transition-colors"
                   @click="goToTicketDetail(ticket.id)"
                 >
-                  <td class="px-4 py-3 align-top">
+                  <td class="px-4 py-3">
                     <span class="inline-flex items-center whitespace-nowrap rounded-md bg-[var(--primary-softer)] px-2 py-1 text-xs font-bold text-[var(--text-secondary)] ring-1 ring-inset ring-slate-500/10 family-mono">
                       {{ ticket.ticket_code || `#${ticket.id}` }}
                     </span>
@@ -542,12 +555,12 @@ onBeforeUnmount(() => {
                   <td class="px-4 py-3">
                     <p class="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--primary)] transition-colors line-clamp-1">{{ storeDisplay(ticket) }}</p>
                   </td>
-                  <td class="px-4 py-3 align-top">
+                  <td class="px-4 py-3">
                     <span class="inline-flex items-center whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset" :class="ticketStatusClass(ticket.status)">
                       {{ normalizeTicketStatus(ticket.status) }}
                     </span>
                   </td>
-                  <td class="px-4 py-3 align-top">
+                  <td class="px-4 py-3">
                     <div v-if="hasAssignedHandler(ticket)" class="flex items-center gap-2.5">
                       <span class="relative inline-flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--primary-softer)] text-xs font-medium uppercase text-[var(--text-secondary)] ring-1 ring-slate-200">
                         <span>{{ avatarInitials(handlerDisplay(ticket)) }}</span>
@@ -555,18 +568,18 @@ onBeforeUnmount(() => {
                       </span>
                       <span class="text-sm font-medium text-[var(--text-secondary)] truncate">{{ handlerDisplay(ticket) }}</span>
                     </div>
-                    <span v-else class="text-sm font-medium text-[var(--warning-text)]"></span>
+                    <span v-else></span>
                   </td>
-                  <td class="px-4 py-3 align-top">
+                  <td class="px-4 py-3">
                     <p class="whitespace-nowrap text-sm text-[var(--text-secondary)]">{{ formatShortDate(ticketCreatedAt(ticket)) }} {{ formatTime(ticketCreatedAt(ticket)) }}</p>
                   </td>
-                  <td class="px-4 py-3 align-top">
+                  <td class="px-4 py-3">
                     <p class="whitespace-nowrap text-sm" :class="ticketDurationClass(ticketConfirmationMeta(ticket))">{{ ticketConfirmationMeta(ticket).label }}</p>
                   </td>
-                  <td class="px-4 py-3 align-top">
+                  <td class="px-4 py-3">
                     <p class="whitespace-nowrap text-sm" :class="ticketDurationClass(ticketResolutionMeta(ticket))">{{ ticketResolutionMeta(ticket).label }}</p>
                   </td>
-                  <td class="px-4 py-3 align-top">
+                  <td class="px-4 py-3">
                     <div v-if="hasTicketActions(ticket)" class="relative flex justify-end">
                       <button
                         type="button"
@@ -704,49 +717,65 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Pagination Footer -->
-        <div class="app-pagination-bar">
-          <div class="flex flex-col tablet:flex-row tablet:items-center tablet:justify-between gap-3">
-            <p class="text-xs text-[var(--text-secondary)] text-center tablet:text-left">
-              Đang xem <span class="font-medium text-[var(--text-primary)]">{{ displayPaginationStart }}</span> đến <span class="font-medium text-[var(--text-primary)]">{{ displayPaginationEnd }}</span> trên tổng <span class="font-medium text-[var(--text-primary)]">{{ displayPaginationTotal }}</span> ticket
-            </p>
+        <div class="app-pagination-bar ticket-pagination">
+          <div class="flex flex-col gap-4 tablet:flex-row tablet:items-center tablet:justify-between">
+            <div class="flex flex-col items-center gap-3 tablet:flex-row tablet:justify-start tablet:gap-5">
+              <div class="flex items-center gap-1" aria-label="Số ticket trên mỗi trang">
+                <button
+                  v-for="option in pageSizeOptions"
+                  :key="option"
+                  type="button"
+                  class="inline-flex h-9 min-w-10 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-60"
+                  :class="option === pagination.pageSize ? 'border border-[var(--stroke)] bg-white text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-secondary)] hover:bg-white hover:text-[var(--primary)]'"
+                  :disabled="loading || option === pagination.pageSize"
+                  @click="changePageSize(option)"
+                >
+                  {{ option }}
+                </button>
+              </div>
 
-            <nav class="flex items-center justify-center tablet:justify-end gap-1" aria-label="Pagination">
+              <p class="text-center text-sm text-[var(--text-muted)] tablet:text-left">
+                Trang <span class="font-medium text-[var(--text-secondary)]">{{ pagination.page }}</span>
+                của <span class="font-medium text-[var(--text-secondary)]">{{ pagination.pageCount || 1 }}</span>
+                <span class="whitespace-nowrap">({{ displayPaginationTotal }} mục)</span>
+              </p>
+            </div>
+
+            <nav class="flex items-center justify-center gap-1 tablet:justify-end" aria-label="Pagination">
               <button
                 type="button"
-                class="relative inline-flex items-center rounded-lg p-2 text-[var(--text-secondary)] ring-1 ring-inset ring-slate-300 hover:bg-[var(--surface-muted)] disabled:opacity-50 disabled:cursor-not-allowed focus:z-20 focus:outline-offset-0 transition-colors"
+                class="inline-flex size-9 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-white hover:text-[var(--primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-30"
                 :disabled="pagination.page <= 1 || loading"
                 @click="prevQueryPage"
               >
-                <span class="sr-only">Previous</span>
-                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <span class="sr-only">Trang trước</span>
+                <svg class="size-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
                 </svg>
               </button>
-              
-              <div class="hidden tablet:flex items-center gap-1 mx-2">
-                <template v-for="item in visiblePageItems" :key="String(item)">
-                  <button
-                    v-if="typeof item === 'number'"
-                    type="button"
-                    class="relative inline-flex min-w-[32px] items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                    :class="item === pagination.page ? 'bg-[var(--primary)] text-white focus-visible:outline-[var(--primary)]' : 'text-[var(--text-primary)] ring-1 ring-inset ring-slate-300 hover:bg-[var(--surface-muted)] focus:outline-offset-0'"
-                    :disabled="item === pagination.page || loading"
-                    @click="goToQueryPage(item)"
-                  >
-                    {{ item }}
-                  </button>
-                  <span v-else class="relative inline-flex items-center px-2 py-1.5 text-sm font-semibold text-[var(--text-muted)]">...</span>
-                </template>
-              </div>
+
+              <template v-for="item in visiblePageItems" :key="String(item)">
+                <button
+                  v-if="typeof item === 'number'"
+                  type="button"
+                  class="inline-flex size-9 items-center justify-center rounded-lg text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+                  :class="item === pagination.page ? 'border border-[var(--stroke)] bg-white text-[var(--text-primary)] shadow-sm' : 'text-[var(--text-secondary)] hover:bg-white hover:text-[var(--primary)]'"
+                  :disabled="item === pagination.page || loading"
+                  @click="goToQueryPage(item)"
+                >
+                  {{ item }}
+                </button>
+                <span v-else class="inline-flex size-9 items-center justify-center text-sm font-semibold text-[var(--text-muted)]">…</span>
+              </template>
 
               <button
                 type="button"
-                class="relative inline-flex items-center rounded-lg p-2 text-[var(--text-secondary)] ring-1 ring-inset ring-slate-300 hover:bg-[var(--surface-muted)] disabled:opacity-50 disabled:cursor-not-allowed focus:z-20 focus:outline-offset-0 transition-colors"
+                class="inline-flex size-9 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-white hover:text-[var(--primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-30"
                 :disabled="pagination.page >= pagination.pageCount || loading || pagination.pageCount === 0"
                 @click="nextQueryPage"
               >
-                <span class="sr-only">Next</span>
-                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <span class="sr-only">Trang sau</span>
+                <svg class="size-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
                 </svg>
               </button>
@@ -797,4 +826,66 @@ onBeforeUnmount(() => {
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.ticket-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--stroke-strong) transparent;
+}
+
+.ticket-table-scroll::-webkit-scrollbar {
+  height: 7px;
+}
+
+.ticket-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ticket-table-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 9999px;
+  background: var(--stroke-strong);
+  background-clip: padding-box;
+}
+
+.ticket-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-muted);
+  box-shadow: inset 0 -1px 0 var(--stroke);
+}
+
+.ticket-table th {
+  border: 0;
+  padding-block: 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.ticket-table tbody tr {
+  position: relative;
+  background: white;
+  box-shadow: inset 0 -1px 0 var(--stroke);
+}
+
+.ticket-table tbody tr:hover {
+  background: var(--primary-softer);
+}
+
+.ticket-table td {
+  border: 0;
+  padding-block: 0.875rem;
+  vertical-align: middle;
+}
+
+.ticket-table tbody tr:last-child {
+  box-shadow: none;
+}
+
+.ticket-pagination {
+  background: var(--surface-muted);
+  padding-block: 0.875rem;
+}
+</style>

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
 import StatSummaryCard from '@/components/StatSummaryCard.vue'
+import AppPagination from '@/components/AppPagination.vue'
 import { useApp } from '@/plugins/app'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
 
@@ -11,13 +12,14 @@ const route = useRoute()
 const { state } = useApp()
 
 const SEARCH_DEBOUNCE_MS = 300
-const PAGE_SIZE = 5
+const pageSizeOptions = [20, 50, 100]
 const initialRange = getDefaultDateRange()
 
 const searchInput = ref('')
 const searchKeyword = ref('')
 const searchDebounce = ref(null)
 const currentPage = ref(1)
+const pageSize = ref(20)
 const numberFormatter = new Intl.NumberFormat('vi-VN')
 
 const sortDirections = ref({
@@ -324,41 +326,13 @@ const filteredStores = computed(() => {
 const hasStores = computed(() => filteredStores.value.length > 0)
 
 const totalPages = computed(() => {
-  const pageCount = Math.ceil(filteredStores.value.length / PAGE_SIZE)
+  const pageCount = Math.ceil(filteredStores.value.length / pageSize.value)
   return Math.max(pageCount, 1)
 })
 
 const pagedStores = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE
-  return filteredStores.value.slice(start, start + PAGE_SIZE)
-})
-
-const paginationStart = computed(() => {
-  if (filteredStores.value.length <= 0) return 0
-  return (currentPage.value - 1) * PAGE_SIZE + 1
-})
-
-const paginationEnd = computed(() => {
-  if (filteredStores.value.length <= 0) return 0
-  return Math.min(currentPage.value * PAGE_SIZE, filteredStores.value.length)
-})
-
-const visiblePageItems = computed(() => {
-  const pageCount = totalPages.value
-  const current = currentPage.value
-
-  if (pageCount <= 5) return Array.from({ length: pageCount }, (_, index) => index + 1)
-
-  const items = [1]
-  const start = Math.max(2, current - 1)
-  const end = Math.min(pageCount - 1, current + 1)
-
-  if (start > 2) items.push('dots-left')
-  for (let page = start; page <= end; page += 1) items.push(page)
-  if (end < pageCount - 1) items.push('dots-right')
-  items.push(pageCount)
-
-  return items
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredStores.value.slice(start, start + pageSize.value)
 })
 
 const reviewedStoresCount = computed(() => (
@@ -422,12 +396,9 @@ function goToPage(page) {
   currentPage.value = page
 }
 
-function prevPage() {
-  goToPage(currentPage.value - 1)
-}
-
-function nextPage() {
-  goToPage(currentPage.value + 1)
+function changePageSize(size) {
+  pageSize.value = size
+  currentPage.value = 1
 }
 
 function openStoreDetail(storeId) {
@@ -764,54 +735,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="app-pagination-bar app-page-header tablet:items-center">
-          <p class="text-sm text-[var(--text-secondary)]">
-            Hiển thị
-            <span class="font-semibold text-[var(--text-secondary)]">{{ paginationStart }} - {{ paginationEnd }}</span>
-            trong tổng số
-            <span class="font-semibold text-[var(--text-secondary)]">{{ filteredStores.length }}</span>
-            cửa hàng
-          </p>
-
-          <div class="flex max-w-full items-center justify-between gap-3 tablet:justify-end">
-            <button
-              type="button"
-              class="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="currentPage <= 1"
-              @click="prevPage"
-            >
-              <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m15 18-6-6 6-6" />
-              </svg>
-            </button>
-
-            <div class="flex min-w-0 items-center gap-2 overflow-x-auto py-1">
-              <template v-for="item in visiblePageItems" :key="String(item)">
-                <button
-                  v-if="typeof item === 'number'"
-                  type="button"
-                  class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border text-xs font-semibold transition-colors"
-                  :class="item === currentPage ? 'border-[var(--primary)] bg-[var(--primary)] text-white' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:bg-[var(--primary-softer)]'"
-                  @click="goToPage(item)"
-                >
-                  {{ item }}
-                </button>
-                <span v-else class="px-1 text-xs text-[var(--text-muted)]">...</span>
-              </template>
-            </div>
-
-            <button
-              type="button"
-              class="inline-flex size-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="currentPage >= totalPages"
-              @click="nextPage"
-            >
-              <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m9 18 6-6-6-6" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <AppPagination :page="currentPage" :page-count="totalPages" :page-size="pageSize" :page-size-options="pageSizeOptions" :total="filteredStores.length" :loading="loading" item-label="cửa hàng" @update:page="goToPage" @update:page-size="changePageSize" />
       </section>
     </div>
   </div>

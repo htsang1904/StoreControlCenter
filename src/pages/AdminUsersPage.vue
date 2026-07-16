@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import CommonModal from '@/components/CommonModal.vue'
+import AppPagination from '@/components/AppPagination.vue'
 import { useToast } from '@/plugins/toast'
 import {
   listAdminDepartments,
@@ -16,7 +17,8 @@ const savingUser = ref(false)
 const loadError = ref('')
 const users = ref([])
 const currentPage = ref(1)
-const pageSize = ref(12)
+const pageSize = ref(20)
+const pageSizeOptions = [20, 50, 100]
 const totalUsers = ref(0)
 const pageCount = ref(1)
 
@@ -216,6 +218,11 @@ const goToPage = async (page) => {
   await loadUsers(page)
 }
 
+const changePageSize = async (size) => {
+  pageSize.value = size
+  await loadUsers(1)
+}
+
 const openEditModal = (user) => {
   editingUser.value = user
   editForm.name = String(user?.name || '')
@@ -365,27 +372,7 @@ onMounted(async () => {
         </table>
       </div>
 
-      <div class="app-pagination-bar flex items-center justify-between">
-        <p class="text-sm text-[var(--text-secondary)]">Trang {{ currentPage }} / {{ pageCount }}</p>
-        <div class="flex gap-2">
-          <button
-            type="button"
-            class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="currentPage <= 1"
-            @click="goToPage(currentPage - 1)"
-          >
-            Trước
-          </button>
-          <button
-            type="button"
-            class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--primary-softer)] disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="currentPage >= pageCount"
-            @click="goToPage(currentPage + 1)"
-          >
-            Sau
-          </button>
-        </div>
-      </div>
+      <AppPagination :page="currentPage" :page-count="pageCount" :page-size="pageSize" :page-size-options="pageSizeOptions" :total="totalUsers" :loading="loadingUsers" item-label="người dùng" @update:page="goToPage" @update:page-size="changePageSize" />
     </section>
   </div>
 

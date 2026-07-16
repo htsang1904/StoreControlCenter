@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useToast } from '@/plugins/toast'
+import AppPagination from '@/components/AppPagination.vue'
 import {
   createAdminDepartment,
   deleteAdminDepartment,
@@ -19,6 +20,7 @@ const statusFilter = ref('')
 const statusFilterOpen = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
+const pageSizeOptions = [20, 50, 100]
 const pagination = reactive({ total: 0, pageCount: 1 })
 const modalOpen = ref(false)
 const modalMode = ref('create')
@@ -33,14 +35,6 @@ const statusFilterOptions = [
 ]
 
 const modalTitle = computed(() => (modalMode.value === 'edit' ? 'Cập nhật bộ phận' : 'Tạo bộ phận mới'))
-const rangeStart = computed(() => {
-  if (!departments.value.length) return 0
-  return (currentPage.value - 1) * pageSize.value + 1
-})
-const rangeEnd = computed(() => {
-  if (!departments.value.length) return 0
-  return rangeStart.value + departments.value.length - 1
-})
 const activeActionDepartment = computed(() => departments.value.find((department) => department.id === openActionMenuId.value) || null)
 const statusFilterLabel = computed(() => statusFilterOptions.find((option) => option.value === statusFilter.value)?.label || 'Tất cả trạng thái')
 
@@ -233,14 +227,14 @@ const applyFilters = () => {
   loadDepartments(1)
 }
 
-const prevPage = () => {
-  if (currentPage.value <= 1) return
-  loadDepartments(currentPage.value - 1)
+const goToPage = (page) => {
+  if (loading.value || page === currentPage.value) return
+  loadDepartments(page)
 }
 
-const nextPage = () => {
-  if (currentPage.value >= pagination.pageCount) return
-  loadDepartments(currentPage.value + 1)
+const changePageSize = (size) => {
+  pageSize.value = size
+  loadDepartments(1)
 }
 
 onMounted(() => {
@@ -350,21 +344,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="app-pagination-bar app-page-header tablet:items-center">
-        <p class="text-sm text-[var(--text-secondary)]">
-          Hiển thị
-          <span class="font-semibold text-[var(--text-primary)]">{{ rangeStart }}-{{ rangeEnd }}</span>
-          trong
-          <span class="font-semibold text-[var(--text-primary)]">{{ pagination.total }}</span>
-          bộ phận
-        </p>
-
-        <div class="flex items-center gap-2">
-          <button type="button" class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] disabled:opacity-50" :disabled="currentPage <= 1 || loading" @click="prevPage">Trước</button>
-          <span class="text-sm text-[var(--text-secondary)]">Trang {{ currentPage }} / {{ pagination.pageCount }}</span>
-          <button type="button" class="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] disabled:opacity-50" :disabled="currentPage >= pagination.pageCount || loading" @click="nextPage">Sau</button>
-        </div>
-      </div>
+      <AppPagination :page="currentPage" :page-count="pagination.pageCount" :page-size="pageSize" :page-size-options="pageSizeOptions" :total="pagination.total" :loading="loading" item-label="bộ phận" @update:page="goToPage" @update:page-size="changePageSize" />
     </section>
 
     <Teleport to="body">
