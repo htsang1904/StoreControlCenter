@@ -1,0 +1,28 @@
+{
+  "id": "/",
+  "name": "Store OPS",
+  "short_name": "Store OPS",
+  "description": "Hệ thống vận hành và quản lý cửa hàng.",
+  "lang": "vi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0862cf",
+  "theme_color": "#1d7de2",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/store-ops-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/store-ops-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

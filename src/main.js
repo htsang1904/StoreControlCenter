@@ -52,6 +52,14 @@ app.directive('loading',loading)
 app.use(router)
 app.mount('#app')
 
+window.requestAnimationFrame(() => {
+  const splash = document.getElementById('app-splash')
+  if (!splash) return
+
+  splash.classList.add('is-hidden')
+  window.setTimeout(() => splash.remove(), 350)
+})
+
 import('@lordicon/element')
   .then(({ defineElement }) => defineElement())
   .catch(() => {})

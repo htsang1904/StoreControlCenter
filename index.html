@@ -3,20 +3,81 @@
 
 <head>
   <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="512x512" href="/src/assets/images/android-chrome-512x512.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/store-ops-192.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Trung tâm quản lý cửa hàng - Hệ thống quản trị tập trung.">
+  <meta name="theme-color" content="#1d7de2">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Store OPS">
+  <meta name="description" content="Store OPS - Hệ thống vận hành cửa hàng.">
   <!-- Open Graph tags -->
-  <meta property="og:title" content="Trung tâm quản lý cửa hàng">
-  <meta property="og:description" content="Trung tâm quản lý cửa hàng - Hệ thống quản trị tập trung.">
+  <meta property="og:title" content="Store OPS">
+  <meta property="og:description" content="Store OPS - Hệ thống vận hành cửa hàng.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://store.guta.vn/">
-  <meta property="og:image" content="/favicon.ico">
-  <title>Trung tâm quản lý của hàng</title>
+  <meta property="og:image" content="/src/assets/images/android-chrome-512x512.png">
+  <title>Store OPS</title>
+  <style>
+    #app-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #2587e8 0%, #0862cf 52%, #217fdc 100%);
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 320ms ease, visibility 320ms ease;
+    }
+
+    #app-splash.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #app-splash img {
+      width: min(42vw, 420px);
+      height: auto;
+      animation: splash-logo-in 600ms ease-out both;
+    }
+
+    @keyframes splash-logo-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @media (max-width: 640px) {
+      #app-splash img {
+        width: min(68vw, 320px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #app-splash,
+      #app-splash img {
+        animation: none;
+        transition-duration: 1ms;
+      }
+    }
+  </style>
 </head>
 
 <body>
-  <div id="app" aria-label="Store Control Center Application"></div>
+  <div id="app-splash" role="status" aria-label="Đang tải Store OPS">
+    <img src="/src/assets/images/logo-white.png" alt="Store OPS">
+  </div>
+  <div id="app" aria-label="Store OPS Application"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 

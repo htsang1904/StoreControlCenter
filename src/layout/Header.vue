@@ -121,7 +121,7 @@ function resolveHeaderContext(currentRoute) {
     return { tab: 'tools', title: 'Công cụ Admin', display: 'title' }
   }
 
-  return { tab: '', title: 'Store Control', display: 'title' }
+  return { tab: '', title: 'Store OPS', display: 'title' }
 }
 
 function resolveBreadcrumbItems(currentRoute, context, currentLabelValue) {

@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
 import CommonModal from '@/components/CommonModal.vue'
+import appLogo from '@/assets/images/android-chrome-512x512.png'
 
 const route = useRoute()
 const { state, logout, syncUserStores, updateUserAvatar } = useApp()
@@ -302,14 +303,14 @@ onBeforeUnmount(() => {
         class="flex items-center gap-2.5 px-4 py-3.5"
         :class="isExpanded ? 'pc:justify-start pc:px-4 pc:py-3.5' : 'pc:justify-center pc:px-1.5 pc:py-4'"
       >
-        <div
-          class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--primary)] text-white"
-          :class="isExpanded ? 'pc:flex' : 'pc:hidden'"
-        >
-          <span class="material-symbols-outlined text-[18px]">storefront</span>
-        </div>
+        <img
+          :src="appLogo"
+          alt="Store OPS"
+          class="h-9 w-9 rounded-lg object-cover"
+          :class="isExpanded ? 'pc:block' : 'pc:hidden'"
+        />
         <div class="min-w-0" :class="isExpanded ? 'pc:block' : 'pc:hidden'">
-          <p class="truncate text-sm font-bold tracking-tight text-[var(--text-primary)]">Quản trị cửa hàng</p>
+          <p class="truncate text-sm font-bold tracking-tight text-[var(--text-primary)]">Store OPS</p>
         </div>
 
         <button

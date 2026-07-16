@@ -1745,16 +1745,27 @@ watch(
                           <span>Phân công người xử lý</span>
                         </button>
 
-                        <button
+                        <div
                           v-if="canResolveTicket"
-                          type="button"
-                          class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60"
-                          :disabled="assigning || resolving"
-                          @click="handleResolveTicket"
+                          class="mt-2 rounded-xl border border-[var(--success-border)] bg-[var(--success-bg)] p-2.5"
                         >
-                          <span class="material-symbols-outlined text-[18px]" :class="resolving ? 'animate-spin' : ''">{{ resolving ? 'autorenew' : 'task_alt' }}</span>
-                          <span>{{ resolving ? 'Đang xử lý...' : 'Đánh dấu đã xử lý xong' }}</span>
-                        </button>
+                          <div class="mb-2 flex items-start gap-2">
+                            <span class="material-symbols-outlined mt-0.5 text-[18px] text-[var(--success-text)]">verified</span>
+                            <div class="min-w-0">
+                              <p class="text-xs font-bold text-[var(--success-text)]">Hoàn tất xử lý</p>
+                              <p class="mt-0.5 text-[11px] leading-4 text-[var(--neutral-text)]">Xác nhận ticket đã được xử lý đầy đủ.</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            class="flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[var(--success-text)] px-3 py-2 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--success-text)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-60 disabled:shadow-none"
+                            :disabled="assigning || resolving"
+                            @click="handleResolveTicket"
+                          >
+                            <span class="material-symbols-outlined text-[19px]" :class="resolving ? 'animate-spin' : ''">{{ resolving ? 'autorenew' : 'task_alt' }}</span>
+                            <span>{{ resolving ? 'Đang hoàn tất...' : 'Đánh dấu đã xử lý xong' }}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                     </Transition>
