@@ -129,6 +129,13 @@ const router = createRouter({
                 {
                     path: 'tools/qc-forms/:id/edit',
                     name: 'Admin QC Form Edit',
+                    redirect: to => `/tools/qc-forms/${to.params.id}`,
+                    meta: { auth: true, roles: ['admin'] },
+                    props: true
+                },
+                {
+                    path: 'tools/qc-forms/:id/versions/:versionId/edit',
+                    name: 'Admin QC Form Version Edit',
                     component: () => import('@/pages/AdminQcFormEditorPage.vue'),
                     meta: { auth: true, roles: ['admin'] },
                     props: true

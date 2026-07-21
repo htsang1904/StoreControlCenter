@@ -1,72 +1,172 @@
-# vue-project
+# Store Control Center
 
-## AI Agent Workflow
+Internal operations app for store ticket handling, QC sessions, store/admin management, notifications, and dashboard reporting.
 
-Workflow chuẩn cho AI agent nằm ở `AGENTS.md`.
+## Quick Start
 
-Quick check trước khi agent báo cáo kết quả:
+### Prerequisites
+
+- Node `20.19+` or `22.12+`
+- Python `3.12+`
+- PostgreSQL `15+`
+
+Check local versions before validating changes:
+
+```sh
+node -v
+npm -v
+```
+
+If Node is not compatible, prefer:
+
+```sh
+nvm use 20
+```
+
+### Frontend
+
+```sh
+npm install
+npm run dev
+```
+
+The Vite app runs on `http://localhost:5173` by default.
+
+### Backend
+
+```sh
+cd python-api
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload --port 8001
+```
+
+FastAPI docs are available at:
+
+- `http://localhost:8001/docs`
+- `http://localhost:8001/redoc`
+
+### Docker
+
+Run frontend, FastAPI backend, and PostgreSQL together:
+
+```sh
+docker-compose up --build
+```
+
+Default service ports:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8001`
+- Backend docs: `http://localhost:8001/docs`
+
+## Project Map
+
+- Frontend app: `src/`
+- Frontend routes: `src/router/index.js`
+- Frontend API client: `src/services/http.js`
+- Backend API: `python-api/app/api/routers/`
+- Backend services: `python-api/app/services/`
+- Backend models: `python-api/app/models/`
+- Backend schemas: `python-api/app/schemas/`
+- Migrations: `python-api/alembic/versions/`
+- Agent workflow: `AGENTS.md`
+
+## Main Features
+
+- Dashboard summaries for tickets and QC.
+- Ticket management, inbox, detail, replies, assignment, status transitions, attachment upload, realtime events, and OneSignal push notifications.
+- QC management, store detail, draft/session creation, QC form administration, versioning, weighted pass/fail criteria, point criteria, and percentage deduction criteria.
+- Admin tools for users, stores, store sync, departments, permissions, and QC forms.
+- Suite SSO callback flow.
+
+## Configuration
+
+Frontend `.env`:
+
+```env
+VITE_API_BASE_URL=http://localhost:8001
+VITE_AUTH_URL=
+VITE_APP_VERSION=
+VITE_DEFAULT_STORE_ID=
+VITE_DEFAULT_STORE_NAME=
+VITE_ONESIGNAL_APP_ID=
+```
+
+Backend `python-api/.env`:
+
+```env
+POSTGRES_SERVER=localhost
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=store_control_center
+POSTGRES_PORT=5432
+SECRET_KEY=change-this-to-at-least-32-characters
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+ALLOWED_ORIGINS=http://localhost:5173
+CORS_ALLOW_CREDENTIALS=true
+```
+
+Optional backend integrations:
+
+```env
+SUITE_API=https://lab-sapi.guta.asia
+SUITE_WEB_URL=https://suite.guta.vn
+SUITE_PLATFORM_TOKEN=
+MAIN_STORE_SYNC_URL=https://gapi.guta.asia/webapi/stores?all_stores=true
+SUITE_VERIFY_TOKEN=false
+SUITE_PUBLIC_KEY_FILE=
+
+ENABLE_SQLADMIN=false
+SQLADMIN_USERNAME=
+SQLADMIN_PASSWORD=
+SQLADMIN_SESSION_SECRET=
+
+ENABLE_BOOTSTRAP_ADMIN=true
+BOOTSTRAP_ADMIN_EMAIL=admin@storecontrol.local
+BOOTSTRAP_ADMIN_NAME=System Administrator
+BOOTSTRAP_ADMIN_PHONE_NUMBER=
+
+APP_PUBLIC_URL=
+ONESIGNAL_APP_ID=
+ONESIGNAL_REST_API_KEY=
+ONESIGNAL_API_URL=https://api.onesignal.com/notifications
+```
+
+## Validation
+
+Use the repo validation wrapper:
 
 ```sh
 ./scripts/agent-check.sh auto
 ```
 
-This template should help get you started developing with Vue 3 in Vite.
-
-## Recommended IDE Setup
-
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd) 
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+Other scopes:
 
 ```sh
-npm install
+./scripts/agent-check.sh frontend
+./scripts/agent-check.sh backend
+./scripts/agent-check.sh all
 ```
 
-### Compile and Hot-Reload for Development
-
-```sh
-npm run dev
-```
-
-### Compile and Minify for Production
-
-```sh
-npm run build
-```
+Frontend validation runs the responsive breakpoint guard and `npm run build`.
+Backend validation compiles `python-api/app` with Python syntax checks.
 
 ## OneSignal Web Push
 
-Frontend env:
+Frontend registers the browser device and maps `external_id` to the logged-in user ID. Backend sends push notifications using the same `external_id`; the OneSignal REST API key must stay backend-only.
 
-```env
-VITE_ONESIGNAL_APP_ID=
-```
-
-Backend env:
-
-```env
-APP_PUBLIC_URL=https://your-production-domain.example
-ONESIGNAL_APP_ID=
-ONESIGNAL_REST_API_KEY=
-```
-
-Frontend đăng ký thiết bị và gắn `external_id` bằng ID user sau khi đăng nhập. Backend gửi push theo cùng `external_id` cho mọi notification đã được tạo trong ứng dụng; REST API key chỉ được giữ ở backend.
-
-Các sự kiện ticket hiện phát đồng thời notification trong ứng dụng, realtime và OneSignal gồm: tạo ticket, phản hồi, phân công, nhận xử lý, thay đổi trạng thái, xử lý xong, mở lại và từ chối ticket.
-
-Ứng dụng hiển thị hộp hỏi quyền thông báo; nếu chọn `Để sau`, hộp hỏi sẽ xuất hiện lại ở lần mở ứng dụng tiếp theo.
+Ticket events currently emit in-app notification, realtime events, and OneSignal push for creation, replies, assignment, claiming, status changes, resolve, reopen, and rejection.
 
 The service worker file must be served from the site root at `/OneSignalSDKWorker.js`. The OneSignal Dashboard web origin must match the deployed frontend origin.
+
+## Docs
+
+- Backend architecture: `docs/python_backend/ARCHITECTURE.md`
+- Business flows: `docs/python_backend/BUSINESS_FLOWS.md`
+- Ticket management report: `docs/ticket-management-report.md`
+- QC form scoring: `docs/QC_FORM_SCORING_V2.md`
+- QC form creation workflow: `docs/qc-form-creation-workflow.md`

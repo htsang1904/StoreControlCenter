@@ -1,6 +1,6 @@
 # Store Control Center - Python API
 
-This backend is a modern refactor of the original Strapi v4 architecture, designed for high performance, scalability, and type safety using Python's modern async ecosystem.
+This is the current Store Control Center backend. It replaced the original Strapi v4 backend with a FastAPI, SQLAlchemy, Alembic, and PostgreSQL stack.
 
 ## 🚀 Technology Stack
 - **Web Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Async, OpenAPI auto-docs)
@@ -21,11 +21,14 @@ The project follows Domain-Driven Design (DDD) principles to ensure separation o
 python-api/
 ├── alembic/              # Database migration scripts
 ├── app/
-│   ├── api/              # API Routers (Controllers)
+│   ├── admin/            # SQLAdmin views/auth, enabled by env
+│   ├── api/              # API routers/controllers
 │   ├── core/             # Core configurations (Security, JWT, Settings)
 │   ├── db/               # Database connection and session management
 │   ├── models/           # SQLAlchemy Data Models (DB Schemas)
 │   ├── schemas/          # Pydantic Schemas (Request/Response validation)
+│   ├── services/         # Business logic helpers
+│   ├── tests/            # Pytest tests
 │   └── main.py           # FastAPI application entry point
 ├── alembic.ini           # Alembic configuration
 └── requirements.txt      # Python dependencies
@@ -39,7 +42,7 @@ python-api/
 - **Python 3.12+** installed on your machine.
 - **PostgreSQL** running locally or via Docker.
   - Create a blank database: `store_control_center`
-  - Default connection expects: `postgres://postgres:postgres@localhost:5432/store_control_center`
+  - Common local connection: `postgresql+asyncpg://postgres:postgres@localhost:5432/store_control_center`
   - *(You can customize these in `.env`)*
 
 ### 2. Environment Setup
@@ -67,7 +70,7 @@ alembic upgrade head
 Start the FastAPI application using Uvicorn:
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8001
 ```
 *The `--reload` flag enables auto-reloading during development.*
 
@@ -102,7 +105,7 @@ docker-compose up --build -d
 
 Once running:
 - **Frontend** is available at: `http://localhost:5173`
-- **Backend API & Docs** are at: `http://localhost:8000/docs`
+- **Backend API & Docs** are at: `http://localhost:8001/docs`
 
 **Note on Database setup in Docker:**
 When using `docker-compose`, the backend container runs Alembic migrations automatically before starting Uvicorn. To apply migrations manually if needed, run:
@@ -116,10 +119,10 @@ docker exec -it store_control_center_backend alembic upgrade head
 
 FastAPI automatically generates interactive API documentation. Once the server is running, visit:
 
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- **Swagger UI**: [http://localhost:8001/docs](http://localhost:8001/docs)
+- **ReDoc**: [http://localhost:8001/redoc](http://localhost:8001/redoc)
 
-You can use the Swagger UI to directly interact with the `/auth`, `/tickets`, and `/qc` endpoints.
+You can use the Swagger UI to directly interact with `/auth`, `/tickets`, `/ticket-logs`, `/dashboard`, `/qc`, `/qc/findings`, `/notifications`, `/stores`, `/departments`, and `/admin/*` endpoints.
 
 ---
 
@@ -131,7 +134,22 @@ The Vue frontend (`src/services/http.js` & `src/services/admin_service.js`) has 
 
 Ensure your frontend `.env` is updated:
 ```env
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8001
+```
+
+## ✅ Validation
+
+From the repo root:
+
+```bash
+./scripts/agent-check.sh backend
+```
+
+This currently runs Python syntax compilation for `python-api/app`. For behavior changes, prefer the pytest suite:
+
+```bash
+cd python-api
+pytest
 ```
 
 ## ⚡ Realtime WebSocket Channels

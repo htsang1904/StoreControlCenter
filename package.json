@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@lordicon/element": "^2.0.1",
+    "@lucide/vue": "^1.24.0",
     "@preline/file-upload": "^3.2.1",
     "@preline/theme-switch": "^3.2.1",
     "@tailwindcss/vite": "^4.1.17",

@@ -26,6 +26,14 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  headerClass: {
+    type: String,
+    default: '',
+  },
+  footerClass: {
+    type: String,
+    default: '',
+  },
   closeDisabled: {
     type: Boolean,
     default: false,
@@ -121,7 +129,7 @@ onBeforeUnmount(() => {
       >
         <div
           v-if="$slots.header || title || description || showClose"
-          class="flex items-center gap-4 border-b border-[var(--stroke)] px-5 py-4 tablet:px-6"
+          :class="['flex items-center gap-4 border-b border-[var(--stroke)] px-5 py-4 tablet:px-6', headerClass]"
         >
           <slot name="header">
             <div class="min-w-0 flex-1">
@@ -152,7 +160,7 @@ onBeforeUnmount(() => {
           <slot />
         </div>
 
-        <div v-if="$slots.footer" class="border-t border-[var(--stroke)] px-5 py-4 tablet:px-6">
+        <div v-if="$slots.footer" :class="['border-t border-[var(--stroke)] px-5 py-4 tablet:px-6', footerClass]">
           <slot name="footer" />
         </div>
       </div>

@@ -395,10 +395,12 @@ const createDraftAndOpen = async (payload = {}) => {
   creatingDraft.value = true
   draftModalError.value = ''
   try {
+    const selectedTemplate = qcTemplateOptions.value.find((item) => item.id === String(payload.templateId || ''))
     const drafted = await createQcDraftSession({
       storeId: storeId.value,
       storeName: storeTitle.value,
       templateId: payload.templateId,
+      formVersionId: selectedTemplate?.activeVersionId || null,
       auditedAt: payload.auditedAt ? new Date(payload.auditedAt).toISOString() : new Date().toISOString(),
       note: payload.note,
     })

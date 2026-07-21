@@ -110,6 +110,10 @@ function resolveHeaderContext(currentRoute) {
       return { tab: '', title: 'Chỉnh sửa biểu mẫu QC', display: 'breadcrumb' }
     }
 
+    if (/^\/tools\/qc-forms\/\d+\/versions\/\d+\/edit$/.test(path)) {
+      return { tab: '', title: 'Chỉnh sửa version QC', display: 'breadcrumb' }
+    }
+
     if (/^\/tools\/qc-forms\/\d+$/.test(path)) {
       return { tab: '', title: 'Chi tiết biểu mẫu QC', display: 'breadcrumb' }
     }

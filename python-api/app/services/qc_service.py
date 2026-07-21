@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.core.datetime_utils import parse_datetime_to_utc_naive, utc_now_naive
+from app.models.qc_form import QCForm, QCFormVersion
 from app.models.qc_session import QCDraft
 from app.models.user import User
 from app.schemas.qc import (
@@ -39,6 +40,8 @@ def serialize_qc_draft(draft: QCDraft) -> QCDraftData:
         auditorId=draft.auditor_id,
         template_id=draft.template_id,
         templateId=draft.template_id,
+        form_version_id=draft.form_version_id,
+        formVersionId=draft.form_version_id,
         audited_at=audited_at,
         auditedAt=audited_at,
         note=draft.note,
@@ -62,6 +65,48 @@ def assert_store_access(current_user: User, store_id: int) -> None:
             status_code=403,
             detail="Không có quyền thao tác nháp cho cửa hàng này",
         )
+
+
+async def resolve_active_form_version_id(
+    session: AsyncSession,
+    template_id: str,
+    form_version_id: int | None = None,
+) -> int:
+    if form_version_id:
+        query = (
+            select(QCFormVersion)
+            .join(QCForm, QCFormVersion.form_id == QCForm.id)
+            .where(
+                QCFormVersion.id == int(form_version_id),
+                QCFormVersion.status != "draft",
+                QCForm.is_active == True,
+            )
+        )
+        result = await session.execute(query)
+        version = result.scalar_one_or_none()
+        if not version:
+            raise HTTPException(status_code=400, detail="Phiên bản biểu mẫu QC không hợp lệ")
+        return int(version.id)
+
+    template_text = str(template_id or "").strip()
+    if not template_text.isdigit():
+        raise HTTPException(status_code=400, detail="templateId/template_id không hợp lệ")
+
+    query = (
+        select(QCFormVersion)
+        .join(QCForm, QCFormVersion.form_id == QCForm.id)
+        .where(
+            QCForm.id == int(template_text),
+            QCFormVersion.status == "published",
+            QCForm.is_active == True,
+        )
+        .order_by(QCFormVersion.id.desc())
+    )
+    result = await session.execute(query)
+    version = result.scalars().first()
+    if not version:
+        raise HTTPException(status_code=400, detail="Biểu mẫu QC chưa có phiên bản đang áp dụng")
+    return int(version.id)
 
 
 async def list_qc_drafts(
@@ -130,11 +175,17 @@ async def create_qc_draft(
         raise HTTPException(status_code=400, detail="templateId/template_id là bắt buộc")
 
     assert_store_access(current_user, payload.store_id)
+    form_version_id = await resolve_active_form_version_id(
+        session=session,
+        template_id=template_id,
+        form_version_id=payload.form_version_id,
+    )
 
     draft = QCDraft(
         store_id=payload.store_id,
         auditor_id=current_user.id,
         template_id=template_id,
+        form_version_id=form_version_id,
         audited_at=parse_iso_datetime(payload.audited_at),
         note=str(payload.note or ""),
         criteria_states=payload.criteria_states or {},
@@ -172,6 +223,17 @@ async def update_qc_draft(
         if not template_id:
             raise HTTPException(status_code=400, detail="templateId/template_id không hợp lệ")
         draft.template_id = template_id
+        draft.form_version_id = await resolve_active_form_version_id(
+            session=session,
+            template_id=template_id,
+            form_version_id=data.get("form_version_id"),
+        )
+    elif "form_version_id" in data:
+        draft.form_version_id = await resolve_active_form_version_id(
+            session=session,
+            template_id=draft.template_id,
+            form_version_id=data.get("form_version_id"),
+        )
 
     if "audited_at" in data:
         draft.audited_at = parse_iso_datetime(data.get("audited_at"), fallback=draft.audited_at)

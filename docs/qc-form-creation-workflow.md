@@ -4,7 +4,7 @@
 
 Tài liệu này mô tả quy trình tạo và quản lý biểu mẫu QC mới theo hướng:
 
-- không cần thao tác trực tiếp trong Strapi dashboard,
+- không cần thao tác trực tiếp trong database/admin dashboard,
 - dễ dùng cho admin vận hành,
 - giữ được version lịch sử,
 - hỗ trợ cây tiêu chí có node cha và node lá,
@@ -27,7 +27,7 @@ Không bao gồm:
 
 ## 3. Bài toán cần giải quyết
 
-Trước đây, để tạo một biểu mẫu QC đúng nghiệp vụ, user gần như phải hiểu và tự nối các entity trong Strapi:
+Trước đây, để tạo một biểu mẫu QC đúng nghiệp vụ, user gần như phải hiểu và tự nối các entity backend:
 
 - `qc-form`
 - `qc-form-version`
@@ -86,17 +86,16 @@ Trong editor có 2 loại node:
   - có các thuộc tính:
     - kiểu chấm
     - điểm tối đa
-    - trọng số
-    - tần suất
-    - trọng yếu
-    - bắt buộc
+    - điểm tối đa hoặc trọng số
+    - phần trăm khấu trừ nếu là criterion deduction
 
 Rule chính:
 
 - cây phải có ít nhất 1 node lá có thể chấm,
 - nhóm trống không được lưu,
-- `pass_fail` luôn quy đổi `maxScore = 1`,
+- `pass_fail` dùng `maxScore` như trọng số và không được ép về `1`,
 - `point` phải có `maxScore > 0`.
+- `deduction` phải có `0 < deductionPercent <= 100` và không tham gia tổng điểm tối đa.
 
 ### Bước C. Lưu nháp
 
@@ -343,7 +342,7 @@ Backend hiện đang làm các việc sau:
 
 ## 12. Điểm hợp lý của flow hiện tại
 
-- User không cần đụng Strapi dashboard.
+- User không cần đụng database/admin dashboard.
 - User không cần hiểu data model backend.
 - Version được tự quản lý, giảm lỗi thao tác tay.
 - Cây tiêu chí phản ánh đúng mental model nghiệp vụ QC.
@@ -373,7 +372,7 @@ Backend hiện đang làm các việc sau:
 
 Flow được xem là hợp lý nếu thỏa:
 
-1. Admin tạo mới được một biểu mẫu mà không cần vào Strapi dashboard.
+1. Admin tạo mới được một biểu mẫu mà không cần vào database/admin dashboard.
 2. Admin có thể dựng cây tiêu chí nhiều cấp.
 3. Chỉ node lá mới là node chấm điểm.
 4. Lưu nháp xong mở lại vẫn thấy đúng cây đã tạo.

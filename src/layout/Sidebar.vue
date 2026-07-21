@@ -109,7 +109,7 @@ const sidebarClasses = computed(() => {
   }
 
   return props.desktopOpen
-    ? 'hidden pc:block pc:w-64 pc:translate-x-0 pc:opacity-100 pc:pointer-events-auto'
+    ? 'hidden pc:block pc:w-56 pc:translate-x-0 pc:opacity-100 pc:pointer-events-auto'
     : 'hidden pc:block pc:w-20 pc:translate-x-0 pc:opacity-100 pc:pointer-events-auto'
 })
 

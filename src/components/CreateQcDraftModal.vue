@@ -212,7 +212,7 @@ watch(
             <span class="material-symbols-outlined text-[24px]">inventory_2</span>
           </div>
           <p class="app-state-title">Chưa có biểu mẫu QC khả dụng.</p>
-          <p class="app-state-body">Tạo hoặc phát hành biểu mẫu trước khi khởi tạo phiếu mới.</p>
+          <p class="app-state-body">Tạo, phát hành và áp dụng biểu mẫu trước khi khởi tạo phiếu mới.</p>
         </div>
       </div>
 

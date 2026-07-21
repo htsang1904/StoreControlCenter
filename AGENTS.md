@@ -13,9 +13,9 @@ File này là workflow chuẩn để AI agent làm việc nhất quán trong rep
 1. Frontend:
 - `src/pages/*`, `src/components/*`, `src/services/*`, `src/router/index.js`.
 2. Backend:
-- `api/src/api/**/{controllers,routes,services}`, `api/config/*`.
+- `python-api/app/api/routers/*`, `python-api/app/services/*`, `python-api/app/models/*`, `python-api/app/schemas/*`, `python-api/app/core/*`.
 3. Cấu hình:
-- `package.json`, `api/package.json`, `.env`, `api/.env.example`, `vite.config.js`.
+- `package.json`, `python-api/requirements.txt`, `.env`, `python-api/.env`, `vite.config.js`, `docker-compose*.yml`.
 
 ## 3) Quy tắc implement
 
@@ -29,7 +29,7 @@ File này là workflow chuẩn để AI agent làm việc nhất quán trong rep
 Chạy kiểm tra theo phạm vi thay đổi:
 
 - Frontend: `npm run build`
-- Backend: `npm --prefix api run build`
+- Backend: `PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/agent-pycache" python3 -m compileall -q python-api/app`
 - Tự chọn scope: `./scripts/agent-check.sh [auto|frontend|backend|all]`
 
 Nếu môi trường local không đáp ứng (vd Node version), phải báo rõ lý do + lệnh khắc phục.
@@ -44,12 +44,16 @@ Nếu môi trường local không đáp ứng (vd Node version), phải báo rõ
 ## 6) Project map nhanh
 
 - Frontend app: root (`src/`, Vite).
-- Backend API: `api/` (Strapi 4).
+- Backend API: `python-api/` (FastAPI + SQLAlchemy + Alembic).
 - API client frontend: `src/services/http.js`.
 - Route frontend: `src/router/index.js`.
 - Biến môi trường frontend đang dùng:
   - `VITE_API_BASE_URL`
   - `VITE_AUTH_URL`
+  - `VITE_APP_VERSION`
+  - `VITE_DEFAULT_STORE_ID`
+  - `VITE_DEFAULT_STORE_NAME`
+  - `VITE_ONESIGNAL_APP_ID`
 
 ## 7) Cơ chế recap project theo lần lưu (on-save)
 
@@ -76,7 +80,7 @@ và thêm vào User/Workspace Settings:
 ## 8) Prerequisites môi trường (bắt buộc)
 
 - Frontend build yêu cầu Node `20.19+` (hoặc `22.12+`).
-- Backend Strapi đang chạy ổn với Node `<=20`.
+- Backend FastAPI yêu cầu Python `3.12+`.
 - Trước khi validate, chạy:
   - `node -v`
   - `npm -v`

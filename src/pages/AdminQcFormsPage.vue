@@ -33,7 +33,7 @@ const hasLocalFilters = computed(() => Boolean(normalizedSearch.value || statusF
 const displayForms = computed(() => {
   return qcForms.value.filter((form) => {
     const status = form.hasLatestVersion
-      ? String(form.latestVersionStatus || 'draft').toLowerCase()
+      ? String(form.displayVersionStatus || form.latestVersionStatus || 'draft').toLowerCase()
       : 'no_version'
 
     if (statusFilter.value && status !== statusFilter.value) return false
@@ -45,6 +45,7 @@ const displayForms = computed(() => {
       String(form.code || '').toLowerCase().includes(keyword)
       || String(form.name || '').toLowerCase().includes(keyword)
       || String(form.description || '').toLowerCase().includes(keyword)
+      || String(form.displayVersionNo || '').toLowerCase().includes(keyword)
       || String(form.latestVersionNo || '').toLowerCase().includes(keyword)
     )
   })
@@ -88,7 +89,7 @@ const formatDisplayDate = (value) => {
 const statusLabel = (status, hasLatestVersion = true) => {
   if (!hasLatestVersion) return 'Chưa có version'
   const normalized = String(status || '').toLowerCase()
-  if (normalized === 'published') return 'Đang phát hành'
+  if (normalized === 'published') return 'Đang áp dụng'
   if (normalized === 'archived') return 'Lưu trữ'
   return 'Bản nháp'
 }
@@ -133,11 +134,6 @@ const openFormDetail = (formId) => {
   router.push(`/tools/qc-forms/${formId}`)
 }
 
-const openEditPage = (formId) => {
-  if (!formId) return
-  router.push(`/tools/qc-forms/${formId}/edit`)
-}
-
 const goToPage = async (page) => {
   if (loadingForms.value) return
   if (page < 1 || page > pageCount.value || page === currentPage.value) return
@@ -180,7 +176,7 @@ onMounted(async () => {
             >
               <option value="">Tất cả trạng thái</option>
               <option value="draft">Bản nháp</option>
-              <option value="published">Đang phát hành</option>
+              <option value="published">Đang áp dụng</option>
               <option value="archived">Lưu trữ</option>
               <option value="no_version">Chưa có version</option>
             </select>
@@ -204,16 +200,63 @@ onMounted(async () => {
         {{ formsError }}
       </p>
 
-      <div class="app-table-scroll">
-        <table class="min-w-[920px] w-full border-collapse text-left">
+      <div v-if="displayForms.length" class="divide-y divide-[var(--stroke)] tablet:hidden">
+        <article
+          v-for="form in displayForms"
+          :key="form.id"
+          class="cursor-pointer bg-white px-4 py-4 transition-colors active:bg-[var(--surface-muted)]"
+          @click="openFormDetail(form.id)"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-bold text-[var(--text-primary)]">{{ form.code }}</p>
+              <p class="mt-1 line-clamp-2 text-sm font-medium leading-5 text-[var(--text-primary)]">{{ form.name }}</p>
+              <p class="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{{ form.description || 'Không có mô tả' }}</p>
+            </div>
+            <span class="app-badge shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion)">
+              {{ statusLabel(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion) }}
+            </span>
+          </div>
+
+          <div class="mt-4 grid grid-cols-3 gap-2 text-xs">
+            <div class="rounded-lg bg-[var(--surface-muted)] px-2.5 py-2">
+              <p class="text-[var(--text-muted)]">Version</p>
+              <p class="mt-1 truncate font-semibold text-[var(--text-primary)]">{{ form.displayVersionNo || '--' }}</p>
+            </div>
+            <div class="rounded-lg bg-[var(--surface-muted)] px-2.5 py-2">
+              <p class="text-[var(--text-muted)]">Ngày tạo</p>
+              <p class="mt-1 truncate font-semibold text-[var(--text-primary)]">{{ formatDisplayDate(form.createdAt) }}</p>
+            </div>
+            <div class="rounded-lg bg-[var(--surface-muted)] px-2.5 py-2">
+              <p class="text-[var(--text-muted)]">Cập nhật</p>
+              <p class="mt-1 truncate font-semibold text-[var(--text-primary)]">{{ formatDisplayDate(form.updatedAt) }}</p>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div v-else class="px-4 py-8 tablet:hidden">
+        <div class="app-state-panel app-state-panel--compact">
+          <div class="app-state-stack mx-auto">
+            <div class="app-state-icon mx-auto">
+              <span class="material-symbols-outlined text-[24px]">inventory_2</span>
+            </div>
+            <p class="app-state-title">{{ loadingForms ? 'Đang tải danh sách biểu mẫu...' : 'Chưa có biểu mẫu QC nào.' }}</p>
+            <p class="app-state-body">{{ loadingForms ? 'Danh sách biểu mẫu sẽ xuất hiện sau khi tải xong.' : 'Tạo biểu mẫu mới để bắt đầu xây dựng checklist QC cho hệ thống.' }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="app-table-scroll hidden tablet:block">
+        <table class="min-w-[1040px] w-full border-collapse text-left">
           <thead>
             <tr class="bg-[var(--surface-muted)]">
               <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Mã biểu mẫu</th>
               <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Tên biểu mẫu</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Version mới nhất</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Version đang dùng</th>
               <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Trạng thái</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Cập nhật</th>
-              <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Thao tác</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Ngày tạo</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Ngày cập nhật</th>
             </tr>
           </thead>
 
@@ -229,22 +272,16 @@ onMounted(async () => {
                 <p class="text-sm font-medium text-[var(--text-primary)]">{{ form.name }}</p>
                 <p class="text-xs text-[var(--text-secondary)]">{{ form.description || 'Không có mô tả' }}</p>
               </td>
-              <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">{{ form.latestVersionNo || '--' }}</td>
               <td class="px-4 py-3">
-                <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.latestVersionStatus, form.hasLatestVersion)">
-                  {{ statusLabel(form.latestVersionStatus, form.hasLatestVersion) }}
+                <p class="text-sm font-semibold text-[var(--text-primary)]">{{ form.displayVersionNo || '--' }}</p>
+              </td>
+              <td class="px-4 py-3">
+                <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion)">
+                  {{ statusLabel(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion) }}
                 </span>
               </td>
+              <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">{{ formatDisplayDate(form.createdAt) }}</td>
               <td class="px-4 py-3 text-sm text-[var(--text-secondary)]">{{ formatDisplayDate(form.updatedAt) }}</td>
-              <td class="px-4 py-3 text-end">
-                <button
-                  type="button"
-                  class="inline-flex items-center justify-center rounded-lg border border-[var(--stroke)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
-                  @click.stop="openEditPage(form.id)"
-                >
-                  Chỉnh sửa
-                </button>
-              </td>
             </tr>
           </tbody>
 

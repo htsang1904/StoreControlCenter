@@ -29,6 +29,10 @@ class _FakeSession:
             setattr(obj, "created_at", now)
         setattr(obj, "updated_at", now)
 
+    async def execute(self, _query: object) -> object:
+        version = SimpleNamespace(id=101)
+        return SimpleNamespace(scalar_one_or_none=lambda: version)
+
 
 def _build_user(role: str, user_id: int, store_ids: list[int]) -> SimpleNamespace:
     stores = [SimpleNamespace(id=store_id) for store_id in store_ids]
@@ -53,7 +57,8 @@ def _build_client(current_user: SimpleNamespace, fake_session: _FakeSession) -> 
 def _draft_payload(store_id: int) -> dict[str, object]:
     return {
         "storeId": store_id,
-        "templateId": "QC-TEMPLATE-1",
+        "templateId": "14",
+        "formVersionId": 101,
         "auditedAt": "2026-03-20T05:00:00Z",
         "note": "draft for access check",
         "criteriaStates": {"A.1": {"status": "pass"}},
@@ -83,6 +88,7 @@ def test_store_user_can_create_draft_for_assigned_store():
     assert body["success"] is True
     assert body["data"]["storeId"] == 2
     assert body["data"]["auditorId"] == 12
+    assert body["data"]["formVersionId"] == 101
     assert len(session.added) == 1
 
 
@@ -98,3 +104,4 @@ def test_admin_can_create_draft_for_any_store():
     assert body["success"] is True
     assert body["data"]["storeId"] == 999
     assert body["data"]["auditorId"] == 1
+    assert body["data"]["formVersionId"] == 101

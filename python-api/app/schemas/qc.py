@@ -46,6 +46,10 @@ class QCSessionCriterionInput(BaseModel):
         default=None,
         validation_alias=AliasChoices("min_pass_score", "minPassScore", "passScore"),
     )
+    deduction_percent: Decimal = Field(
+        default=Decimal(0),
+        validation_alias=AliasChoices("deduction_percent", "deductionPercent"),
+    )
     status: str = "pending"
     score: Optional[Decimal] = None
     applicable: Optional[bool] = None
@@ -127,6 +131,10 @@ class PaginationMeta(BaseModel):
 class QCDraftCreateRequest(BaseModel):
     store_id: int = Field(validation_alias=AliasChoices("store_id", "storeId"))
     template_id: str = Field(validation_alias=AliasChoices("template_id", "templateId"))
+    form_version_id: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("form_version_id", "formVersionId"),
+    )
     audited_at: Optional[datetime] = Field(
         default=None,
         validation_alias=AliasChoices("audited_at", "auditedAt"),
@@ -149,6 +157,10 @@ class QCDraftUpdateRequest(BaseModel):
         default=None,
         validation_alias=AliasChoices("template_id", "templateId"),
     )
+    form_version_id: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("form_version_id", "formVersionId"),
+    )
     audited_at: Optional[datetime] = Field(
         default=None,
         validation_alias=AliasChoices("audited_at", "auditedAt"),
@@ -170,6 +182,8 @@ class QCDraftData(BaseModel):
     auditorId: Optional[int] = None
     template_id: str
     templateId: str
+    form_version_id: Optional[int] = None
+    formVersionId: Optional[int] = None
     audited_at: Optional[datetime] = None
     auditedAt: Optional[datetime] = None
     note: Optional[str] = None

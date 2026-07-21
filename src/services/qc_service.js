@@ -15,6 +15,44 @@ const toNumber = (value, fallback = 0) => {
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max)
 
+const orderingToParts = (value) => String(value || '')
+  .split('.')
+  .map((part) => String(part || '').trim().toUpperCase())
+  .filter(Boolean)
+
+const compareOrderingPart = (leftPart, rightPart) => {
+  const isLeftNumeric = /^\d+$/.test(leftPart)
+  const isRightNumeric = /^\d+$/.test(rightPart)
+
+  if (isLeftNumeric && isRightNumeric) {
+    return Number(leftPart) - Number(rightPart)
+  }
+
+  return leftPart.localeCompare(rightPart, 'en', {
+    numeric: true,
+    sensitivity: 'base',
+  })
+}
+
+const compareOrdering = (left, right) => {
+  const leftParts = orderingToParts(left)
+  const rightParts = orderingToParts(right)
+  const maxLength = Math.max(leftParts.length, rightParts.length)
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const diff = compareOrderingPart(leftParts[index] || '', rightParts[index] || '')
+    if (diff !== 0) return diff
+  }
+
+  return 0
+}
+
+const compareCriteriaOrder = (left, right) => (
+  compareOrdering(left?.ordering, right?.ordering)
+  || toNumber(left?.sortOrder) - toNumber(right?.sortOrder)
+  || toNumber(left?.id) - toNumber(right?.id)
+)
+
 const normalizePassThreshold = (value, fallback = DEFAULT_PASS_THRESHOLD) => {
   if (value === undefined || value === null || String(value).trim() === '') {
     return clamp(toNumber(fallback, DEFAULT_PASS_THRESHOLD), 0, 100)
@@ -50,6 +88,7 @@ const normalizeCriterionStatus = (value) => {
 const normalizeCriterionMode = (value) => {
   const normalized = String(value || '').trim().toLowerCase()
   if (normalized === 'pass_fail' || normalized === 'passfail' || normalized === 'binary') return 'pass_fail'
+  if (normalized === 'deduction' || normalized === 'deduct') return 'deduction'
   if (normalized === 'point' || normalized === 'score') return 'point'
   return null
 }
@@ -111,17 +150,10 @@ const normalizeCriteria = (criteria = []) => {
     const mode = normalizeCriterionMode(item?.mode || item?.scoreType) || 'point'
     const incomingStatus = normalizeCriterionStatus(item?.status)
     const explicitNonScoredStatus = incomingStatus === 'na' || incomingStatus === 'skipped_weekly'
-    let maxScore = Math.max(toNumber(item?.maxScore), 0)
-    if (mode === 'pass_fail' && maxScore <= 0) {
-      maxScore = 1
-    }
-
-    const passScoreDefault = mode === 'point' ? maxScore : 1
-    const passScore = clamp(
-      toNumber(item?.passScore ?? item?.minPassScore ?? item?.pass_score, passScoreDefault),
-      0,
-      maxScore > 0 ? maxScore : passScoreDefault
-    )
+    const maxScore = mode === 'deduction' ? 0 : Math.max(toNumber(item?.maxScore, mode === 'pass_fail' ? 1 : 0), 0)
+    const deductionPercent = mode === 'deduction'
+      ? clamp(toNumber(item?.deductionPercent ?? item?.deduction_percent ?? item?.maxScore), 0, 100)
+      : 0
 
     const rawScore = item?.score
     const hasScore = rawScore !== null && rawScore !== undefined && String(rawScore) !== ''
@@ -130,9 +162,6 @@ const normalizeCriteria = (criteria = []) => {
       if (hasScore) {
         score = clamp(toNumber(rawScore), 0, maxScore)
       } else if (mode === 'pass_fail') {
-        if (incomingStatus === 'pass') score = 1
-        if (incomingStatus === 'fail') score = 0
-      } else {
         if (incomingStatus === 'pass') score = maxScore
         if (incomingStatus === 'fail') score = 0
       }
@@ -141,11 +170,7 @@ const normalizeCriteria = (criteria = []) => {
     let status = incomingStatus
     if (!explicitNonScoredStatus) {
       if (mode === 'point') {
-        if (score !== null) {
-          status = score >= passScore ? 'pass' : 'fail'
-        } else if (!status) {
-          status = 'pending'
-        }
+        status = score === null ? 'pending' : 'pass'
       } else if (!status) {
         status = 'pending'
       }
@@ -159,7 +184,7 @@ const normalizeCriteria = (criteria = []) => {
       status,
       score,
       maxScore,
-      passScore,
+      deductionPercent,
       applicable: item?.applicable !== false,
       note: String(item?.note || '').trim(),
       attachments: normalizeCriterionAttachments(item?.attachments),
@@ -183,7 +208,7 @@ const normalizeTemplate = (payload = {}) => {
   }
 }
 
-const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD, passScore = 0 }) => {
+const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD }) => {
   const normalizedCriteria = normalizeCriteria(criteria)
   const threshold = normalizePassThreshold(passThreshold)
 
@@ -195,10 +220,25 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
         return acc
       }
 
+      if (item.mode === 'deduction') {
+        const isPass = item.status === 'pass'
+        const isFail = item.status === 'fail'
+        if (!isPass && !isFail) {
+          acc.incompleteCount += 1
+          return acc
+        }
+        if (isPass) acc.passedCount += 1
+        if (isFail) {
+          acc.failedCount += 1
+          acc.totalDeduction += item.deductionPercent
+        }
+        return acc
+      }
+
       if (item.mode === 'pass_fail') {
         const isPass = item.status === 'pass'
         const isFail = item.status === 'fail'
-        acc.maxScore += 1
+        acc.maxScore += item.maxScore
 
         if (!isPass && !isFail) {
           acc.incompleteCount += 1
@@ -207,7 +247,7 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
 
         if (isPass) {
           acc.passedCount += 1
-          acc.totalScore += 1
+          acc.totalScore += item.maxScore
         } else {
           acc.failedCount += 1
         }
@@ -217,7 +257,6 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
 
       const hasScore = item.score !== null && item.score !== undefined
       const maxScore = Math.max(toNumber(item.maxScore), 0)
-      const passScore = clamp(toNumber(item.passScore, maxScore), 0, maxScore)
       acc.maxScore += maxScore
 
       if (!hasScore) {
@@ -226,14 +265,8 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
       }
 
       const score = clamp(toNumber(item.score), 0, maxScore)
-      const isPass = score >= passScore
       acc.totalScore += score
-
-      if (isPass) {
-        acc.passedCount += 1
-      } else {
-        acc.failedCount += 1
-      }
+      acc.passedCount += 1
 
       return acc
     },
@@ -244,20 +277,16 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
       passedCount: 0,
       failedCount: 0,
       excludedCount: 0,
+      totalDeduction: 0,
     }
   )
 
   const reasons = []
   if (metrics.incompleteCount > 0) reasons.push('incomplete')
-  if (metrics.failedCount > 0) reasons.push('failed')
-  
-  const isBelowGlobalPass = passScore > 0 
-    ? metrics.totalScore < passScore
-    : isBelowPassThreshold({ totalScore: metrics.totalScore, maxScore: metrics.maxScore, passThreshold: threshold })
-
-  if (isBelowGlobalPass) {
-    reasons.push('threshold')
-  }
+  const baseScoreRate = metrics.maxScore > 0 ? (metrics.totalScore / metrics.maxScore) * 100 : 0
+  const totalDeduction = clamp(metrics.totalDeduction, 0, 100)
+  const finalScoreRate = Math.max(baseScoreRate - totalDeduction, 0)
+  if (metrics.maxScore <= 0 || finalScoreRate < threshold) reasons.push('threshold')
 
   const status = reasons.length === 0 ? 'passed' : 'failed'
 
@@ -265,7 +294,9 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
     ...metrics,
     evaluationMode: 'mixed',
     passThreshold: threshold,
-    passScore,
+    baseScoreRate,
+    totalDeduction,
+    finalScoreRate,
     reasons,
     status,
   }
@@ -340,9 +371,9 @@ const normalizeCriteriaFromApi = (items = []) => {
   return source.map((item, index) => {
     const mode = normalizeCriterionMode(item?.mode_snapshot || item?.mode || item?.scoreType) || 'point'
     const status = normalizeCriterionStatus(item?.result || item?.status) || 'pending'
-    const maxScore = mode === 'pass_fail'
-      ? 1
-      : Math.max(toNumber(item?.max_score_snapshot || item?.maxScore), 0)
+    const maxScore = mode === 'deduction'
+      ? 0
+      : Math.max(toNumber(item?.max_score_snapshot || item?.maxScore, mode === 'pass_fail' ? 1 : 0), 0)
     const hasScore = item?.score !== null && item?.score !== undefined && String(item.score) !== ''
 
     return {
@@ -353,7 +384,9 @@ const normalizeCriteriaFromApi = (items = []) => {
       status,
       score: hasScore ? toNumber(item.score) : null,
       maxScore,
-      passScore: mode === 'pass_fail' ? 1 : maxScore,
+      deductionPercent: mode === 'deduction'
+        ? toNumber(item?.deduction_percent_snapshot ?? item?.deductionPercent ?? item?.deduction_percent ?? item?.max_score_snapshot ?? item?.maxScore, 0)
+        : 0,
       applicable: status !== 'na',
       note: String(item?.note || ''),
       attachments: normalizeCriterionAttachments(item?.attachments),
@@ -364,11 +397,10 @@ const normalizeCriteriaFromApi = (items = []) => {
 const deriveSessionDecisionReasons = ({ criteria = [], totalScore = 0, maxScore = 0, result = 'pending', passThreshold = 0 }) => {
   const reasons = []
   const hasPending = criteria.some((item) => item.status === 'pending')
-  const hasFail = criteria.some((item) => item.status === 'fail')
   const belowThreshold = isBelowPassThreshold({ totalScore, maxScore, passThreshold })
 
   if (hasPending || result === 'pending') reasons.push('incomplete')
-  if (hasFail || result === 'failed') reasons.push('failed')
+  if (result === 'failed') reasons.push('failed')
   if (belowThreshold) reasons.push('threshold')
 
   return Array.from(new Set(reasons))
@@ -462,6 +494,7 @@ const normalizeDraft = (draft = {}) => {
     storeCode: String(draft?.storeCode || draft?.store_code || ''),
     storeName: String(draft?.storeName || draft?.store_name || (storeId > 0 ? `Cửa hàng #${storeId}` : '')),
     templateId: String(draft?.templateId || draft?.template_id || ''),
+    formVersionId: toNumber(draft?.formVersionId || draft?.form_version_id) || null,
     auditedAt: auditedAtRaw ? parseDate(auditedAtRaw).toISOString() : null,
     note: String(draft?.note || ''),
     criteriaStates: normalizeDraftCriteriaStates(draft?.criteriaStates || draft?.criteria_states),
@@ -726,8 +759,12 @@ export const listQcTemplates = async () => {
   }))
 }
 
-export const getQcTemplateById = async (formId) => {
-  const response = await http.get(`/api/qc/forms/${formId}`)
+export const getQcTemplateById = async (formId, options = {}) => {
+  const formVersionId = toNumber(options.formVersionId || options.form_version_id)
+  const queryString = toQueryString({
+    formVersionId: formVersionId > 0 ? formVersionId : '',
+  })
+  const response = await http.get(queryString ? `/api/qc/forms/${formId}?${queryString}` : `/api/qc/forms/${formId}`)
   const formData = response?.data
   if (!formData) return null
 
@@ -742,7 +779,7 @@ export const getQcTemplateById = async (formId) => {
       parentId: criterion.parentId || null,
       mode: criterion.mode,
       maxScore: toNumber(criterion.maxScore),
-      passScore: toNumber(criterion.minPassScore, 0),
+      deductionPercent: toNumber(criterion.deductionPercent ?? criterion.deduction_percent ?? (criterion.mode === 'deduction' ? criterion.maxScore : 0), 0),
       sortOrder: criterion.sortOrder,
     }))
     : []
@@ -764,8 +801,17 @@ export const getQcTemplateById = async (formId) => {
       }
     })
 
-    return roots.sort((a, b) => a.sortOrder - b.sortOrder)
+    const sortNodes = (nodes = []) => nodes
+      .sort(compareCriteriaOrder)
+      .map((node) => ({
+        ...node,
+        children: sortNodes(node.children),
+      }))
+
+    return sortNodes(roots)
   }
+
+  const orderedFlatCriteria = [...flattened].sort(compareCriteriaOrder)
 
   return {
     id: String(formData.id),
@@ -773,9 +819,8 @@ export const getQcTemplateById = async (formId) => {
     activeVersionId: toNumber(formData.activeVersionId) || null,
     version: String(formData.version || ''),
     passThreshold: normalizePassThreshold(formData.passThreshold),
-    passScore: toNumber(formData.passScore, 0),
-    criteriaTree: buildTree(flattened),
-    flatCriteria: flattened // Kept for legacy compatibility in some parts
+    criteriaTree: buildTree(orderedFlatCriteria),
+    flatCriteria: orderedFlatCriteria // Kept for legacy compatibility in some parts
   }
 }
 
@@ -813,6 +858,7 @@ const normalizeDraftFromApi = (draft = {}) => normalizeDraft({
   storeId: draft?.storeId || draft?.store_id,
   storeName: draft?.storeName || draft?.store_name,
   templateId: draft?.templateId || draft?.template_id,
+  formVersionId: draft?.formVersionId || draft?.form_version_id,
   auditedAt: draft?.auditedAt || draft?.audited_at,
   note: draft?.note,
   criteriaStates: draft?.criteriaStates || draft?.criteria_states,
@@ -888,6 +934,7 @@ export const createQcDraftSession = async (payload = {}) => {
     storeId,
     storeName: String(payload.storeName || payload.store_name || ''),
     templateId: String(payload.templateId || payload.template_id || ''),
+    formVersionId: toNumber(payload.formVersionId || payload.form_version_id) || undefined,
     auditedAt: String(payload.auditedAt || ''),
     note: String(payload.note || ''),
     criteriaStates: payload.criteriaStates || {},
@@ -909,6 +956,7 @@ export const updateQcDraftSession = async (draftId, payload = {}) => {
     storeId: payload.storeId || payload.store_id,
     storeName: payload.storeName || payload.store_name,
     templateId: payload.templateId || payload.template_id,
+    formVersionId: payload.formVersionId || payload.form_version_id,
     auditedAt: payload.auditedAt || payload.audited_at,
     note: payload.note,
     criteriaStates: payload.criteriaStates || payload.criteria_states,

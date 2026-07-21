@@ -55,6 +55,7 @@ function toLocalDateTimeInput(value) {
 
 const form = reactive({
   templateId: '',
+  formVersionId: null,
   auditedAt: toLocalDateTimeInput(),
   note: '',
   criteriaStates: {},
@@ -105,7 +106,7 @@ const resolveCriterionStatus = (criterion, criterionState = {}) => {
 
     const score = Number(rawScore)
     if (!Number.isFinite(score)) return 'pending'
-    return score >= Number(criterion?.passScore ?? criterion?.maxScore ?? 0) ? 'pass' : 'fail'
+    return rawStatus === 'fail' ? 'fail' : 'pass'
   }
 
   return rawStatus === 'pass' || rawStatus === 'fail' ? rawStatus : 'pending'
@@ -242,6 +243,7 @@ const persistDraftNow = async ({ includeAttachments = true } = {}) => {
       storeId: storeId.value,
       storeName: storeTitle.value,
       templateId: form.templateId,
+      formVersionId: form.formVersionId || selectedTemplate.value.activeVersionId || null,
       auditedAt: form.auditedAt ? new Date(form.auditedAt).toISOString() : new Date().toISOString(),
       note: form.note,
       criteriaStates: buildDraftCriteriaStates({ includeAttachments }),
@@ -270,6 +272,7 @@ const restoreDraftSession = async () => {
     draftCreatedAt.value = ''
     templateData.value = null
     form.templateId = ''
+    form.formVersionId = null
     form.criteriaStates = {}
     errorMessage.value = 'Vui lòng khởi tạo phiếu nháp từ màn chi tiết cửa hàng trước khi chấm QC.'
     return
@@ -283,6 +286,7 @@ const restoreDraftSession = async () => {
       activeDraftId.value = ''
       draftCreatedAt.value = ''
       templateData.value = null
+      form.formVersionId = null
       form.criteriaStates = {}
       errorMessage.value = 'Không tìm thấy phiếu nháp hoặc nháp đã bị xóa.'
       return
@@ -292,6 +296,7 @@ const restoreDraftSession = async () => {
       activeDraftId.value = ''
       draftCreatedAt.value = ''
       templateData.value = null
+      form.formVersionId = null
       form.criteriaStates = {}
       errorMessage.value = 'Phiếu nháp không thuộc cửa hàng hiện tại.'
       return
@@ -302,6 +307,7 @@ const restoreDraftSession = async () => {
       activeDraftId.value = draft.id
       draftCreatedAt.value = draft.createdAt || draft.updatedAt || ''
       templateData.value = null
+      form.formVersionId = null
       form.criteriaStates = {}
       errorMessage.value = 'Phiếu nháp chưa có biểu mẫu QC hợp lệ.'
       return
@@ -310,18 +316,21 @@ const restoreDraftSession = async () => {
     activeDraftId.value = draft.id
     draftCreatedAt.value = draft.createdAt || draft.updatedAt || ''
     form.templateId = nextTemplateId
+    form.formVersionId = draft.formVersionId || null
     form.auditedAt = toLocalDateTimeInput(draft.auditedAt || draft.updatedAt || draft.createdAt)
     form.note = String(draft.note || '')
 
-    const template = await getQcTemplateById(nextTemplateId)
+    const template = await getQcTemplateById(nextTemplateId, { formVersionId: form.formVersionId })
     if (!template) {
       templateData.value = null
+      form.formVersionId = null
       form.criteriaStates = {}
       errorMessage.value = 'Không tải được cấu trúc biểu mẫu QC cho phiếu nháp này.'
       return
     }
 
     templateData.value = template
+    form.formVersionId = draft.formVersionId || template.activeVersionId || null
     initializeCriteriaStates()
 
     const incomingStates = draft.criteriaStates && typeof draft.criteriaStates === 'object'
@@ -361,6 +370,7 @@ const restoreDraftSession = async () => {
     activeDraftId.value = ''
     draftCreatedAt.value = ''
     templateData.value = null
+    form.formVersionId = null
     form.criteriaStates = {}
     errorMessage.value = error?.response?.data?.message || error?.message || 'Không tải được phiếu nháp.'
   } finally {
@@ -437,7 +447,7 @@ const criteriaPayload = computed(() => {
       mode: criterion.mode,
       score: state.score,
       maxScore: criterion.maxScore,
-      min_pass_score: criterion.passScore,
+      deductionPercent: criterion.deductionPercent || 0,
       applicable: status !== 'na',
       status: status,
       note: String(state.note || '').trim(),
@@ -450,7 +460,6 @@ const sessionEvaluation = computed(() => {
   return qcHelpers.evaluateSession({
     criteria: criteriaPayload.value,
     passThreshold: selectedTemplate.value.passThreshold,
-    passScore: selectedTemplate.value.passScore || 0,
   })
 })
 
@@ -590,8 +599,9 @@ const submitSession = async () => {
     return
   }
 
-  if (!selectedTemplate.value.activeVersionId) {
-    errorMessage.value = 'Biểu mẫu QC chưa có phiên bản phát hành hợp lệ.'
+  const submitFormVersionId = form.formVersionId || selectedTemplate.value.activeVersionId
+  if (!submitFormVersionId) {
+    errorMessage.value = 'Biểu mẫu QC chưa có phiên bản đang áp dụng hợp lệ.'
     return
   }
 
@@ -602,7 +612,7 @@ const submitSession = async () => {
   try {
     await createQcSession({
       storeId: storeId.value,
-      formVersionId: selectedTemplate.value.activeVersionId,
+      formVersionId: submitFormVersionId,
       criteria: criteriaPayload.value,
       note: form.note,
       auditedAt: form.auditedAt ? new Date(form.auditedAt).toISOString() : new Date().toISOString(),
@@ -771,6 +781,21 @@ onBeforeUnmount(() => {
                 <div class="rounded-xl border border-[var(--info-border)] bg-[var(--info-bg)] p-2">
                   <p class="text-lg font-bold text-[var(--primary-strong)]">{{ sessionEvaluation.totalScore }}/{{ sessionEvaluation.maxScore }}</p>
                   <p class="text-[11px] font-medium text-[var(--primary)]">Điểm</p>
+                </div>
+              </div>
+
+              <div class="rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-3 text-xs text-[var(--text-secondary)]">
+                <div class="flex items-center justify-between gap-3">
+                  <span>Tỷ lệ điểm gốc</span>
+                  <strong class="text-[var(--text-primary)]">{{ sessionEvaluation.baseScoreRate.toFixed(2) }}%</strong>
+                </div>
+                <div class="mt-2 flex items-center justify-between gap-3">
+                  <span>Tổng khấu trừ</span>
+                  <strong class="text-[var(--danger-text)]">-{{ sessionEvaluation.totalDeduction.toFixed(2) }} điểm %</strong>
+                </div>
+                <div class="mt-2 flex items-center justify-between gap-3 border-t border-[var(--stroke)] pt-2">
+                  <span>Tỷ lệ cuối</span>
+                  <strong class="text-[var(--primary-strong)]">{{ sessionEvaluation.finalScoreRate.toFixed(2) }}%</strong>
                 </div>
               </div>
 

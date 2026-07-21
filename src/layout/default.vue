@@ -58,7 +58,7 @@ watch(
 
     <div
       class="flex h-full min-h-0 flex-col transition-[padding] duration-300 ease-in-out"
-      :class="shouldOffsetLayout ? (effectiveDesktopSidebarOpen ? 'pc:pl-64' : 'pc:pl-20') : ''"
+      :class="shouldOffsetLayout ? (effectiveDesktopSidebarOpen ? 'pc:pl-56' : 'pc:pl-20') : ''"
     >
       <Header
         :desktop-open="effectiveDesktopSidebarOpen"

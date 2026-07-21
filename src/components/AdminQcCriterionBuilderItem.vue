@@ -30,6 +30,10 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  selectedNodeId: {
+    type: [String, Number],
+    default: '',
+  },
 })
 
 const emit = defineEmits([
@@ -38,6 +42,7 @@ const emit = defineEmits([
   'move-up',
   'move-down',
   'remove',
+  'select',
 ])
 
 const isGroupNode = computed(() => props.node?.nodeType === 'group')
@@ -93,9 +98,11 @@ const nodeTitle = computed(() => {
 })
 
 const criterionModeLabel = computed(() => (
-  String(props.node?.mode || 'point') === 'pass_fail'
-    ? 'Đạt / Không đạt'
-    : `${Number(props.node?.maxScore || 0)} điểm`
+  String(props.node?.mode || 'point') === 'deduction'
+    ? `Khấu trừ ${Number(props.node?.deductionPercent || 0)} điểm %`
+    : (String(props.node?.mode || 'point') === 'pass_fail'
+      ? `Đạt / Không đạt · ${Number(props.node?.maxScore || 0)} điểm`
+      : `${Number(props.node?.maxScore || 0)} điểm`)
 ))
 const sectionToggleAriaLabel = computed(() => (
   sectionExpanded.value
@@ -167,9 +174,14 @@ watch(
 
 <template>
   <article class="space-y-2.5">
-    <section v-if="isGroupNode" class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)]">
+    <section
+      v-if="isGroupNode"
+      class="rounded-xl border bg-[var(--surface-muted)] transition-colors"
+      :class="selectedNodeId === node.id ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/10' : 'border-[var(--stroke)]'"
+      @click.self="emit('select', node.id)"
+    >
       <div class="px-4 py-3.5">
-        <div class="flex flex-wrap items-start justify-between gap-2.5">
+        <div class="flex flex-wrap items-start justify-between gap-2.5" @click="emit('select', node.id)">
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-center gap-2">
               <span class="inline-flex rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--text-secondary)]">
@@ -284,7 +296,12 @@ watch(
       </div>
     </section>
 
-    <section v-else class="rounded-2xl border border-[var(--stroke)] bg-white px-4 py-3.5">
+    <section
+      v-else
+      class="rounded-xl border bg-white px-4 py-3.5 transition-colors"
+      :class="selectedNodeId === node.id ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/10' : 'border-[var(--stroke)]'"
+      @click="emit('select', node.id)"
+    >
       <div class="flex flex-wrap items-start justify-between gap-2.5">
         <div class="min-w-0 flex-1">
           <div class="flex flex-wrap items-center gap-2">
@@ -342,38 +359,36 @@ watch(
             >
               <option value="point">Chấm điểm</option>
               <option value="pass_fail">Đạt / Không đạt</option>
+              <option value="deduction">Khấu trừ phần trăm</option>
             </select>
             <p v-if="fieldErrors.mode" :class="validationMessageClass">{{ fieldErrors.mode }}</p>
           </label>
 
-          <label class="space-y-2">
-            <span class="text-sm font-semibold text-[var(--text-secondary)]">Điểm tối đa</span>
+          <label v-if="node.mode !== 'deduction'" class="space-y-2">
+            <span class="text-sm font-semibold text-[var(--text-secondary)]">{{ node.mode === 'pass_fail' ? 'Trọng số' : 'Điểm tối đa' }}</span>
             <input
               v-model.number="node.maxScore"
               type="number"
               min="1"
               step="1"
-              :disabled="node.mode === 'pass_fail'"
               :class="[customInputClass, 'no-spin', fieldErrors.maxScore ? validationInputClass : '']"
             />
             <p v-if="fieldErrors.maxScore" :class="validationMessageClass">{{ fieldErrors.maxScore }}</p>
-            <p v-if="node.mode === 'pass_fail'" class="text-xs text-[var(--text-muted)]">Kiểu này luôn quy đổi về 1 điểm.</p>
+            <p v-if="node.mode === 'pass_fail'" class="text-xs text-[var(--text-muted)]">Đạt nhận toàn bộ trọng số, Không đạt nhận 0 điểm.</p>
           </label>
 
-          <label class="space-y-2">
-            <span class="text-sm font-semibold text-[var(--text-secondary)]">Điểm đạt tối thiểu</span>
+          <label v-else class="space-y-2">
+            <span class="text-sm font-semibold text-[var(--text-secondary)]">Mức khấu trừ khi Không đạt</span>
             <input
-              v-model.number="node.minPassScore"
+              v-model.number="node.deductionPercent"
               type="number"
-              min="0"
-              :max="node.maxScore"
+              min="0.1"
+              max="100"
               step="0.1"
-              :disabled="node.mode === 'pass_fail'"
-              :class="[customInputClass, 'no-spin', fieldErrors.minPassScore ? validationInputClass : '']"
+              :class="[customInputClass, 'no-spin', fieldErrors.deductionPercent ? validationInputClass : '']"
             />
-            <p v-if="fieldErrors.minPassScore" :class="validationMessageClass">{{ fieldErrors.minPassScore }}</p>
-            <p v-if="node.mode === 'pass_fail'" class="text-xs text-[var(--text-muted)]">Mặc định tính là 1 điểm.</p>
-            <p v-else class="text-xs text-[var(--text-muted)]">Dưới điểm này sẽ bị tính Không Đạt.</p>
+            <p v-if="fieldErrors.deductionPercent" :class="validationMessageClass">{{ fieldErrors.deductionPercent }}</p>
+            <p class="text-xs text-[var(--text-muted)]">Không cộng điểm; khi Không đạt sẽ trừ trực tiếp khỏi tỷ lệ tổng.</p>
           </label>
 
         </div>
@@ -421,11 +436,13 @@ watch(
         :display-ordering="getChildDisplayOrdering(child, index)"
         :can-move-up="index > 0"
         :can-move-down="index < node.children.length - 1"
+        :selected-node-id="selectedNodeId"
         @add-child-group="emit('add-child-group', $event)"
         @add-child-criterion="emit('add-child-criterion', $event)"
         @move-up="emit('move-up', $event)"
         @move-down="emit('move-down', $event)"
         @remove="emit('remove', $event)"
+        @select="emit('select', $event)"
       />
 
       <p

@@ -50,15 +50,17 @@ const resolveCriterionStatus = (criterion, criterionState = {}) => {
 
     const score = toNumber(rawScore, NaN)
     if (!Number.isFinite(score)) return 'pending'
-    return score >= toNumber(criterion?.passScore ?? criterion?.maxScore, 0) ? 'pass' : 'fail'
+    return 'pass'
   }
 
   return rawStatus === 'pass' || rawStatus === 'fail' ? rawStatus : 'pending'
 }
 
 const currentStatus = computed(() => resolveCriterionStatus(props.criterion, state.value))
+const isPointScored = computed(() => props.criterion.mode === 'point' && currentStatus.value === 'pass')
 
 const cardToneClass = computed(() => {
+  if (isPointScored.value) return 'border-[var(--info-border)] bg-[var(--info-bg)]/30 shadow-sm'
   if (currentStatus.value === 'pass') return 'border-[var(--success-border)] bg-[var(--success-bg)]/30 shadow-sm'
   if (currentStatus.value === 'fail') return 'border-[var(--danger-border)] bg-[var(--danger-bg)]/30 shadow-sm'
   if (currentStatus.value === 'na') return 'border-[var(--stroke)] bg-[var(--surface-muted)] opacity-75'
@@ -66,6 +68,7 @@ const cardToneClass = computed(() => {
 })
 
 const statusBadgeClass = computed(() => {
+  if (isPointScored.value) return 'bg-[var(--primary)] text-white shadow-sm'
   if (currentStatus.value === 'pass') return 'bg-[var(--success-text)] text-white shadow-sm'
   if (currentStatus.value === 'fail') return 'bg-[var(--danger-text)] text-white shadow-sm'
   if (currentStatus.value === 'na') return 'bg-[var(--neutral-bg)] text-[var(--neutral-text)]'
@@ -73,6 +76,7 @@ const statusBadgeClass = computed(() => {
 })
 
 const statusLabel = computed(() => {
+  if (isPointScored.value) return 'Đã chấm'
   if (currentStatus.value === 'pass') return 'Đạt'
   if (currentStatus.value === 'fail') return 'Không đạt'
   if (currentStatus.value === 'na') return 'N/A'
@@ -80,12 +84,13 @@ const statusLabel = computed(() => {
 })
 
 const metricLabel = computed(() => (
-  props.criterion.mode === 'point'
-    ? `Tối đa ${toNumber(props.criterion.maxScore)} điểm`
-    : 'Đánh giá đạt / không đạt'
+  props.criterion.mode === 'deduction'
+    ? `Không đạt trừ ${toNumber(props.criterion.deductionPercent)} điểm %`
+    : (props.criterion.mode === 'point'
+      ? `Tối đa ${toNumber(props.criterion.maxScore)} điểm`
+      : `Đạt / Không đạt · ${toNumber(props.criterion.maxScore)} điểm`)
 ))
 
-const pointThreshold = computed(() => toNumber(props.criterion.passScore ?? props.criterion.maxScore, 0))
 const scorePercent = computed(() => {
   if (props.criterion.mode !== 'point') return 0
   const maxScore = Math.max(toNumber(props.criterion.maxScore), 0)
@@ -97,14 +102,13 @@ const scorePercent = computed(() => {
 const scoreHint = computed(() => {
   if (props.criterion.mode !== 'point') return ''
   if (state.value.score === null || state.value.score === undefined || String(state.value.score) === '') {
-    return `Ngưỡng đạt từ ${pointThreshold.value}/${toNumber(props.criterion.maxScore)}`
+    return `Nhập từ 0 đến ${toNumber(props.criterion.maxScore)} điểm`
   }
-  return currentStatus.value === 'pass'
-    ? `Đạt ngưỡng ${pointThreshold.value}/${toNumber(props.criterion.maxScore)}`
-    : `Chưa đạt ngưỡng ${pointThreshold.value}/${toNumber(props.criterion.maxScore)}`
+  return `Đóng góp ${toNumber(state.value.score)}/${toNumber(props.criterion.maxScore)} điểm`
 })
 
 const scoreHintClass = computed(() => {
+  if (isPointScored.value) return 'text-[var(--primary-strong)]'
   if (currentStatus.value === 'pass') return 'text-[var(--success-text)]'
   if (currentStatus.value === 'fail') return 'text-[var(--danger-text)]'
   return 'text-[var(--text-secondary)]'
@@ -220,9 +224,7 @@ const handleScoreChange = (event) => {
 
   updateState({
     score: normalizedScore,
-    status: normalizedScore === null
-      ? 'pending'
-      : (normalizedScore >= pointThreshold.value ? 'pass' : 'fail'),
+    status: 'pass',
   })
 }
 
@@ -334,7 +336,7 @@ const toggleDetails = () => {
         </div>
 
         <div class="w-full pc:min-w-[280px] pc:max-w-[320px]">
-          <div v-if="criterion.mode === 'pass_fail'" class="grid grid-cols-2 gap-2">
+          <div v-if="criterion.mode === 'pass_fail' || criterion.mode === 'deduction'" class="grid grid-cols-2 gap-2">
             <button
               type="button"
               class="cursor-pointer rounded-xl border px-4 py-2.5 text-sm font-medium transition"
@@ -371,7 +373,7 @@ const toggleDetails = () => {
                 </span>
               </div>
               <div class="mt-2 flex items-center justify-between gap-3 text-[11px]">
-                <span class="text-[var(--text-secondary)]">Ngưỡng đạt {{ pointThreshold }}/{{ criterion.maxScore }}</span>
+                <span class="text-[var(--text-secondary)]">Điểm này được cộng trực tiếp vào tổng phiếu</span>
                 <span class="font-medium" :class="scoreHintClass">{{ scoreHint }}</span>
               </div>
             </div>
@@ -380,7 +382,7 @@ const toggleDetails = () => {
               <div class="h-2 overflow-hidden rounded-full bg-[var(--primary-softer)]">
                 <div
                   class="h-full rounded-full transition-all duration-200"
-                  :class="currentStatus === 'fail' ? 'bg-[var(--danger-text)]' : currentStatus === 'pass' ? 'bg-[var(--success-text)]' : 'bg-[var(--text-muted)]'"
+                  :class="currentStatus === 'fail' ? 'bg-[var(--danger-text)]' : isPointScored ? 'bg-[var(--primary)]' : currentStatus === 'pass' ? 'bg-[var(--success-text)]' : 'bg-[var(--text-muted)]'"
                   :style="{ width: `${scorePercent}%` }"
                 ></div>
               </div>

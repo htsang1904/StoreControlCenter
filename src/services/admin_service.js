@@ -93,6 +93,10 @@ const normalizeAdminQcForm = (entry = {}) => {
 
   const latestVersion = sortedVersions[0] || null
   const publishedVersions = sortedVersions.filter((item) => item?.status === 'published')
+  const draftVersions = sortedVersions.filter((item) => item?.status === 'draft')
+  const activeVersion = publishedVersions[0] || null
+  const draftVersion = draftVersions[0] || null
+  const displayVersion = activeVersion || latestVersion
 
   return {
     id: Number(entry?.id || source?.id || 0),
@@ -103,9 +107,16 @@ const normalizeAdminQcForm = (entry = {}) => {
     hasLatestVersion: Boolean(latestVersion),
     versionsCount: sortedVersions.length,
     publishedVersionsCount: publishedVersions.length,
+    hasDraftVersion: Boolean(draftVersion || source?.hasDraftVersion),
+    draftVersionNo: String(source?.draftVersionNo || draftVersion?.versionNo || ''),
+    activeVersionNo: String(source?.activeVersionNo || activeVersion?.versionNo || ''),
+    activeVersionStatus: String(source?.activeVersionStatus || activeVersion?.status || ''),
+    displayVersionNo: String(source?.displayVersionNo || displayVersion?.versionNo || '--'),
+    displayVersionStatus: String(source?.displayVersionStatus || displayVersion?.status || ''),
     latestVersionNo: String(latestVersion?.versionNo || '--'),
     latestVersionStatus: String(latestVersion?.status || ''),
-    updatedAt: latestVersion?.updatedAt || source?.updatedAt || null,
+    createdAt: source?.createdAt || source?.created_at || displayVersion?.createdAt || null,
+    updatedAt: source?.updatedAt || source?.updated_at || displayVersion?.updatedAt || null,
   }
 }
 
@@ -120,6 +131,12 @@ const normalizeAdminQcFormDetail = (item = {}) => {
       sectionName: String(criterion?.sectionName || 'Tổng quát'),
       mode: String(criterion?.mode || 'point'),
       maxScore: Number(criterion?.maxScore || 0),
+      deductionPercent: Number(
+        criterion?.deductionPercent
+        ?? criterion?.deduction_percent
+        ?? (String(criterion?.mode || '') === 'deduction' ? criterion?.maxScore : 0)
+        ?? 0
+      ),
       level: Number(criterion?.level || 1),
       ordering: String(criterion?.ordering || ''),
       parentId: criterion?.parentId ? String(criterion.parentId) : null,
@@ -136,6 +153,9 @@ const normalizeAdminQcFormDetail = (item = {}) => {
     name: String(item?.name || ''),
     description: String(item?.description || ''),
     isActive: item?.isActive !== false,
+    activeVersion: item?.activeVersion || null,
+    draftVersion: item?.draftVersion || null,
+    versionsCount: Number(item?.versionsCount || 0),
     latestVersion: {
       id: Number(latestVersion?.id || 0),
       versionNo: String(latestVersion?.versionNo || 'v1.0'),
@@ -180,6 +200,35 @@ export const getAdminQcFormById = async (formId) => {
 export const updateAdminQcForm = async (formId, payload = {}) => {
   const response = await http.put(`/api/admin/qc/forms/${formId}`, payload)
   return normalizeAdminQcFormDetail(response?.data?.item || {})
+}
+
+export const listAdminQcFormVersions = async (formId) => {
+  const response = await http.get(`/api/admin/qc/forms/${formId}/versions`)
+  return response?.data?.items || []
+}
+
+export const getAdminQcFormVersion = async (formId, versionId) => {
+  const response = await http.get(`/api/admin/qc/forms/${formId}/versions/${versionId}`)
+  return normalizeAdminQcFormDetail(response?.data?.item || {})
+}
+
+export const createAdminQcFormVersion = async (formId, sourceVersionId) => {
+  const response = await http.post(`/api/admin/qc/forms/${formId}/versions`, { sourceVersionId })
+  return normalizeAdminQcFormDetail(response?.data?.item || {})
+}
+
+export const updateAdminQcFormVersion = async (formId, versionId, payload = {}) => {
+  const response = await http.put(`/api/admin/qc/forms/${formId}/versions/${versionId}`, payload)
+  return normalizeAdminQcFormDetail(response?.data?.item || {})
+}
+
+export const applyAdminQcFormVersion = async (formId, versionId) => {
+  const response = await http.post(`/api/admin/qc/forms/${formId}/versions/${versionId}/apply`)
+  return normalizeAdminQcFormDetail(response?.data?.item || {})
+}
+
+export const deleteAdminQcFormVersion = (formId, versionId) => {
+  return http.delete(`/api/admin/qc/forms/${formId}/versions/${versionId}`)
 }
 
 export const deleteAdminQcForm = async (formId) => {

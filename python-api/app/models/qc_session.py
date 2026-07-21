@@ -48,7 +48,7 @@ class QCSessionItem(Base):
     criterion_code = Column(String(50), nullable=True)
     criterion_name = Column(String(255), nullable=False)
     
-    # Enums: "pass_fail", "point"
+    # Enums: "pass_fail", "point", "deduction"
     mode_snapshot = Column(String(50), nullable=False)
     max_score_snapshot = Column(Numeric(10, 2), default=0)
     min_pass_score_snapshot = Column(Numeric(10, 2), default=0)
@@ -77,6 +77,7 @@ class QCDraft(Base):
     auditor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     
     template_id = Column(String(50), nullable=False) # Maps to form version or form id roughly
+    form_version_id = Column(Integer, ForeignKey("qc_form_versions.id"), nullable=True, index=True)
     audited_at = Column(UTCNaiveDateTime(), nullable=False)
     note = Column(Text, nullable=True)
     criteria_states = Column(JSON, nullable=True)
@@ -86,6 +87,7 @@ class QCDraft(Base):
 
     store = relationship("Store")
     auditor = relationship("User")
+    form_version = relationship("QCFormVersion")
 
 class QCFinding(Base):
     __tablename__ = "qc_findings"
