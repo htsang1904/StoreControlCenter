@@ -131,6 +131,7 @@ const normalizeAdminQcFormDetail = (item = {}) => {
       sectionName: String(criterion?.sectionName || 'Tổng quát'),
       mode: String(criterion?.mode || 'point'),
       maxScore: Number(criterion?.maxScore || 0),
+      minPassScore: Number(criterion?.minPassScore ?? criterion?.min_pass_score ?? (Number(criterion?.maxScore || 0) / 2)),
       deductionPercent: Number(
         criterion?.deductionPercent
         ?? criterion?.deduction_percent

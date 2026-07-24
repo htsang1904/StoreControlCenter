@@ -76,6 +76,7 @@ const createCriterionNode = (overrides = {}) => {
     description: overrides.description || '',
     mode: overrides.mode || 'point',
     maxScore: overrides.maxScore ?? 10,
+    minPassScore: overrides.minPassScore ?? overrides.min_pass_score ?? ((overrides.maxScore ?? 10) / 2),
     deductionPercent: overrides.deductionPercent ?? overrides.deduction_percent ?? (overrides.mode === 'deduction' ? overrides.maxScore : undefined) ?? 5,
     children: [],
   }
@@ -177,6 +178,9 @@ const flattenCriteriaTreeForReview = (nodes = [], path = []) => {
       mode: String(node.mode || 'point'),
       maxScore: node.nodeType === 'criterion'
         ? (String(node.mode || 'point') === 'deduction' ? 0 : Number(node.maxScore || 0))
+        : 0,
+      minPassScore: node.nodeType === 'criterion' && String(node.mode || '') === 'point'
+        ? Number(node.minPassScore ?? node.maxScore ?? 0)
         : 0,
       deductionPercent: node.nodeType === 'criterion' && String(node.mode || '') === 'deduction'
         ? Number(node.deductionPercent || 0)
@@ -380,7 +384,10 @@ const serializeCriteriaTree = (nodes = []) => (
       mode: String(node.mode || 'point'),
       ...(node.mode === 'deduction'
         ? { deductionPercent: Number(node.deductionPercent || 0) }
-        : { maxScore: Number(node.maxScore || 0) }),
+        : {
+          maxScore: Number(node.maxScore || 0),
+          ...(node.mode === 'point' ? { minPassScore: Number(node.minPassScore ?? (Number(node.maxScore || 0) / 2)) } : {}),
+        }),
     }
   })
 )
@@ -489,6 +496,18 @@ const collectTreeValidation = (nodes = [], parentLabel = 'Mục gốc') => {
           'maxScore',
           `Tiêu chí "${nodeName || positionLabel}" cần điểm tối đa lớn hơn 0`,
         )
+      }
+      if (mode === 'point') {
+        const minPassScore = Number(node.minPassScore ?? (maxScore / 2))
+        if (!Number.isFinite(minPassScore) || minPassScore < 0 || minPassScore > maxScore) {
+          pushTreeValidationError(
+            nodeErrors,
+            messages,
+            node.id,
+            'minPassScore',
+            `Tiêu chí "${nodeName || positionLabel}" cần ngưỡng đạt từ 0 đến điểm tối đa`,
+          )
+        }
       }
     } else if (mode === 'deduction') {
       const deductionPercent = Number(node.deductionPercent)
@@ -1011,12 +1030,17 @@ onMounted(async () => {
                         <select v-model="selectedBuilderNode.mode" :class="customInputClass"><option value="point">Chấm điểm</option><option value="pass_fail">Đạt / Không đạt</option><option value="deduction">Khấu trừ</option></select>
                       </label>
                       <label v-if="selectedBuilderNode.mode !== 'deduction'" class="block space-y-1.5">
-                        <span class="text-xs font-medium text-[var(--text-secondary)]">Điểm tối đa <span class="text-red-500">*</span></span>
-                        <input v-model.number="selectedBuilderNode.maxScore" type="number" min="0" :class="[customInputClass, 'no-spin']" />
+                        <span class="text-xs font-medium text-[var(--text-secondary)]">{{ selectedBuilderNode.mode === 'pass_fail' ? 'Trọng số' : 'Điểm tối đa' }} <span class="text-red-500">*</span></span>
+                        <input v-model.number="selectedBuilderNode.maxScore" type="number" min="1" :class="[customInputClass, 'no-spin']" />
                       </label>
-                      <label v-else class="block space-y-1.5">
+                      <label v-if="selectedBuilderNode.mode === 'point'" class="block space-y-1.5">
+                        <span class="text-xs font-medium text-[var(--text-secondary)]">Ngưỡng đạt tiêu chí <span class="text-red-500">*</span></span>
+                        <input v-model.number="selectedBuilderNode.minPassScore" type="number" min="0" :max="selectedBuilderNode.maxScore" step="0.5" :class="[customInputClass, 'no-spin']" />
+                        <p class="text-xs text-[var(--text-muted)]">Yêu cầu khắc phục sẽ được tạo khi điểm QC thấp hơn {{ Number(selectedBuilderNode.minPassScore ?? selectedBuilderNode.maxScore ?? 0) }}/{{ Number(selectedBuilderNode.maxScore || 0) }}.</p>
+                      </label>
+                      <label v-else-if="selectedBuilderNode.mode === 'deduction'" class="block space-y-1.5">
                         <span class="text-xs font-medium text-[var(--text-secondary)]">Mức khấu trừ (%) <span class="text-red-500">*</span></span>
-                        <input v-model.number="selectedBuilderNode.deductionPercent" type="number" min="0" max="100" :class="[customInputClass, 'no-spin']" />
+                        <input v-model.number="selectedBuilderNode.deductionPercent" type="number" min="0.1" max="100" step="0.1" :class="[customInputClass, 'no-spin']" />
                       </label>
                     </div>
                   </section>
@@ -1052,8 +1076,8 @@ onMounted(async () => {
           </dl>
           <div class="my-5 border-t border-[var(--stroke)]"></div>
           <dl class="space-y-5 text-sm">
-            <div class="flex items-start justify-between gap-4"><dt><span class="flex items-center gap-2 text-[var(--text-secondary)]"><span class="material-symbols-outlined text-[19px]">settings</span>Số tiêu chí</span><span class="ml-7 mt-1 block text-xs text-[var(--text-muted)]">Tiêu chí chấm điểm</span></dt><dd class="font-semibold text-[var(--text-primary)]">{{ reviewRows.filter((row) => row.nodeType === 'criterion').length }}</dd></div>
-            <div class="flex items-start justify-between gap-4"><dt><span class="flex items-center gap-2 text-[var(--text-secondary)]"><span class="material-symbols-outlined text-[19px]">schedule</span>Tổng điểm tạm thời</span><span class="ml-7 mt-1 block text-xs text-[var(--text-muted)]">Tự động tính từ tiêu chí</span></dt><dd class="font-semibold text-[var(--text-primary)]">{{ totalMaxScoreComputed }} điểm</dd></div>
+            <div class="flex items-start justify-between gap-4"><dt><span class="flex items-center gap-2 text-[var(--text-secondary)]"><span class="material-symbols-outlined text-[19px]">settings</span>Số tiêu chí</span><span class="ml-7 mt-1 block text-xs text-[var(--text-muted)]">Tiêu chí lá trong biểu mẫu</span></dt><dd class="font-semibold text-[var(--text-primary)]">{{ reviewRows.filter((row) => row.nodeType === 'criterion').length }}</dd></div>
+            <div class="flex items-start justify-between gap-4"><dt><span class="flex items-center gap-2 text-[var(--text-secondary)]"><span class="material-symbols-outlined text-[19px]">schedule</span>Tổng điểm tạm thời</span><span class="ml-7 mt-1 block text-xs text-[var(--text-muted)]">Không gồm tiêu chí khấu trừ</span></dt><dd class="font-semibold text-[var(--text-primary)]">{{ totalMaxScoreComputed }} điểm</dd></div>
           </dl>
           <div class="mt-6 rounded-lg border border-blue-200 bg-blue-50/70 p-4">
             <p class="flex items-center gap-2 text-sm font-semibold text-[var(--primary)]"><span class="material-symbols-outlined">checklist</span>Bước tiếp theo</p>

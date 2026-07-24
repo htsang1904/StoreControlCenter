@@ -377,7 +377,21 @@ watch(
             <p v-if="node.mode === 'pass_fail'" class="text-xs text-[var(--text-muted)]">Đạt nhận toàn bộ trọng số, Không đạt nhận 0 điểm.</p>
           </label>
 
-          <label v-else class="space-y-2">
+          <label v-if="node.mode === 'point'" class="space-y-2">
+            <span class="text-sm font-semibold text-[var(--text-secondary)]">Ngưỡng đạt tiêu chí</span>
+            <input
+              v-model.number="node.minPassScore"
+              type="number"
+              min="0"
+              :max="node.maxScore"
+              step="0.5"
+              :class="[customInputClass, 'no-spin', fieldErrors.minPassScore ? validationInputClass : '']"
+            />
+            <p v-if="fieldErrors.minPassScore" :class="validationMessageClass">{{ fieldErrors.minPassScore }}</p>
+            <p class="text-xs text-[var(--text-muted)]">Yêu cầu khắc phục sẽ được tạo khi điểm QC thấp hơn {{ Number(node.minPassScore ?? node.maxScore ?? 0) }}/{{ Number(node.maxScore || 0) }}.</p>
+          </label>
+
+          <label v-if="node.mode === 'deduction'" class="space-y-2">
             <span class="text-sm font-semibold text-[var(--text-secondary)]">Mức khấu trừ khi Không đạt</span>
             <input
               v-model.number="node.deductionPercent"

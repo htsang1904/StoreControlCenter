@@ -80,6 +80,7 @@ def _serialize_criterion(criterion: QCCriterion) -> dict:
         "sectionName": "Tổng quát",
         "mode": criterion.default_mode,
         "maxScore": float(criterion.default_max_score or 0),
+        "minPassScore": float(criterion.default_min_pass_score or 0),
         "deductionPercent": float(criterion.default_deduction_percent or 0),
         "level": criterion.level,
         "ordering": criterion.ordering or "",
@@ -178,12 +179,23 @@ async def _sync_criteria_tree(session, form_code: str, version: QCFormVersion, c
                 deduction_percent = float(node.get("deductionPercent", 0))
             except (ValueError, TypeError):
                 deduction_percent = 0.0
+
+            try:
+                min_pass_score = float(node.get("minPassScore", (max_score / 2) if mode == "point" else 0))
+            except (ValueError, TypeError):
+                min_pass_score = (max_score / 2) if mode == "point" else 0.0
                 
             if node_type != "criterion":
                 max_score = 0.0
                 deduction_percent = 0.0
+                min_pass_score = 0.0
             elif mode == "deduction":
                 max_score = 0.0
+                min_pass_score = 0.0
+            elif mode != "point":
+                min_pass_score = 0.0
+            else:
+                min_pass_score = max(min(min_pass_score, max_score), 0.0)
                 
             code = _build_criterion_code(form_code, version.version_no, ordering)
             
@@ -193,7 +205,7 @@ async def _sync_criteria_tree(session, form_code: str, version: QCFormVersion, c
                 description=str(node.get("description", "")).strip(),
                 default_mode=mode,
                 default_max_score=max_score,
-                default_min_pass_score=0,
+                default_min_pass_score=min_pass_score,
                 default_deduction_percent=deduction_percent,
                 is_active=True,
                 parent_id=parent_id,
@@ -262,6 +274,13 @@ def _validate_scoring_payload(payload: dict, require_criteria: bool = True) -> N
             else:
                 if value <= 0:
                     raise HTTPException(status_code=400, detail="Điểm tối đa hoặc trọng số phải lớn hơn 0")
+                if mode == "point":
+                    try:
+                        min_pass_score = float(node.get("minPassScore", value / 2))
+                    except (TypeError, ValueError) as exc:
+                        raise HTTPException(status_code=400, detail="Ngưỡng đạt tiêu chí phải là một số hợp lệ") from exc
+                    if min_pass_score < 0 or min_pass_score > value:
+                        raise HTTPException(status_code=400, detail="Ngưỡng đạt tiêu chí phải nằm trong khoảng 0 đến điểm tối đa")
                 scoring_criteria_count += 1
 
     validate_nodes(criteria)

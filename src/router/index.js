@@ -58,9 +58,29 @@ const router = createRouter({
                     meta: { auth: true }
                 },
                 {
+                    path: 'QC/findings',
+                    name: 'QC Findings',
+                    redirect: '/QC?view=findings',
+                    meta: { auth: true }
+                },
+                {
+                    path: 'QC/findings/:findingId',
+                    name: 'QC Finding Detail',
+                    redirect: to => `/QC?view=findings&findingId=${encodeURIComponent(String(to.params.findingId || ''))}`,
+                    meta: { auth: true },
+                    props: true
+                },
+                {
                     path: 'QC/store/:storeId',
                     name: 'QC Store Detail',
                     component: () => import('@/pages/QCStoreDetailPage.vue'),
+                    meta: { auth: true },
+                    props: true
+                },
+                {
+                    path: 'QC/store/:storeId/session/:sessionId',
+                    name: 'QC Session View',
+                    component: () => import('@/pages/QCCreateSessionPage.vue'),
                     meta: { auth: true },
                     props: true
                 },

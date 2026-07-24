@@ -1,7 +1,11 @@
 from fastapi import FastAPI
 
 from app.api.api import api_router
+from types import SimpleNamespace
+
 from app.api.routers.admin_qc import _validate_scoring_payload
+from app.api.routers.qc import _build_session_items_from_version, _finding_aggregate
+from app.api.routers.qc_findings import serialize_finding
 from fastapi import HTTPException
 import pytest
 
@@ -61,6 +65,17 @@ def test_qc_findings_uses_canonical_openapi_path_only():
     assert "/qc-findings/" not in paths
     assert "/qc-findings/{id}" not in paths
 
+def test_qc_findings_list_supports_session_filter_param():
+    app = _build_app()
+    spec = app.openapi()
+    finding_params = {
+        item["name"]
+        for item in spec["paths"]["/qc/findings/"]["get"]["parameters"]
+    }
+
+    assert "store_id" in finding_params
+    assert "session_id" in finding_params
+
 
 def test_openapi_operation_ids_are_unique():
     app = _build_app()
@@ -109,3 +124,76 @@ def test_qc_scoring_v2_payload_rejects_deduction_only_form():
         })
 
     assert exc_info.value.status_code == 400
+
+
+def test_qc_point_score_below_min_pass_score_forces_failed_item():
+    criterion = SimpleNamespace(
+        id=1,
+        code="QC-1",
+        name="Điểm test",
+        parent_id=None,
+        ordering="1",
+        default_mode="point",
+        default_max_score=10,
+        default_min_pass_score=5,
+        default_deduction_percent=0,
+    )
+    form_version = SimpleNamespace(form_criteria=[SimpleNamespace(criterion=criterion)])
+
+    items = _build_session_items_from_version(
+        form_version,
+        [{"id": 1, "score": 4, "status": "pass", "requires_fix": False}],
+    )
+
+    assert items[0]["result"] == "fail"
+    assert items[0]["requires_fix"] is True
+    assert items[0]["min_pass_score_snapshot"] == 5
+
+def test_qc_finding_aggregate_counts_open_statuses_by_store_and_session():
+    rows = [
+        SimpleNamespace(store_id=1, session_id=10, status="open", count=2),
+        SimpleNamespace(store_id=1, session_id=10, status="resolved", count=1),
+        SimpleNamespace(store_id=1, session_id=11, status="verified", count=4),
+        SimpleNamespace(store_id=2, session_id=20, status="rejected", count=3),
+    ]
+
+    store_stats, session_stats = _finding_aggregate(rows)
+
+    assert store_stats["1"]["openFindings"] == 3
+    assert store_stats["1"]["activeFindingSessions"] == 1
+    assert store_stats["1"]["findingStatusSummary"]["verified"] == 4
+    assert store_stats["2"]["openFindings"] == 3
+    assert store_stats["2"]["activeFindingSessions"] == 1
+    assert session_stats["10"]["openFindings"] == 3
+    assert session_stats["11"]["openFindings"] == 0
+    assert session_stats["20"]["findingStatusSummary"]["rejected"] == 3
+
+
+def test_qc_finding_serializer_allows_missing_timestamps():
+    finding = SimpleNamespace(
+        id=1,
+        finding_code="FD-1",
+        criterion_name="Điểm test",
+        severity="medium",
+        status="open",
+        due_date=None,
+        corrective_action=None,
+        corrective_note=None,
+        resolved_at=None,
+        verified_at=None,
+        evidence=None,
+        meta_info=None,
+        created_at=None,
+        updated_at=None,
+        session_id=1,
+        session_item_id=2,
+        store=None,
+        assignee=None,
+        verifier=None,
+    )
+
+    data = serialize_finding(finding)
+
+    assert data["createdAt"] is None
+    assert data["updatedAt"] is None
+    assert data["due_date"] is None

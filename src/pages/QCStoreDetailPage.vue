@@ -6,7 +6,6 @@ import {
   createQcDraftSession,
   deleteQcDraftSession,
   deleteQcSession,
-  getQcSessionApi,
   getQcStoreOverviewApi,
   listQcDraftSessions,
   listQcTemplates,
@@ -40,10 +39,10 @@ const draftSessions = ref([])
 const draftModalError = ref('')
 const draftLoadError = ref('')
 const sessionLoadError = ref('')
-
 const filters = reactive({
   q: '',
   status: '',
+  remediation: '',
   from: String(route.query.date_from || ''),
   to: String(route.query.date_to || ''),
 })
@@ -58,14 +57,12 @@ const summary = ref({
   passRate: 0,
 })
 const sessions = ref([])
-const selectedSessionForModal = ref(null)
-const isSessionDetailModalOpen = ref(false)
-const loadingSessionDetail = ref(false)
 const hasRows = computed(() => tableRows.value.length > 0)
 
 const resultOptions = [
-  { value: '', label: 'Tất cả kết quả' },
-  { value: 'passed', label: 'Đạt' },
+  { value: '', label: 'Tất cả phiên' },
+  { value: 'needs_remediation', label: 'Cần khắc phục', kind: 'remediation' },
+  { value: 'passed', label: 'Đã đạt' },
   { value: 'failed', label: 'Không đạt' },
 ]
 
@@ -83,7 +80,7 @@ const reasonLabels = {
   threshold: 'Chưa đạt ngưỡng % tổng điểm',
 }
 
-const selectedResultCount = computed(() => (filters.status ? 1 : 0))
+const selectedResultCount = computed(() => (filters.status || filters.remediation ? 1 : 0))
 const storeId = computed(() => Number(route.params.storeId || 0))
 
 const selectedStore = computed(() => {
@@ -106,11 +103,11 @@ const pageDescription = computed(() => {
 })
 
 const filteredSummary = computed(() => {
-  const totalSessions = sessions.value.length
-  const passed = sessions.value.filter((item) => item.result === 'passed').length
-  const failed = sessions.value.filter((item) => item.result === 'failed').length
-  const totalScore = sessions.value.reduce((sum, item) => sum + Number(item.totalScore || 0), 0)
-  const totalMaxScore = sessions.value.reduce((sum, item) => sum + Number(item.maxScore || 0), 0)
+  const totalSessions = tableRows.value.filter((item) => item.rowType === 'session').length
+  const passed = tableRows.value.filter((item) => item.rowType === 'session' && item.result === 'passed').length
+  const failed = tableRows.value.filter((item) => item.rowType === 'session' && item.result === 'failed').length
+  const totalScore = tableRows.value.reduce((sum, item) => sum + Number(item.totalScore || 0), 0)
+  const totalMaxScore = tableRows.value.reduce((sum, item) => sum + Number(item.maxScore || 0), 0)
 
   return {
     totalSessions,
@@ -122,6 +119,14 @@ const filteredSummary = computed(() => {
     passRate: totalSessions > 0 ? Math.round((passed / totalSessions) * 100) : 0,
   }
 })
+
+const openFindingCount = computed(() => (
+  sessions.value.reduce((total, session) => total + Number(session.openFindings || 0), 0)
+))
+
+const activeFindingSessionCount = computed(() => (
+  sessions.value.filter((session) => Number(session.openFindings || 0) > 0).length
+))
 
 const summaryCards = computed(() => [
   {
@@ -141,11 +146,11 @@ const summaryCards = computed(() => [
     tone: 'emerald',
   },
   {
-    key: 'failed',
-    label: 'Cần khắc phục',
-    value: `${filteredSummary.value.failed}`,
-    meta: `Toàn kỳ ${summary.value.failed}`,
-    hint: 'Số phiên QC không đạt hoặc còn tiêu chí cần khắc phục.',
+    key: 'remediation',
+    label: 'Yêu cầu khắc phục mở',
+    value: `${openFindingCount.value}`,
+    meta: `${activeFindingSessionCount.value} phiên cần khắc phục`,
+    hint: 'Số yêu cầu khắc phục QC chưa hoàn tất của cửa hàng này.',
     tone: 'rose',
   },
   {
@@ -225,7 +230,7 @@ const parseBoundaryTime = (value, mode) => {
 }
 
 const draftTableRows = computed(() => {
-  if (filters.status) return []
+  if (filters.status || filters.remediation) return []
 
   const keyword = String(filters.q || '').trim().toLowerCase()
   const fromTime = parseBoundaryTime(filters.from, 'from')
@@ -268,11 +273,18 @@ const draftTableRows = computed(() => {
 })
 
 const sessionTableRows = computed(() => {
-  return sessions.value.map((session) => ({
-    ...session,
-    rowType: 'session',
-    rowKey: `session-${session.id}`,
-  }))
+  return sessions.value
+    .map((session) => {
+      const openFindings = Number(session.openFindings || 0)
+      return {
+        ...session,
+        rowType: 'session',
+        rowKey: `session-${session.id}`,
+        openFindings,
+        openFindingsLabel: new Intl.NumberFormat('vi-VN').format(openFindings),
+      }
+    })
+    .filter((session) => filters.remediation !== 'needs_remediation' || Number(session.openFindings || 0) > 0)
 })
 
 const tableRows = computed(() => {
@@ -285,28 +297,9 @@ const tableRows = computed(() => {
 
 const isDraftRow = (row) => row?.rowType === 'draft'
 
-const viewSessionDetailModal = async (session) => {
-  selectedSessionForModal.value = session
-  isSessionDetailModalOpen.value = true
-  
-  if (session && !isDraftRow(session)) {
-    loadingSessionDetail.value = true
-    try {
-      const fullSession = await getQcSessionApi(session.id)
-      if (fullSession && selectedSessionForModal.value?.id === session.id) {
-        selectedSessionForModal.value = fullSession
-      }
-    } catch (error) {
-      toast.error('Không tải được tiêu chí của phiên này.')
-    } finally {
-      loadingSessionDetail.value = false
-    }
-  }
-}
-
-const closeSessionDetailModal = () => {
-  isSessionDetailModalOpen.value = false
-  selectedSessionForModal.value = null
+const viewSessionDetail = (session) => {
+  if (!session?.id) return
+  router.push(`/QC/store/${storeId.value}/session/${encodeURIComponent(String(session.id))}`)
 }
 
 const handleRowAction = (row) => {
@@ -314,7 +307,7 @@ const handleRowAction = (row) => {
     continueDraftSession(row.id)
     return
   }
-  viewSessionDetailModal(row)
+  viewSessionDetail(row)
 }
 
 function toLocalDateTimeInput(value) {
@@ -356,6 +349,7 @@ const applyFilters = async () => {
     loading.value = false
   }
 }
+
 
 const loadDraftSessions = async () => {
   draftLoadError.value = ''
@@ -592,11 +586,11 @@ onBeforeUnmount(() => {
                       class="flex items-center gap-2 px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
                     >
                       <input
-                        v-model="filters.status"
+                        :checked="(result.kind === 'remediation' ? filters.remediation : filters.status) === result.value && (result.kind === 'remediation' || !filters.remediation)"
                         :value="result.value"
                         type="radio"
                         class="mt-0.5 shrink-0 border-[var(--stroke-strong)] text-[var(--text-primary)] focus:ring-[var(--stroke-strong)]"
-                        @change="applyFilters"
+                        @change="() => { filters.status = result.kind === 'remediation' ? '' : result.value; filters.remediation = result.kind === 'remediation' ? result.value : ''; applyFilters() }"
                       >
                       <span>{{ result.label }}</span>
                     </label>
@@ -657,9 +651,14 @@ onBeforeUnmount(() => {
                       <p class="mt-1 text-xs text-[var(--text-secondary)]">{{ session.templateVersion || '--' }}</p>
                     </div>
 
-                    <span class="app-badge inline-flex w-fit items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="resultClass(session.result)">
-                      {{ resultLabel(session.result) }}
-                    </span>
+                    <div class="flex flex-wrap justify-end gap-2">
+                      <span v-if="!isDraftRow(session) && session.openFindings > 0" class="app-badge app-badge--danger inline-flex w-fit items-center rounded-lg px-2 py-1 text-xs font-semibold">
+                        {{ session.openFindingsLabel }} khắc phục
+                      </span>
+                      <span class="app-badge inline-flex w-fit items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="resultClass(session.result)">
+                        {{ resultLabel(session.result) }}
+                      </span>
+                    </div>
                   </div>
 
                   <div class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2">
@@ -687,6 +686,11 @@ onBeforeUnmount(() => {
                     <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
                       <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Ghi chú</p>
                       <p class="mt-1 text-sm text-[var(--text-secondary)]">{{ session.note || '--' }}</p>
+                    </div>
+
+                    <div v-if="!isDraftRow(session)" class="rounded-2xl border px-4 py-3" :class="session.openFindings > 0 ? 'border-[var(--danger-border)] bg-[var(--danger-bg)]' : 'border-[var(--success-border)] bg-[var(--success-bg)]'">
+                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Khắc phục</p>
+                      <p class="mt-1 text-sm font-semibold" :class="session.openFindings > 0 ? 'text-[var(--danger-text)]' : 'text-[var(--success-text)]'">{{ session.openFindingsLabel }} yêu cầu</p>
                     </div>
                   </div>
 
@@ -726,6 +730,7 @@ onBeforeUnmount(() => {
                     <th class="px-4 py-2.5 text-start">Auditor</th>
                     <th class="px-4 py-2.5 text-end">Điểm</th>
                     <th class="px-4 py-2.5 text-start">Kết quả</th>
+                    <th class="px-4 py-2.5 text-start">Khắc phục</th>
                     <th class="px-4 py-2.5 text-start">Ngày chấm</th>
                     <th class="px-4 py-2.5 text-end"></th>
                   </tr>
@@ -753,6 +758,12 @@ onBeforeUnmount(() => {
                           {{ resultLabel(session.result) }}
                         </span>
                       </td>
+                      <td class="px-4 py-2 text-sm">
+                        <span v-if="!isDraftRow(session)" class="app-badge inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="session.openFindings > 0 ? 'app-badge--danger' : 'app-badge--success'">
+                          {{ session.openFindingsLabel }} yêu cầu
+                        </span>
+                        <span v-else class="text-xs text-[var(--text-muted)]">--</span>
+                      </td>
                       <td class="px-4 py-2 text-sm text-[var(--text-secondary)]">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</td>
                       <td class="px-4 py-2 text-end">
                         <div class="flex items-center justify-end gap-2">
@@ -772,7 +783,7 @@ onBeforeUnmount(() => {
                 </tbody>
                 <tbody v-else>
                   <tr>
-                    <td colspan="7" class="px-4 py-12">
+                    <td colspan="8" class="px-4 py-12">
                       <div class="app-state-panel app-state-panel--compact">
                         <div class="app-state-stack mx-auto">
                           <div class="app-state-icon mx-auto">
@@ -882,114 +893,6 @@ onBeforeUnmount(() => {
     </CommonModal>
 
     <!-- Session Details Modal -->
-    <CommonModal
-      v-model="isSessionDetailModalOpen"
-      max-width-class="max-w-[760px]"
-      :show-close="false"
-      @close="closeSessionDetailModal"
-    >
-      <div v-if="selectedSessionForModal" class="flex flex-col focus:outline-none">
-        <div class="app-section-header tablet:px-6">
-          <div class="flex items-center justify-between gap-4">
-            <div>
-              <h3 class="text-lg font-bold text-[var(--text-primary)] tracking-tight">Chi tiết phiên QC - {{ selectedSessionForModal.code }}</h3>
-              <p class="mt-1 text-sm text-[var(--text-secondary)] font-medium">Mẫu: {{ selectedSessionForModal.templateName }} • Auditor: {{ selectedSessionForModal.auditorName }}</p>
-            </div>
-            <button
-              class="inline-flex size-8 items-center justify-center rounded-full bg-[var(--primary-softer)] text-[var(--text-secondary)] hover:bg-[var(--primary-soft)] hover:text-[var(--text-secondary)] focus:outline-none"
-              @click="closeSessionDetailModal"
-            >
-              <span class="material-symbols-outlined text-[20px]">close</span>
-            </button>
-          </div>
-        </div>
-        
-        <div class="max-h-[65vh] overflow-y-auto bg-[var(--surface-muted)] p-4 tablet:p-6">
-          <div class="mb-5 rounded-xl border border-[var(--stroke)] bg-white p-4 shadow-sm">
-            <div class="grid grid-cols-2 gap-4 tablet:grid-cols-4">
-              <div>
-                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Điểm số</p>
-                <p class="mt-1 font-semibold text-[var(--text-primary)]">{{ selectedSessionForModal.totalScore }} / {{ selectedSessionForModal.maxScore }}</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Tỷ lệ</p>
-                <p class="mt-1 font-semibold text-[var(--text-primary)]">{{ sessionScoreRate(selectedSessionForModal) }}%</p>
-              </div>
-              <div>
-                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Kết quả</p>
-                <span class="mt-1 app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold" :class="resultClass(selectedSessionForModal.result)">
-                  {{ resultLabel(selectedSessionForModal.result) }}
-                </span>
-              </div>
-              <div>
-                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Ghi chú</p>
-                <p class="mt-1 text-sm text-[var(--text-secondary)] truncate" :title="selectedSessionForModal.note">{{ selectedSessionForModal.note || '--' }}</p>
-              </div>
-            </div>
-            
-            <div class="mt-4 flex flex-wrap gap-2">
-               <span v-for="reason in sessionReasons(selectedSessionForModal)" :key="reason" class="inline-flex rounded-md bg-[var(--danger-bg)] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[var(--danger-text)] border border-[var(--danger-border)]">{{ reason }}</span>
-               <span v-if="sessionReasons(selectedSessionForModal).length === 0" class="inline-flex rounded-md border border-[var(--success-border)] bg-[var(--success-bg)] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-[var(--success-text)]">Không phát hiện lỗi quan trọng</span>
-            </div>
-          </div>
 
-          <div class="overflow-hidden rounded-xl border border-[var(--stroke)] bg-white shadow-sm">
-            <div v-if="loadingSessionDetail" class="flex flex-col items-center justify-center py-10">
-              <span class="mb-3 inline-block size-6 animate-spin rounded-full border-2 border-[var(--stroke)] border-t-[var(--primary)]"></span>
-              <p class="text-sm text-[var(--text-secondary)] font-medium">Đang tải biểu mẫu chi tiết...</p>
-            </div>
-            <table v-else class="w-full text-left">
-              <thead class="bg-[var(--surface-muted)] border-b border-[var(--stroke)]">
-                <tr>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Tiêu chí</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)] hidden tablet:table-cell">Danh mục</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)] text-center">Điểm</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)] text-right">Tình trạng</th>
-                </tr>
-              </thead>
-              <tbody v-if="selectedSessionForModal.criteria && selectedSessionForModal.criteria.length > 0" class="divide-y divide-[var(--stroke)]">
-                <tr v-for="criterion in selectedSessionForModal.criteria" :key="criterion.id" class="transition-colors hover:bg-[var(--surface-muted)]">
-                  <td class="px-4 py-3">
-                    <p class="text-sm font-semibold text-[var(--text-primary)]">{{ criterion.name }}</p>
-                    <p class="mt-1 text-xs text-[var(--text-secondary)] tablet:hidden">{{ criterion.category }}</p>
-                    <p v-if="criterion.note" class="mt-1.5 text-xs text-[var(--text-secondary)] bg-[var(--primary-softer)] p-2 rounded-lg border border-[var(--stroke)]">{{ criterion.note }}</p>
-                  </td>
-                  <td class="px-4 py-3 text-sm text-[var(--text-secondary)] hidden tablet:table-cell align-top">{{ criterion.category }}</td>
-                  <td class="px-4 py-3 text-sm font-medium text-[var(--text-secondary)] text-center align-top whitespace-nowrap">
-                    <template v-if="criterion.status === 'na' || criterion.status === 'skipped_weekly'">
-                      <span class="text-[var(--text-muted)]">--</span>
-                    </template>
-                    <template v-else-if="criterion.mode === 'pass_fail'">
-                       {{ criterion.status === 'pass' ? '1' : '0' }} / 1
-                    </template>
-                    <template v-else>
-                      {{ criterion.score ?? '--' }} / {{ criterion.maxScore }}
-                    </template>
-                  </td>
-                  <td class="px-4 py-3 text-right align-top whitespace-nowrap">
-                    <span class="app-badge inline-flex rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wide" :class="criterionStatusClass(criterion.status)">
-                      {{ criterionStatusLabel(criterion.status) }}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-              <tbody v-else>
-                <tr>
-                  <td colspan="4" class="px-4 py-8 text-center">
-                    <p class="text-sm text-[var(--text-secondary)]">Bảng tiêu chí trống.</p>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div class="border-t border-[var(--stroke)] px-4 py-4 tablet:px-6 flex justify-end bg-white rounded-b-xl">
-          <button type="button" class="inline-flex h-10 items-center justify-center rounded-xl bg-[var(--primary)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)]" @click="closeSessionDetailModal">
-            Đóng
-          </button>
-        </div>
-      </div>
-    </CommonModal>
   </div>
 </template>

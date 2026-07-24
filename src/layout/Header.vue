@@ -42,6 +42,19 @@ const breadcrumbItems = computed(() => resolveBreadcrumbItems(route, headerConte
 const stores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))
 const dashboardStoreFilter = ref([])
 
+const isQcSessionView = computed(() => route.path.startsWith('/QC/store/') && route.path.includes('/session/'))
+const qcSessionViewTab = computed(() => (String(route.query.view || 'qc') === 'findings' ? 'findings' : 'qc'))
+const qcSessionFindingCount = computed(() => {
+  const count = Number(route.query.findingCount || 0)
+  return Number.isFinite(count) && count > 0 ? Math.trunc(count) : 0
+})
+
+function setQcSessionViewTab(tab) {
+  const nextView = tab === 'findings' ? 'findings' : 'qc'
+  if (qcSessionViewTab.value === nextView) return
+  router.replace({ query: { ...route.query, view: nextView } })
+}
+
 function resolveHeaderContext(currentRoute) {
   const path = currentRoute.path
 
@@ -71,6 +84,14 @@ function resolveHeaderContext(currentRoute) {
 
   if (path.startsWith('/QC/store/') && path.endsWith('/create')) {
     return { tab: '', title: 'Tạo phiên QC', display: 'breadcrumb' }
+  }
+
+  if (path.startsWith('/QC/store/') && path.includes('/session/')) {
+    return { tab: '', title: 'Xem phiên QC', display: 'breadcrumb' }
+  }
+
+  if (path.startsWith('/QC/findings')) {
+    return { tab: 'qc', title: 'Quản lý QC Cửa hàng', display: 'title' }
   }
 
   if (path.startsWith('/QC/store/')) {
@@ -128,6 +149,17 @@ function resolveHeaderContext(currentRoute) {
   return { tab: '', title: 'Store OPS', display: 'title' }
 }
 
+function resolveQcStoreBreadcrumbLabel(currentRoute) {
+  const storeId = Number(currentRoute.params.storeId || 0)
+  const matchedStore = stores.value.find((store) => Number(store?.id || 0) === storeId)
+
+  if (matchedStore) {
+    return matchedStore.shortAddress || matchedStore.address || matchedStore.code || `Cửa hàng #${matchedStore.id}`
+  }
+
+  return storeId ? `Cửa hàng #${storeId}` : 'Cửa hàng'
+}
+
 function resolveBreadcrumbItems(currentRoute, context, currentLabelValue) {
   const path = currentRoute.path
   const currentLabel = String(currentLabelValue || context.title || '').trim()
@@ -143,6 +175,17 @@ function resolveBreadcrumbItems(currentRoute, context, currentLabelValue) {
     return [
       { label: 'Danh sách Ticket', to: '/ticket' },
       { label: currentLabel || 'Chi tiết Ticket' },
+    ]
+  }
+
+  if (path.startsWith('/QC/store/') && path.endsWith('/create')) {
+    const storeLabel = resolveQcStoreBreadcrumbLabel(currentRoute)
+    const storePath = `/QC/store/${currentRoute.params.storeId}`
+
+    return [
+      { label: 'Quản lý QC', to: '/QC' },
+      { label: storeLabel, to: storePath },
+      { label: currentLabel || context.title },
     ]
   }
 
@@ -223,7 +266,7 @@ watch(
     class="stitch-shell z-40 border-b border-[var(--stroke)] bg-white"
   >
     <div class="px-3 py-3.5 tablet:px-5 tablet:py-4 pc:px-8">
-      <div :class="showHeaderDateFilter ? 'flex items-center justify-between gap-3 tablet:gap-4' : 'flex items-center justify-between gap-3'">
+      <div :class="isQcSessionView ? 'grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3' : showHeaderDateFilter ? 'flex items-center justify-between gap-3 tablet:gap-4' : 'flex items-center justify-between gap-3'">
         <div class="flex min-w-0 flex-1 items-center gap-3">
           <button
             v-if="props.drawerMode"
@@ -266,12 +309,56 @@ watch(
           </div>
         </div>
 
+        <div v-if="isQcSessionView" class="hidden justify-self-center tablet:block">
+          <div class="inline-flex rounded-lg border border-[var(--stroke)] bg-white p-1 shadow-sm" role="tablist" aria-label="Nội dung phiên QC">
+            <button
+              type="button"
+              class="inline-flex h-9 min-w-[132px] items-center justify-center gap-2 rounded-md px-3 text-sm font-bold transition-colors"
+              :class="qcSessionViewTab === 'qc' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]'"
+              @click="setQcSessionViewTab('qc')"
+            >
+              <span class="material-symbols-outlined text-[18px]">assignment</span>
+              Biên bản QC
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-9 min-w-[150px] items-center justify-center gap-2 rounded-md px-3 text-sm font-bold transition-colors"
+              :class="qcSessionViewTab === 'findings' ? 'bg-[var(--danger-text)] text-white shadow-sm' : 'text-[var(--danger-text)] hover:bg-[var(--danger-bg)]'"
+              @click="setQcSessionViewTab('findings')"
+            >
+              <span class="material-symbols-outlined text-[18px]">report_problem</span>
+              Khắc phục lỗi
+              <span
+                v-if="qcSessionFindingCount > 0"
+                class="inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold"
+                :class="qcSessionViewTab === 'findings' ? 'bg-white text-[var(--danger-text)]' : 'bg-[var(--danger-bg)] text-[var(--danger-text)]'"
+              >
+                {{ qcSessionFindingCount }}
+              </span>
+            </button>
+          </div>
+        </div>
+
         <div class="flex shrink-0 items-center justify-end gap-2">
           <StoreFilterButton v-if="activeRootTab === 'dashboard'" v-model="dashboardStoreFilter" />
           <HeaderDateControls v-if="showHeaderDateFilter" />
           <HeaderNotifications />
         </div>
       </div>
+      <div v-if="isQcSessionView" class="mt-3 tablet:hidden">
+        <div class="inline-flex w-full rounded-lg border border-[var(--stroke)] bg-white p-1 shadow-sm" role="tablist" aria-label="Nội dung phiên QC">
+          <button type="button" class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-bold transition-colors" :class="qcSessionViewTab === 'qc' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]'" @click="setQcSessionViewTab('qc')">
+            <span class="material-symbols-outlined text-[18px]">assignment</span>
+            Biên bản QC
+          </button>
+          <button type="button" class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-bold transition-colors" :class="qcSessionViewTab === 'findings' ? 'bg-[var(--danger-text)] text-white shadow-sm' : 'text-[var(--danger-text)] hover:bg-[var(--danger-bg)]'" @click="setQcSessionViewTab('findings')">
+            <span class="material-symbols-outlined text-[18px]">report_problem</span>
+            Khắc phục
+            <span v-if="qcSessionFindingCount > 0" class="inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold" :class="qcSessionViewTab === 'findings' ? 'bg-white text-[var(--danger-text)]' : 'bg-[var(--danger-bg)] text-[var(--danger-text)]'">{{ qcSessionFindingCount }}</span>
+          </button>
+        </div>
+      </div>
+
 
     </div>
   </header>

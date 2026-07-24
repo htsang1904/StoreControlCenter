@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps({
   criterion: {
@@ -22,12 +22,23 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  shallowGroups: {
+    type: Boolean,
+    default: false,
+  },
+  readonly: {
+    type: Boolean,
+    default: false,
+  },
 })
 
-const emit = defineEmits(['update-state', 'upload-attachment', 'remove-attachment', 'open-finding-modal'])
+const emit = defineEmits(['update-state', 'upload-attachment', 'remove-attachment', 'open-finding-modal', 'select-group'])
 
 const sectionExpanded = ref(props.level <= 2)
 const detailsExpanded = ref(false)
+const attachmentMenuOpen = ref(false)
+const statusMenuOpen = ref(false)
+const itemRoot = ref(null)
 
 const hasChildren = computed(() => Array.isArray(props.criterion.children) && props.criterion.children.length > 0)
 const state = computed(() => props.criteriaStates[props.criterion.id] || { status: 'pending', score: null, note: '', attachments: [] })
@@ -38,11 +49,21 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+const normalizeLocalCriterionMode = (value) => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized === 'pass_fail' || normalized === 'passfail' || normalized === 'binary') return 'pass_fail'
+  if (normalized === 'deduction' || normalized === 'deduct') return 'deduction'
+  return 'point'
+}
+
+const criterionMode = computed(() => normalizeLocalCriterionMode(props.criterion?.mode || props.criterion?.scoreType))
+
 const resolveCriterionStatus = (criterion, criterionState = {}) => {
   const rawStatus = String(criterionState?.status || 'pending')
-  if (rawStatus === 'na' && criterion?.mode !== 'point') return 'na'
+  const mode = normalizeLocalCriterionMode(criterion?.mode || criterion?.scoreType)
+  if (rawStatus === 'na' && mode !== 'point') return 'na'
 
-  if (criterion?.mode === 'point') {
+  if (mode === 'point') {
     const rawScore = criterionState?.score
     if (rawScore === null || rawScore === undefined || String(rawScore) === '') {
       return rawStatus === 'pass' || rawStatus === 'fail' ? rawStatus : 'pending'
@@ -50,25 +71,26 @@ const resolveCriterionStatus = (criterion, criterionState = {}) => {
 
     const score = toNumber(rawScore, NaN)
     if (!Number.isFinite(score)) return 'pending'
-    return 'pass'
+    const maxScore = Math.max(toNumber(criterion?.maxScore), 0)
+    const minPassScore = toNumber(criterion?.minPassScore ?? (maxScore / 2), maxScore / 2)
+    return score >= minPassScore ? 'pass' : 'fail'
   }
 
   return rawStatus === 'pass' || rawStatus === 'fail' ? rawStatus : 'pending'
 }
 
 const currentStatus = computed(() => resolveCriterionStatus(props.criterion, state.value))
-const isPointScored = computed(() => props.criterion.mode === 'point' && currentStatus.value === 'pass')
+const isPointScored = computed(() => criterionMode.value === 'point' && currentStatus.value === 'pass')
 
 const cardToneClass = computed(() => {
   if (isPointScored.value) return 'border-[var(--info-border)] bg-[var(--info-bg)]/30 shadow-sm'
   if (currentStatus.value === 'pass') return 'border-[var(--success-border)] bg-[var(--success-bg)]/30 shadow-sm'
   if (currentStatus.value === 'fail') return 'border-[var(--danger-border)] bg-[var(--danger-bg)]/30 shadow-sm'
   if (currentStatus.value === 'na') return 'border-[var(--stroke)] bg-[var(--surface-muted)] opacity-75'
-  return 'border-[var(--stroke)] transition-all hover:border-[var(--primary-soft)]'
+  return 'border-[var(--warning-border)] bg-[var(--warning-bg)]/35 transition-all hover:border-[var(--warning-border)]'
 })
 
 const statusBadgeClass = computed(() => {
-  if (isPointScored.value) return 'bg-[var(--primary)] text-white shadow-sm'
   if (currentStatus.value === 'pass') return 'bg-[var(--success-text)] text-white shadow-sm'
   if (currentStatus.value === 'fail') return 'bg-[var(--danger-text)] text-white shadow-sm'
   if (currentStatus.value === 'na') return 'bg-[var(--neutral-bg)] text-[var(--neutral-text)]'
@@ -76,7 +98,6 @@ const statusBadgeClass = computed(() => {
 })
 
 const statusLabel = computed(() => {
-  if (isPointScored.value) return 'Đã chấm'
   if (currentStatus.value === 'pass') return 'Đạt'
   if (currentStatus.value === 'fail') return 'Không đạt'
   if (currentStatus.value === 'na') return 'N/A'
@@ -84,15 +105,27 @@ const statusLabel = computed(() => {
 })
 
 const metricLabel = computed(() => (
-  props.criterion.mode === 'deduction'
+  criterionMode.value === 'deduction'
     ? `Không đạt trừ ${toNumber(props.criterion.deductionPercent)} điểm %`
-    : (props.criterion.mode === 'point'
-      ? `Tối đa ${toNumber(props.criterion.maxScore)} điểm`
+    : (criterionMode.value === 'point'
+      ? `Ngưỡng đạt ${toNumber(props.criterion.minPassScore ?? props.criterion.maxScore)}/${toNumber(props.criterion.maxScore)} điểm`
       : `Đạt / Không đạt · ${toNumber(props.criterion.maxScore)} điểm`)
 ))
 
+const modeName = computed(() => {
+  if (criterionMode.value === 'deduction') return 'Khấu trừ'
+  if (criterionMode.value === 'pass_fail') return 'Đạt / Không đạt'
+  return 'Chấm điểm'
+})
+
+const modeBadgeClass = computed(() => {
+  if (criterionMode.value === 'deduction') return 'border-amber-200 bg-amber-50 text-amber-700'
+  if (criterionMode.value === 'pass_fail') return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  return 'border-blue-200 bg-blue-50 text-blue-700'
+})
+
 const scorePercent = computed(() => {
-  if (props.criterion.mode !== 'point') return 0
+  if (criterionMode.value !== 'point') return 0
   const maxScore = Math.max(toNumber(props.criterion.maxScore), 0)
   if (maxScore <= 0) return 0
   const score = Math.min(Math.max(toNumber(state.value.score), 0), maxScore)
@@ -100,7 +133,7 @@ const scorePercent = computed(() => {
 })
 
 const scoreHint = computed(() => {
-  if (props.criterion.mode !== 'point') return ''
+  if (criterionMode.value !== 'point') return ''
   if (state.value.score === null || state.value.score === undefined || String(state.value.score) === '') {
     return `Nhập từ 0 đến ${toNumber(props.criterion.maxScore)} điểm`
   }
@@ -114,7 +147,7 @@ const scoreHintClass = computed(() => {
   return 'text-[var(--text-secondary)]'
 })
 
-const canShowDetails = computed(() => currentStatus.value !== 'pending' && currentStatus.value !== 'na')
+const canShowDetails = computed(() => currentStatus.value !== 'na')
 const detailsVisible = computed(() => (
   canShowDetails.value
   && (
@@ -125,20 +158,23 @@ const detailsVisible = computed(() => (
   )
 ))
 
+const attachmentCount = computed(() => (Array.isArray(state.value.attachments) ? state.value.attachments.length : 0))
+const hasDetailContent = computed(() => Boolean(String(state.value.note || '').trim()) || attachmentCount.value > 0)
+
 const detailToggleLabel = computed(() => (
-  detailsVisible.value ? 'Ẩn ghi chú & ảnh' : 'Thêm ghi chú & ảnh'
+  detailsVisible.value ? 'Ẩn ghi chú & ảnh' : 'Ghi chú & ảnh'
 ))
 
 const sectionHeaderClass = computed(() => {
   if (props.level === 1) {
-    return 'rounded-2xl border border-[var(--stroke)] bg-[var(--surface)] px-5 py-4 shadow-sm'
+    return 'rounded-lg border border-[var(--stroke)] bg-[var(--surface)] px-2.5 py-2 shadow-sm'
   }
 
   if (props.level === 2) {
-    return 'rounded-xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3'
+    return 'rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] px-2.5 py-1.5'
   }
 
-  return 'rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)]/80 px-3 py-2'
+  return 'rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)]/80 px-2 py-1.5'
 })
 
 const sectionTagClass = computed(() => {
@@ -150,14 +186,14 @@ const sectionTagClass = computed(() => {
 })
 
 const sectionTitleClass = computed(() => {
-  if (props.level === 1) return 'text-base font-bold text-[var(--text-primary)] tracking-tight'
-  if (props.level === 2) return 'text-[15px] font-bold text-[var(--text-primary)] tracking-tight'
-  return 'text-sm font-semibold text-[var(--text-primary)] tracking-tight'
+  if (props.level === 1) return 'text-xs font-semibold text-[var(--text-primary)]'
+  if (props.level === 2) return 'text-xs font-semibold text-[var(--text-primary)]'
+  return 'text-xs font-medium text-[var(--text-primary)]'
 })
 
 const sectionChildrenLaneClass = computed(() => {
-  if (props.level === 1) return 'ml-4 space-y-1 border-l-2 border-[var(--stroke)] pl-4'
-  return 'ml-3 space-y-1 border-l border-[var(--stroke)] pl-3'
+  if (props.level === 1) return 'ml-2 space-y-1 border-l border-[var(--stroke)] pl-2'
+  return 'ml-1.5 space-y-1 border-l border-[var(--stroke)] pl-2'
 })
 
 const collectLeafCriteria = (criterion) => {
@@ -194,10 +230,13 @@ const updateState = (updates) => {
 }
 
 const handlePassFail = (status) => {
+  if (props.readonly) return
+  statusMenuOpen.value = false
   updateState({ status })
 }
 
 const handleScoreChange = (event) => {
+  if (props.readonly) return
   const input = event?.target
   const value = String(input?.value ?? '').trim()
   if (value === '') {
@@ -222,43 +261,90 @@ const handleScoreChange = (event) => {
     input.value = String(normalizedScore)
   }
 
+  const minPassScore = toNumber(props.criterion.minPassScore ?? (maxScore / 2), maxScore / 2)
+
   updateState({
     score: normalizedScore,
-    status: 'pass',
+    status: normalizedScore >= minPassScore ? 'pass' : 'fail',
   })
 }
 
 const handleUpload = (event) => {
+  if (props.readonly) return
+  attachmentMenuOpen.value = false
+  statusMenuOpen.value = false
   emit('upload-attachment', props.criterion.id, event)
 }
 
 const removeAttachment = (index) => {
+  if (props.readonly) return
+  attachmentMenuOpen.value = false
   emit('remove-attachment', props.criterion.id, index)
 }
 
+const toggleAttachmentMenu = () => {
+  if (props.readonly) return
+  statusMenuOpen.value = false
+  attachmentMenuOpen.value = !attachmentMenuOpen.value
+}
+
+const toggleStatusMenu = () => {
+  if (props.readonly) return
+  attachmentMenuOpen.value = false
+  statusMenuOpen.value = !statusMenuOpen.value
+}
+
+const closeMenus = () => {
+  attachmentMenuOpen.value = false
+  statusMenuOpen.value = false
+}
+
+const handleDocumentClick = (event) => {
+  const root = itemRoot.value
+  if (!root || root.contains(event.target)) return
+  closeMenus()
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+})
+
 const toggleSection = () => {
+  if (props.shallowGroups) {
+    emit('select-group', props.criterion)
+    return
+  }
+
   sectionExpanded.value = !sectionExpanded.value
 }
 
 const toggleDetails = () => {
   if (!canShowDetails.value) return
   detailsExpanded.value = !detailsExpanded.value
+  if (!detailsExpanded.value) {
+    attachmentMenuOpen.value = false
+    statusMenuOpen.value = false
+  }
 }
 </script>
 
 <template>
-  <div :class="['qc-criterion-item', level > 1 ? 'mt-1' : 'mt-2']">
+  <div ref="itemRoot" :class="['qc-criterion-item', level > 1 ? 'mt-0.5' : 'mt-1']">
     <div v-if="hasChildren" class="border-b border-transparent">
       <button
         type="button"
-        class="cursor-pointer flex w-full items-start gap-3 text-left transition"
+        class="cursor-pointer flex w-full items-start gap-2 text-left transition"
         :class="sectionHeaderClass"
         :aria-expanded="String(sectionExpanded)"
         @click="toggleSection"
       >
         <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium" :class="sectionTagClass">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-medium" :class="sectionTagClass">
               {{ criterion.ordering || `Nhóm ${level}` }}
             </span>
             <h3 :class="sectionTitleClass">{{ criterion.name }}</h3>
@@ -272,7 +358,7 @@ const toggleDetails = () => {
           <span v-if="sectionSummary.failed > 0" class="text-[11px] text-[var(--danger-text)]">{{ sectionSummary.failed }} lỗi</span>
         </div>
 
-        <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--stroke)] bg-white text-[var(--text-secondary)]">
+        <span class="inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-[var(--stroke)] bg-white text-[var(--text-secondary)]">
           <svg
             class="size-3.5 transition-transform"
             :class="sectionExpanded ? 'rotate-180' : ''"
@@ -289,7 +375,7 @@ const toggleDetails = () => {
         </span>
       </button>
 
-      <div v-show="sectionExpanded" class="pb-2">
+      <div v-if="!shallowGroups" v-show="sectionExpanded" class="pb-0.5">
         <div :class="sectionChildrenLaneClass">
           <QCCriterionTreeItem
             v-for="child in criterion.children"
@@ -299,10 +385,13 @@ const toggleDetails = () => {
             :criteria-states="criteriaStates"
             :max-attachments="maxAttachments"
             :show-finding-action="showFindingAction"
+            :shallow-groups="shallowGroups"
+            :readonly="readonly"
             @update-state="(id, updates) => $emit('update-state', id, updates)"
             @upload-attachment="(id, event) => $emit('upload-attachment', id, event)"
             @remove-attachment="(id, index) => $emit('remove-attachment', id, index)"
             @open-finding-modal="(id) => $emit('open-finding-modal', id)"
+            @select-group="(node) => $emit('select-group', node)"
           />
         </div>
       </div>
@@ -311,166 +400,159 @@ const toggleDetails = () => {
     <div
       v-else
       :id="criterionDomId"
-      :class="['scroll-mt-24 rounded-2xl border bg-white px-4 py-3 transition-colors', cardToneClass]"
+      class="scroll-mt-24 rounded-lg border bg-white transition-colors"
+      :class="cardToneClass"
     >
-      <div class="flex flex-col gap-3 pc:flex-row pc:items-start pc:justify-between">
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="inline-flex rounded-full bg-[var(--primary-softer)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
-              {{ criterion.ordering || criterion.code || 'Tiêu chí' }}
-            </span>
-            <span class="text-[11px] text-[var(--text-secondary)]">
-              {{ metricLabel }}
-            </span>
-            <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="statusBadgeClass">
-              {{ statusLabel }}
-            </span>
-          </div>
-
-          <h4 class="mt-2 text-sm font-semibold leading-6 text-[var(--text-primary)]">
-            {{ criterion.name }}
-          </h4>
-          <p v-if="criterion.description" class="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
-            {{ criterion.description }}
-          </p>
+      <div class="grid min-h-[52px] gap-1.5 px-2.5 py-1.5 tablet:grid-cols-[56px_minmax(0,1fr)_auto] tablet:items-center tablet:gap-2">
+        <div class="flex items-center tablet:border-r tablet:border-[var(--stroke)] tablet:pr-3">
+          <span class="text-xs font-semibold text-[var(--primary)]">{{ criterion.ordering || criterion.code || 'QC' }}</span>
         </div>
 
-        <div class="w-full pc:min-w-[280px] pc:max-w-[320px]">
-          <div v-if="criterion.mode === 'pass_fail' || criterion.mode === 'deduction'" class="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              class="cursor-pointer rounded-xl border px-4 py-2.5 text-sm font-medium transition"
-              :class="currentStatus === 'pass' ? 'border-[var(--success-text)] bg-[var(--success-text)] text-white' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:border-[var(--success-border)] hover:bg-[var(--success-bg)]'"
-              @click="handlePassFail('pass')"
-            >
-              Đạt
-            </button>
-            <button
-              type="button"
-              class="cursor-pointer rounded-xl border px-4 py-2.5 text-sm font-medium transition"
-              :class="currentStatus === 'fail' ? 'border-[var(--danger-text)] bg-[var(--danger-text)] text-white' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:border-[var(--danger-border)] hover:bg-[var(--danger-bg)]'"
-              @click="handlePassFail('fail')"
-            >
-              Không đạt
-            </button>
-          </div>
+        <div class="min-w-0">
+          <h4 class="line-clamp-1 text-xs font-semibold text-[var(--text-primary)]" :title="criterion.name">{{ criterion.name }}</h4>
+          <p v-if="criterion.description" class="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]" :title="criterion.description">{{ criterion.description }}</p>
+        </div>
 
-          <div v-else class="space-y-3">
-            <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] p-3 transition focus-within:border-[var(--primary)] focus-within:bg-white focus-within:shadow-sm">
-              <div class="flex items-center gap-3">
-                <input
-                  type="number"
-                  :value="state.score"
-                  :min="0"
-                  :max="criterion.maxScore"
-                  step="0.5"
-                  placeholder="Điểm"
-                  class="score-input h-10 min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 text-2xl font-semibold tracking-tight text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
-                  @input="handleScoreChange"
-                />
-                <span class="inline-flex shrink-0 items-center rounded-full bg-white px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)]">
-                  / {{ criterion.maxScore }} điểm
-                </span>
-              </div>
-              <div class="mt-2 flex items-center justify-between gap-3 text-[11px]">
-                <span class="text-[var(--text-secondary)]">Điểm này được cộng trực tiếp vào tổng phiếu</span>
-                <span class="font-medium" :class="scoreHintClass">{{ scoreHint }}</span>
-              </div>
+        <div class="flex min-w-0 items-center justify-end gap-2">
+          <span class="inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-md border px-2 text-[10px] font-medium leading-none" :class="modeBadgeClass">
+            {{ modeName }}
+          </span>
+
+          <div class="w-[126px] shrink-0">
+            <div v-if="criterionMode === 'point'" class="flex h-8 items-center rounded-lg border border-[var(--stroke)] bg-white px-2 shadow-sm focus-within:border-[var(--primary)]">
+              <input
+                type="number"
+                :value="state.score"
+                :min="0"
+                :max="criterion.maxScore"
+                step="0.5"
+                placeholder="Nhập điểm"
+                :disabled="readonly"
+                class="score-input h-7 min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 text-center text-xs font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-default"
+                @input="handleScoreChange"
+              />
+              <span class="mx-1 text-xs text-[var(--text-secondary)]">/</span>
+              <span class="shrink-0 text-xs font-medium text-[var(--text-secondary)]">{{ criterion.maxScore }}</span>
             </div>
 
-            <div class="px-1">
-              <div class="h-2 overflow-hidden rounded-full bg-[var(--primary-softer)]">
-                <div
-                  class="h-full rounded-full transition-all duration-200"
-                  :class="currentStatus === 'fail' ? 'bg-[var(--danger-text)]' : isPointScored ? 'bg-[var(--primary)]' : currentStatus === 'pass' ? 'bg-[var(--success-text)]' : 'bg-[var(--text-muted)]'"
-                  :style="{ width: `${scorePercent}%` }"
-                ></div>
-              </div>
-              <div class="mt-2 flex items-center justify-between gap-2 text-[11px]">
-                <span class="text-[var(--text-secondary)]">Điểm: {{ state.score ?? '--' }}</span>
-                <span class="font-medium" :class="scoreHintClass">{{ statusLabel }}</span>
+            <div v-else class="relative">
+              <button
+                type="button"
+                class="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-2.5 text-xs font-semibold text-[var(--text-primary)] shadow-sm transition hover:border-[var(--primary)] focus:border-[var(--primary)] focus:outline-none"
+                :aria-expanded="String(statusMenuOpen)"
+                :disabled="readonly"
+                @click="toggleStatusMenu"
+              >
+                <span>{{ currentStatus === 'fail' ? 'Không đạt' : currentStatus === 'pass' ? 'Đạt' : '-' }}</span>
+                <span class="material-symbols-outlined text-[16px] text-[var(--text-secondary)]">{{ statusMenuOpen ? 'expand_less' : 'expand_more' }}</span>
+              </button>
+
+              <div
+                v-if="statusMenuOpen"
+                class="absolute left-0 top-9 z-20 w-full overflow-hidden rounded-lg border border-[var(--stroke)] bg-white py-1 text-xs font-semibold text-[var(--text-primary)] shadow-lg"
+              >
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-[var(--success-text)] transition hover:bg-[var(--surface-muted)]"
+                  @click="handlePassFail('pass')"
+                >
+                  <span>Đạt</span>
+                  <span v-if="currentStatus === 'pass'" class="material-symbols-outlined text-[15px]">check</span>
+                </button>
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-[var(--danger-text)] transition hover:bg-[var(--surface-muted)]"
+                  @click="handlePassFail('fail')"
+                >
+                  <span>Không đạt</span>
+                  <span v-if="currentStatus === 'fail'" class="material-symbols-outlined text-[15px]">check</span>
+                </button>
               </div>
             </div>
           </div>
+
+          <span v-if="currentStatus !== 'pending'" class="inline-flex min-w-[76px] shrink-0 justify-center rounded-md border px-2 py-1 text-xs font-semibold" :class="statusBadgeClass">
+            {{ statusLabel }}
+          </span>
 
           <button
-            v-if="showFindingAction && currentStatus === 'fail'"
             type="button"
-            class="app-button-danger mt-2 inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium"
-            @click="$emit('open-finding-modal', criterion.id)"
+            class="relative inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--text-secondary)] transition hover:bg-[var(--surface-muted)]"
+            :class="detailsVisible || hasDetailContent ? 'text-[var(--primary-strong)]' : ''"
+            :disabled="!canShowDetails"
+            :aria-expanded="String(detailsVisible)"
+            :title="detailToggleLabel"
+            @click="toggleDetails"
           >
-            <svg class="size-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 9v4" />
-              <path d="M12 17h.01" />
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-            </svg>
-            Khắc phục
+            <span class="material-symbols-outlined text-[16px]">{{ detailsVisible ? 'expand_less' : 'chat_bubble_outline' }}</span>
+            <span v-if="attachmentCount > 0" class="absolute -right-0.5 -top-0.5 inline-flex min-w-3 justify-center rounded-full bg-[var(--primary)] px-0.5 text-[9px] font-bold text-white">{{ attachmentCount }}</span>
           </button>
         </div>
       </div>
 
-      <div v-if="canShowDetails" class="mt-3 rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-3 py-3">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p class="text-xs font-medium text-[var(--text-secondary)]">Ghi chú & ảnh</p>
-            <p class="mt-1 text-[11px] text-[var(--text-secondary)]">
-              {{ Array.isArray(state.attachments) ? state.attachments.length : 0 }}/{{ maxAttachments }} ảnh được phép đính kèm
-            </p>
-          </div>
+      <div v-if="currentStatus === 'fail'" class="border-t border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2 text-xs font-medium text-[var(--danger-text)]">
+        {{ readonly ? 'Tiêu chí này cần khắc phục' : 'Yêu cầu khắc phục sẽ được tạo khi hoàn tất phiên QC' }}
+      </div>
 
-          <button
-            type="button"
-            class="app-button-secondary cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-medium"
-            @click="toggleDetails"
-          >
-            {{ detailToggleLabel }}
-          </button>
+      <div v-if="canShowDetails && detailsVisible" class="grid gap-2 border-t border-[var(--stroke)] px-3 py-2 tablet:grid-cols-[minmax(0,1fr)_auto] tablet:items-end">
+        <div>
+          <label class="block text-xs font-semibold text-[var(--text-secondary)]">Ghi chú</label>
+          <input
+            type="text"
+            :value="state.note"
+            class="mt-1 h-9 w-full rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm text-[var(--text-primary)] focus:border-[var(--primary)] focus:outline-none focus:ring-0"
+            :placeholder="currentStatus === 'fail' ? 'Mô tả lỗi...' : 'Ghi chú thêm...'"
+            :readonly="readonly"
+            @input="(event) => !readonly && updateState({ note: event.target.value })"
+          />
         </div>
 
-        <div v-if="detailsVisible" class="mt-3 grid gap-4 pc:grid-cols-[minmax(0,1fr)_220px]">
-          <div>
-            <label class="block text-xs font-medium text-[var(--text-secondary)]">Nhận xét</label>
-            <textarea
-              :value="state.note"
-              rows="3"
-              class="mt-2 w-full rounded-xl border border-[var(--stroke)] bg-white px-3 py-2 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-none focus:ring-0"
-              :placeholder="currentStatus === 'fail' ? 'Mô tả chi tiết lỗi và yêu cầu xử lý...' : 'Ghi chú thêm cho tiêu chí này...'"
-              @input="(event) => updateState({ note: event.target.value })"
-            ></textarea>
-          </div>
+        <div v-if="!readonly || attachmentCount > 0">
+          <label class="block text-xs font-semibold text-[var(--text-secondary)]">Ảnh ({{ attachmentCount }}/{{ maxAttachments }})</label>
+          <div class="mt-1 flex flex-wrap gap-1.5">
+            <div
+              v-for="(file, index) in state.attachments"
+              :key="file.id || index"
+              class="group relative size-9 overflow-hidden rounded-md border border-[var(--stroke)] bg-white"
+            >
+              <img :src="file.preview || file.url" class="h-full w-full object-cover" />
+              <button
+                v-if="!readonly"
+                type="button"
+                class="absolute right-0.5 top-0.5 inline-flex size-4 cursor-pointer items-center justify-center rounded-full bg-white text-[var(--text-secondary)] shadow-sm transition hover:text-[var(--danger-text)]"
+                @click="removeAttachment(index)"
+              >
+                <span class="material-symbols-outlined text-[12px]">close</span>
+              </button>
+            </div>
 
-          <div>
-            <label class="block text-xs font-medium text-[var(--text-secondary)]">Ảnh minh chứng</label>
-            <div class="mt-2 flex flex-wrap gap-2">
+            <div v-if="!readonly && state.attachments.length < maxAttachments" class="relative">
+              <button
+                type="button"
+                class="flex size-9 cursor-pointer items-center justify-center rounded-md border border-dashed border-[var(--stroke-strong)] bg-white text-[var(--text-secondary)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
+                :aria-expanded="String(attachmentMenuOpen)"
+                title="Thêm ảnh minh chứng"
+                @click="toggleAttachmentMenu"
+              >
+                <span class="material-symbols-outlined text-[18px]">photo_camera</span>
+              </button>
+
               <div
-                v-for="(file, index) in state.attachments"
-                :key="file.id || index"
-                class="group relative h-[72px] w-[72px] overflow-hidden rounded-2xl border border-[var(--stroke)] bg-white"
+                v-if="attachmentMenuOpen"
+                class="absolute right-0 top-10 z-10 min-w-36 overflow-hidden rounded-lg border border-[var(--stroke)] bg-white py-1 text-xs font-semibold text-[var(--text-primary)] shadow-lg"
               >
-                <img :src="file.preview || file.url" class="h-full w-full object-cover" />
-                <button
-                  type="button"
-                  class="cursor-pointer absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition group-hover:opacity-100"
-                  @click="removeAttachment(index)"
-                >
-                  <svg class="size-4 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 6h18" />
-                    <path d="M8 6V4h8v2" />
-                    <path d="m19 6-1 14H6L5 6" />
-                    <path d="M10 11v6" />
-                    <path d="M14 11v6" />
-                  </svg>
-                </button>
-              </div>
+                <label class="flex cursor-pointer items-center gap-2 px-3 py-2 transition hover:bg-[var(--surface-muted)]">
+                  <span class="material-symbols-outlined text-[16px] text-[var(--text-secondary)]">photo_camera</span>
+                  <span>Chụp ảnh</span>
+                  <input type="file" class="hidden" accept="image/*" capture="environment" @change="handleUpload" />
+                </label>
 
-              <label
-                v-if="state.attachments.length < maxAttachments"
-                class="cursor-pointer flex h-[72px] w-[72px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-[var(--stroke-strong)] bg-white text-[var(--text-secondary)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
-              >
-                <span class="text-lg font-semibold">+</span>
-                <span class="text-[11px] font-medium">Thêm ảnh</span>
-                <input type="file" class="hidden" accept="image/*" multiple @change="handleUpload" />
-              </label>
+                <label class="flex cursor-pointer items-center gap-2 px-3 py-2 transition hover:bg-[var(--surface-muted)]">
+                  <span class="material-symbols-outlined text-[16px] text-[var(--text-secondary)]">photo_library</span>
+                  <span>Thư viện</span>
+                  <input type="file" class="hidden" accept="image/*" multiple @change="handleUpload" />
+                </label>
+              </div>
             </div>
           </div>
         </div>

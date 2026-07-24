@@ -151,6 +151,7 @@ const normalizeCriteria = (criteria = []) => {
     const incomingStatus = normalizeCriterionStatus(item?.status)
     const explicitNonScoredStatus = incomingStatus === 'na' || incomingStatus === 'skipped_weekly'
     const maxScore = mode === 'deduction' ? 0 : Math.max(toNumber(item?.maxScore, mode === 'pass_fail' ? 1 : 0), 0)
+    const minPassScore = mode === 'point' ? clamp(toNumber(item?.minPassScore ?? item?.min_pass_score ?? (maxScore / 2)), 0, maxScore) : 0
     const deductionPercent = mode === 'deduction'
       ? clamp(toNumber(item?.deductionPercent ?? item?.deduction_percent ?? item?.maxScore), 0, 100)
       : 0
@@ -170,7 +171,7 @@ const normalizeCriteria = (criteria = []) => {
     let status = incomingStatus
     if (!explicitNonScoredStatus) {
       if (mode === 'point') {
-        status = score === null ? 'pending' : 'pass'
+        status = score === null ? 'pending' : (score >= minPassScore ? 'pass' : 'fail')
       } else if (!status) {
         status = 'pending'
       }
@@ -184,6 +185,7 @@ const normalizeCriteria = (criteria = []) => {
       status,
       score,
       maxScore,
+      minPassScore,
       deductionPercent,
       applicable: item?.applicable !== false,
       note: String(item?.note || '').trim(),
@@ -266,7 +268,11 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
 
       const score = clamp(toNumber(item.score), 0, maxScore)
       acc.totalScore += score
-      acc.passedCount += 1
+      if (item.status === 'fail') {
+        acc.failedCount += 1
+      } else {
+        acc.passedCount += 1
+      }
 
       return acc
     },
@@ -321,10 +327,25 @@ const normalizeFinding = (finding = {}) => {
     verifiedAt: finding.verified_at || null,
     verifier: finding.verifier || null,
     evidence: Array.isArray(finding.evidence) ? finding.evidence : [],
+    metaInfo: finding.metaInfo || finding.meta_info || {},
     createdAt: finding.createdAt || null,
     updatedAt: finding.updatedAt || null,
   }
 }
+
+const unwrapQcFindingPayload = (response) => (
+  response?.data && typeof response.data === 'object'
+    ? response.data
+    : response
+)
+
+const unwrapQcFindingListPayload = (response) => (
+  Array.isArray(response?.data)
+    ? response.data
+    : Array.isArray(response)
+      ? response
+      : []
+)
 
 
 const resolveStoreName = (store) => {
@@ -375,6 +396,9 @@ const normalizeCriteriaFromApi = (items = []) => {
       ? 0
       : Math.max(toNumber(item?.max_score_snapshot || item?.maxScore, mode === 'pass_fail' ? 1 : 0), 0)
     const hasScore = item?.score !== null && item?.score !== undefined && String(item.score) !== ''
+    const minPassScore = mode === 'point'
+      ? clamp(toNumber(item?.min_pass_score_snapshot ?? item?.minPassScore ?? (maxScore / 2)), 0, maxScore)
+      : 0
 
     return {
       id: String(item?.criterion_code || item?.id || `criterion-${index + 1}`),
@@ -384,6 +408,7 @@ const normalizeCriteriaFromApi = (items = []) => {
       status,
       score: hasScore ? toNumber(item.score) : null,
       maxScore,
+      minPassScore,
       deductionPercent: mode === 'deduction'
         ? toNumber(item?.deduction_percent_snapshot ?? item?.deductionPercent ?? item?.deduction_percent ?? item?.max_score_snapshot ?? item?.maxScore, 0)
         : 0,
@@ -440,12 +465,15 @@ const normalizeSessionFromApi = (session = {}, fallbackIndex = 0) => {
     auditorId: session?.auditor?.id ?? session?.auditorId ?? null,
     auditorName: String(session?.auditor?.name || session?.auditorName || session?.auditor?.email || ''),
     template: {
-      id: String(form?.code || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
+      id: String(form?.id || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
+      code: String(form?.code || session?.templateCode || ''),
       name: String(form?.name || session?.templateName || INTERNAL_DEFAULT_TEMPLATE.name),
       version: String(formVersion?.version_no || session?.templateVersion || INTERNAL_DEFAULT_TEMPLATE.version),
       passThreshold: templatePassThreshold,
     },
-    templateId: String(form?.code || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
+    formId: toNumber(form?.id || session?.formId || session?.form_id),
+    templateId: String(form?.id || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
+    templateCode: String(form?.code || session?.templateCode || ''),
     templateName: String(form?.name || session?.templateName || INTERNAL_DEFAULT_TEMPLATE.name),
     templateVersion: String(formVersion?.version_no || session?.templateVersion || INTERNAL_DEFAULT_TEMPLATE.version),
     templatePassThreshold: templatePassThreshold,
@@ -503,9 +531,24 @@ const normalizeDraft = (draft = {}) => {
   }
 }
 
+const normalizeFindingStatusSummary = (value = {}) => {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  return {
+    open: toNumber(source.open),
+    inProgress: toNumber(source.in_progress ?? source.inProgress),
+    resolved: toNumber(source.resolved),
+    rejected: toNumber(source.rejected),
+    verified: toNumber(source.verified),
+  }
+}
+
 const normalizeOverviewPayloadFromApi = (payload = {}) => {
   const rawSessions = Array.isArray(payload?.data) ? payload.data : []
-  const sessions = rawSessions.map((item, index) => normalizeSessionFromApi(item, index))
+  const sessions = rawSessions.map((item, index) => ({
+    ...normalizeSessionFromApi(item, index),
+    openFindings: toNumber(item?.openFindings ?? item?.open_findings),
+    findingStatusSummary: normalizeFindingStatusSummary(item?.findingStatusSummary || item?.finding_status_summary),
+  }))
   const sourceSummary = payload?.summary || {}
   const totalSessions = toNumber(sourceSummary?.totalSessions, sessions.length)
   const avgScore = toNumber(sourceSummary?.avgScore)
@@ -564,7 +607,7 @@ export const createQcSession = async (payload = {}) => {
   }
 
   const response = await http.post('/api/qc/sessions/create', requestBody)
-  const session = response?.data
+  const session = response?.data?.data || response?.data
   if (!session) {
     throw new Error('Không thể tạo phiên QC')
   }
@@ -709,6 +752,9 @@ const normalizeStoreOverviewStat = (item = {}) => ({
   avgMaxScore: toNumber(item?.avgMaxScore),
   avgScoreRate: toNumber(item?.scoreRate ?? item?.avgScoreRate),
   passRate: toNumber(item?.passRate),
+  openFindings: toNumber(item?.openFindings ?? item?.open_findings),
+  activeFindingSessions: toNumber(item?.activeFindingSessions ?? item?.active_finding_sessions),
+  findingStatusSummary: normalizeFindingStatusSummary(item?.findingStatusSummary || item?.finding_status_summary),
   lastAuditAt: item?.lastAuditedAt || item?.last_audited_at || null,
   lastAuditCode: item?.lastSessionCode || item?.last_session_code || '--',
   lastAuditResult: item?.lastAuditResult || item?.last_audit_result || null,
@@ -769,19 +815,33 @@ export const getQcTemplateById = async (formId, options = {}) => {
   if (!formData) return null
 
   const flattened = Array.isArray(formData.criteria)
-    ? formData.criteria.map((criterion) => ({
-      id: criterion.id,
-      code: criterion.code,
-      name: criterion.name,
-      description: criterion.description,
-      level: criterion.level,
-      ordering: criterion.ordering,
-      parentId: criterion.parentId || null,
-      mode: criterion.mode,
-      maxScore: toNumber(criterion.maxScore),
-      deductionPercent: toNumber(criterion.deductionPercent ?? criterion.deduction_percent ?? (criterion.mode === 'deduction' ? criterion.maxScore : 0), 0),
-      sortOrder: criterion.sortOrder,
-    }))
+    ? formData.criteria.map((criterion) => {
+      const criterionId = String(criterion.id || '').trim()
+      const parentId = criterion.parentId === null || criterion.parentId === undefined || String(criterion.parentId).trim() === ''
+        ? null
+        : String(criterion.parentId).trim()
+
+      const mode = normalizeCriterionMode(criterion.mode || criterion.default_mode || criterion.mode_snapshot || criterion.scoreType) || 'point'
+
+      return {
+        id: criterionId,
+        code: criterion.code,
+        name: criterion.name,
+        description: criterion.description,
+        level: criterion.level,
+        ordering: criterion.ordering,
+        orderingLabel: criterion.orderingLabel || criterion.ordering_label || '',
+        parentId,
+        nodeType: String(criterion.nodeType || criterion.node_type || '').trim() || '',
+        mode,
+        maxScore: toNumber(criterion.maxScore),
+        minPassScore: mode === 'point'
+          ? clamp(toNumber(criterion.minPassScore ?? criterion.min_pass_score ?? (toNumber(criterion.maxScore) / 2)), 0, toNumber(criterion.maxScore))
+          : 0,
+        deductionPercent: toNumber(criterion.deductionPercent ?? criterion.deduction_percent ?? (mode === 'deduction' ? criterion.maxScore : 0), 0),
+        sortOrder: criterion.sortOrder,
+      }
+    }).filter((criterion) => criterion.id)
     : []
 
   // Build Hierarchy
@@ -790,14 +850,17 @@ export const getQcTemplateById = async (formId, options = {}) => {
     const roots = []
 
     items.forEach(item => {
-      map.set(item.id, { ...item, children: [] })
+      map.set(String(item.id), { ...item, children: [] })
     })
 
     items.forEach(item => {
-      if (item.parentId && map.has(item.parentId)) {
-        map.get(item.parentId).children.push(map.get(item.id))
+      const itemId = String(item.id)
+      const parentId = item.parentId ? String(item.parentId) : ''
+
+      if (parentId && map.has(parentId)) {
+        map.get(parentId).children.push(map.get(itemId))
       } else {
-        roots.push(map.get(item.id))
+        roots.push(map.get(itemId))
       }
     })
 
@@ -987,7 +1050,7 @@ export const deleteQcDraftSession = async (draftId) => {
 
 export const createQcFinding = async (payload = {}) => {
   const response = await http.post('/api/qc/findings', payload)
-  const created = response?.data
+  const created = unwrapQcFindingPayload(response)
   return created ? normalizeFinding(created) : null
 }
 
@@ -1000,15 +1063,60 @@ export const listQcFindings = async (params = {}) => {
   const queryString = toQueryString(query)
   const endpoint = queryString ? `/api/qc/findings/?${queryString}` : '/api/qc/findings/'
   const response = await http.get(endpoint)
-  const items = Array.isArray(response?.data) ? response.data : []
+  const items = unwrapQcFindingListPayload(response)
   return items.map(item => normalizeFinding(item))
+}
+
+export const getQcFindingById = async (id) => {
+  if (!id) return null
+  const response = await http.get(`/api/qc/findings/${encodeURIComponent(String(id))}`)
+  const finding = unwrapQcFindingPayload(response)
+  return finding ? normalizeFinding(finding) : null
 }
 
 export const updateQcFinding = async (id, payload = {}) => {
   if (!id) return null
   const response = await http.put(`/api/qc/findings/${id}`, payload)
-  const updated = response?.data
+  const updated = unwrapQcFindingPayload(response)
   return updated ? normalizeFinding(updated) : null
+}
+
+export const startQcFinding = async (id) => {
+  if (!id) return null
+  const response = await http.post(`/api/qc/findings/${id}/start`)
+  const updated = unwrapQcFindingPayload(response)
+  return updated ? normalizeFinding(updated) : null
+}
+
+export const resolveQcFinding = async (id, payload = {}) => {
+  if (!id) return null
+  const response = await http.post(`/api/qc/findings/${id}/resolve`, payload)
+  const updated = unwrapQcFindingPayload(response)
+  return updated ? normalizeFinding(updated) : null
+}
+
+export const verifyQcFinding = async (id, payload = {}) => {
+  if (!id) return null
+  const response = await http.post(`/api/qc/findings/${id}/verify`, payload)
+  const updated = unwrapQcFindingPayload(response)
+  return updated ? normalizeFinding(updated) : null
+}
+
+export const rejectQcFinding = async (id, payload = {}) => {
+  if (!id) return null
+  const response = await http.post(`/api/qc/findings/${id}/reject`, payload)
+  const updated = unwrapQcFindingPayload(response)
+  return updated ? normalizeFinding(updated) : null
+}
+
+export const uploadQcFindingEvidence = async (formData) => {
+  const response = await http.post('/api/qc/findings/upload-evidence', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  const files = response?.data?.files || response?.files || []
+  return Array.isArray(files) ? files : []
 }
 
 export const qcHelpers = {

@@ -33,6 +33,17 @@ class QCFindingUpdate(BaseModel):
     evidence: Optional[list[dict[str, object]]] = None
     meta_info: Optional[dict[str, object]] = None
 
+class QCFindingResolveRequest(BaseModel):
+    corrective_action: Optional[str] = None
+    corrective_note: str = Field(min_length=1)
+    evidence: Optional[list[dict[str, object]]] = None
+
+class QCFindingVerifyRequest(BaseModel):
+    verify_note: Optional[str] = None
+
+class QCFindingRejectRequest(BaseModel):
+    rejection_reason: str = Field(min_length=1)
+
 class QCFindingShortResponse(BaseModel):
     id: int
     finding_code: str

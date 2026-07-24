@@ -1,5 +1,6 @@
 import uuid
 from datetime import timedelta
+from decimal import Decimal
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, or_, and_, case
@@ -33,6 +34,8 @@ from app.services.qc_service import (
 )
 
 router = APIRouter()
+
+OPEN_FINDING_STATUSES = {"open", "in_progress", "resolved", "rejected"}
 
 
 def _normalize_qc_item_status(value: object) -> str:
@@ -113,6 +116,13 @@ def _build_session_items_from_version(
             except (TypeError, ValueError):
                 score = None
 
+        min_pass_score = float(criterion.default_min_pass_score or 0)
+        if mode == "point" and score is not None:
+            effective_min_pass_score = min_pass_score if min_pass_score > 0 else (max_score / 2)
+            status = "pass" if score >= effective_min_pass_score else "fail"
+
+        requires_fix = status == "fail"
+
         session_items.append(
             {
                 "criterion_id": criterion.id,
@@ -120,17 +130,176 @@ def _build_session_items_from_version(
                 "criterion_name": criterion.name,
                 "mode_snapshot": mode,
                 "max_score_snapshot": deduction_percent if mode == "deduction" else max_score,
-                "min_pass_score_snapshot": float(criterion.default_min_pass_score or 0),
+                "min_pass_score_snapshot": min_pass_score,
                 "result": status,
                 "score": score if mode == "point" else None,
                 "applicable": incoming.get("applicable", status not in {"na", "skipped_weekly"}),
-                "requires_fix": incoming.get("requires_fix", status == "fail"),
+                "requires_fix": requires_fix,
                 "note": incoming.get("note"),
                 "attachments": incoming.get("attachments"),
             }
         )
 
     return session_items
+
+def _to_decimal(value: object) -> Decimal:
+    try:
+        return Decimal(str(value or 0))
+    except Exception:
+        return Decimal(0)
+
+def _normalize_finding_status(value: object) -> str:
+    return str(value or "open").strip().lower()
+
+
+def _empty_finding_status_summary() -> dict[str, int]:
+    return {status: 0 for status in ["open", "in_progress", "resolved", "rejected", "verified"]}
+
+
+def _finding_aggregate(rows: list[object]) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
+    store_stats: dict[str, dict[str, object]] = {}
+    session_stats: dict[str, dict[str, object]] = {}
+
+    for row in rows:
+        store_id = str(row.store_id) if row.store_id is not None else ""
+        session_id = str(row.session_id) if row.session_id is not None else ""
+        status = _normalize_finding_status(row.status)
+        count = int(row.count or 0)
+
+        if store_id:
+            store_stat = store_stats.setdefault(store_id, {"openFindings": 0, "sessionIds": set(), "findingStatusSummary": _empty_finding_status_summary()})
+            store_stat["findingStatusSummary"][status] = store_stat["findingStatusSummary"].get(status, 0) + count
+            if status in OPEN_FINDING_STATUSES:
+                store_stat["openFindings"] += count
+                if session_id:
+                    store_stat["sessionIds"].add(session_id)
+
+        if session_id:
+            session_stat = session_stats.setdefault(session_id, {"openFindings": 0, "findingStatusSummary": _empty_finding_status_summary()})
+            session_stat["findingStatusSummary"][status] = session_stat["findingStatusSummary"].get(status, 0) + count
+            if status in OPEN_FINDING_STATUSES:
+                session_stat["openFindings"] += count
+
+    for stat in store_stats.values():
+        stat["activeFindingSessions"] = len(stat.pop("sessionIds", set()))
+
+    return store_stats, session_stats
+
+
+async def _load_finding_aggregates(
+    session: SessionDep,
+    store_ids: list[int] | None = None,
+    session_ids: list[int] | None = None,
+) -> tuple[dict[str, dict[str, object]], dict[str, dict[str, object]]]:
+    filters = []
+    if store_ids:
+        filters.append(QCFinding.store_id.in_(store_ids))
+    if session_ids:
+        filters.append(QCFinding.session_id.in_(session_ids))
+
+    query = (
+        select(
+            QCFinding.store_id,
+            QCFinding.session_id,
+            QCFinding.status,
+            func.count(QCFinding.id).label("count"),
+        )
+        .group_by(QCFinding.store_id, QCFinding.session_id, QCFinding.status)
+    )
+    if filters:
+        query = query.where(and_(*filters))
+
+    result = await session.execute(query)
+    return _finding_aggregate(result.all())
+
+
+def _serialize_qc_session_summary(qc_session: QCSession) -> dict:
+    store = qc_session.store
+    auditor = qc_session.auditor
+    form_version = qc_session.form_version
+    form = form_version.form if form_version else None
+    return {
+        "id": qc_session.id,
+        "code": qc_session.code,
+        "status": qc_session.status,
+        "result": qc_session.result,
+        "total_score": _to_decimal(qc_session.total_score),
+        "max_score": _to_decimal(qc_session.max_score),
+        "note": qc_session.note,
+        "store_id": qc_session.store_id,
+        "form_version_id": qc_session.form_version_id,
+        "form_version": {
+            "id": form_version.id,
+            "version_no": form_version.version_no,
+            "status": form_version.status,
+            "pass_rule": form_version.pass_rule or {},
+            "form": {
+                "id": form.id,
+                "code": form.code,
+                "name": form.name,
+                "description": form.description,
+                "is_active": form.is_active,
+            } if form else None,
+        } if form_version else None,
+        "auditor_id": qc_session.auditor_id,
+        "audited_at": qc_session.audited_at,
+        "submitted_at": qc_session.submitted_at,
+        "created_at": qc_session.created_at,
+        "store": {
+            "id": store.id,
+            "name": store.name,
+            "code": store.code,
+            "address": store.address,
+            "shortAddress": store.shortAddress,
+            "storeId": store.storeId,
+            "brandId": store.brandId,
+            "is_active": store.is_active,
+            "created_at": store.created_at,
+        } if store else None,
+        "auditor": {
+            "id": auditor.id,
+            "name": auditor.name,
+            "email": auditor.email,
+            "phone_number": auditor.phone_number,
+            "avatar_url": auditor.avatar_url,
+        } if auditor else None,
+    }
+
+def _serialize_qc_session_item(item: QCSessionItem) -> dict:
+    return {
+        "id": item.id,
+        "session_id": item.session_id,
+        "criterion_id": item.criterion_id,
+        "criterion_code": item.criterion_code,
+        "criterion_name": item.criterion_name,
+        "mode_snapshot": item.mode_snapshot,
+        "max_score_snapshot": _to_decimal(item.max_score_snapshot),
+        "min_pass_score_snapshot": _to_decimal(item.min_pass_score_snapshot),
+        "result": item.result,
+        "score": _to_decimal(item.score) if item.score is not None else None,
+        "applicable": item.applicable,
+        "requires_fix": item.requires_fix,
+        "note": item.note,
+        "attachments": item.attachments,
+    }
+
+
+def _serialize_qc_session_detail(qc_session: QCSession) -> dict:
+    data = _serialize_qc_session_summary(qc_session)
+    data["items"] = [_serialize_qc_session_item(item) for item in (qc_session.items or [])]
+    data["findings"] = [
+        {
+            "id": finding.id,
+            "finding_code": finding.finding_code,
+            "criterion_name": finding.criterion_name,
+            "severity": finding.severity,
+            "status": finding.status,
+            "due_date": finding.due_date,
+        }
+        for finding in (qc_session.findings or [])
+    ]
+    return data
+
 
 def _serialize_qc_form_detail(form: QCForm, form_version_id: Optional[int] = None) -> dict:
     versions = sorted(form.versions, key=lambda v: v.id, reverse=True) if form.versions else []
@@ -154,6 +323,7 @@ def _serialize_qc_form_detail(form: QCForm, form_version_id: Optional[int] = Non
                     "parentId": criterion.parent_id,
                     "mode": criterion.default_mode,
                     "maxScore": float(criterion.default_max_score or 0),
+                    "minPassScore": float(criterion.default_min_pass_score or 0),
                     "deductionPercent": float(criterion.default_deduction_percent or 0),
                     "sortOrder": criterion.id,
                 }
@@ -293,10 +463,10 @@ async def read_qc_form(
     )
     result = await session.execute(query)
     form = result.scalar_one_or_none()
-    
+
     if not form:
         raise HTTPException(status_code=404, detail="Form not found")
-        
+
     if form_version_id and not any(version.id == form_version_id for version in (form.versions or [])):
         raise HTTPException(status_code=404, detail="Phiên bản biểu mẫu QC không tồn tại")
 
@@ -388,7 +558,7 @@ async def read_qc_sessions_overview(
         .where(base_condition)
         .order_by(QCSession.created_at.desc())
     )
-    
+
     # Total Count for Pagination
     count_query = (
         select(func.count())
@@ -400,12 +570,16 @@ async def read_qc_sessions_overview(
     )
     total_res = await session.execute(count_query)
     total_count = total_res.scalar() or 0
-    
+
     # Paging
     query = query.limit(effective_page_size).offset((page - 1) * effective_page_size)
     result = await session.execute(query)
     sessions = result.scalars().all()
-    
+    _, finding_stats_by_session = await _load_finding_aggregates(
+        session,
+        session_ids=[item.id for item in sessions if item.id is not None],
+    )
+
     # 3. Aggregate Summary (Total, Passed, Failed, Avg Score)
     summary_query = select(
         func.count(QCSession.id).label("total"),
@@ -420,20 +594,29 @@ async def read_qc_sessions_overview(
     ).join(
         QCForm, QCFormVersion.form_id == QCForm.id, isouter=True
     ).where(base_condition)
-    
+
     summary_res = await session.execute(summary_query)
     summary_data = summary_res.first()
-    
+
     total_sessions = summary_data.total or 0
     passed = summary_data.passed or 0
     failed = summary_data.failed or 0
     avg_score = float(summary_data.avg_score or 0)
     avg_max_score = float(summary_data.avg_max_score or 0)
     score_rate = (avg_score / avg_max_score * 100) if avg_max_score > 0 else 0
-    
+
     return {
         "success": True,
-        "data": [QCSessionResponse.model_validate(s) for s in sessions],
+        "data": [
+            {
+                **QCSessionResponse.model_validate(s).model_dump(mode="json"),
+                **finding_stats_by_session.get(str(s.id), {
+                    "openFindings": 0,
+                    "findingStatusSummary": _empty_finding_status_summary(),
+                }),
+            }
+            for s in sessions
+        ],
         "summary": {
             "totalSessions": total_sessions,
             "passed": passed,
@@ -469,17 +652,17 @@ async def read_qc_session(
     )
     result = await session.execute(query)
     qc_session = result.scalar_one_or_none()
-    
+
     if not qc_session:
         raise HTTPException(status_code=404, detail="Phiên QC không tồn tại")
-        
+
     # Additional access check: if user is store role, they must be assigned to this store.
     if current_user.role != "admin" and qc_session.store_id:
         store_ids = [s.id for s in current_user.stores]
         if qc_session.store_id not in store_ids:
             raise HTTPException(status_code=403, detail="Không có quyền truy cập phiên QC này")
-            
-    return {"success": True, "data": QCSessionDetailResponse.model_validate(qc_session)}
+
+    return {"success": True, "data": _serialize_qc_session_detail(qc_session)}
 
 @router.post("/sessions/create", response_model=dict)
 async def create_qc_session(
@@ -500,7 +683,7 @@ async def create_qc_session(
     qc_session = QCSession(**data)
     session.add(qc_session)
     await session.flush()
-    
+
     for item_in in session_items:
         item_obj = QCSessionItem(
             session_id=qc_session.id,
@@ -518,9 +701,9 @@ async def create_qc_session(
             attachments=item_in.get("attachments")
         )
         session.add(item_obj)
-        
+
     await session.commit()
-    
+
     # Process calculated score and submit immediately
     return await submit_qc_session(
         id=qc_session.id,
@@ -536,17 +719,17 @@ async def delete_qc_session(
     """Delete a QC session (temporary for cleanup)."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Chỉ admin mới có quyền xóa phiên QC")
-        
+
     query = select(QCSession).where(QCSession.id == id)
     result = await session.execute(query)
     qc_session = result.scalar_one_or_none()
-    
+
     if not qc_session:
         raise HTTPException(status_code=404, detail="Phiên QC không tồn tại")
-        
+
     await session.delete(qc_session)
     await session.commit()
-    
+
     return {"success": True, "message": "Xóa phiên QC thành công"}
 
 
@@ -583,7 +766,7 @@ async def read_qc_stores_overview(
         if "T" not in date_to:
             parsed_to = parsed_to.replace(hour=23, minute=59, second=59, microsecond=999999)
         filters.append(QCSession.audited_at <= parsed_to)
-        
+
     if current_user.role != "admin":
         user_store_ids = [s.id for s in current_user.stores]
         filters.append(QCSession.store_id.in_(user_store_ids))
@@ -607,10 +790,10 @@ async def read_qc_stores_overview(
         .where(and_(*filters) if filters else True)
         .group_by(QCSession.store_id)
     )
-    
+
     agg_results = await session.execute(agg_query)
     agg_data = {r.store_id: r for r in agg_results.all()}
-    
+
     # 4. Fetch Stores with Search
     store_query = select(Store)
     if q:
@@ -622,7 +805,7 @@ async def read_qc_stores_overview(
             Store.storeId.ilike(f"%{q}%")
         )
         store_query = store_query.where(search_filter)
-        
+
     if current_user.role != "admin":
         user_store_ids = [s.id for s in current_user.stores]
         store_query = store_query.where(Store.id.in_(user_store_ids))
@@ -634,19 +817,29 @@ async def read_qc_stores_overview(
     # Final list of stores to report on
     all_stores_res = await session.execute(store_query)
     all_stores = all_stores_res.scalars().all()
-    
+    finding_stats_by_store, _ = await _load_finding_aggregates(
+        session,
+        store_ids=[store.id for store in all_stores if store.id is not None],
+    )
+
     # 5. Compute Metrics
     store_stats = []
     summary_metrics = {"totalSessions": 0, "passed": 0, "failed": 0, "totalScore": 0, "maxScore": 0}
-    
+
     for s in all_stores:
         agg = agg_data.get(s.id)
+        finding_stat = finding_stats_by_store.get(str(s.id), {
+            "openFindings": 0,
+            "activeFindingSessions": 0,
+            "findingStatusSummary": _empty_finding_status_summary(),
+        })
         if not agg:
             if q: continue # Skip stores with no sessions if searching? Strapi doesn't skip but we might.
             stat = {
                 "storeId": s.id, "storeCode": s.code, "storeNo": s.storeId,
                 "storeName": s.shortAddress or s.name, "totalSessions": 0, "passed": 0, "failed": 0,
-                "avgScore": 0, "scoreRate": 0, "avgScoreRate": 0, "passRate": 0, "lastAuditedAt": None
+                "avgScore": 0, "scoreRate": 0, "avgScoreRate": 0, "passRate": 0, "lastAuditedAt": None,
+                **finding_stat,
             }
         else:
             totalS = agg.totalSessions
@@ -654,13 +847,13 @@ async def read_qc_stores_overview(
             failed = agg.failed
             tScore = float(agg.totalScore or 0)
             mScore = float(agg.maxScore or 0)
-            
+
             summary_metrics["totalSessions"] += totalS
             summary_metrics["passed"] += passed
             summary_metrics["failed"] += failed
             summary_metrics["totalScore"] += tScore
             summary_metrics["maxScore"] += mScore
-            
+
             stat = {
                 "storeId": s.id,
                 "storeCode": s.code,
@@ -673,7 +866,8 @@ async def read_qc_stores_overview(
                 "scoreRate": round((tScore / mScore * 100), 1) if mScore > 0 else 0,
                 "avgScoreRate": round((tScore / mScore * 100), 1) if mScore > 0 else 0,
                 "passRate": round((passed / totalS * 100)) if totalS > 0 else 0,
-                "lastAuditedAt": agg.lastAuditedAt.isoformat() if agg.lastAuditedAt else None
+                "lastAuditedAt": agg.lastAuditedAt.isoformat() if agg.lastAuditedAt else None,
+                **finding_stat,
             }
         store_stats.append(stat)
 
@@ -685,12 +879,12 @@ async def read_qc_stores_overview(
     }
     sort_field = sort_field_map.get(effective_sort_by, effective_sort_by)
     store_stats.sort(key=lambda x: (x.get(sort_field) if x.get(sort_field) is not None else 0), reverse=reverse)
-    
+
     # 7. Pagination
     total = len(store_stats)
     start = (page - 1) * effective_page_size
     paged_stats = store_stats[start:start + effective_page_size]
-    
+
     # Summary calculation
     summary = {
         "totalSessions": summary_metrics["totalSessions"],
@@ -724,26 +918,28 @@ async def submit_qc_session(
     """Submit a QC session, finalize score/result and generate findings."""
     query = select(QCSession).options(
         selectinload(QCSession.items),
+        selectinload(QCSession.store),
+        selectinload(QCSession.auditor),
         selectinload(QCSession.form_version).selectinload(QCFormVersion.form)
     ).where(QCSession.id == id)
     result = await session.execute(query)
     qc_session = result.scalar_one_or_none()
-    
+
     if not qc_session:
         raise HTTPException(status_code=404, detail="Phiên QC không tồn tại")
-        
+
     if qc_session.status == "closed":
-        return {"success": True, "message": "Phiên QC đã được đóng trước đó", "data": QCSessionResponse.model_validate(qc_session)}
+        return {"success": True, "message": "Phiên QC đã được đóng trước đó", "data": _serialize_qc_session_summary(qc_session)}
 
     items = qc_session.items
     total_score = 0
     max_score = 0
     total_deduction = 0
-    
+
     for item in items:
         if item.result == "na" or item.result == "skipped_weekly":
             continue
-            
+
         if item.mode_snapshot == "deduction":
             if item.result == "fail":
                 total_deduction += float(item.max_score_snapshot or 0)
@@ -755,56 +951,85 @@ async def submit_qc_session(
             max_score += item_weight
             if item.result == "pass":
                 total_score += item_weight
-            
+
     # Determine result based on threshold (default 40% as per Strapi)
     pass_threshold = 40
     if qc_session.form_version and qc_session.form_version.pass_rule:
         pass_threshold = qc_session.form_version.pass_rule.get("passThreshold", 40)
-        
+
     base_score_rate = (total_score / max_score * 100) if max_score > 0 else 0
     capped_total_deduction = min(total_deduction, 100)
     score_rate = max(base_score_rate - capped_total_deduction, 0)
     final_total_score = (max_score * score_rate / 100) if max_score > 0 else 0
     is_pass = max_score > 0 and score_rate >= pass_threshold
-    
+
+    failed_items = [item for item in items if item.result == "fail"]
+    failed_item_ids = [item.id for item in failed_items if item.id is not None]
+    existing_finding_item_ids: set[int] = set()
+    if failed_item_ids:
+        existing_result = await session.execute(
+            select(QCFinding.session_item_id).where(
+                QCFinding.session_id == qc_session.id,
+                QCFinding.session_item_id.in_(failed_item_ids),
+            )
+        )
+        existing_finding_item_ids = {
+            item_id for item_id in existing_result.scalars().all() if item_id is not None
+        }
+
+    needs_fix = (not is_pass) or bool(failed_items)
     qc_session.total_score = final_total_score
     qc_session.max_score = max_score
     qc_session.result = "pass" if is_pass else "fail"
-    qc_session.status = "closed" if is_pass else "needs_fix"
+    qc_session.status = "needs_fix" if needs_fix else "closed"
     qc_session.submitted_at = utc_now_naive()
-    
+
     session.add(qc_session)
-    
-    # Generate findings for failed items
+
+    # Generate findings for every failed criterion, even when the overall score passes.
     new_findings = []
-    if not is_pass:
-        for item in items:
-            if item.result == "fail" and item.requires_fix:
-                timestamp = utc_now_naive().strftime("%y%m%d%H%M%S")
-                random_part = uuid.uuid4().hex[:4].upper()
-                finding_code = f"QCF-{timestamp}-{random_part}"
-                
-                finding = QCFinding(
-                    finding_code=finding_code,
-                    session_id=qc_session.id,
-                    session_item_id=item.id,
-                    store_id=qc_session.store_id,
-                    criterion_name=item.criterion_name,
-                    severity="medium", # Default
-                    status="open",
-                    due_date=utc_now_naive() + timedelta(days=3) # Default 3 days
-                )
-                session.add(finding)
-                new_findings.append(finding_code)
-                
+    for item in failed_items:
+        if item.id in existing_finding_item_ids:
+            continue
+
+        date_part = utc_now_naive().strftime("%Y%m%d")
+        random_part = uuid.uuid4().hex[:4].upper()
+        finding_code = f"FD-{date_part}-{random_part}"
+
+        finding = QCFinding(
+            finding_code=finding_code,
+            session_id=qc_session.id,
+            session_item_id=item.id,
+            store_id=qc_session.store_id,
+            criterion_name=item.criterion_name,
+            severity="medium", # Default
+            status="open",
+            due_date=utc_now_naive() + timedelta(days=3), # Default 3 days
+            meta_info={
+                "criterion_code": item.criterion_code,
+                "criterion_name": item.criterion_name,
+                "qc_note": item.note,
+                "qc_attachments": item.attachments or [],
+                "detected_at": qc_session.submitted_at.isoformat() if qc_session.submitted_at else None,
+                "auditor_id": qc_session.auditor_id,
+                "session_code": qc_session.code,
+                "form_version_id": qc_session.form_version_id,
+            }
+        )
+        session.add(finding)
+        new_findings.append(finding_code)
+
     await session.commit()
-    await session.refresh(qc_session)
-    
+
+    refreshed_result = await session.execute(query)
+    refreshed_qc_session = refreshed_result.scalar_one_or_none() or qc_session
+
     return {
-        "success": True, 
-        "message": "Submit phiên QC thành công", 
-        "data": QCSessionResponse.model_validate(qc_session),
+        "success": True,
+        "message": "Submit phiên QC thành công",
+        "data": _serialize_qc_session_summary(refreshed_qc_session),
         "generated_findings": new_findings,
+        "findingCount": len(new_findings),
         "metrics": {
             "total_score": final_total_score,
             "max_score": max_score,
