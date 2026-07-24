@@ -5,7 +5,7 @@ import App from './App.vue'
 import loading from '@/directives/loading'
 import { useApp } from '@/plugins/app'
 import router from './router';
-const { initializeAuth, state } = useApp()
+const { initializeAuth, state, isTokenExpired, handleAuthExpired } = useApp()
 await initializeAuth()
 
 const hasAnyPermission = (requiredPermissions = []) => {
@@ -17,6 +17,12 @@ const hasAnyPermission = (requiredPermissions = []) => {
 
 router.beforeEach((to, from, next) => {
   const hasToken = Boolean(state.token)
+
+  if (hasToken && isTokenExpired(state.token)) {
+      handleAuthExpired({ showToast: false })
+      next('/login')
+      return
+  }
 
   if (to.path === '/login' && hasToken) {
       next('/dashboard')

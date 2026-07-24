@@ -44,6 +44,14 @@ class QCFindingVerifyRequest(BaseModel):
 class QCFindingRejectRequest(BaseModel):
     rejection_reason: str = Field(min_length=1)
 
+class QCFindingBatchReviewItem(BaseModel):
+    id: int
+    decision: Literal["verified", "rejected"]
+    note: Optional[str] = None
+
+class QCFindingBatchReviewRequest(BaseModel):
+    items: list[QCFindingBatchReviewItem] = Field(min_length=1)
+
 class QCFindingShortResponse(BaseModel):
     id: int
     finding_code: str

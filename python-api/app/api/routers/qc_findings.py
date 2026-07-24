@@ -12,6 +12,7 @@ from app.core.datetime_utils import utc_now_naive
 from app.models.qc_session import QCFinding, QCSession
 from app.schemas.qc_finding import (
     QCFindingCreate,
+    QCFindingBatchReviewRequest,
     QCFindingRejectRequest,
     QCFindingResolveRequest,
     QCFindingUpdate,
@@ -377,6 +378,101 @@ async def resolve_finding(
     await session.commit()
     return {"success": True, "message": "Đã gửi khắc phục QC finding", "data": serialize_finding(await _load_finding(session, id))}
 
+
+@router.post("/review-batch", response_model=dict)
+async def review_findings_batch(
+    session: SessionDep,
+    current_user: CurrentUser,
+    payload: QCFindingBatchReviewRequest,
+) -> Any:
+    """Apply QC review decisions for multiple resolved findings in one submission."""
+    if not _can_manage_findings(current_user):
+        raise HTTPException(status_code=403, detail="Không có quyền xác nhận QC finding")
+
+    ids = [item.id for item in payload.items]
+    if len(set(ids)) != len(ids):
+        raise HTTPException(status_code=400, detail="Danh sách finding bị trùng")
+
+    result = await session.execute(
+        select(QCFinding)
+        .options(selectinload(QCFinding.store))
+        .where(QCFinding.id.in_(ids))
+    )
+    findings = {finding.id: finding for finding in result.scalars().all()}
+    missing_ids = [finding_id for finding_id in ids if finding_id not in findings]
+    if missing_ids:
+        raise HTTPException(status_code=404, detail="Một số QC finding không tồn tại")
+
+    reviewed_at = utc_now_naive()
+    session_ids: set[int] = set()
+    reviewed_findings: list[QCFinding] = []
+
+    for item in payload.items:
+        finding = findings[item.id]
+        if finding.status != "resolved":
+            raise HTTPException(status_code=409, detail=f"Finding {finding.finding_code} không ở trạng thái chờ xác nhận")
+
+        note = str(item.note or "").strip()
+        if item.decision == "rejected" and not note:
+            raise HTTPException(status_code=400, detail=f"Vui lòng nhập lý do chưa đạt cho {finding.finding_code}")
+
+        if item.decision == "verified":
+            finding.status = "verified"
+            finding.verified_at = reviewed_at
+            finding.verifier_id = current_user.id
+            _append_meta_event(finding, {
+                "type": "verified",
+                "by": current_user.id,
+                "at": reviewed_at.isoformat(),
+                "note": note or None,
+            })
+        else:
+            finding.status = "rejected"
+            _append_meta_event(finding, {
+                "type": "rejected",
+                "by": current_user.id,
+                "at": reviewed_at.isoformat(),
+                "reason": note,
+            })
+
+        if finding.session_id:
+            session_ids.add(finding.session_id)
+        session.add(finding)
+        reviewed_findings.append(finding)
+
+    await session.flush()
+
+    closed_session_ids = []
+    for session_id in session_ids:
+        status_result = await session.execute(select(QCFinding.status).where(QCFinding.session_id == session_id))
+        statuses = [row[0] for row in status_result.all()]
+        if statuses and all(status == "verified" for status in statuses):
+            session_result = await session.execute(select(QCSession).where(QCSession.id == session_id))
+            qc_session = session_result.scalar_one_or_none()
+            if qc_session and qc_session.status != "closed":
+                qc_session.status = "closed"
+                session.add(qc_session)
+                closed_session_ids.append(session_id)
+
+    await session.commit()
+
+    refreshed_result = await session.execute(
+        select(QCFinding)
+        .options(
+            selectinload(QCFinding.store),
+            selectinload(QCFinding.assignee),
+            selectinload(QCFinding.verifier),
+        )
+        .where(QCFinding.id.in_(ids))
+    )
+    refreshed = refreshed_result.scalars().all()
+
+    return {
+        "success": True,
+        "message": "Đã gửi kết quả xác nhận khắc phục",
+        "data": [serialize_finding(finding) for finding in refreshed],
+        "closedSessionIds": closed_session_ids,
+    }
 
 @router.post("/{id}/verify", response_model=dict)
 async def verify_finding(

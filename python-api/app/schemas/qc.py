@@ -16,6 +16,15 @@ class QCFormResponse(QCFormBase):
     is_active: bool
     model_config = ConfigDict(from_attributes=True)
 
+class QCFormVersionResponse(BaseModel):
+    id: int
+    version_no: str
+    status: str
+    pass_rule: Optional[dict[str, object]] = None
+    form: Optional[QCFormResponse] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 # --- QC Session Schemas ---
 class QCSessionBase(BaseModel):
     code: str
@@ -84,6 +93,7 @@ class QCSessionResponse(QCSessionBase):
     submitted_at: Optional[datetime] = None
     auditor: Optional[UserMinimalResponse] = None
     store: Optional[StoreResponse] = None
+    form_version: Optional[QCFormVersionResponse] = None
     created_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)

@@ -5,10 +5,9 @@ import { useToast } from '@/plugins/toast'
 import {
   listQcFindings,
   qcHelpers,
-  rejectQcFinding,
   resolveQcFinding,
+  reviewQcFindingsBatch,
   uploadQcFindingEvidence,
-  verifyQcFinding,
 } from '@/services/qc_service'
 
 const MAX_EVIDENCE_IMAGES = 5
@@ -45,8 +44,19 @@ const actionableFindings = computed(() => (
   findings.value.filter((finding) => ['open', 'in_progress', 'rejected'].includes(finding.status))
 ))
 const resolvedFindings = computed(() => findings.value.filter((finding) => finding.status === 'resolved'))
+const reviewReady = computed(() => (
+  canReview.value &&
+  resolvedFindings.value.length > 0 &&
+  resolvedFindings.value.every((finding) => {
+    const form = ensureForm(finding)
+    if (!form?.reviewDecision) return false
+    if (form.reviewDecision === 'rejected') return Boolean(String(form.rejectReason || '').trim())
+    return true
+  })
+))
 const verifiedCount = computed(() => findings.value.filter((finding) => finding.status === 'verified').length)
 const completionLabel = computed(() => `${verifiedCount.value}/${findings.value.length}`)
+const allFindingsVerified = computed(() => findings.value.length > 0 && findings.value.every((finding) => finding.status === 'verified'))
 const selectedFinding = computed(() => (
   findings.value.find((finding) => String(finding.id) === String(selectedFindingId.value)) || null
 ))
@@ -61,6 +71,18 @@ const statusMeta = {
 
 const statusLabel = (status) => statusMeta[status]?.label || status || '--'
 const statusClass = (status) => statusMeta[status]?.class || 'app-badge--neutral'
+const reviewStatusLabel = (finding) => {
+  const form = ensureForm(finding)
+  if (finding?.status === 'resolved' && form?.reviewDecision === 'verified') return 'Đạt'
+  if (finding?.status === 'resolved' && form?.reviewDecision === 'rejected') return 'Chưa đạt'
+  return statusLabel(finding?.status)
+}
+const reviewStatusClass = (finding) => {
+  const form = ensureForm(finding)
+  if (finding?.status === 'resolved' && form?.reviewDecision === 'verified') return 'app-badge--success'
+  if (finding?.status === 'resolved' && form?.reviewDecision === 'rejected') return 'app-badge--danger'
+  return statusClass(finding?.status)
+}
 const imageSource = (image) => image?.previewUrl || image?.url || image?.dataUrl || image?.preview || ''
 const imageName = (image, index) => image?.name || `Anh ${index + 1}`
 const formatFileSize = (bytes) => `${Math.round(Number(bytes || 0) / 1024 / 1024)}MB`
@@ -69,6 +91,11 @@ const qcFindingImages = (finding) => {
   return Array.isArray(images) ? images.filter((image) => imageSource(image)) : []
 }
 const findingDetectedLabel = (finding) => qcHelpers.toDateLabel(finding?.metaInfo?.detected_at || finding?.createdAt)
+const latestRejectionReason = (finding) => {
+  const timeline = Array.isArray(finding?.metaInfo?.timeline) ? finding.metaInfo.timeline : []
+  const rejected = [...timeline].reverse().find((event) => event?.type === 'rejected' && event?.reason)
+  return String(rejected?.reason || '').trim()
+}
 
 const ensureForm = (finding) => {
   const key = String(finding?.id || '')
@@ -79,7 +106,7 @@ const ensureForm = (finding) => {
       correctiveAction: finding?.correctiveAction || '',
       evidence: Array.isArray(finding?.evidence) ? finding.evidence.map((item) => ({ ...item })) : [],
       rejectReason: '',
-      verifyNote: '',
+      reviewDecision: '',
     }
   }
   return forms[key]
@@ -209,58 +236,85 @@ const submitAllRemediation = async () => {
   }
 }
 
-defineExpose({
-  submitAllRemediation,
-})
-
-watch(
-  () => [canStoreSubmit.value, actionableFindings.value.length, actionLoading.value, uploadTargetId.value],
-  () => {
-    emit('action-state', {
-      canSubmit: canStoreSubmit.value && actionableFindings.value.length > 0,
-      disabled: actionLoading.value || Boolean(uploadTargetId.value),
-      loading: actionLoading.value,
-      count: actionableFindings.value.length,
-    })
-  },
-  { immediate: true }
-)
-
-const verifyFinding = async (finding) => {
+const markReviewDecision = (finding, decision) => {
   const form = ensureForm(finding)
-  actionLoading.value = true
-  try {
-    const updated = await verifyQcFinding(finding.id, { verify_note: form?.verifyNote?.trim() || undefined })
-    replaceFinding(updated)
-    toast.success('Đã duyệt đạt tiêu chí khắc phục.')
-    await loadFindings()
-  } catch (error) {
-    toast.error(error?.response?.data?.detail || error?.response?.data?.message || error?.message || 'Không duyệt được tiêu chí.')
-  } finally {
-    actionLoading.value = false
-  }
+  if (!form || finding?.status !== 'resolved') return
+  form.reviewDecision = decision
 }
 
-const rejectFinding = async (finding) => {
-  const form = ensureForm(finding)
-  const reason = String(form?.rejectReason || '').trim()
-  if (!reason) {
-    toast.error('Vui lòng nhập lý do chưa đạt.')
+const submitReviewDecisions = async () => {
+  const targets = resolvedFindings.value
+  if (!targets.length) return
+
+  const missingDecision = targets.find((finding) => !ensureForm(finding)?.reviewDecision)
+  if (missingDecision) {
+    toast.error(`Vui lòng chọn Đạt/Chưa đạt cho ${missingDecision.findingCode || missingDecision.criterionName || 'tiêu chí'}.`)
+    selectFinding(missingDecision)
+    return
+  }
+
+  const missingReason = targets.find((finding) => {
+    const form = ensureForm(finding)
+    return form?.reviewDecision === 'rejected' && !String(form.rejectReason || '').trim()
+  })
+  if (missingReason) {
+    toast.error(`Vui lòng nhập lý do chưa đạt cho ${missingReason.findingCode || missingReason.criterionName || 'tiêu chí'}.`)
+    selectFinding(missingReason)
     return
   }
 
   actionLoading.value = true
   try {
-    const updated = await rejectQcFinding(finding.id, { rejection_reason: reason })
-    replaceFinding(updated)
-    toast.success('Đã yêu cầu cửa hàng khắc phục lại.')
+    const result = await reviewQcFindingsBatch(targets.map((finding) => {
+      const form = ensureForm(finding)
+      return {
+        id: Number(finding.id),
+        decision: form.reviewDecision,
+        note: String(form.rejectReason || '').trim() || undefined,
+      }
+    }))
+
+    const updatedFindings = Array.isArray(result?.data) ? result.data : []
+    updatedFindings.forEach(replaceFinding)
+    toast.success('Đã gửi kết quả xác nhận khắc phục.')
     await loadFindings()
   } catch (error) {
-    toast.error(error?.response?.data?.detail || error?.response?.data?.message || error?.message || 'Không trả lại được tiêu chí.')
+    toast.error(error?.response?.data?.detail || error?.response?.data?.message || error?.message || 'Không gửi được kết quả xác nhận.')
   } finally {
     actionLoading.value = false
   }
 }
+
+const submitPrimaryAction = () => {
+  if (canReview.value && resolvedFindings.value.length > 0) return submitReviewDecisions()
+  return submitAllRemediation()
+}
+
+defineExpose({
+  submitAllRemediation: submitPrimaryAction,
+})
+
+watch(
+  () => [
+    canStoreSubmit.value,
+    canReview.value,
+    actionableFindings.value.length,
+    resolvedFindings.value.length,
+    reviewReady.value,
+    actionLoading.value,
+    uploadTargetId.value,
+  ],
+  () => {
+    const reviewMode = canReview.value && resolvedFindings.value.length > 0
+    emit('action-state', {
+      canSubmit: reviewMode ? true : canStoreSubmit.value && actionableFindings.value.length > 0,
+      disabled: reviewMode ? actionLoading.value || !reviewReady.value : actionLoading.value || Boolean(uploadTargetId.value),
+      loading: actionLoading.value,
+      count: reviewMode ? resolvedFindings.value.length : actionableFindings.value.length,
+    })
+  },
+  { immediate: true }
+)
 
 const selectFinding = (finding) => {
   if (!finding?.id) return
@@ -308,7 +362,12 @@ onMounted(loadFindings)
             <p class="mt-1 text-xs font-medium text-[var(--text-secondary)]">Hoàn tất {{ completionLabel }} tiêu chí</p>
           </div>
           <div class="flex flex-wrap items-center justify-end gap-2">
-            <span class="app-badge app-badge--warning inline-flex rounded-lg px-2 py-1 text-xs font-bold">{{ resolvedFindings.length }} chờ duyệt</span>
+            <span
+              class="app-badge inline-flex rounded-lg px-2 py-1 text-xs font-bold"
+              :class="allFindingsVerified ? 'app-badge--success' : resolvedFindings.length > 0 ? 'app-badge--warning' : 'app-badge--neutral'"
+            >
+              {{ allFindingsVerified ? 'Đã hoàn tất' : `${resolvedFindings.length} chờ duyệt` }}
+            </span>
             <button type="button" class="app-button-secondary inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-bold" :disabled="loading || actionLoading" @click="loadFindings">
               <span class="material-symbols-outlined text-[16px]">refresh</span>
               Tải lại
@@ -334,7 +393,7 @@ onMounted(loadFindings)
               <p class="mt-1 truncate text-xs font-medium text-[var(--text-secondary)]">{{ finding.metaInfo?.criterion_code || 'QC' }} • {{ finding.metaInfo?.qc_note || 'Chưa có ghi chú QC' }}</p>
             </div>
             <div class="flex flex-col items-end gap-1 text-right">
-              <span class="app-badge inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold" :class="statusClass(finding.status)">{{ statusLabel(finding.status) }}</span>
+              <span class="app-badge inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold" :class="reviewStatusClass(finding)">{{ reviewStatusLabel(finding) }}</span>
               <span class="material-symbols-outlined text-[20px] text-[var(--text-primary)]">chevron_right</span>
             </div>
           </article>
@@ -350,7 +409,7 @@ onMounted(loadFindings)
       <div class="flex h-14 shrink-0 items-center justify-between border-b border-[var(--stroke)] bg-white px-4">
         <h3 class="text-base font-bold text-[var(--text-primary)]">Chi tiết lỗi</h3>
         <div class="flex items-center gap-2">
-          <span class="app-badge inline-flex rounded-full px-2.5 py-1 text-xs font-bold" :class="statusClass(selectedFinding.status)">{{ statusLabel(selectedFinding.status) }}</span>
+          <span class="app-badge inline-flex rounded-full px-2.5 py-1 text-xs font-bold" :class="reviewStatusClass(selectedFinding)">{{ reviewStatusLabel(selectedFinding) }}</span>
           <button type="button" class="inline-flex size-9 items-center justify-center rounded-lg text-[var(--text-primary)] hover:bg-[var(--surface-muted)]" aria-label="Đóng chi tiết" @click="closeDetailPanel">
             <span class="material-symbols-outlined text-[20px]">close</span>
           </button>
@@ -377,18 +436,30 @@ onMounted(loadFindings)
             </dl>
             <div class="mt-3">
               <p class="text-xs font-semibold text-[var(--text-secondary)]">Ảnh QC ghi nhận</p>
-              <div v-if="qcFindingImages(selectedFinding).length" class="mt-2 grid grid-cols-2 gap-2">
+              <div v-if="qcFindingImages(selectedFinding).length" class="mt-2 grid grid-cols-3 gap-2">
                 <button
-                  v-for="(image, index) in qcFindingImages(selectedFinding)"
+                  v-for="(image, index) in qcFindingImages(selectedFinding).slice(0, 5)"
                   :key="image.id || `${imageName(image, index)}-${index}`"
                   type="button"
-                  class="overflow-hidden rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)]"
+                  class="aspect-square w-full overflow-hidden rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)]"
                 >
-                  <img :src="imageSource(image)" :alt="imageName(image, index)" class="aspect-[4/3] w-full object-cover" />
+                  <img :src="imageSource(image)" :alt="imageName(image, index)" class="size-full object-cover" />
+                </button>
+                <button
+                  v-if="qcFindingImages(selectedFinding).length > 5"
+                  type="button"
+                  class="inline-flex aspect-square w-full items-center justify-center rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] text-sm font-bold text-[var(--text-secondary)]"
+                >
+                  +{{ qcFindingImages(selectedFinding).length - 5 }}
                 </button>
               </div>
               <p v-else class="mt-2 text-xs text-[var(--text-secondary)]">Chưa có ảnh QC.</p>
             </div>
+          </section>
+
+          <section v-if="selectedFinding.status === 'rejected' && latestRejectionReason(selectedFinding)" class="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] p-4">
+            <h4 class="text-sm font-bold text-[var(--danger-text)]">Lý do chưa đạt</h4>
+            <p class="mt-2 whitespace-pre-wrap text-sm font-medium text-[var(--danger-text)]">{{ latestRejectionReason(selectedFinding) }}</p>
           </section>
 
           <section class="rounded-lg border border-[var(--stroke)] bg-white p-4">
@@ -418,7 +489,10 @@ onMounted(loadFindings)
                 </div>
                 <div v-if="ensureForm(selectedFinding).evidence.length" class="mt-2 grid grid-cols-3 gap-2">
                   <div v-for="(image, index) in ensureForm(selectedFinding).evidence" :key="image.id || `${image.name}-${index}`" class="group relative overflow-hidden rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)]">
-                    <img :src="imageSource(image)" :alt="imageName(image, index)" class="aspect-square w-full object-cover" />
+                    <img v-if="imageSource(image)" :src="imageSource(image)" :alt="imageName(image, index)" class="aspect-square w-full object-cover" />
+                    <div v-else class="flex aspect-square w-full items-center justify-center text-[var(--text-secondary)]">
+                      <span class="material-symbols-outlined text-[20px]">image</span>
+                    </div>
                     <button
                       v-if="canStoreSubmit && ['open', 'in_progress', 'rejected'].includes(selectedFinding.status)"
                       type="button"
@@ -434,16 +508,37 @@ onMounted(loadFindings)
             </div>
           </section>
 
-          <section v-if="canReview && selectedFinding.status === 'resolved'" class="grid gap-3">
-            <label class="block rounded-lg border border-[var(--stroke)] bg-white p-4">
-              <span class="text-xs font-semibold text-[var(--text-secondary)]">Ghi chú duyệt đạt</span>
-              <textarea v-model="ensureForm(selectedFinding).verifyNote" rows="2" class="mt-1 w-full rounded-lg border border-[var(--stroke)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none" placeholder="Không bắt buộc"></textarea>
-              <button type="button" class="app-button-primary mt-2 rounded-lg px-3 py-2 text-sm font-bold" :disabled="actionLoading" @click="verifyFinding(selectedFinding)">Đạt</button>
-            </label>
-            <label class="block rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] p-4">
-              <span class="text-xs font-semibold text-[var(--danger-text)]">Lý do chưa đạt</span>
-              <textarea v-model="ensureForm(selectedFinding).rejectReason" rows="2" class="mt-1 w-full rounded-lg border border-[var(--danger-border)] px-3 py-2 text-sm focus:border-[var(--danger-text)] focus:outline-none" placeholder="Bắt buộc nếu trả lại"></textarea>
-              <button type="button" class="app-button-danger mt-2 rounded-lg px-3 py-2 text-sm font-bold" :disabled="actionLoading" @click="rejectFinding(selectedFinding)">Chưa đạt</button>
+          <section v-if="canReview && selectedFinding.status === 'resolved'" class="rounded-lg border border-[var(--stroke)] bg-white p-4">
+            <h4 class="text-sm font-bold text-[var(--text-primary)]">QC xác nhận</h4>
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                class="rounded-lg border px-3 py-2 text-sm font-bold transition-colors"
+                :class="ensureForm(selectedFinding).reviewDecision === 'rejected' ? 'border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger-text)]' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]'"
+                :disabled="actionLoading"
+                @click="markReviewDecision(selectedFinding, 'rejected')"
+              >
+                Chưa đạt
+              </button>
+              <button
+                type="button"
+                class="rounded-lg border px-3 py-2 text-sm font-bold transition-colors"
+                :class="ensureForm(selectedFinding).reviewDecision === 'verified' ? 'border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success-text)]' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]'"
+                :disabled="actionLoading"
+                @click="markReviewDecision(selectedFinding, 'verified')"
+              >
+                Đạt
+              </button>
+            </div>
+            <label v-if="ensureForm(selectedFinding).reviewDecision === 'rejected'" class="mt-3 block">
+              <span class="text-xs font-semibold text-[var(--danger-text)]">Lý do chưa đạt *</span>
+              <textarea
+                v-model="ensureForm(selectedFinding).rejectReason"
+                rows="3"
+                class="mt-1 w-full rounded-lg border border-[var(--stroke)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none"
+                :class="!String(ensureForm(selectedFinding).rejectReason || '').trim() ? 'border-[var(--danger-border)]' : ''"
+                placeholder="Nhập lý do để cửa hàng khắc phục lại..."
+              ></textarea>
             </label>
           </section>
       </div>

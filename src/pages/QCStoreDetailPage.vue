@@ -35,6 +35,8 @@ const deletingDraftId = ref(null)
 const deletingSessionId = ref(null)
 const deletingDraft = ref(false)
 const deletingSession = ref(false)
+const openActionMenuKey = ref('')
+const actionMenuPosition = reactive({ top: 0, left: 0 })
 const draftSessions = ref([])
 const draftModalError = ref('')
 const draftLoadError = ref('')
@@ -93,15 +95,6 @@ const storeTitle = computed(() => {
   if (!store) return `Cửa hàng #${storeId.value || '--'}`
   return store.shortAddress || store.address || store.code || `Cửa hàng #${store.id}`
 })
-const pageDescription = computed(() => {
-  const store = selectedStore.value
-  const storeCode = String(store?.code || '').trim()
-  if (storeCode) {
-    return `Theo dõi phiên QC, phiếu nháp và lịch sử kiểm tra của ${storeCode}.`
-  }
-  return 'Theo dõi phiên QC, phiếu nháp và lịch sử kiểm tra của cửa hàng này.'
-})
-
 const filteredSummary = computed(() => {
   const totalSessions = tableRows.value.filter((item) => item.rowType === 'session').length
   const passed = tableRows.value.filter((item) => item.rowType === 'session' && item.result === 'passed').length
@@ -178,6 +171,58 @@ const resultClass = (result) => (
       ? 'app-badge--success'
       : 'app-badge--danger'
 )
+
+const sessionFormLabel = (session) => {
+  if (isDraftRow(session)) return session.templateName || 'Phiếu nháp QC'
+  const template = session?.template || {}
+  const name = String(template?.name || session?.templateName || '').trim()
+  const version = String(template?.version || session?.templateVersion || '').trim()
+  const label = name || 'Biểu mẫu QC'
+  return version ? `${label} v${version}` : label
+}
+
+const remediationLabel = (session) => {
+  if (isDraftRow(session)) return '--'
+  return Number(session.openFindings || 0) > 0 ? 'Cần khắc phục' : 'Đã hoàn tất'
+}
+
+const remediationClass = (session) => (
+  Number(session?.openFindings || 0) > 0 ? 'app-badge--danger' : 'app-badge--success'
+)
+
+const sessionCompletionDuration = (session) => {
+  if (isDraftRow(session) || !session?.submittedAt) return '--'
+  const start = new Date(session.auditedAt || session.createdAt || '').getTime()
+  const end = new Date(session.submittedAt).getTime()
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return '--'
+  const minutes = Math.max(Math.round((end - start) / 60000), 1)
+  if (minutes < 60) return `${minutes} phút`
+  const hours = Math.floor(minutes / 60)
+  const remain = minutes % 60
+  return remain ? `${hours} giờ ${remain} phút` : `${hours} giờ`
+}
+
+const toggleActionMenu = (event, row) => {
+  event?.stopPropagation?.()
+  if (openActionMenuKey.value === row?.rowKey) {
+    closeActionMenu()
+    return
+  }
+
+  const rect = event?.currentTarget?.getBoundingClientRect?.()
+  if (rect) {
+    actionMenuPosition.top = rect.bottom + 8
+    actionMenuPosition.left = rect.right
+  }
+  openActionMenuKey.value = row?.rowKey || ''
+}
+
+const closeActionMenu = () => {
+  openActionMenuKey.value = ''
+}
+
+const actionMenuOpen = (row) => openActionMenuKey.value === row?.rowKey
+const activeActionRow = computed(() => tableRows.value.find((row) => row.rowKey === openActionMenuKey.value) || null)
 
 const getTemplateLabel = (templateId) => {
   const matched = qcTemplateOptions.value.find((item) => item.id === templateId)
@@ -281,7 +326,6 @@ const sessionTableRows = computed(() => {
         rowType: 'session',
         rowKey: `session-${session.id}`,
         openFindings,
-        openFindingsLabel: new Intl.NumberFormat('vi-VN').format(openFindings),
       }
     })
     .filter((session) => filters.remediation !== 'needs_remediation' || Number(session.openFindings || 0) > 0)
@@ -303,6 +347,7 @@ const viewSessionDetail = (session) => {
 }
 
 const handleRowAction = (row) => {
+  closeActionMenu()
   if (isDraftRow(row)) {
     continueDraftSession(row.id)
     return
@@ -517,7 +562,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-page">
+  <div class="app-page" @click="closeActionMenu">
     <div class="page-stack">
       <div class="flex min-w-0 items-start gap-3">
         <button
@@ -532,7 +577,6 @@ onBeforeUnmount(() => {
         <div class="min-w-0 flex-1">
           <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Chi tiết QC cửa hàng</p>
           <h1 class="mt-1 truncate text-lg font-semibold text-[var(--text-primary)] tablet:text-xl" :title="storeTitle">{{ storeTitle }}</h1>
-          <p class="mt-1 text-sm leading-6 text-[var(--text-secondary)]">{{ pageDescription }}</p>
         </div>
       </div>
 
@@ -553,13 +597,20 @@ onBeforeUnmount(() => {
           <div class="app-section-header relative z-10 tablet:px-6">
 
 
-            <div class="flex flex-col gap-3 pc:flex-row pc:items-center pc:justify-end">
-              <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center tablet:justify-end">
+            <div class="pc:hidden">
+              <div class="relative w-full">
+                <input v-model="searchInput" type="text" class="block h-9 w-full rounded-lg border border-[var(--stroke)] px-3 ps-10 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:ring-0" placeholder="Tìm mã phiếu, mẫu QC, ghi chú..." />
+                <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3">
+                  <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+                </div>
+              </div>
+
+              <div class="mt-2 grid grid-cols-3 gap-2">
                 <div class="hs-dropdown [--auto-close:inside] relative inline-block">
                   <button
-                    id="qc-status-filter"
+                    id="qc-status-filter-mobile"
                     type="button"
-                    class="relative inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:w-auto"
+                    class="relative inline-flex h-9 w-full items-center justify-center gap-1 rounded-lg border border-[var(--stroke)] bg-white px-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
                     aria-haspopup="menu"
                     aria-expanded="false"
                   >
@@ -567,61 +618,59 @@ onBeforeUnmount(() => {
                     <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                       <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0l-4.25-4.51a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
                     </svg>
-                    <span
-                      v-if="selectedResultCount > 0"
-                      class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-[var(--primary)] px-1.5 py-0.5 text-[10px] font-semibold text-white"
-                    >
-                      {{ selectedResultCount }}
-                    </span>
+                    <span v-if="selectedResultCount > 0" class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-[var(--primary)] px-1.5 py-0.5 text-[10px] font-semibold text-white">{{ selectedResultCount }}</span>
                   </button>
-                  <div
-                    class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-44 z-20 mt-2 rounded-lg border border-[var(--stroke)] bg-white"
-                    role="menu"
-                    aria-orientation="vertical"
-                    aria-labelledby="qc-status-filter"
-                  >
-                    <label
-                      v-for="result in resultOptions"
-                      :key="result.value || 'all'"
-                      class="flex items-center gap-2 px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
-                    >
-                      <input
-                        :checked="(result.kind === 'remediation' ? filters.remediation : filters.status) === result.value && (result.kind === 'remediation' || !filters.remediation)"
-                        :value="result.value"
-                        type="radio"
-                        class="mt-0.5 shrink-0 border-[var(--stroke-strong)] text-[var(--text-primary)] focus:ring-[var(--stroke-strong)]"
-                        @change="() => { filters.status = result.kind === 'remediation' ? '' : result.value; filters.remediation = result.kind === 'remediation' ? result.value : ''; applyFilters() }"
-                      >
+                  <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-44 z-20 mt-2 rounded-lg border border-[var(--stroke)] bg-white" role="menu" aria-orientation="vertical" aria-labelledby="qc-status-filter-mobile">
+                    <label v-for="result in resultOptions" :key="result.value || 'all'" class="flex items-center gap-2 px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]">
+                      <input :checked="(result.kind === 'remediation' ? filters.remediation : filters.status) === result.value && (result.kind === 'remediation' || !filters.remediation)" :value="result.value" type="radio" class="mt-0.5 shrink-0 border-[var(--stroke-strong)] text-[var(--text-primary)] focus:ring-[var(--stroke-strong)]" @change="() => { filters.status = result.kind === 'remediation' ? '' : result.value; filters.remediation = result.kind === 'remediation' ? result.value : ''; applyFilters() }">
                       <span>{{ result.label }}</span>
                     </label>
                   </div>
                 </div>
 
-                <DateRangePicker
-                  v-model:from="filters.from"
-                  v-model:to="filters.to"
-                  :disabled="loading"
-                  placeholder="Thời gian"
-                  @change="applyFilters"
-                />
-              </div>
+                <DateRangePicker class="w-full min-w-0" v-model:from="filters.from" v-model:to="filters.to" :disabled="loading" placeholder="Thời gian" @change="applyFilters" />
 
-              <div class="flex flex-col gap-2 tablet:flex-row tablet:items-center tablet:justify-end">
-                <div class="relative w-full tablet:flex-1 pc:w-[300px] pc:flex-none">
-                  <input v-model="searchInput" type="text" class="block h-9 w-full rounded-lg border border-[var(--stroke)] px-3 ps-10 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:ring-0" placeholder="Tìm mã phiếu, mẫu QC, ghi chú..." />
-                  <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3">
-                    <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  class="app-button-primary inline-flex h-9 w-full shrink-0 whitespace-nowrap items-center justify-center rounded-lg px-4 text-sm font-semibold tablet:w-auto"
-                  @click="openCreateDraftModal"
-                >
+                <button type="button" class="app-button-primary inline-flex h-9 w-full min-w-0 shrink-0 whitespace-nowrap items-center justify-center rounded-lg px-2 text-xs font-semibold" @click="openCreateDraftModal">
                   Tạo phiếu QC
                 </button>
               </div>
+            </div>
+
+            <div class="hidden pc:flex pc:flex-row pc:items-center pc:justify-end pc:gap-2">
+              <div class="hs-dropdown [--auto-close:inside] relative inline-block">
+                <button
+                  id="qc-status-filter"
+                  type="button"
+                  class="relative inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)]"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                >
+                  Kết quả
+                  <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0l-4.25-4.51a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
+                  </svg>
+                  <span v-if="selectedResultCount > 0" class="absolute -right-1.5 -top-1.5 inline-flex min-w-5 justify-center rounded-full bg-[var(--primary)] px-1.5 py-0.5 text-[10px] font-semibold text-white">{{ selectedResultCount }}</span>
+                </button>
+                <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-44 z-20 mt-2 rounded-lg border border-[var(--stroke)] bg-white" role="menu" aria-orientation="vertical" aria-labelledby="qc-status-filter">
+                  <label v-for="result in resultOptions" :key="result.value || 'all'" class="flex items-center gap-2 px-3 py-2.5 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]">
+                    <input :checked="(result.kind === 'remediation' ? filters.remediation : filters.status) === result.value && (result.kind === 'remediation' || !filters.remediation)" :value="result.value" type="radio" class="mt-0.5 shrink-0 border-[var(--stroke-strong)] text-[var(--text-primary)] focus:ring-[var(--stroke-strong)]" @change="() => { filters.status = result.kind === 'remediation' ? '' : result.value; filters.remediation = result.kind === 'remediation' ? result.value : ''; applyFilters() }">
+                    <span>{{ result.label }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <DateRangePicker v-model:from="filters.from" v-model:to="filters.to" :disabled="loading" placeholder="Thời gian" @change="applyFilters" />
+
+              <div class="relative w-[300px] flex-none">
+                <input v-model="searchInput" type="text" class="block h-9 w-full rounded-lg border border-[var(--stroke)] px-3 ps-10 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:ring-0" placeholder="Tìm mã phiếu, mẫu QC, ghi chú..." />
+                <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3">
+                  <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
+                </div>
+              </div>
+
+              <button type="button" class="app-button-primary inline-flex h-9 shrink-0 whitespace-nowrap items-center justify-center rounded-lg px-4 text-sm font-semibold" @click="openCreateDraftModal">
+                Tạo phiếu QC
+              </button>
             </div>
 
             <div v-if="draftLoadError || sessionLoadError" class="mt-3 space-y-2">
@@ -632,78 +681,60 @@ onBeforeUnmount(() => {
 
           <div v-loading="loading" class="overflow-hidden rounded-b-xl">
             <div class="pc:hidden">
-              <div v-if="hasRows" class="space-y-3 p-3 tablet:p-4">
+              <div v-if="hasRows" class="space-y-3 p-2.5 tablet:p-4">
                 <article
                   v-for="session in tableRows"
                   :key="session.rowKey"
-                  class="rounded-2xl border border-[var(--stroke)] bg-white px-4 py-4 shadow-sm tablet:px-5"
+                  class="cursor-pointer rounded-lg border border-[var(--stroke)] bg-white px-3 py-2.5 shadow-sm transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)]"
+                  @click="handleRowAction(session)"
                 >
-                  <div class="app-page-header">
+                  <div class="flex min-w-0 items-start justify-between gap-2">
                     <div class="min-w-0 flex-1">
+                      <div class="flex min-w-0 items-center gap-2">
+                        <p class="shrink-0 text-[10px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">{{ session.code }}</p>
+                        <span v-if="isDraftRow(session)" class="shrink-0 rounded bg-[var(--warning-bg)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--warning-text)]">Nháp</span>
+                      </div>
                       <button
                         type="button"
-                        class="block text-left"
-                        @click="handleRowAction(session)"
+                        class="mt-0.5 block max-w-full text-left"
+                        @click.stop="handleRowAction(session)"
                       >
-                        <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">{{ session.code }}</p>
-                        <p class="mt-1 text-sm font-semibold text-[var(--text-primary)]">{{ session.templateName || '--' }}</p>
+                        <p class="line-clamp-1 text-sm font-semibold leading-5 text-[var(--text-primary)]">{{ sessionFormLabel(session) }}</p>
                       </button>
-                      <p class="mt-1 text-xs text-[var(--text-secondary)]">{{ session.templateVersion || '--' }}</p>
                     </div>
 
-                    <div class="flex flex-wrap justify-end gap-2">
-                      <span v-if="!isDraftRow(session) && session.openFindings > 0" class="app-badge app-badge--danger inline-flex w-fit items-center rounded-lg px-2 py-1 text-xs font-semibold">
-                        {{ session.openFindingsLabel }} khắc phục
-                      </span>
-                      <span class="app-badge inline-flex w-fit items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="resultClass(session.result)">
+                    <div class="flex shrink-0 items-start gap-1.5">
+                      <span class="app-badge inline-flex w-fit items-center rounded-md px-2 py-0.5 text-[11px] font-semibold" :class="resultClass(session.result)">
                         {{ resultLabel(session.result) }}
                       </span>
+                      <button type="button" class="inline-flex size-8 items-center justify-center rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]" aria-label="Mở menu thao tác" @click="toggleActionMenu($event, session)">
+                        <span class="material-symbols-outlined text-[20px]">more_horiz</span>
+                      </button>
                     </div>
                   </div>
 
-                  <div class="mt-4 grid grid-cols-1 gap-3 tablet:grid-cols-2">
-                    <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
-                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Auditor</p>
-                      <p class="mt-1 text-sm font-medium text-[var(--text-secondary)]">{{ session.auditorName || '--' }}</p>
+                  <div class="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-[var(--stroke)] pt-2 text-xs">
+                    <div class="min-w-0">
+                      <span class="text-[var(--text-muted)]">Người lập: </span>
+                      <span class="font-medium text-[var(--text-secondary)]">{{ session.auditorName || '--' }}</span>
                     </div>
-
-                    <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
-                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Ngày chấm</p>
-                      <p class="mt-1 text-sm font-medium text-[var(--text-secondary)]">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</p>
+                    <div class="min-w-0 text-right">
+                      <span class="text-[var(--text-muted)]">Ngày: </span>
+                      <span class="font-medium text-[var(--text-secondary)]">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</span>
                     </div>
-
-                    <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
-                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Điểm</p>
-                      <template v-if="isDraftRow(session)">
-                        <p class="mt-1 text-sm font-semibold text-[var(--text-secondary)]">--</p>
-                      </template>
-                      <template v-else>
-                        <p class="mt-1 text-sm font-semibold text-[var(--text-primary)]">{{ session.totalScore }}/{{ session.maxScore }}</p>
-                        <p class="mt-1 text-xs text-[var(--text-secondary)]">{{ sessionScoreRate(session) }}%</p>
-                      </template>
+                    <div class="min-w-0">
+                      <span class="text-[var(--text-muted)]">Điểm: </span>
+                      <span v-if="isDraftRow(session)" class="font-semibold text-[var(--text-secondary)]">--</span>
+                      <span v-else class="font-semibold text-[var(--text-primary)]">{{ session.totalScore }}/{{ session.maxScore }} · {{ sessionScoreRate(session) }}%</span>
                     </div>
-
-                    <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
-                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Ghi chú</p>
-                      <p class="mt-1 text-sm text-[var(--text-secondary)]">{{ session.note || '--' }}</p>
+                    <div v-if="!isDraftRow(session)" class="min-w-0 text-right">
+                      <span class="text-[var(--text-muted)]">Khắc phục: </span>
+                      <span class="font-semibold" :class="session.openFindings > 0 ? 'text-[var(--danger-text)]' : 'text-[var(--success-text)]'">{{ remediationLabel(session) }}</span>
                     </div>
-
-                    <div v-if="!isDraftRow(session)" class="rounded-2xl border px-4 py-3" :class="session.openFindings > 0 ? 'border-[var(--danger-border)] bg-[var(--danger-bg)]' : 'border-[var(--success-border)] bg-[var(--success-bg)]'">
-                      <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-muted)]">Khắc phục</p>
-                      <p class="mt-1 text-sm font-semibold" :class="session.openFindings > 0 ? 'text-[var(--danger-text)]' : 'text-[var(--success-text)]'">{{ session.openFindingsLabel }} yêu cầu</p>
+                    <div v-if="session.note" class="col-span-2 min-w-0">
+                      <span class="text-[var(--text-muted)]">Ghi chú: </span>
+                      <span class="line-clamp-1 font-medium text-[var(--text-secondary)]">{{ session.note }}</span>
                     </div>
-                  </div>
-
-                  <div class="mt-4 flex flex-col items-stretch gap-2 tablet:flex-row tablet:justify-end">
-                    <button type="button" class="app-button-secondary inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:w-auto" @click="handleRowAction(session)">
-                      {{ isDraftRow(session) ? 'Tiếp tục' : 'Chi tiết' }}
-                    </button>
-                    <button v-if="isDraftRow(session)" type="button" class="app-button-danger inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:w-auto" @click="confirmRemoveDraftSession(session.id)">
-                      Xóa nháp
-                    </button>
-                    <button v-else type="button" class="app-button-danger inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold tablet:w-auto" @click="confirmRemoveSession(session.id)">
-                      Xóa phiên lỗi
-                    </button>
                   </div>
                 </article>
               </div>
@@ -727,21 +758,22 @@ onBeforeUnmount(() => {
                   <tr>
                     <th class="px-4 py-2.5 text-start">Mã phiếu</th>
                     <th class="px-4 py-2.5 text-start">Biên bản</th>
-                    <th class="px-4 py-2.5 text-start">Auditor</th>
+                    <th class="px-4 py-2.5 text-start">Người lập biên bản</th>
                     <th class="px-4 py-2.5 text-end">Điểm</th>
                     <th class="px-4 py-2.5 text-start">Kết quả</th>
                     <th class="px-4 py-2.5 text-start">Khắc phục</th>
                     <th class="px-4 py-2.5 text-start">Ngày chấm</th>
+                    <th class="px-4 py-2.5 text-start">Hoàn thành</th>
                     <th class="px-4 py-2.5 text-end"></th>
                   </tr>
                 </thead>
                 <tbody v-if="hasRows" class="divide-y divide-[var(--stroke)]">
                   <template v-for="session in tableRows" :key="session.rowKey">
-                    <tr class="bg-white hover:bg-[var(--surface-muted)]">
-                      <td class="cursor-pointer px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:text-[var(--text-secondary)] hover:underline" @click="handleRowAction(session)">{{ session.code }}</td>
+                    <tr class="cursor-pointer bg-white hover:bg-[var(--surface-muted)]" @click="handleRowAction(session)">
+                      <td class="px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:text-[var(--text-secondary)] hover:underline">{{ session.code }}</td>
                       <td class="px-4 py-2 text-sm text-[var(--text-secondary)]">
-                        <p class="font-medium text-[var(--text-secondary)]">{{ session.templateName || '--' }}</p>
-                        <p class="text-xs text-[var(--text-secondary)]">{{ session.templateVersion || '--' }}</p>
+                        <p class="font-medium text-[var(--text-secondary)]">{{ sessionFormLabel(session) }}</p>
+                        <p v-if="isDraftRow(session)" class="text-xs text-[var(--text-secondary)]">Bản nháp</p>
                       </td>
                       <td class="px-4 py-2 text-sm text-[var(--text-secondary)]">{{ session.auditorName || '--' }}</td>
                       <td class="px-4 py-2 text-end">
@@ -760,21 +792,16 @@ onBeforeUnmount(() => {
                       </td>
                       <td class="px-4 py-2 text-sm">
                         <span v-if="!isDraftRow(session)" class="app-badge inline-flex items-center rounded-lg px-2 py-1 text-xs font-semibold" :class="session.openFindings > 0 ? 'app-badge--danger' : 'app-badge--success'">
-                          {{ session.openFindingsLabel }} yêu cầu
+                          {{ remediationLabel(session) }}
                         </span>
                         <span v-else class="text-xs text-[var(--text-muted)]">--</span>
                       </td>
                       <td class="px-4 py-2 text-sm text-[var(--text-secondary)]">{{ qcHelpers.toDateLabel(session.auditedAt || session.createdAt) }}</td>
+                      <td class="px-4 py-2 text-sm text-[var(--text-secondary)]">{{ sessionCompletionDuration(session) }}</td>
                       <td class="px-4 py-2 text-end">
-                        <div class="flex items-center justify-end gap-2">
-                          <button type="button" class="app-button-secondary cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="handleRowAction(session)">
-                            {{ isDraftRow(session) ? 'Tiếp tục' : 'Chi tiết' }}
-                          </button>
-                          <button v-if="isDraftRow(session)" type="button" class="app-button-danger cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="confirmRemoveDraftSession(session.id)">
-                            Xóa
-                          </button>
-                          <button v-else type="button" class="app-button-danger cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold" @click="confirmRemoveSession(session.id)">
-                            Xóa
+                        <div class="relative flex justify-end">
+                          <button type="button" class="inline-flex size-8 items-center justify-center text-[var(--text-secondary)] transition-colors hover:text-[var(--primary)]" aria-label="Mở menu thao tác" @click="toggleActionMenu($event, session)">
+                            <span class="material-symbols-outlined text-[20px]">more_horiz</span>
                           </button>
                         </div>
                       </td>
@@ -783,7 +810,7 @@ onBeforeUnmount(() => {
                 </tbody>
                 <tbody v-else>
                   <tr>
-                    <td colspan="8" class="px-4 py-12">
+                    <td colspan="9" class="px-4 py-12">
                       <div class="app-state-panel app-state-panel--compact">
                         <div class="app-state-stack mx-auto">
                           <div class="app-state-icon mx-auto">
@@ -803,6 +830,24 @@ onBeforeUnmount(() => {
       </section>
 
     </div>
+    <Teleport to="body">
+      <div
+        v-if="activeActionRow"
+        class="fixed z-[9999] w-44 -translate-x-full overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
+        :style="{ top: `${actionMenuPosition.top}px`, left: `${actionMenuPosition.left}px` }"
+        @click.stop
+      >
+        <button type="button" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--primary)]" @click="handleRowAction(activeActionRow)">
+          <span class="material-symbols-outlined text-[18px]">visibility</span>
+          <span>{{ isDraftRow(activeActionRow) ? 'Tiếp tục' : 'Chi tiết' }}</span>
+        </button>
+        <button type="button" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-[var(--danger-text)] transition-colors hover:bg-[var(--danger-bg)]" @click="isDraftRow(activeActionRow) ? confirmRemoveDraftSession(activeActionRow.id) : confirmRemoveSession(activeActionRow.id)">
+          <span class="material-symbols-outlined text-[18px]">delete</span>
+          <span>{{ isDraftRow(activeActionRow) ? 'Xóa nháp' : 'Xóa phiên lỗi' }}</span>
+        </button>
+      </div>
+    </Teleport>
+
     <CreateQcDraftModal
       v-model="isDraftModalOpen"
       :loading="creatingDraft"

@@ -9,6 +9,8 @@ const state = reactive({
   initialized: false,
 })
 let authExpiryTimer = null
+let authExpiredListenerRegistered = false
+let authExpiredHandling = false
 
 const readTokenExpiry = (token) => {
     try {
@@ -31,14 +33,12 @@ const scheduleAuthExpiry = () => {
     const expiresAt = readTokenExpiry(state.token)
     const remainingMs = expiresAt - Date.now()
     if (!expiresAt || remainingMs <= 0) {
-        clearAuthState()
-        if (router.currentRoute.value.path !== '/login') router.replace('/login')
+        handleAuthExpired()
         return
     }
 
     authExpiryTimer = window.setTimeout(() => {
-        clearAuthState()
-        if (router.currentRoute.value.path !== '/login') router.replace('/login')
+        handleAuthExpired()
     }, Math.min(remainingMs, 2147483647))
 }
 
@@ -53,6 +53,39 @@ const clearAuthState = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
     clearAuthExpiryTimer()
+}
+
+const isTokenExpired = (token = state.token) => {
+    if (!token) return true
+    const expiresAt = readTokenExpiry(token)
+    return Boolean(expiresAt && expiresAt <= Date.now())
+}
+
+const handleAuthExpired = async ({ showToast = true } = {}) => {
+    if (authExpiredHandling) return
+    authExpiredHandling = true
+    try {
+        await disconnectOneSignalUser()
+    } catch (_err) {
+    } finally {
+        clearAuthState()
+        state.initialized = true
+        if (router.currentRoute.value.path !== '/login') {
+            await router.replace('/login')
+        }
+        if (showToast) {
+            useToast().info('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+        }
+        authExpiredHandling = false
+    }
+}
+
+const registerAuthExpiredListener = () => {
+    if (authExpiredListenerRegistered || typeof window === 'undefined') return
+    window.addEventListener('app:auth-expired', () => {
+        handleAuthExpired()
+    })
+    authExpiredListenerRegistered = true
 }
 
 const normalizeStores = (user) => {
@@ -187,6 +220,7 @@ export function useApp() {
     }
 
     const initializeAuth = async () => {
+        registerAuthExpiredListener()
         syncAuthStateFromStorage()
 
         if (!state.token) {
@@ -218,6 +252,8 @@ export function useApp() {
         updateUserAvatar,
         logout: userLogout,
         initializeAuth,
+        handleAuthExpired,
+        isTokenExpired,
         router,
     }
 }

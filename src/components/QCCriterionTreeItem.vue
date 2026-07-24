@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 
 const props = defineProps({
   criterion: {
@@ -39,6 +39,9 @@ const detailsExpanded = ref(false)
 const attachmentMenuOpen = ref(false)
 const statusMenuOpen = ref(false)
 const itemRoot = ref(null)
+const attachmentMenuTrigger = ref(null)
+const attachmentMenuRef = ref(null)
+const attachmentMenuPosition = reactive({ top: 0, left: 0 })
 
 const hasChildren = computed(() => Array.isArray(props.criterion.children) && props.criterion.children.length > 0)
 const state = computed(() => props.criteriaStates[props.criterion.id] || { status: 'pending', score: null, note: '', attachments: [] })
@@ -282,9 +285,18 @@ const removeAttachment = (index) => {
   emit('remove-attachment', props.criterion.id, index)
 }
 
+const updateAttachmentMenuPosition = () => {
+  const rect = attachmentMenuTrigger.value?.getBoundingClientRect?.()
+  if (!rect) return
+  const menuWidth = 144
+  attachmentMenuPosition.top = rect.bottom + 6
+  attachmentMenuPosition.left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8))
+}
+
 const toggleAttachmentMenu = () => {
   if (props.readonly) return
   statusMenuOpen.value = false
+  if (!attachmentMenuOpen.value) updateAttachmentMenuPosition()
   attachmentMenuOpen.value = !attachmentMenuOpen.value
 }
 
@@ -301,7 +313,8 @@ const closeMenus = () => {
 
 const handleDocumentClick = (event) => {
   const root = itemRoot.value
-  if (!root || root.contains(event.target)) return
+  const menu = attachmentMenuRef.value
+  if ((root && root.contains(event.target)) || (menu && menu.contains(event.target))) return
   closeMenus()
 }
 
@@ -528,6 +541,7 @@ const toggleDetails = () => {
 
             <div v-if="!readonly && state.attachments.length < maxAttachments" class="relative">
               <button
+                ref="attachmentMenuTrigger"
                 type="button"
                 class="flex size-9 cursor-pointer items-center justify-center rounded-md border border-dashed border-[var(--stroke-strong)] bg-white text-[var(--text-secondary)] transition hover:border-[var(--primary)] hover:bg-[var(--surface-muted)]"
                 :aria-expanded="String(attachmentMenuOpen)"
@@ -537,28 +551,34 @@ const toggleDetails = () => {
                 <span class="material-symbols-outlined text-[18px]">photo_camera</span>
               </button>
 
-              <div
-                v-if="attachmentMenuOpen"
-                class="absolute right-0 top-10 z-10 min-w-36 overflow-hidden rounded-lg border border-[var(--stroke)] bg-white py-1 text-xs font-semibold text-[var(--text-primary)] shadow-lg"
-              >
-                <label class="flex cursor-pointer items-center gap-2 px-3 py-2 transition hover:bg-[var(--surface-muted)]">
-                  <span class="material-symbols-outlined text-[16px] text-[var(--text-secondary)]">photo_camera</span>
-                  <span>Chụp ảnh</span>
-                  <input type="file" class="hidden" accept="image/*" capture="environment" @change="handleUpload" />
-                </label>
-
-                <label class="flex cursor-pointer items-center gap-2 px-3 py-2 transition hover:bg-[var(--surface-muted)]">
-                  <span class="material-symbols-outlined text-[16px] text-[var(--text-secondary)]">photo_library</span>
-                  <span>Thư viện</span>
-                  <input type="file" class="hidden" accept="image/*" multiple @change="handleUpload" />
-                </label>
-              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
+  <Teleport to="body">
+    <div
+      v-if="attachmentMenuOpen"
+      ref="attachmentMenuRef"
+      class="fixed z-[9999] w-36 overflow-hidden rounded-lg border border-[var(--stroke)] bg-white py-1 text-xs font-semibold text-[var(--text-primary)] shadow-xl"
+      :style="{ top: `${attachmentMenuPosition.top}px`, left: `${attachmentMenuPosition.left}px` }"
+      @click.stop
+    >
+      <label class="flex cursor-pointer items-center gap-2 px-3 py-2 transition hover:bg-[var(--surface-muted)]">
+        <span class="material-symbols-outlined text-[16px] text-[var(--text-secondary)]">photo_camera</span>
+        <span>Chụp ảnh</span>
+        <input type="file" class="hidden" accept="image/*" capture="environment" @change="handleUpload" />
+      </label>
+
+      <label class="flex cursor-pointer items-center gap-2 px-3 py-2 transition hover:bg-[var(--surface-muted)]">
+        <span class="material-symbols-outlined text-[16px] text-[var(--text-secondary)]">photo_library</span>
+        <span>Thư viện</span>
+        <input type="file" class="hidden" accept="image/*" multiple @change="handleUpload" />
+      </label>
+    </div>
+  </Teleport>
+
 </template>
 
 <style scoped>

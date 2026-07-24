@@ -6,6 +6,7 @@ import StatSummaryCard from '@/components/StatSummaryCard.vue'
 import AppPagination from '@/components/AppPagination.vue'
 import { useApp } from '@/plugins/app'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
+import { listAdminStores } from '@/services/admin_service'
 
 const router = useRouter()
 const route = useRoute()
@@ -28,6 +29,20 @@ const sortDirections = ref({
   avgScoreRate: null,
   failed: null,
 })
+const sortPreset = ref('')
+const sortMenuOpen = ref(false)
+const sortPresetOptions = [
+  { value: '', label: 'Mặc định' },
+  { value: 'failed_desc', label: 'Lỗi giảm dần' },
+  { value: 'failed_asc', label: 'Lỗi tăng dần' },
+  { value: 'avgScoreRate_desc', label: 'Điểm TB giảm dần' },
+  { value: 'avgScoreRate_asc', label: 'Điểm TB tăng dần' },
+  { value: 'totalSessions_desc', label: 'Số phiên giảm dần' },
+  { value: 'totalSessions_asc', label: 'Số phiên tăng dần' },
+  { value: 'passed_desc', label: 'Đạt giảm dần' },
+  { value: 'passed_asc', label: 'Đạt tăng dần' },
+]
+const selectedSortLabel = computed(() => sortPresetOptions.find((option) => option.value === sortPreset.value)?.label || 'Mặc định')
 
 const loading = ref(false)
 const dateFrom = ref(initialRange.from)
@@ -42,7 +57,12 @@ const summary = ref({
   passRate: 0,
 })
 const storeStats = ref([])
+const adminStoreRows = ref([])
+const adminStoresLoaded = ref(false)
+const adminStoresLoading = ref(false)
 const loadError = ref('')
+
+const isAdmin = computed(() => String(state.userInfo?.role || '').toLowerCase() === 'admin')
 
 const selectedStores = ref([])
 watch(
@@ -187,14 +207,16 @@ function formatCsvCell(value) {
 }
 
 const stores = computed(() => {
-  const source = Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []
+  const source = isAdmin.value
+    ? adminStoreRows.value
+    : (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : [])
   return source.map((store) => ({
     id: Number(store?.id || 0),
     storeId: String(store?.storeId || ''),
     code: store?.code || '',
-    name: store?.shortAddress || store?.address || store?.code || `Cửa hàng #${store?.id || ''}`,
+    name: store?.name || store?.code || `Cửa hàng #${store?.id || ''}`,
     address: store?.address || '',
-    shortAddress: store?.shortAddress || '',
+    shortAddress: store?.shortAddress || store?.address || '',
     managerName: store?.managerName || store?.manager || store?.ownerName || 'Chưa gán',
   }))
 })
@@ -218,7 +240,7 @@ const mergedStoreSources = computed(() => {
       code: stat?.storeCode || '',
       name: stat?.storeName || stat?.storeCode || `Cửa hàng #${entityId}`,
       address: stat?.address || '',
-      shortAddress: stat?.storeName || '',
+      shortAddress: stat?.shortAddress || stat?.address || '',
       managerName: 'Chưa gán',
     })
   })
@@ -235,6 +257,32 @@ const toggleSort = (field) => {
   const currentIndex = sortCycle.indexOf(currentDirection)
   const nextIndex = (currentIndex + 1) % sortCycle.length
   sortDirections.value[field] = sortCycle[nextIndex]
+}
+
+const applySortPreset = (value) => {
+  sortDirections.value = {
+    totalSessions: null,
+    passed: null,
+    avgScoreRate: null,
+    failed: null,
+  }
+
+  const [field, direction] = String(value || '').split('_')
+  if (!sortableFields.includes(field) || !['asc', 'desc'].includes(direction)) return
+  sortDirections.value[field] = direction
+}
+
+const toggleSortMenu = () => {
+  sortMenuOpen.value = !sortMenuOpen.value
+}
+
+const closeSortMenu = () => {
+  sortMenuOpen.value = false
+}
+
+const selectSortPreset = (value) => {
+  sortPreset.value = value
+  closeSortMenu()
 }
 
 const sortIndicator = (field) => {
@@ -276,6 +324,7 @@ const normalizedStores = computed(() => {
     return {
       ...merged,
       region,
+      storeSubtitle: merged.shortAddress || merged.address || '--',
       healthLabel: health.label,
       healthBadgeClass: health.badgeClass,
       scoreBadgeClass: health.scoreClass,
@@ -436,18 +485,45 @@ function exportReport() {
   window.URL.revokeObjectURL(url)
 }
 
+async function loadAdminStores() {
+  if (!isAdmin.value || adminStoresLoaded.value || adminStoresLoading.value) return
+
+  adminStoresLoading.value = true
+  try {
+    const firstPage = await listAdminStores({ page: 1, pageSize: 500 })
+    const rows = Array.isArray(firstPage.items) ? [...firstPage.items] : []
+    const pageCount = Number(firstPage.pagination?.pageCount || 1)
+
+    for (let page = 2; page <= pageCount; page += 1) {
+      const result = await listAdminStores({ page, pageSize: 500 })
+      if (Array.isArray(result.items)) rows.push(...result.items)
+    }
+
+    adminStoreRows.value = rows
+    adminStoresLoaded.value = true
+  } catch (error) {
+    loadError.value = error?.response?.data?.message || error?.message || 'Không tải được danh sách cửa hàng cho admin.'
+  } finally {
+    adminStoresLoading.value = false
+  }
+}
+
 async function loadOverview() {
   loading.value = true
   loadError.value = ''
 
   try {
-    const queryStoreIds = route.query.store_ids 
+    await loadAdminStores()
+
+    const queryStoreIds = route.query.store_ids
       ? route.query.store_ids.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
       : []
     const storeIds = queryStoreIds.length > 0
       ? queryStoreIds
-      : stores.value.map((store) => Number(store?.id || 0)).filter((id) => Number.isInteger(id) && id > 0)
-      
+      : isAdmin.value
+        ? []
+        : stores.value.map((store) => Number(store?.id || 0)).filter((id) => Number.isInteger(id) && id > 0)
+
     const targetPageSize = 500
 
     const remote = await getQcStoresOverviewApi({
@@ -492,6 +568,7 @@ async function loadOverview() {
 watch(
   [
     stores,
+    isAdmin,
     () => route.query.date_from,
     () => route.query.date_to,
     () => route.query.store_ids,
@@ -502,6 +579,10 @@ watch(
   },
   { immediate: true }
 )
+
+watch(sortPreset, (value) => {
+  applySortPreset(value)
+})
 
 watch(searchInput, (value) => {
   if (searchDebounce.value) clearTimeout(searchDebounce.value)
@@ -529,13 +610,14 @@ watch(filteredStores, () => {
 
 onBeforeUnmount(() => {
   if (searchDebounce.value) clearTimeout(searchDebounce.value)
+  closeSortMenu()
 })
 </script>
 
 <template>
-  <div class="app-page">
-    <div class="page-stack overflow-visible">
-      <section class="grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
+  <div class="app-page flex min-h-full flex-col pc:h-full pc:min-h-0 pc:overflow-hidden" @click="closeSortMenu">
+    <div class="flex min-h-0 flex-1 flex-col gap-4 pc:overflow-hidden">
+      <section class="shrink-0 grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard
           v-for="card in summaryCards"
           :key="card.key"
@@ -547,8 +629,8 @@ onBeforeUnmount(() => {
         />
       </section>
 
-      <section class="app-section">
-        <div class="border-b border-[var(--stroke)] p-3 tablet:p-4">
+      <section class="app-section flex min-h-0 flex-1 flex-col pc:overflow-hidden">
+        <div class="shrink-0 border-b border-[var(--stroke)] p-3 tablet:p-4">
 
           <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
             <div class="flex min-w-0 flex-1 flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
@@ -563,6 +645,42 @@ onBeforeUnmount(() => {
                   <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
                     <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
                   </svg>
+                </div>
+              </div>
+
+              <div class="relative w-full tablet:w-56" @click.stop>
+                <button
+                  type="button"
+                  class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] focus:border-[var(--primary)] focus:outline-hidden"
+                  :aria-expanded="sortMenuOpen"
+                  aria-haspopup="menu"
+                  @click="toggleSortMenu"
+                >
+                  <span class="flex min-w-0 items-center gap-2">
+                    <span class="material-symbols-outlined text-[18px] text-[var(--text-muted)]">sort</span>
+                    <span class="truncate">{{ selectedSortLabel }}</span>
+                  </span>
+                  <span class="material-symbols-outlined shrink-0 text-[18px] text-[var(--text-muted)]">{{ sortMenuOpen ? 'expand_less' : 'expand_more' }}</span>
+                </button>
+
+                <div
+                  v-if="sortMenuOpen"
+                  class="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
+                  role="menu"
+                >
+                  <button
+                    v-for="option in sortPresetOptions"
+                    :key="option.value || 'default'"
+                    type="button"
+                    class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[var(--surface-muted)]"
+                    :class="option.value === sortPreset ? 'text-[var(--primary)]' : 'text-[var(--text-secondary)]'"
+                    role="menuitemradio"
+                    :aria-checked="option.value === sortPreset"
+                    @click="selectSortPreset(option.value)"
+                  >
+                    <span>{{ option.label }}</span>
+                    <span v-if="option.value === sortPreset" class="material-symbols-outlined text-[18px]">check</span>
+                  </button>
                 </div>
               </div>
 
@@ -590,40 +708,20 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <p v-if="loadError" class="app-state-banner m-4 mb-0 text-xs font-medium">
+        <p v-if="loadError" class="app-state-banner m-4 mb-0 shrink-0 text-xs font-medium">
           {{ loadError }}
         </p>
 
-        <div v-loading="loading">
-          <div class="app-table-scroll hidden pc:block">
+        <div v-loading="loading" class="min-h-0 flex-1 pc:overflow-y-auto">
+          <div class="hidden pc:block">
             <table class="min-w-[840px] w-full border-collapse text-left">
-              <thead>
-                <tr class="bg-[var(--surface-muted)]">
+              <thead class="sticky top-0 z-10 bg-[var(--surface-muted)] shadow-[0_1px_0_var(--stroke)]">
+                <tr>
                   <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Cửa hàng</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
-                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]" @click="toggleSort('totalSessions')">
-                      Tổng phiên
-                      <span :class="sortIndicatorClass('totalSessions')">{{ sortIndicator('totalSessions') }}</span>
-                    </button>
-                  </th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
-                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]" @click="toggleSort('passed')">
-                      Phiên đạt
-                      <span :class="sortIndicatorClass('passed')">{{ sortIndicator('passed') }}</span>
-                    </button>
-                  </th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
-                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]" @click="toggleSort('failed')">
-                      Phiên lỗi
-                      <span :class="sortIndicatorClass('failed')">{{ sortIndicator('failed') }}</span>
-                    </button>
-                  </th>
-                  <th class="w-[104px] px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
-                    <button type="button" class="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]" @click="toggleSort('avgScoreRate')">
-                      Điểm TB
-                      <span :class="sortIndicatorClass('avgScoreRate')">{{ sortIndicator('avgScoreRate') }}</span>
-                    </button>
-                  </th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Tổng phiên</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Phiên đạt</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Phiên lỗi</th>
+                  <th class="w-[104px] px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Điểm TB</th>
                 </tr>
               </thead>
 
@@ -637,9 +735,7 @@ onBeforeUnmount(() => {
                   <td class="px-4 py-3">
                     <div class="min-w-0">
                       <p class="text-sm font-semibold text-[var(--text-primary)]">{{ store.name }}</p>
-                      <p class="text-xs text-[var(--text-secondary)]">
-                        {{ store.code || store.storeId || '--' }} • {{ store.region }} • Phụ trách: {{ store.managerName }}
-                      </p>
+                      <p class="text-xs text-[var(--text-secondary)]">{{ store.storeSubtitle }}</p>
                     </div>
                   </td>
                   <td class="px-4 py-3">
@@ -693,9 +789,7 @@ onBeforeUnmount(() => {
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <p class="text-sm font-semibold text-[var(--text-primary)]">{{ store.name }}</p>
-                  <p class="text-xs text-[var(--text-secondary)]">
-                    {{ store.code || store.storeId || '--' }} • {{ store.region }} • Phụ trách: {{ store.managerName }}
-                  </p>
+                  <p class="text-xs text-[var(--text-secondary)]">{{ store.storeSubtitle }}</p>
                 </div>
                 <span class="inline-flex h-11 min-w-14 shrink-0 items-center justify-center rounded-full px-3 text-xs font-bold" :class="store.scoreBadgeClass">
                   {{ store.scoreDisplay }}
@@ -735,7 +829,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <AppPagination :page="currentPage" :page-count="totalPages" :page-size="pageSize" :page-size-options="pageSizeOptions" :total="filteredStores.length" :loading="loading" item-label="cửa hàng" @update:page="goToPage" @update:page-size="changePageSize" />
+        <AppPagination class="shrink-0" :page="currentPage" :page-count="totalPages" :page-size="pageSize" :page-size-options="pageSizeOptions" :total="filteredStores.length" :loading="loading" item-label="cửa hàng" @update:page="goToPage" @update:page-size="changePageSize" />
       </section>
     </div>
   </div>

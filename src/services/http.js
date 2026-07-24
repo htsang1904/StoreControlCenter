@@ -7,8 +7,12 @@ const clearAuthStorage = () => {
   localStorage.removeItem('refreshToken')
 }
 
-const redirectToLogin = () => {
-  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+const notifyAuthExpired = () => {
+  clearAuthStorage()
+  if (typeof window === 'undefined') return
+
+  window.dispatchEvent(new CustomEvent('app:auth-expired'))
+  if (window.location.pathname !== '/login') {
     window.location.assign('/login')
   }
 }
@@ -42,8 +46,7 @@ const getClient = (baseURL = API_BASE_URL) => {
     (response) => response.data,
     (error) => {
       if (isAppApiClient && error.response?.status === 401) {
-        clearAuthStorage()
-        redirectToLogin()
+        notifyAuthExpired()
       }
       return Promise.reject(error)
     }

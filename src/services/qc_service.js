@@ -1,6 +1,17 @@
 import getClient from './http'
 
+const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+
 const DEFAULT_PASS_THRESHOLD = 40
+
+const normalizeAssetUrl = (value = '') => {
+  const source = String(value || '').trim()
+  if (!source) return ''
+  if (/^(https?:)?\/\//i.test(source) || source.startsWith('data:') || source.startsWith('blob:')) return source
+  if (source.startsWith('/')) return API_BASE_URL ? `${API_BASE_URL}${source}` : source
+  return source
+}
+
 const INTERNAL_DEFAULT_TEMPLATE = { id: 'default', name: 'QC Form', version: '1.0' }
 const QC_SESSIONS_OVERVIEW_MAX_PAGE_SIZE = 100
 const QC_SESSIONS_OVERVIEW_DEFAULT_PAGE_SIZE = 100
@@ -326,7 +337,9 @@ const normalizeFinding = (finding = {}) => {
     resolvedAt: finding.resolved_at || null,
     verifiedAt: finding.verified_at || null,
     verifier: finding.verifier || null,
-    evidence: Array.isArray(finding.evidence) ? finding.evidence : [],
+    evidence: Array.isArray(finding.evidence)
+      ? finding.evidence.map((item) => ({ ...item, url: normalizeAssetUrl(item?.url || item?.path || item?.file_path || item?.staticPath) }))
+      : [],
     metaInfo: finding.metaInfo || finding.meta_info || {},
     createdAt: finding.createdAt || null,
     updatedAt: finding.updatedAt || null,
@@ -437,10 +450,13 @@ const normalizeSessionFromApi = (session = {}, fallbackIndex = 0) => {
   const failCount = criteria.filter((item) => item.status === 'fail').length
   const incompleteCriteria = criteria.filter((item) => item.status === 'pending').length
 
-  const formVersion = session?.form_version || {}
-  const form = formVersion?.form || {}
+  const formVersion = session?.form_version || session?.formVersion || {}
+  const form = formVersion?.form || session?.form || {}
   const templatePassThreshold = normalizePassThreshold(
-    formVersion?.pass_rule?.passThreshold ?? formVersion?.pass_rule?.pass_threshold
+    formVersion?.pass_rule?.passThreshold
+      ?? formVersion?.pass_rule?.pass_threshold
+      ?? formVersion?.passRule?.passThreshold
+      ?? formVersion?.passRule?.pass_threshold
   )
 
   const totalScore = toNumber(session?.total_score ?? session?.totalScore)
@@ -465,17 +481,17 @@ const normalizeSessionFromApi = (session = {}, fallbackIndex = 0) => {
     auditorId: session?.auditor?.id ?? session?.auditorId ?? null,
     auditorName: String(session?.auditor?.name || session?.auditorName || session?.auditor?.email || ''),
     template: {
-      id: String(form?.id || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
-      code: String(form?.code || session?.templateCode || ''),
-      name: String(form?.name || session?.templateName || INTERNAL_DEFAULT_TEMPLATE.name),
-      version: String(formVersion?.version_no || session?.templateVersion || INTERNAL_DEFAULT_TEMPLATE.version),
+      id: String(form?.id || session?.templateId || session?.template_id || session?.form_id || session?.formId || INTERNAL_DEFAULT_TEMPLATE.id),
+      code: String(form?.code || session?.templateCode || session?.template_code || ''),
+      name: String(form?.name || session?.templateName || session?.template_name || ''),
+      version: String(formVersion?.version_no || formVersion?.versionNo || session?.templateVersion || session?.template_version || ''),
       passThreshold: templatePassThreshold,
     },
     formId: toNumber(form?.id || session?.formId || session?.form_id),
-    templateId: String(form?.id || session?.templateId || INTERNAL_DEFAULT_TEMPLATE.id),
-    templateCode: String(form?.code || session?.templateCode || ''),
-    templateName: String(form?.name || session?.templateName || INTERNAL_DEFAULT_TEMPLATE.name),
-    templateVersion: String(formVersion?.version_no || session?.templateVersion || INTERNAL_DEFAULT_TEMPLATE.version),
+    templateId: String(form?.id || session?.templateId || session?.template_id || session?.form_id || session?.formId || INTERNAL_DEFAULT_TEMPLATE.id),
+    templateCode: String(form?.code || session?.templateCode || session?.template_code || ''),
+    templateName: String(form?.name || session?.templateName || session?.template_name || ''),
+    templateVersion: String(formVersion?.version_no || formVersion?.versionNo || session?.templateVersion || session?.template_version || ''),
     templatePassThreshold: templatePassThreshold,
     criteria,
     totalScore,
@@ -488,6 +504,7 @@ const normalizeSessionFromApi = (session = {}, fallbackIndex = 0) => {
     decisionReasons,
     note: String(session?.note || ''),
     auditedAt,
+    submittedAt: session?.submitted_at || session?.submittedAt ? parseDate(session?.submitted_at || session?.submittedAt).toISOString() : null,
     createdAt,
     updatedAt: parseDate(session?.updatedAt || createdAt).toISOString(),
   }
@@ -1095,6 +1112,16 @@ export const resolveQcFinding = async (id, payload = {}) => {
   return updated ? normalizeFinding(updated) : null
 }
 
+export const reviewQcFindingsBatch = async (items = []) => {
+  const response = await http.post('/api/qc/findings/review-batch', { items })
+  const data = response?.data || response
+  const findings = Array.isArray(data?.data) ? data.data : []
+  return {
+    ...data,
+    data: findings.map((finding) => normalizeFinding(finding)),
+  }
+}
+
 export const verifyQcFinding = async (id, payload = {}) => {
   if (!id) return null
   const response = await http.post(`/api/qc/findings/${id}/verify`, payload)
@@ -1116,7 +1143,9 @@ export const uploadQcFindingEvidence = async (formData) => {
     },
   })
   const files = response?.data?.files || response?.files || []
-  return Array.isArray(files) ? files : []
+  return Array.isArray(files)
+    ? files.map((item) => ({ ...item, url: normalizeAssetUrl(item?.url || item?.path || item?.file_path || item?.staticPath) }))
+    : []
 }
 
 export const qcHelpers = {

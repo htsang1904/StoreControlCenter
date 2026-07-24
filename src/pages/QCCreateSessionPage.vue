@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApp } from '@/plugins/app'
+import { useToast } from '@/plugins/toast'
 import {
   createQcSession,
   deleteQcDraftSession,
@@ -18,11 +19,12 @@ import QCSessionRemediationPanel from '@/components/QCSessionRemediationPanel.vu
 const route = useRoute()
 const router = useRouter()
 const { state } = useApp()
+const toast = useToast()
 
 const saving = ref(false)
 const errorMessage = ref('')
 const MAX_ATTACHMENTS_PER_CRITERION = 3
-const MAX_ATTACHMENT_SIZE_BYTES = 2 * 1024 * 1024
+const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024
 const AUTOSAVE_DEBOUNCE_MS = 1200
 const CRITERION_FILTERS = [
   { id: 'all', label: 'Tất cả' },
@@ -155,12 +157,11 @@ const onAttachmentUpload = async (id, event) => {
   const selectedFiles = Array.from(input?.files || [])
   if (selectedFiles.length === 0) return
 
-  errorMessage.value = ''
   const state = ensureCriterionState(id)
   const availableSlots = MAX_ATTACHMENTS_PER_CRITERION - state.attachments.length
 
   if (availableSlots <= 0) {
-    errorMessage.value = `Mỗi tiêu chí chỉ được đính kèm tối đa ${MAX_ATTACHMENTS_PER_CRITERION} ảnh.`
+    toast.error(`Mỗi tiêu chí chỉ được đính kèm tối đa ${MAX_ATTACHMENTS_PER_CRITERION} ảnh.`)
     if (input) input.value = ''
     return
   }
@@ -205,7 +206,7 @@ const onAttachmentUpload = async (id, event) => {
   }
 
   if (issues.length > 0) {
-    errorMessage.value = issues[0]
+    toast.error(issues[0])
   }
 
   if (input) input.value = ''
@@ -1036,37 +1037,34 @@ onBeforeUnmount(() => {
         {{ errorMessage }}
       </p>
 
-      <div class="mb-3 grid gap-2 tablet:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] tablet:items-center">
-        <div class="flex flex-wrap items-center gap-2 tablet:justify-start">
-          <button
-            @click="goBack"
-            type="button"
-            class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-bold text-[var(--text-primary)] transition hover:bg-[var(--surface-muted)]"
-          >
-            <span class="material-symbols-outlined text-[20px]">arrow_back</span>
-            Quay lại
-          </button>
-        </div>
+      <div class="mb-3 flex min-w-0 items-center gap-2">
+        <button
+          @click="goBack"
+          type="button"
+          class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-primary)] transition hover:bg-[var(--surface-muted)] tablet:w-auto tablet:gap-2 tablet:px-3 tablet:text-sm tablet:font-bold"
+          aria-label="Quay lại"
+        >
+          <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+          <span class="hidden tablet:inline">Quay lại</span>
+        </button>
 
-        <div class="flex min-h-9 items-center tablet:justify-center">
-          <span v-if="!isReadonlySession" class="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--success-text)]">
-            <span class="material-symbols-outlined text-[18px]">check_circle</span>
-            Tự động lưu
-          </span>
-        </div>
+        <span v-if="!isReadonlySession" class="inline-flex min-w-0 shrink items-center gap-1 text-[11px] font-bold text-[var(--success-text)] tablet:text-xs">
+          <span class="material-symbols-outlined text-[17px]">check_circle</span>
+          <span class="hidden min-[390px]:inline">Tự động lưu</span>
+        </span>
 
-        <div class="flex flex-wrap items-center gap-2 tablet:justify-end">
+        <div class="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 tablet:gap-2">
           <template v-if="!isReadonlySession">
             <button
               type="button"
-              class="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--primary)] bg-white px-4 text-sm font-bold text-[var(--primary-strong)] transition hover:bg-[var(--primary-softer)]"
+              class="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--primary)] bg-white px-2.5 text-xs font-bold text-[var(--primary-strong)] transition hover:bg-[var(--primary-softer)] tablet:px-4 tablet:text-sm"
               @click="persistDraftNow({ includeAttachments: true })"
             >
               Lưu nháp
             </button>
             <button
               type="button"
-              class="inline-flex h-9 items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--primary-strong)] disabled:cursor-not-allowed disabled:bg-[var(--primary-soft)] disabled:text-white/80"
+              class="inline-flex h-9 items-center justify-center rounded-lg bg-[var(--primary)] px-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[var(--primary-strong)] disabled:cursor-not-allowed disabled:bg-[var(--primary-soft)] disabled:text-white/80 tablet:px-4 tablet:text-sm"
               :disabled="submitDisabled"
               @click="submitSession"
             >
@@ -1393,6 +1391,33 @@ onBeforeUnmount(() => {
 .qc-filter-tab--active {
   background: var(--primary-soft);
   color: var(--primary-strong);
+}
+
+
+@media (max-width: 767px) {
+  .qc-create-controls {
+    position: static;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .qc-control-search {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .qc-filter-tabs {
+    width: 100%;
+  }
+
+  .qc-filter-tab {
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 0 0.5rem;
+    white-space: nowrap;
+  }
 }
 
 .qc-toolbar-button {
