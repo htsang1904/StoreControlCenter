@@ -32,7 +32,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['update-state', 'upload-attachment', 'remove-attachment', 'open-finding-modal', 'select-group'])
+const emit = defineEmits(['update-state', 'upload-attachment', 'remove-attachment', 'open-finding-modal', 'select-group', 'open-evidence'])
 
 const sectionExpanded = ref(props.level <= 2)
 const detailsExpanded = ref(false)
@@ -60,6 +60,22 @@ const normalizeLocalCriterionMode = (value) => {
 }
 
 const criterionMode = computed(() => normalizeLocalCriterionMode(props.criterion?.mode || props.criterion?.scoreType))
+
+const evidenceImages = computed(() => (
+  Array.isArray(state.value.attachments)
+    ? state.value.attachments
+        .map((file, index) => ({
+          ...file,
+          id: String(file?.id || `${props.criterion.id}-${index}`),
+          source: 'qc',
+          url: file?.url || file?.previewUrl || file?.preview || file?.dataUrl || '',
+          thumbnailUrl: file?.thumbnailUrl || file?.url || file?.previewUrl || file?.preview || file?.dataUrl || '',
+          name: file?.name || `Ảnh QC ${index + 1}`,
+          note: state.value.note || '',
+        }))
+        .filter((file) => file.url)
+    : []
+))
 
 const resolveCriterionStatus = (criterion, criterionState = {}) => {
   const rawStatus = String(criterionState?.status || 'pending')
@@ -283,6 +299,17 @@ const removeAttachment = (index) => {
   if (props.readonly) return
   attachmentMenuOpen.value = false
   emit('remove-attachment', props.criterion.id, index)
+}
+
+
+const openEvidence = (index) => {
+  if (!props.readonly || !evidenceImages.value.length) return
+  const safeIndex = Math.min(Math.max(Number(index || 0), 0), evidenceImages.value.length - 1)
+  emit('open-evidence', {
+    images: evidenceImages.value,
+    index: safeIndex,
+    source: 'qc',
+  })
 }
 
 const updateAttachmentMenuPosition = () => {
@@ -527,13 +554,19 @@ const toggleDetails = () => {
               v-for="(file, index) in state.attachments"
               :key="file.id || index"
               class="group relative size-9 overflow-hidden rounded-md border border-[var(--stroke)] bg-white"
+              :class="readonly ? 'cursor-pointer transition-opacity hover:opacity-90' : 'cursor-default'"
+              :role="readonly ? 'button' : undefined"
+              :tabindex="readonly ? 0 : undefined"
+              @click="openEvidence(index)"
+              @keydown.enter.prevent="openEvidence(index)"
+              @keydown.space.prevent="openEvidence(index)"
             >
               <img :src="file.preview || file.url" class="h-full w-full object-cover" />
               <button
                 v-if="!readonly"
                 type="button"
                 class="absolute right-0.5 top-0.5 inline-flex size-4 cursor-pointer items-center justify-center rounded-full bg-white text-[var(--text-secondary)] shadow-sm transition hover:text-[var(--danger-text)]"
-                @click="removeAttachment(index)"
+                @click.stop="removeAttachment(index)"
               >
                 <span class="material-symbols-outlined text-[12px]">close</span>
               </button>

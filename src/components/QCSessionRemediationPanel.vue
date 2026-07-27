@@ -2,6 +2,8 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
+import EvidenceGallery from '@/components/EvidenceGallery.vue'
+import EvidenceViewer from '@/components/EvidenceViewer.vue'
 import {
   listQcFindings,
   qcHelpers,
@@ -35,6 +37,10 @@ const loadError = ref('')
 const findings = ref([])
 const selectedFindingId = ref('')
 const detailPanelOpen = ref(false)
+const evidenceViewerOpen = ref(false)
+const evidenceViewerImages = ref([])
+const evidenceViewerSource = ref('qc')
+const evidenceViewerIndex = ref(0)
 const forms = reactive({})
 
 const userRole = computed(() => String(state.userInfo?.role || '').toLowerCase())
@@ -98,12 +104,62 @@ const reviewStatusClass = (finding) => {
   return statusClass(finding?.status)
 }
 const imageSource = (image) => image?.previewUrl || image?.url || image?.dataUrl || image?.preview || ''
-const imageName = (image, index) => image?.name || `Anh ${index + 1}`
-const formatFileSize = (bytes) => `${Math.round(Number(bytes || 0) / 1024 / 1024)}MB`
-const qcFindingImages = (finding) => {
-  const images = finding?.metaInfo?.qc_attachments
-  return Array.isArray(images) ? images.filter((image) => imageSource(image)) : []
+const imageName = (image, index) => image?.name || `Ảnh ${index + 1}`
+const normalizeEvidenceImage = (image, source, index, context = {}) => {
+  const url = imageSource(image)
+  if (!url) return null
+  return {
+    ...image,
+    id: String(image?.id || `${source}-${context.findingId || 'finding'}-${index}`),
+    source,
+    url,
+    thumbnailUrl: image?.thumbnailUrl || image?.thumbUrl || url,
+    name: imageName(image, index),
+    createdAt: image?.createdAt || image?.created_at || context.createdAt || null,
+    createdBy: image?.createdBy || image?.created_by || context.createdBy || null,
+    note: String(image?.note || context.note || ''),
+  }
 }
+const buildQcEvidenceImages = (finding) => {
+  const images = finding?.metaInfo?.qc_attachments
+  return (Array.isArray(images) ? images : [])
+    .map((image, index) => normalizeEvidenceImage(image, 'qc', index, {
+      findingId: finding?.id,
+      createdAt: finding?.metaInfo?.detected_at || finding?.createdAt,
+      createdBy: finding?.metaInfo?.auditor || null,
+      note: finding?.metaInfo?.qc_note || '',
+    }))
+    .filter(Boolean)
+}
+const buildRemediationEvidenceImages = (finding) => {
+  const form = ensureForm(finding)
+  const images = form?.evidence || finding?.evidence || []
+  return (Array.isArray(images) ? images : [])
+    .map((image, index) => normalizeEvidenceImage(image, 'remediation', index, {
+      findingId: finding?.id,
+      createdAt: image?.createdAt || image?.created_at || null,
+      note: form?.correctiveNote || finding?.correctiveNote || '',
+    }))
+    .filter(Boolean)
+}
+const buildFindingEvidenceImages = (finding) => ([
+  ...buildQcEvidenceImages(finding),
+  ...buildRemediationEvidenceImages(finding),
+])
+const openEvidenceViewer = (finding, source, index = 0) => {
+  const images = buildFindingEvidenceImages(finding)
+  if (!images.length) return
+  evidenceViewerImages.value = images
+  evidenceViewerSource.value = source === 'remediation' ? 'remediation' : 'qc'
+  evidenceViewerIndex.value = Math.max(Number(index || 0), 0)
+  evidenceViewerOpen.value = true
+}
+const closeEvidenceViewer = () => {
+  evidenceViewerOpen.value = false
+  evidenceViewerImages.value = []
+  evidenceViewerIndex.value = 0
+}
+const formatFileSize = (bytes) => `${Math.round(Number(bytes || 0) / 1024 / 1024)}MB`
 const findingDetectedLabel = (finding) => qcHelpers.toDateLabel(finding?.metaInfo?.detected_at || finding?.createdAt)
 const latestRejectionReason = (finding) => {
   const timeline = Array.isArray(finding?.metaInfo?.timeline) ? finding.metaInfo.timeline : []
@@ -454,25 +510,14 @@ onMounted(loadFindings)
               </div>
             </dl>
             <div class="mt-3">
-              <p class="text-xs font-semibold text-[var(--text-secondary)]">Ảnh QC ghi nhận</p>
-              <div v-if="qcFindingImages(selectedFinding).length" class="mt-2 grid grid-cols-3 gap-2">
-                <button
-                  v-for="(image, index) in qcFindingImages(selectedFinding).slice(0, 5)"
-                  :key="image.id || `${imageName(image, index)}-${index}`"
-                  type="button"
-                  class="aspect-square w-full overflow-hidden rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)]"
-                >
-                  <img :src="imageSource(image)" :alt="imageName(image, index)" class="size-full object-cover" />
-                </button>
-                <button
-                  v-if="qcFindingImages(selectedFinding).length > 5"
-                  type="button"
-                  class="inline-flex aspect-square w-full items-center justify-center rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] text-sm font-bold text-[var(--text-secondary)]"
-                >
-                  +{{ qcFindingImages(selectedFinding).length - 5 }}
-                </button>
-              </div>
-              <p v-else class="mt-2 text-xs text-[var(--text-secondary)]">Chưa có ảnh QC.</p>
+              <EvidenceGallery
+                :images="buildQcEvidenceImages(selectedFinding)"
+                source="qc"
+                title="Ảnh QC ghi nhận"
+                empty-text="Chưa có ảnh minh chứng từ QC."
+                :max-preview="5"
+                @open="({ index }) => openEvidenceViewer(selectedFinding, 'qc', index)"
+              />
             </div>
           </section>
 
@@ -506,23 +551,29 @@ onMounted(loadFindings)
                     <input type="file" accept="image/*" multiple class="hidden" :disabled="Boolean(uploadTargetId)" @change="handleEvidenceUpload(selectedFinding, $event)" />
                   </label>
                 </div>
-                <div v-if="ensureForm(selectedFinding).evidence.length" class="mt-2 grid grid-cols-3 gap-2">
-                  <div v-for="(image, index) in ensureForm(selectedFinding).evidence" :key="image.id || `${image.name}-${index}`" class="group relative overflow-hidden rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)]">
-                    <img v-if="imageSource(image)" :src="imageSource(image)" :alt="imageName(image, index)" class="aspect-square w-full object-cover" />
-                    <div v-else class="flex aspect-square w-full items-center justify-center text-[var(--text-secondary)]">
-                      <span class="material-symbols-outlined text-[20px]">image</span>
-                    </div>
+                <div v-if="ensureForm(selectedFinding).evidence.length" class="mt-2">
+                  <EvidenceGallery
+                    :images="buildRemediationEvidenceImages(selectedFinding)"
+                    source="remediation"
+                    title="Minh chứng sau khắc phục"
+                    empty-text="Cửa hàng chưa gửi minh chứng khắc phục."
+                    :max-preview="5"
+                    @open="({ index }) => openEvidenceViewer(selectedFinding, 'remediation', index)"
+                  />
+                  <div v-if="canStoreSubmit && ['open', 'in_progress', 'rejected'].includes(selectedFinding.status)" class="mt-2 flex flex-wrap gap-2">
                     <button
-                      v-if="canStoreSubmit && ['open', 'in_progress', 'rejected'].includes(selectedFinding.status)"
+                      v-for="(image, index) in ensureForm(selectedFinding).evidence"
+                      :key="image.id || `${image.name}-${index}`"
                       type="button"
-                      class="absolute right-1 top-1 inline-flex size-5 items-center justify-center rounded-full bg-white text-[var(--danger-text)] shadow"
-                      @click="removeEvidence(selectedFinding, index)"
+                      class="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--stroke)] bg-white px-2 text-[11px] font-bold text-[var(--danger-text)] hover:bg-[var(--danger-bg)]"
+                      @click.stop="removeEvidence(selectedFinding, index)"
                     >
                       <span class="material-symbols-outlined text-[13px]">close</span>
+                      Xóa ảnh {{ index + 1 }}
                     </button>
                   </div>
                 </div>
-                <p v-else class="mt-2 text-xs text-[var(--text-secondary)]">Chưa có ảnh sau khắc phục.</p>
+                <p v-else class="mt-2 text-xs text-[var(--text-secondary)]">Cửa hàng chưa gửi minh chứng khắc phục.</p>
               </div>
             </div>
           </section>
@@ -565,5 +616,15 @@ onMounted(loadFindings)
         </div>
       </Teleport>
     </div>
+
+    <EvidenceViewer
+      v-model="evidenceViewerOpen"
+      :images="evidenceViewerImages"
+      :initial-source="evidenceViewerSource"
+      :initial-index="evidenceViewerIndex"
+      title="Minh chứng khắc phục"
+      enable-compare
+      @close="closeEvidenceViewer"
+    />
   </div>
 </template>

@@ -15,6 +15,7 @@ import {
 import QCCriterionTreeItem from '@/components/QCCriterionTreeItem.vue'
 import QCCreateStructureNode from '@/components/QCCreateStructureNode.vue'
 import QCSessionRemediationPanel from '@/components/QCSessionRemediationPanel.vue'
+import EvidenceViewer from '@/components/EvidenceViewer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -49,6 +50,9 @@ const activeStructureNodeId = ref('')
 const activeFocusCriterionId = ref('')
 const remediationPanelRef = ref(null)
 const remediationActionState = ref({ canSubmit: false, disabled: true, loading: false, count: 0 })
+const evidenceViewerOpen = ref(false)
+const evidenceViewerImages = ref([])
+const evidenceViewerIndex = ref(0)
 const expandedStructureNodeIds = ref(new Set())
 
 const storeId = computed(() => Number(route.params.storeId || 0))
@@ -66,6 +70,10 @@ function toLocalDateTimeInput(value) {
   const source = value ? new Date(value) : new Date()
   const date = Number.isNaN(source.getTime()) ? new Date() : source
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+function resolveDraftStartedAt(draft = {}) {
+  return draft?.createdAt || draft?.auditedAt || (form.auditedAt ? new Date(form.auditedAt).toISOString() : '') || draft?.updatedAt || new Date().toISOString()
 }
 
 const form = reactive({
@@ -109,6 +117,18 @@ const scorableCriteria = computed(() => {
 
 const qcFormTitle = computed(() => selectedTemplate.value.name || 'Phiếu QC')
 
+
+const buildDefaultCriterionState = (criterion = {}) => {
+  const mode = String(criterion?.mode || criterion?.scoreType || 'point')
+  const maxScore = Math.max(Number(criterion?.maxScore || 0), 0)
+  return {
+    status: 'pass',
+    score: mode === 'point' || mode === 'pass_fail' ? maxScore : null,
+    note: '',
+    attachments: [],
+  }
+}
+
 const resolveCriterionStatus = (criterion, criterionState = {}) => {
   const rawStatus = String(criterionState?.status || 'pending')
   if (rawStatus === 'na') return 'na'
@@ -131,19 +151,16 @@ const resolveCriterionStatus = (criterion, criterionState = {}) => {
 
 const ensureCriterionState = (criterionId) => {
   if (!form.criteriaStates[criterionId]) {
-    form.criteriaStates[criterionId] = {
-      status: 'pending',
-      score: null,
-      note: '',
-      attachments: [],
-    }
+    const criterion = scorableCriteria.value.find((item) => String(item.id) === String(criterionId))
+    form.criteriaStates[criterionId] = buildDefaultCriterionState(criterion)
   }
   return form.criteriaStates[criterionId]
 }
 
-const getCriterionState = (criterionId) => (
-  form.criteriaStates[criterionId] || { status: 'pending', score: null, note: '', attachments: [] }
-)
+const getCriterionState = (criterionId) => {
+  const criterion = scorableCriteria.value.find((item) => String(item.id) === String(criterionId))
+  return form.criteriaStates[criterionId] || buildDefaultCriterionState(criterion)
+}
 
 const onCriterionUpdate = (id, updates) => {
   if (isReadonlySession.value) return
@@ -221,12 +238,7 @@ const onAttachmentRemove = (id, index) => {
 const initializeCriteriaStates = () => {
   const nextStates = {}
   scorableCriteria.value.forEach((criterion) => {
-    nextStates[criterion.id] = {
-      status: 'pending',
-      score: null,
-      note: '',
-      attachments: [],
-    }
+    nextStates[criterion.id] = buildDefaultCriterionState(criterion)
   })
   form.criteriaStates = nextStates
 }
@@ -396,7 +408,7 @@ const restoreDraftSession = async () => {
     const nextTemplateId = String(draft.templateId || '')
     if (!nextTemplateId) {
       activeDraftId.value = draft.id
-      draftCreatedAt.value = draft.createdAt || draft.updatedAt || ''
+      draftCreatedAt.value = resolveDraftStartedAt(draft)
       templateData.value = null
       form.formVersionId = null
       form.criteriaStates = {}
@@ -405,10 +417,10 @@ const restoreDraftSession = async () => {
     }
 
     activeDraftId.value = draft.id
-    draftCreatedAt.value = draft.createdAt || draft.updatedAt || ''
+    draftCreatedAt.value = resolveDraftStartedAt(draft)
     form.templateId = nextTemplateId
     form.formVersionId = draft.formVersionId || null
-    form.auditedAt = toLocalDateTimeInput(draft.auditedAt || draft.updatedAt || draft.createdAt)
+    form.auditedAt = toLocalDateTimeInput(draft.auditedAt || draft.createdAt || draftCreatedAt.value)
     form.note = String(draft.note || '')
 
     const template = await getQcTemplateById(nextTemplateId, { formVersionId: form.formVersionId })
@@ -430,12 +442,7 @@ const restoreDraftSession = async () => {
     const nextStates = {}
 
     scorableCriteria.value.forEach((criterion) => {
-      const baseState = form.criteriaStates[criterion.id] || {
-        status: 'pending',
-        score: null,
-        note: '',
-        attachments: [],
-      }
+      const baseState = form.criteriaStates[criterion.id] || buildDefaultCriterionState(criterion)
 
       const savedState = incomingStates[criterion.id]
       if (!savedState) {
@@ -959,6 +966,20 @@ const handleRemediationActionState = (state = {}) => {
   }
 }
 
+const openCriterionEvidence = (payload = {}) => {
+  const images = Array.isArray(payload.images) ? payload.images : []
+  if (!images.length) return
+  evidenceViewerImages.value = images
+  evidenceViewerIndex.value = Math.min(Math.max(Number(payload.index || 0), 0), images.length - 1)
+  evidenceViewerOpen.value = true
+}
+
+const closeCriterionEvidence = () => {
+  evidenceViewerOpen.value = false
+  evidenceViewerImages.value = []
+  evidenceViewerIndex.value = 0
+}
+
 const submitRemediationFindings = () => {
   remediationPanelRef.value?.submitAllRemediation?.()
 }
@@ -1192,6 +1213,7 @@ onBeforeUnmount(() => {
               @upload-attachment="onAttachmentUpload"
               @remove-attachment="onAttachmentRemove"
               @select-group="selectWorkspaceGroup"
+              @open-evidence="openCriterionEvidence"
             />
           </div>
         </main>
@@ -1277,6 +1299,16 @@ onBeforeUnmount(() => {
         />
       </section>
     </div>
+
+    <EvidenceViewer
+      v-model="evidenceViewerOpen"
+      :images="evidenceViewerImages"
+      initial-source="qc"
+      :initial-index="evidenceViewerIndex"
+      title="Minh chứng biên bản QC"
+      :enable-compare="false"
+      @close="closeCriterionEvidence"
+    />
 
   </div>
 </template>
