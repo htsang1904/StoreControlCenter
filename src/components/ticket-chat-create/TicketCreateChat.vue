@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { CHAT_STEPS } from '@/composables/useTicketCreateChat'
 import { getActiveDepartments, createTicket, uploadTicketAttachments } from '@/services/ticket_service'
+import { listAdminStores } from '@/services/admin_service'
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
 
@@ -31,24 +32,67 @@ const {
 } = props.chatState
 
 // Data from API
-const availableStores = computed(() => {
-  const userStores = Array.isArray(state.userInfo?.stores)
-    ? state.userInfo.stores
-    : (Array.isArray(state.userInfo?.store_list)
-      ? state.userInfo.store_list
-      : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store : []))
+const adminStores = ref([])
+const loadingStores = ref(false)
+const recentStores = ref([])
+const RECENT_STORE_LIMIT = 10
+const RECENT_STORE_MAX_AGE_MS = 5 * 24 * 60 * 60 * 1000
+const isAdmin = computed(() => String(state.userInfo?.role || '').toLowerCase() === 'admin')
+const recentStoreStorageKey = computed(() => {
+  const userKey = state.userInfo?.id || state.userInfo?.email || state.userInfo?.username || 'anonymous'
+  return `ticket-create:recent-stores:${userKey}`
+})
 
-  const normalized = userStores
-    .map(s => {
-      const rawValue = s?.storeId || s?.store_id || s?.id || s?.value
-      const id = String(rawValue || '').trim()
-      if (!id) return null
-      const label = String(s?.shortAddress || s?.short_address || s?.store_name || s?.name || s?.address || s?.code || s?.label || '').trim()
-      return { value: id, label: label || `Cửa hàng ${id}` }
-    })
+function normalizeSearchText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+}
+
+function normalizeStoreOption(s) {
+  const rawValue = s?.storeId || s?.store_id || s?.id || s?.value
+  const id = String(rawValue || '').trim()
+  if (!id) return null
+
+  const name = String(s?.store_name || s?.name || s?.label || '').trim()
+  const shortAddress = String(s?.shortAddress || s?.short_address || '').trim()
+  const address = String(s?.address || '').trim()
+  const code = String(s?.code || '').trim()
+  const label = name || shortAddress || address || code || `Cửa hàng ${id}`
+
+  return {
+    value: id,
+    label,
+    searchText: normalizeSearchText([name, shortAddress, address, code, id].filter(Boolean).join(' ')),
+  }
+}
+
+const availableStores = computed(() => {
+  const sourceStores = isAdmin.value
+    ? adminStores.value
+    : (Array.isArray(state.userInfo?.stores)
+      ? state.userInfo.stores
+      : (Array.isArray(state.userInfo?.store_list)
+        ? state.userInfo.store_list
+        : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store : [])))
+
+  const normalized = sourceStores
+    .map(normalizeStoreOption)
     .filter(Boolean)
 
-  if (normalized.length > 0) return normalized
+  if (normalized.length > 0) {
+    const recentRank = new Map(recentStores.value.map((item, index) => [String(item.id), index]))
+    return [...normalized].sort((left, right) => {
+      const leftRank = recentRank.has(String(left.value)) ? recentRank.get(String(left.value)) : Number.POSITIVE_INFINITY
+      const rightRank = recentRank.has(String(right.value)) ? recentRank.get(String(right.value)) : Number.POSITIVE_INFINITY
+      if (leftRank !== rightRank) return leftRank - rightRank
+      return left.label.localeCompare(right.label, 'vi', { numeric: true, sensitivity: 'base' })
+    })
+  }
+  if (isAdmin.value) return []
 
   const fallbackId = String(state.userInfo?.store_id || import.meta.env.VITE_DEFAULT_STORE_ID || '').trim()
   if (fallbackId) {
@@ -66,10 +110,92 @@ const chatContainerRef = ref(null)
 const searchStoreQuery = ref('')
 
 const filteredStores = computed(() => {
-  if (!searchStoreQuery.value.trim()) return availableStores.value
-  const query = searchStoreQuery.value.toLowerCase()
-  return availableStores.value.filter(store => store.label.toLowerCase().includes(query))
+  const query = normalizeSearchText(searchStoreQuery.value).trim()
+  const recentSet = new Set(recentStores.value.map((item) => String(item.id)))
+  const rows = !query
+    ? availableStores.value
+    : availableStores.value.filter(store => String(store.searchText || normalizeSearchText(store.label)).includes(query))
+
+  return rows.map((store) => ({
+    ...store,
+    isRecent: recentSet.has(String(store.value)),
+  }))
 })
+
+function handleStoreSearchInput(event) {
+  searchStoreQuery.value = event?.target?.value || ''
+}
+
+function normalizeRecentStores(items) {
+  if (!Array.isArray(items)) return []
+
+  const now = Date.now()
+  const normalized = items
+    .map((item, index) => {
+      if (typeof item === 'string' || typeof item === 'number') {
+        return { id: String(item).trim(), lastUsedAt: now - index }
+      }
+
+      const id = String(item?.id || item?.storeId || item?.store_id || item?.value || '').trim()
+      const lastUsedAt = Number(item?.lastUsedAt || item?.last_used_at || 0)
+      return { id, lastUsedAt }
+    })
+    .filter((item) => item.id && item.lastUsedAt && now - item.lastUsedAt <= RECENT_STORE_MAX_AGE_MS)
+    .sort((left, right) => right.lastUsedAt - left.lastUsedAt)
+
+  const seen = new Set()
+  return normalized
+    .filter((item) => {
+      if (seen.has(item.id)) return false
+      seen.add(item.id)
+      return true
+    })
+    .slice(0, RECENT_STORE_LIMIT)
+}
+
+function persistRecentStores(items = recentStores.value) {
+  const normalized = normalizeRecentStores(items)
+  recentStores.value = normalized
+  localStorage.setItem(recentStoreStorageKey.value, JSON.stringify(normalized))
+}
+
+function loadRecentStores() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(recentStoreStorageKey.value) || '[]')
+    persistRecentStores(parsed)
+  } catch (_err) {
+    recentStores.value = []
+  }
+}
+
+function rememberRecentStore(storeId) {
+  const normalizedId = String(storeId || '').trim()
+  if (!normalizedId) return
+
+  persistRecentStores([
+    { id: normalizedId, lastUsedAt: Date.now() },
+    ...recentStores.value.filter((item) => String(item.id) !== normalizedId),
+  ])
+}
+
+async function loadAdminStores() {
+  const firstPage = await listAdminStores({ page: 1, pageSize: 500, isActive: true })
+  const stores = Array.isArray(firstPage?.items) ? [...firstPage.items] : []
+  const pageCount = Number(firstPage?.pagination?.pageCount || 1)
+
+  if (pageCount <= 1) return stores
+
+  const remainingPages = Array.from({ length: pageCount - 1 }, (_, index) => index + 2)
+  const results = await Promise.all(
+    remainingPages.map((page) => listAdminStores({ page, pageSize: 500, isActive: true }))
+  )
+
+  results.forEach((result) => {
+    if (Array.isArray(result?.items)) stores.push(...result.items)
+  })
+
+  return stores
+}
 
 // Content inputs
 const inputTitle = ref('')
@@ -92,22 +218,30 @@ function handleDescriptionInput(event) {
 
 onMounted(async () => {
   resetState()
+  loadRecentStores()
   loadingDeps.value = true
+  loadingStores.value = isAdmin.value
   try {
-    const syncStoresTask = typeof syncUserStores === 'function'
-      ? syncUserStores().catch(err => console.warn('Failed to sync stores:', err))
-      : Promise.resolve()
+    const storesTask = isAdmin.value
+      ? loadAdminStores()
+      : (typeof syncUserStores === 'function'
+        ? syncUserStores().catch(err => console.warn('Failed to sync stores:', err))
+        : Promise.resolve())
 
-    const [result] = await Promise.all([
+    const [result, storesResult] = await Promise.all([
       getActiveDepartments(),
-      syncStoresTask
+      storesTask
     ])
     const records = result?.data?.departments || result?.data || []
     departments.value = Array.isArray(records) ? records : []
+    if (isAdmin.value) {
+      adminStores.value = Array.isArray(storesResult) ? storesResult : []
+    }
   } catch (error) {
-    console.error('Failed to load departments', error)
+    console.error('Failed to load ticket creation data', error)
   } finally {
     loadingDeps.value = false
+    loadingStores.value = false
   }
 })
 
@@ -132,6 +266,7 @@ function handleSelectTicketType(type) {
 
 function handleSelectStore(store) {
   if (currentStep.value !== CHAT_STEPS.SELECT_STORE) return
+  rememberRecentStore(store.value)
   selectStore(store.value, store.label)
 }
 
@@ -248,6 +383,7 @@ async function handleConfirm() {
     }
 
     const result = await createTicket(payload)
+    rememberRecentStore(payload.store_id)
     toast.success('Tạo yêu cầu thành công!')
     
     currentStep.value = CHAT_STEPS.DONE
@@ -343,10 +479,12 @@ function renderMessage(content) {
                 <!-- Search Input for Store -->
                 <div v-if="currentStep === CHAT_STEPS.SELECT_STORE" class="mb-3 relative">
                   <input
-                    v-model="searchStoreQuery"
+                    :value="searchStoreQuery"
                     type="text"
                     class="w-full rounded-xl app-input bg-[var(--app-bg)] py-2.5 pl-9 pr-3 text-sm transition-colors"
                     placeholder="Tìm cửa hàng..."
+                    autocomplete="off"
+                    @input="handleStoreSearchInput"
                   />
                   <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                     <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
@@ -359,12 +497,19 @@ function renderMessage(content) {
                   <button 
                     v-for="store in filteredStores" :key="store.value"
                     @click="handleSelectStore(store)"
-                    class="w-full shrink-0 rounded-xl border border-[var(--stroke)] bg-white p-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] focus:outline-hidden"
+                    class="flex w-full shrink-0 items-center justify-between gap-3 rounded-xl border border-[var(--stroke)] bg-white p-3 text-left text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] focus:outline-hidden"
                   >
-                    {{ store.label }}
+                    <span class="min-w-0 flex-1 truncate">{{ store.label }}</span>
+                    <span
+                      v-if="store.isRecent"
+                      class="shrink-0 rounded-full bg-[var(--primary-softer)] px-2 py-0.5 text-[11px] font-semibold text-[var(--primary-strong)]"
+                    >
+                      Gần đây
+                    </span>
                   </button>
-                  <p v-if="filteredStores.length === 0 && searchStoreQuery" class="text-sm text-[var(--text-secondary)] py-2 text-center">Không tìm thấy cửa hàng nào phù hợp.</p>
-                  <p v-if="availableStores.length === 0" class="text-sm text-[var(--danger-text)] py-2">Bạn không có quyền ở cửa hàng nào.</p>
+                  <p v-if="loadingStores" class="text-sm text-[var(--primary)] py-2 text-center">Đang tải cửa hàng...</p>
+                  <p v-else-if="filteredStores.length === 0 && searchStoreQuery" class="text-sm text-[var(--text-secondary)] py-2 text-center">Không tìm thấy cửa hàng nào phù hợp.</p>
+                  <p v-else-if="availableStores.length === 0" class="text-sm text-[var(--danger-text)] py-2">{{ isAdmin ? 'Không tải được danh sách cửa hàng.' : 'Bạn không có quyền ở cửa hàng nào.' }}</p>
                 </div>
               </div>
 

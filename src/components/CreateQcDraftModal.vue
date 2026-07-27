@@ -64,6 +64,12 @@ const canSubmit = computed(() => (
 
 const templateSelectId = 'qc-draft-template'
 
+function templateOptionLabel(template) {
+  const name = String(template?.name || '').trim()
+  const version = String(template?.version || template?.versionNo || template?.activeVersionNo || '').trim()
+  return [name || 'Biểu mẫu QC', version].filter(Boolean).join(' • ')
+}
+
 function resolveInitialTemplateId() {
   return String(props.initialTemplateId || normalizedTemplates.value[0]?.id || '')
 }
@@ -149,7 +155,7 @@ watch(
   >
     <div class="space-y-4">
       <div class="rounded-2xl border border-[var(--stroke)] bg-[var(--surface-muted)] px-4 py-3">
-        <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Cửa hàng đang thao tác</p>
+        <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Cửa hàng</p>
         <p class="mt-1 text-sm font-semibold text-[var(--text-primary)]">{{ storeName || '--' }}</p>
       </div>
 
@@ -176,12 +182,9 @@ watch(
               :key="template.id"
               :value="template.id"
             >
-              {{ template.name }}{{ template.code ? ` • ${template.code}` : '' }}
+              {{ templateOptionLabel(template) }}
             </option>
           </select>
-          <p class="mt-1.5 text-xs leading-5 text-[var(--text-secondary)]">
-            Biểu mẫu được lấy trực tiếp từ danh sách form QC hiện hành.
-          </p>
         </label>
       </section>
 
@@ -202,7 +205,7 @@ watch(
           v-model="form.note"
           rows="3"
           class="w-full rounded-2xl border border-[var(--stroke)] bg-white px-3 py-2.5 text-sm text-[var(--text-secondary)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
-          placeholder="Ví dụ: kiểm tra định kỳ đầu ca, cần tập trung khu vực quầy và checklist vệ sinh."
+          placeholder="Nhập ghi chú"
         ></textarea>
       </label>
 
@@ -222,10 +225,10 @@ watch(
     </div>
 
     <template #footer>
-      <div class="flex flex-col-reverse gap-2 tablet:flex-row tablet:items-center tablet:justify-end">
+      <div class="grid grid-cols-2 gap-2 tablet:flex tablet:items-center tablet:justify-end">
         <button
           type="button"
-          class="app-button-secondary inline-flex h-10 w-full items-center justify-center rounded-xl px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
+          class="inline-flex h-10 w-full items-center justify-center rounded-xl bg-slate-100 px-4 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto"
           :disabled="loading"
           @click="closeModal"
         >
@@ -237,7 +240,7 @@ watch(
           :disabled="!canSubmit"
           @click="submitModal"
         >
-          {{ loading ? 'Đang tạo...' : 'Tạo nháp và mở phiếu' }}
+          {{ loading ? 'Đang tạo...' : 'Tạo phiếu' }}
         </button>
       </div>
     </template>

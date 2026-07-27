@@ -531,6 +531,8 @@ const normalizeDraftCriteriaStates = (value = {}) => {
 const normalizeDraft = (draft = {}) => {
   const storeId = toNumber(draft?.storeId || draft?.store_id)
   const auditedAtRaw = draft?.auditedAt || draft?.audited_at
+  const createdAtRaw = draft?.createdAt || draft?.created_at
+  const updatedAtRaw = draft?.updatedAt || draft?.updated_at
 
   return {
     id: String(draft?.id || ''),
@@ -543,8 +545,8 @@ const normalizeDraft = (draft = {}) => {
     auditedAt: auditedAtRaw ? parseDate(auditedAtRaw).toISOString() : null,
     note: String(draft?.note || ''),
     criteriaStates: normalizeDraftCriteriaStates(draft?.criteriaStates || draft?.criteria_states),
-    createdAt: draft?.createdAt ? parseDate(draft.createdAt).toISOString() : null,
-    updatedAt: draft?.updatedAt ? parseDate(draft.updatedAt).toISOString() : null,
+    createdAt: createdAtRaw ? parseDate(createdAtRaw).toISOString() : null,
+    updatedAt: updatedAtRaw ? parseDate(updatedAtRaw).toISOString() : null,
   }
 }
 
@@ -819,6 +821,7 @@ export const listQcTemplates = async () => {
     name: String(form.name || ''),
     description: String(form.description || ''),
     activeVersionId: form.activeVersionId || null,
+    version: String(form.version || form.versionNo || form.activeVersionNo || ''),
   }))
 }
 
@@ -942,8 +945,8 @@ const normalizeDraftFromApi = (draft = {}) => normalizeDraft({
   auditedAt: draft?.auditedAt || draft?.audited_at,
   note: draft?.note,
   criteriaStates: draft?.criteriaStates || draft?.criteria_states,
-  createdAt: draft?.createdAt,
-  updatedAt: draft?.updatedAt,
+  createdAt: draft?.createdAt || draft?.created_at,
+  updatedAt: draft?.updatedAt || draft?.updated_at,
 })
 
 export const listQcDraftSessions = async ({ storeId, page = 1, pageSize = 100, withPagination = false, fetchAll = false } = {}) => {

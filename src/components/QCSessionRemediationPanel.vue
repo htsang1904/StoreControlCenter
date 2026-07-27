@@ -43,6 +43,18 @@ const canReview = computed(() => ['admin', 'qc'].includes(userRole.value))
 const actionableFindings = computed(() => (
   findings.value.filter((finding) => ['open', 'in_progress', 'rejected'].includes(finding.status))
 ))
+const isFindingRemediationReady = (finding) => {
+  const form = ensureForm(finding)
+  return Boolean(
+    ['open', 'in_progress', 'rejected'].includes(finding?.status)
+    && String(form?.correctiveNote || '').trim()
+    && Array.isArray(form?.evidence)
+    && form.evidence.length > 0
+  )
+}
+const remediationReady = computed(() => (
+  actionableFindings.value.length > 0 && actionableFindings.value.every((finding) => isFindingRemediationReady(finding))
+))
 const resolvedFindings = computed(() => findings.value.filter((finding) => finding.status === 'resolved'))
 const reviewReady = computed(() => (
   canReview.value &&
@@ -73,12 +85,14 @@ const statusLabel = (status) => statusMeta[status]?.label || status || '--'
 const statusClass = (status) => statusMeta[status]?.class || 'app-badge--neutral'
 const reviewStatusLabel = (finding) => {
   const form = ensureForm(finding)
+  if (isFindingRemediationReady(finding)) return 'Đã khắc phục'
   if (finding?.status === 'resolved' && form?.reviewDecision === 'verified') return 'Đạt'
   if (finding?.status === 'resolved' && form?.reviewDecision === 'rejected') return 'Chưa đạt'
   return statusLabel(finding?.status)
 }
 const reviewStatusClass = (finding) => {
   const form = ensureForm(finding)
+  if (isFindingRemediationReady(finding)) return 'app-badge--success'
   if (finding?.status === 'resolved' && form?.reviewDecision === 'verified') return 'app-badge--success'
   if (finding?.status === 'resolved' && form?.reviewDecision === 'rejected') return 'app-badge--danger'
   return statusClass(finding?.status)
@@ -301,6 +315,7 @@ watch(
     actionableFindings.value.length,
     resolvedFindings.value.length,
     reviewReady.value,
+    remediationReady.value,
     actionLoading.value,
     uploadTargetId.value,
   ],
@@ -308,7 +323,7 @@ watch(
     const reviewMode = canReview.value && resolvedFindings.value.length > 0
     emit('action-state', {
       canSubmit: reviewMode ? true : canStoreSubmit.value && actionableFindings.value.length > 0,
-      disabled: reviewMode ? actionLoading.value || !reviewReady.value : actionLoading.value || Boolean(uploadTargetId.value),
+      disabled: reviewMode ? actionLoading.value || !reviewReady.value : actionLoading.value || Boolean(uploadTargetId.value) || !remediationReady.value,
       loading: actionLoading.value,
       count: reviewMode ? resolvedFindings.value.length : actionableFindings.value.length,
     })
@@ -352,25 +367,24 @@ onMounted(loadFindings)
 
     <div
       v-else
-      class="grid min-h-0 flex-1 gap-4 overflow-hidden"
-      :class="detailPanelOpen && selectedFinding ? 'pc:grid-cols-[minmax(360px,1fr)_420px]' : 'grid-cols-1'"
+      class="min-h-0 flex-1 overflow-hidden"
     >
       <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--stroke)] bg-white">
-        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--stroke)] px-4 py-3">
-          <div>
-            <h2 class="text-sm font-bold text-[var(--text-primary)]">Khắc phục lỗi theo phiếu</h2>
-            <p class="mt-1 text-xs font-medium text-[var(--text-secondary)]">Hoàn tất {{ completionLabel }} tiêu chí</p>
+        <div class="flex items-center justify-between gap-3 border-b border-[var(--stroke)] px-4 py-3">
+          <div class="min-w-0 flex-1">
+            <h2 class="truncate text-sm font-bold text-[var(--text-primary)]">Danh sách lỗi</h2>
+            <p class="mt-0.5 truncate text-xs font-medium text-[var(--text-secondary)]">Đã xác nhận {{ completionLabel }} lỗi</p>
           </div>
-          <div class="flex flex-wrap items-center justify-end gap-2">
+          <div class="flex shrink-0 items-center justify-end gap-2">
             <span
-              class="app-badge inline-flex rounded-lg px-2 py-1 text-xs font-bold"
+              class="app-badge inline-flex h-8 items-center rounded-lg px-2 text-xs font-bold"
               :class="allFindingsVerified ? 'app-badge--success' : resolvedFindings.length > 0 ? 'app-badge--warning' : 'app-badge--neutral'"
             >
-              {{ allFindingsVerified ? 'Đã hoàn tất' : `${resolvedFindings.length} chờ duyệt` }}
+              {{ allFindingsVerified ? 'Hoàn tất' : `${resolvedFindings.length} chờ duyệt` }}
             </span>
-            <button type="button" class="app-button-secondary inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-bold" :disabled="loading || actionLoading" @click="loadFindings">
+            <button type="button" class="app-button-secondary inline-flex size-8 items-center justify-center rounded-lg p-0 tablet:h-8 tablet:w-auto tablet:gap-1.5 tablet:px-2.5 tablet:text-xs tablet:font-bold" title="Tải lại" aria-label="Tải lại" :disabled="loading || actionLoading" @click="loadFindings">
               <span class="material-symbols-outlined text-[16px]">refresh</span>
-              Tải lại
+              <span class="hidden tablet:inline">Tải lại</span>
             </button>
           </div>
         </div>
@@ -380,7 +394,7 @@ onMounted(loadFindings)
             v-for="finding in findings"
             :key="finding.id"
             class="grid cursor-pointer grid-cols-[34px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border bg-white px-4 py-3 transition-all hover:border-[var(--primary)] hover:shadow-sm"
-            :class="detailPanelOpen && String(selectedFindingId) === String(finding.id) ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20' : 'border-[var(--stroke)]'"
+            :class="String(selectedFindingId) === String(finding.id) ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/20' : 'border-[var(--stroke)]'"
             role="button"
             tabindex="0"
             @click="selectFinding(finding)"
@@ -401,11 +415,16 @@ onMounted(loadFindings)
         </div>
       </section>
 
-      <aside
-        v-if="detailPanelOpen && selectedFinding"
-        class="min-h-0 overflow-hidden rounded-lg border border-[var(--stroke)] bg-white"
-        aria-label="Chi tiết lỗi"
-      >
+      <Teleport to="body">
+        <div
+          v-if="detailPanelOpen && selectedFinding"
+          class="fixed inset-0 z-[90] flex items-end justify-center bg-slate-900/35 p-0 tablet:items-center tablet:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chi tiết lỗi"
+          @click.self="closeDetailPanel"
+        >
+          <aside class="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-[var(--stroke)] bg-white shadow-2xl tablet:rounded-2xl">
       <div class="flex h-14 shrink-0 items-center justify-between border-b border-[var(--stroke)] bg-white px-4">
         <h3 class="text-base font-bold text-[var(--text-primary)]">Chi tiết lỗi</h3>
         <div class="flex items-center gap-2">
@@ -416,7 +435,7 @@ onMounted(loadFindings)
         </div>
       </div>
 
-      <div class="min-h-0 h-[calc(100%-3.5rem)] space-y-4 overflow-y-auto p-4">
+      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           <section class="space-y-2 border-b border-[var(--stroke)] pb-4">
             <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">{{ selectedFinding.findingCode || `FD-${selectedFinding.id}` }}</p>
             <h3 class="text-base font-bold text-[var(--text-primary)]">{{ selectedFinding.metaInfo?.criterion_code || '--' }}</h3>
@@ -542,7 +561,9 @@ onMounted(loadFindings)
             </label>
           </section>
       </div>
-      </aside>
+          </aside>
+        </div>
+      </Teleport>
     </div>
   </div>
 </template>

@@ -633,22 +633,22 @@ onBeforeUnmount(() => {
         <div class="shrink-0 border-b border-[var(--stroke)] p-3 tablet:p-4">
 
           <div class="flex flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
-            <div class="flex min-w-0 flex-1 flex-col gap-2 tablet:flex-row tablet:flex-wrap tablet:items-center">
-              <div class="relative w-full min-w-0 flex-1 tablet:min-w-[220px] pc:w-[320px] pc:flex-none">
-                <input
-                  v-model="searchInput"
-                  type="text"
-                  class="h-9 w-full rounded-lg border border-[var(--stroke)] bg-white pl-9 pr-3 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
-                  placeholder="Tìm kiếm ..."
-                />
-                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
-                  </svg>
-                </div>
+            <div class="relative w-full min-w-0 tablet:min-w-[220px] tablet:flex-1 pc:w-[320px] pc:flex-none">
+              <input
+                v-model="searchInput"
+                type="text"
+                class="h-9 w-full rounded-lg border border-[var(--stroke)] bg-white pl-9 pr-3 text-sm text-[var(--text-secondary)] placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-hidden focus:ring-0"
+                placeholder="Tìm kiếm ..."
+              />
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <svg class="size-4 text-[var(--text-muted)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/>
+                </svg>
               </div>
+            </div>
 
-              <div class="relative w-full tablet:w-56" @click.stop>
+            <div class="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 tablet:flex tablet:w-auto tablet:flex-wrap tablet:items-center">
+              <div class="relative min-w-0 tablet:w-56" @click.stop>
                 <button
                   type="button"
                   class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] focus:border-[var(--primary)] focus:outline-hidden"
@@ -686,25 +686,30 @@ onBeforeUnmount(() => {
 
               <button
                 type="button"
-                class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:w-auto"
+                class="inline-flex h-9 w-10 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] pc:w-auto pc:gap-1.5 pc:px-3 pc:text-sm pc:font-medium"
+                title="Tải lại"
+                aria-label="Tải lại"
                 @click="handleRefresh"
               >
-                Tải lại
+                <span class="material-symbols-outlined text-[18px]">refresh</span>
+                <span class="hidden pc:inline">Tải lại</span>
+              </button>
+
+              <button
+                type="button"
+                class="inline-flex h-9 w-10 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:ml-auto pc:w-auto pc:gap-1.5 pc:px-3 pc:text-sm pc:font-medium"
+                title="Xuất báo cáo"
+                aria-label="Xuất báo cáo"
+                @click="exportReport"
+              >
+                <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 3v12" />
+                  <path d="m7 10 5 5 5-5" />
+                  <path d="M5 21h14" />
+                </svg>
+                <span class="hidden pc:inline">Xuất báo cáo</span>
               </button>
             </div>
-
-            <button
-              type="button"
-              class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:ml-auto tablet:w-auto"
-              @click="exportReport"
-            >
-              <svg class="size-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 3v12" />
-                <path d="m7 10 5 5 5-5" />
-                <path d="M5 21h14" />
-              </svg>
-              Xuất báo cáo
-            </button>
           </div>
         </div>
 
@@ -779,41 +784,35 @@ onBeforeUnmount(() => {
             </table>
           </div>
 
-          <div class="space-y-3 p-3 pc:hidden">
+          <div class="space-y-2 p-2.5 pc:hidden">
             <div
               v-for="store in pagedStores"
               :key="store.id"
-              class="cursor-pointer rounded-xl border border-[var(--stroke)] bg-white p-3.5 shadow-sm transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)]"
+              class="cursor-pointer rounded-lg border border-[var(--stroke)] bg-white p-3 shadow-sm transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)]"
               @click="openStoreDetail(store.id)"
             >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold text-[var(--text-primary)]">{{ store.name }}</p>
-                  <p class="text-xs text-[var(--text-secondary)]">{{ store.storeSubtitle }}</p>
-                </div>
-                <span class="inline-flex h-11 min-w-14 shrink-0 items-center justify-center rounded-full px-3 text-xs font-bold" :class="store.scoreBadgeClass">
-                  {{ store.scoreDisplay }}
-                </span>
+              <div class="min-w-0">
+                <p class="truncate text-sm font-semibold leading-5 text-[var(--text-primary)]">{{ store.name }}</p>
+                <p class="mt-0.5 truncate text-xs leading-4 text-[var(--text-secondary)]">{{ store.storeSubtitle }}</p>
               </div>
 
-              <div class="mt-3 grid grid-cols-3 gap-2 text-sm">
-                <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] px-3 py-2">
-                  <p class="text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">Tổng phiên</p>
-                  <p class="mt-1 font-semibold text-[var(--text-primary)]">{{ store.totalSessionsLabel }} phiên</p>
+              <div class="mt-2 grid grid-cols-4 gap-1.5 text-xs">
+                <div class="rounded-md bg-[var(--surface-muted)] px-2 py-1.5">
+                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Tổng</p>
+                  <p class="mt-0.5 font-bold text-[var(--text-primary)]">{{ store.totalSessionsLabel }}</p>
                 </div>
-                <div class="rounded-lg border border-[var(--success-border)] bg-[var(--success-bg)] px-3 py-2">
-                  <p class="text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">Phiên đạt</p>
-                  <p class="mt-1 font-semibold text-[var(--success-text)]">{{ store.passedLabel }} phiên</p>
+                <div class="rounded-md bg-[var(--success-bg)] px-2 py-1.5">
+                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Đạt</p>
+                  <p class="mt-0.5 font-bold text-[var(--success-text)]">{{ store.passedLabel }}</p>
                 </div>
-                <div class="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2">
-                  <p class="text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">Phiên lỗi</p>
-                  <p class="mt-1 font-semibold text-[var(--danger-text)]">{{ store.failedLabel }} phiên</p>
+                <div class="rounded-md bg-[var(--danger-bg)] px-2 py-1.5">
+                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Lỗi</p>
+                  <p class="mt-0.5 font-bold text-[var(--danger-text)]">{{ store.failedLabel }}</p>
                 </div>
-              </div>
-
-              <div class="mt-3 rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] px-3 py-2 text-sm">
-                <p class="text-[11px] uppercase tracking-wide text-[var(--text-secondary)]">Điểm TB</p>
-                <p class="mt-1 font-semibold text-[var(--text-primary)]">{{ store.scoreDisplay }}</p>
+                <div class="rounded-md bg-[var(--primary-softer)] px-2 py-1.5">
+                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Điểm</p>
+                  <p class="mt-0.5 font-bold text-[var(--text-primary)]">{{ store.scoreDisplay }}</p>
+                </div>
               </div>
             </div>
 

@@ -87,7 +87,7 @@ function resolveHeaderContext(currentRoute) {
   }
 
   if (path.startsWith('/QC/store/') && path.includes('/session/')) {
-    return { tab: '', title: 'Xem phiên QC', display: 'breadcrumb' }
+    return { tab: '', title: 'Chi tiết QC', display: 'breadcrumb' }
   }
 
   if (path.startsWith('/QC/findings')) {
@@ -266,7 +266,7 @@ watch(
     class="stitch-shell z-40 border-b border-[var(--stroke)] bg-white"
   >
     <div class="px-3 py-3.5 tablet:px-5 tablet:py-4 pc:px-8">
-      <div :class="isQcSessionView ? 'grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3' : showHeaderDateFilter ? 'flex items-center justify-between gap-3 tablet:gap-4' : 'flex items-center justify-between gap-3'">
+      <div :class="isQcSessionView ? 'flex items-center justify-between gap-3 pc:grid pc:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]' : showHeaderDateFilter ? 'flex items-center justify-between gap-3 tablet:gap-4' : 'flex items-center justify-between gap-3'">
         <div class="flex min-w-0 flex-1 items-center gap-3">
           <button
             v-if="props.drawerMode"
@@ -309,7 +309,7 @@ watch(
           </div>
         </div>
 
-        <div v-if="isQcSessionView" class="hidden justify-self-center tablet:block">
+        <div v-if="isQcSessionView" class="hidden justify-self-center pc:block">
           <div class="inline-flex rounded-lg border border-[var(--stroke)] bg-white p-1 shadow-sm" role="tablist" aria-label="Nội dung phiên QC">
             <button
               type="button"
@@ -345,7 +345,7 @@ watch(
           <HeaderNotifications />
         </div>
       </div>
-      <div v-if="isQcSessionView" class="mt-3 tablet:hidden">
+      <div v-if="isQcSessionView" class="mt-3 pc:hidden">
         <div class="inline-flex w-full rounded-lg border border-[var(--stroke)] bg-white p-1 shadow-sm" role="tablist" aria-label="Nội dung phiên QC">
           <button type="button" class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md px-3 text-sm font-bold transition-colors" :class="qcSessionViewTab === 'qc' ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]'" @click="setQcSessionViewTab('qc')">
             <span class="material-symbols-outlined text-[18px]">assignment</span>
