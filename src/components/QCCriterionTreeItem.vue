@@ -81,7 +81,7 @@ const evidenceImages = computed(() => (
 const resolveCriterionStatus = (criterion, criterionState = {}) => {
   const rawStatus = String(criterionState?.status || 'pending')
   const mode = normalizeLocalCriterionMode(criterion?.mode || criterion?.scoreType)
-  if (rawStatus === 'na' && mode !== 'point') return 'na'
+  if (rawStatus === 'na') return 'na'
 
   if (mode === 'point') {
     const rawScore = criterionState?.score
@@ -252,7 +252,32 @@ const updateState = (updates) => {
 const handlePassFail = (status) => {
   if (props.readonly) return
   statusMenuOpen.value = false
-  updateState({ status })
+  updateState(status === 'na'
+    ? { status: 'na', score: null, note: '', attachments: [] }
+    : { status }
+  )
+}
+
+const toggleNotApplicable = () => {
+  if (props.readonly) return
+  statusMenuOpen.value = false
+  attachmentMenuOpen.value = false
+
+  if (currentStatus.value === 'na') {
+    const maxScore = Math.max(toNumber(props.criterion.maxScore), 0)
+    updateState({
+      status: 'pass',
+      score: criterionMode.value === 'point' ? maxScore : null,
+    })
+    return
+  }
+
+  updateState({
+    status: 'na',
+    score: null,
+    note: '',
+    attachments: [],
+  })
 }
 
 const handleScoreChange = (event) => {
@@ -473,8 +498,8 @@ const toggleDetails = () => {
                 :min="0"
                 :max="criterion.maxScore"
                 step="0.5"
-                placeholder="Nhập điểm"
-                :disabled="readonly"
+                :placeholder="currentStatus === 'na' ? 'N/A' : 'Nhập điểm'"
+                :disabled="readonly || currentStatus === 'na'"
                 class="score-input h-7 min-w-0 flex-1 appearance-none border-0 bg-transparent px-0 text-center text-xs font-semibold text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 disabled:cursor-default"
                 @input="handleScoreChange"
               />
@@ -490,7 +515,7 @@ const toggleDetails = () => {
                 :disabled="readonly"
                 @click="toggleStatusMenu"
               >
-                <span>{{ currentStatus === 'fail' ? 'Không đạt' : currentStatus === 'pass' ? 'Đạt' : '-' }}</span>
+                <span>{{ currentStatus === 'na' ? 'N/A' : currentStatus === 'fail' ? 'Không đạt' : currentStatus === 'pass' ? 'Đạt' : '-' }}</span>
                 <span class="material-symbols-outlined text-[16px] text-[var(--text-secondary)]">{{ statusMenuOpen ? 'expand_less' : 'expand_more' }}</span>
               </button>
 
@@ -515,9 +540,29 @@ const toggleDetails = () => {
                   <span>Không đạt</span>
                   <span v-if="currentStatus === 'fail'" class="material-symbols-outlined text-[15px]">check</span>
                 </button>
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-[var(--text-secondary)] transition hover:bg-[var(--surface-muted)]"
+                  @click="handlePassFail('na')"
+                >
+                  <span>N/A</span>
+                  <span v-if="currentStatus === 'na'" class="material-symbols-outlined text-[15px]">check</span>
+                </button>
               </div>
             </div>
           </div>
+
+          <button
+            v-if="criterionMode === 'point'"
+            type="button"
+            class="inline-flex h-7 shrink-0 cursor-pointer items-center justify-center rounded-md border px-2 text-[10px] font-bold transition disabled:cursor-default"
+            :class="currentStatus === 'na' ? 'border-[var(--stroke-strong)] bg-[var(--surface-muted)] text-[var(--text-primary)]' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]'"
+            :disabled="readonly"
+            title="Không áp dụng tiêu chí này"
+            @click="toggleNotApplicable"
+          >
+            N/A
+          </button>
 
           <span v-if="currentStatus !== 'pending'" class="inline-flex min-w-[76px] shrink-0 justify-center rounded-md border px-2 py-1 text-xs font-semibold" :class="statusBadgeClass">
             {{ statusLabel }}

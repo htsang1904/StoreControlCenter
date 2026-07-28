@@ -166,7 +166,7 @@ const summaryCards = computed(() => [
   },
   {
     key: 'avgScoreRate',
-    label: 'Điểm TB',
+    label: 'Điểm QC TB',
     value: `${filteredSummary.value.avgScoreRate}%`,
     meta: `${filteredSummary.value.avgScore}/${filteredSummary.value.avgMaxScore} điểm`,
     hint: 'Điểm QC trung bình quy đổi theo phần trăm trên các phiên đang hiển thị.',

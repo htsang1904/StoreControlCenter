@@ -105,24 +105,28 @@ def _build_session_items_from_version(
         incoming = incoming_by_id[criterion.id]
         mode = criterion.default_mode or "point"
         status = _normalize_qc_item_status(incoming.get("status"))
+        incoming_applicable = incoming.get("applicable")
+        is_non_scored = status in {"na", "skipped_weekly"} or incoming_applicable is False
         max_score = float(criterion.default_max_score or 0)
         deduction_percent = float(criterion.default_deduction_percent or 0)
         severity = criterion.default_severity or "normal"
 
         raw_score = incoming.get("score")
         score = None
-        if raw_score is not None and str(raw_score) != "":
+        if not is_non_scored and raw_score is not None and str(raw_score) != "":
             try:
                 score = max(min(float(raw_score), max_score), 0)
             except (TypeError, ValueError):
                 score = None
 
         min_pass_score = float(criterion.default_min_pass_score or 0)
-        if mode == "point" and score is not None:
+        if is_non_scored:
+            status = "skipped_weekly" if status == "skipped_weekly" else "na"
+        elif mode == "point" and score is not None:
             effective_min_pass_score = min_pass_score if min_pass_score > 0 else (max_score / 2)
             status = "pass" if score >= effective_min_pass_score else "fail"
 
-        requires_fix = status == "fail"
+        requires_fix = status == "fail" and not is_non_scored
 
         session_items.append(
             {
@@ -135,7 +139,7 @@ def _build_session_items_from_version(
                 "severity_snapshot": severity,
                 "result": status,
                 "score": score if mode == "point" else None,
-                "applicable": incoming.get("applicable", status not in {"na", "skipped_weekly"}),
+                "applicable": not is_non_scored,
                 "requires_fix": requires_fix,
                 "note": incoming.get("note"),
                 "attachments": incoming.get("attachments"),
@@ -961,7 +965,7 @@ async def submit_qc_session(
     total_deduction = 0
 
     for item in items:
-        if item.result == "na" or item.result == "skipped_weekly":
+        if item.applicable is False or item.result == "na" or item.result == "skipped_weekly":
             continue
 
         if item.mode_snapshot == "deduction":
@@ -987,11 +991,13 @@ async def submit_qc_session(
     final_total_score = (max_score * score_rate / 100) if max_score > 0 else 0
     critical_failed_items = [
         item for item in items
-        if item.result == "fail" and (item.severity_snapshot or "normal") in {"critical", "heavy"}
+        if item.applicable is not False
+        and item.result == "fail"
+        and (item.severity_snapshot or "normal") in {"critical", "heavy"}
     ]
     is_pass = max_score > 0 and score_rate >= pass_threshold and not critical_failed_items
 
-    failed_items = [item for item in items if item.result == "fail"]
+    failed_items = [item for item in items if item.applicable is not False and item.result == "fail"]
     failed_item_ids = [item.id for item in failed_items if item.id is not None]
     existing_finding_item_ids: set[int] = set()
     if failed_item_ids:

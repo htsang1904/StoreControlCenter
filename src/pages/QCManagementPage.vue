@@ -300,7 +300,7 @@ const normalizedStores = computed(() => {
       healthLabel: health.label,
       healthBadgeClass: health.badgeClass,
       scoreBadgeClass: health.scoreClass,
-      scoreDisplay: !merged.lastAuditAt ? '--' : Number(merged.avgScore || 0).toFixed(1),
+      scoreDisplay: !merged.lastAuditAt ? '--' : `${Number(merged.avgScoreRate || 0).toFixed(1)}%`,
       totalSessionsLabel: numberFormatter.format(totalSessions),
       passedLabel: numberFormatter.format(passed),
       failedLabel: numberFormatter.format(failed),
@@ -371,7 +371,7 @@ const avgQcScore = computed(() => {
   const audited = normalizedStores.value.filter((store) => store.scoreDisplay !== '--')
   if (audited.length <= 0) return 0
   const total = audited.reduce((sum, store) => sum + Number(store.avgScoreRate || 0), 0)
-  return (total / audited.length) / 10
+  return total / audited.length
 })
 
 const needReviewCount = computed(() => (
@@ -389,10 +389,10 @@ const summaryCards = computed(() => [
   },
   {
     key: 'avg_score',
-    label: 'QC Score TB',
-    value: avgQcScore.value.toFixed(2),
-    meta: `Toàn kỳ ${Number(summary.value.avgScore || 0).toFixed(1)}`,
-    hint: 'Điểm QC trung bình của các cửa hàng đang hiển thị.',
+    label: 'Điểm QC TB',
+    value: `${avgQcScore.value.toFixed(1)}%`,
+    meta: `Toàn kỳ ${Number(summary.value.avgScoreRate || 0).toFixed(1)}%`,
+    hint: 'Điểm QC trung bình quy đổi theo phần trăm của các cửa hàng đang hiển thị.',
     tone: 'teal',
   },
   {
@@ -439,7 +439,7 @@ async function handleRefresh() {
 }
 
 function exportReport() {
-  const headers = ['Ma cua hang', 'Ten cua hang', 'Khu vuc', 'QC score', 'Phien nhap', 'Phien loi mo', 'Trang thai', 'Cap nhat cuoi']
+  const headers = ['Ma cua hang', 'Ten cua hang', 'Khu vuc', 'Diem QC %', 'Phien nhap', 'Phien loi mo', 'Trang thai', 'Cap nhat cuoi']
   const rows = filteredStores.value.map((store) => [
     store.code || store.storeId || '',
     store.name || '',
@@ -694,7 +694,7 @@ onBeforeUnmount(() => {
                   </th>
                   <th class="w-[104px] px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
                     <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('avgScoreRate')">
-                      <span>Điểm TB</span>
+                      <span>Điểm QC</span>
                       <span :class="sortIndicatorClass('avgScoreRate')">{{ sortIndicator('avgScoreRate') }}</span>
                     </button>
                   </th>
@@ -805,7 +805,7 @@ onBeforeUnmount(() => {
                   <p class="mt-0.5 font-bold text-[var(--warning-text)]">{{ store.activeFindingSessionsLabel }}</p>
                 </div>
                 <div class="rounded-md bg-[var(--primary-softer)] px-2 py-1.5">
-                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Điểm</p>
+                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Điểm %</p>
                   <p class="mt-0.5 font-bold text-[var(--text-primary)]">{{ store.scoreDisplay }}</p>
                 </div>
               </div>

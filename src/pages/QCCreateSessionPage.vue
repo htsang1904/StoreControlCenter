@@ -31,6 +31,7 @@ const CRITERION_FILTERS = [
   { id: 'all', label: 'Tất cả' },
   { id: 'pending', label: 'Chưa chấm' },
   { id: 'fail', label: 'Không đạt' },
+  { id: 'na', label: 'N/A' },
 ]
 let autosaveTimer = null
 let qcElapsedTimer = null
@@ -166,6 +167,11 @@ const onCriterionUpdate = (id, updates) => {
   if (isReadonlySession.value) return
   const state = ensureCriterionState(id)
   Object.assign(state, updates)
+  if (updates?.status === 'na') {
+    state.score = null
+    state.note = ''
+    state.attachments = []
+  }
 }
 
 const onAttachmentUpload = async (id, event) => {
@@ -706,6 +712,10 @@ const pendingCriteria = computed(() => (
 ))
 
 const failedCriteriaCount = computed(() => failedCriteria.value.length)
+const excludedCriteria = computed(() => (
+  criterionSnapshots.value.filter((criterion) => criterion.status === 'na')
+))
+const excludedCriteriaCount = computed(() => excludedCriteria.value.length)
 
 const activeReadonlyTab = computed(() => (String(route.query.view || 'qc') === 'findings' ? 'findings' : 'qc'))
 
@@ -1256,12 +1266,17 @@ onBeforeUnmount(() => {
                 <p class="text-lg font-bold text-[var(--danger-text)]">{{ failedCriteriaCount }}</p>
                 <p class="mt-0.5 text-[11px] font-medium text-[var(--danger-text)]">Khắc phục</p>
               </div>
+              <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] px-2 py-2">
+                <p class="text-lg font-bold text-[var(--text-primary)]">{{ excludedCriteriaCount }}</p>
+                <p class="mt-0.5 text-[11px] font-medium text-[var(--text-secondary)]">N/A</p>
+              </div>
             </section>
 
             <section class="space-y-2 border-y border-[var(--stroke)] py-3 text-xs text-[var(--text-secondary)]">
               <div class="flex items-center justify-between gap-3"><span>Giờ tạo</span><strong class="text-right text-[var(--text-primary)]">{{ draftCreatedTimeLabel }}</strong></div>
               <div class="flex items-center justify-between gap-3"><span>Thời gian QC</span><strong class="text-[var(--text-primary)]">{{ qcElapsedLabel }}</strong></div>
               <div class="flex items-center justify-between gap-3"><span>Điểm</span><strong class="text-[var(--text-primary)]">{{ sessionEvaluation.totalScore }} / {{ sessionEvaluation.maxScore }}</strong></div>
+              <div class="flex items-center justify-between gap-3"><span>Không áp dụng</span><strong class="text-[var(--text-primary)]">{{ sessionEvaluation.excludedCount }}</strong></div>
               <div class="flex items-center justify-between gap-3"><span>Khấu trừ</span><strong class="text-[var(--danger-text)]">{{ sessionEvaluation.totalDeduction.toFixed(0) }}%</strong></div>
               <div class="flex items-center justify-between gap-3"><span>Tỷ lệ cuối</span><strong class="text-[var(--text-primary)]">{{ sessionEvaluation.finalScoreRate.toFixed(1) }}%</strong></div>
               <div class="flex items-center justify-between gap-3"><span>Ngưỡng đạt</span><strong class="text-[var(--text-primary)]">{{ selectedTemplate.passThreshold }}%</strong></div>
