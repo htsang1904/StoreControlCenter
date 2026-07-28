@@ -16,6 +16,16 @@ const pageSize = ref(20)
 const pageSizeOptions = [20, 50, 100]
 const totalForms = ref(0)
 const pageCount = ref(1)
+const sortDirections = ref({
+  code: null,
+  name: null,
+  version: null,
+  status: null,
+  createdAt: null,
+  updatedAt: null,
+})
+const sortableFields = ['code', 'name', 'version', 'status', 'createdAt', 'updatedAt']
+const sortCycle = [null, 'desc', 'asc']
 
 const statusFilterSelectConfig = JSON.stringify({
   placeholder: 'Tất cả trạng thái',
@@ -30,8 +40,45 @@ const statusFilterSelectConfig = JSON.stringify({
 const normalizedSearch = computed(() => String(searchInput.value || '').trim().toLowerCase())
 const hasLocalFilters = computed(() => Boolean(normalizedSearch.value || statusFilter.value))
 
+const toggleSort = (field) => {
+  if (!sortableFields.includes(field)) return
+  const currentDirection = sortDirections.value[field] ?? null
+  const currentIndex = sortCycle.indexOf(currentDirection)
+  const nextIndex = (currentIndex + 1) % sortCycle.length
+  sortDirections.value = {
+    code: null,
+    name: null,
+    version: null,
+    status: null,
+    createdAt: null,
+    updatedAt: null,
+  }
+  sortDirections.value[field] = sortCycle[nextIndex]
+}
+
+const sortIndicator = (field) => {
+  if (sortDirections.value[field] === 'desc') return '↓'
+  if (sortDirections.value[field] === 'asc') return '↑'
+  return '↕'
+}
+
+const sortIndicatorClass = (field) => (sortDirections.value[field] ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]')
+
+const formStatusValue = (form) => (
+  form.hasLatestVersion
+    ? String(form.displayVersionStatus || form.latestVersionStatus || 'draft').toLowerCase()
+    : 'no_version'
+)
+
+const formSortValue = (form, field) => {
+  if (field === 'version') return String(form?.displayVersionNo || form?.latestVersionNo || '').toLowerCase()
+  if (field === 'status') return formStatusValue(form)
+  if (field === 'createdAt' || field === 'updatedAt') return new Date(form?.[field] || 0).getTime() || 0
+  return String(form?.[field] || '').toLowerCase()
+}
+
 const displayForms = computed(() => {
-  return qcForms.value.filter((form) => {
+  const filteredForms = qcForms.value.filter((form) => {
     const status = form.hasLatestVersion
       ? String(form.displayVersionStatus || form.latestVersionStatus || 'draft').toLowerCase()
       : 'no_version'
@@ -48,6 +95,20 @@ const displayForms = computed(() => {
       || String(form.displayVersionNo || '').toLowerCase().includes(keyword)
       || String(form.latestVersionNo || '').toLowerCase().includes(keyword)
     )
+  })
+
+  const activeField = sortableFields.find((field) => sortDirections.value[field])
+  if (!activeField) return filteredForms
+  const direction = sortDirections.value[activeField]
+  return [...filteredForms].sort((left, right) => {
+    const leftValue = formSortValue(left, activeField)
+    const rightValue = formSortValue(right, activeField)
+    if (typeof leftValue === 'number' || typeof rightValue === 'number') {
+      return direction === 'asc' ? Number(leftValue) - Number(rightValue) : Number(rightValue) - Number(leftValue)
+    }
+    return direction === 'asc'
+      ? String(leftValue).localeCompare(String(rightValue), 'vi')
+      : String(rightValue).localeCompare(String(leftValue), 'vi')
   })
 })
 
@@ -251,12 +312,42 @@ onMounted(async () => {
         <table class="min-w-[1040px] w-full border-collapse text-left">
           <thead>
             <tr class="bg-[var(--surface-muted)]">
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Mã biểu mẫu</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Tên biểu mẫu</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Version đang dùng</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Trạng thái</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Ngày tạo</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Ngày cập nhật</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('code')">
+                  <span>Mã biểu mẫu</span>
+                  <span :class="sortIndicatorClass('code')">{{ sortIndicator('code') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('name')">
+                  <span>Tên biểu mẫu</span>
+                  <span :class="sortIndicatorClass('name')">{{ sortIndicator('name') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('version')">
+                  <span>Version đang dùng</span>
+                  <span :class="sortIndicatorClass('version')">{{ sortIndicator('version') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('status')">
+                  <span>Trạng thái</span>
+                  <span :class="sortIndicatorClass('status')">{{ sortIndicator('status') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('createdAt')">
+                  <span>Ngày tạo</span>
+                  <span :class="sortIndicatorClass('createdAt')">{{ sortIndicator('createdAt') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('updatedAt')">
+                  <span>Ngày cập nhật</span>
+                  <span :class="sortIndicatorClass('updatedAt')">{{ sortIndicator('updatedAt') }}</span>
+                </button>
+              </th>
             </tr>
           </thead>
 

@@ -54,8 +54,6 @@ const isFindingRemediationReady = (finding) => {
   return Boolean(
     ['open', 'in_progress', 'rejected'].includes(finding?.status)
     && String(form?.correctiveNote || '').trim()
-    && Array.isArray(form?.evidence)
-    && form.evidence.length > 0
   )
 }
 const remediationReady = computed(() => (
@@ -79,26 +77,40 @@ const selectedFinding = computed(() => (
   findings.value.find((finding) => String(finding.id) === String(selectedFindingId.value)) || null
 ))
 
-const statusMeta = {
+const storeStatusMeta = {
   open: { label: 'Chờ khắc phục', class: 'app-badge--warning' },
   in_progress: { label: 'Đang khắc phục', class: 'app-badge--info' },
-  resolved: { label: 'Chờ admin duyệt', class: 'app-badge--warning' },
+  resolved: { label: 'Chờ duyệt', class: 'app-badge--warning' },
   verified: { label: 'Đã đạt', class: 'app-badge--success' },
   rejected: { label: 'Chưa đạt', class: 'app-badge--danger' },
 }
 
-const statusLabel = (status) => statusMeta[status]?.label || status || '--'
-const statusClass = (status) => statusMeta[status]?.class || 'app-badge--neutral'
+const reviewStatusMeta = {
+  open: { label: 'Chờ cửa hàng', class: 'app-badge--warning' },
+  in_progress: { label: 'Chờ cửa hàng', class: 'app-badge--info' },
+  resolved: { label: 'Chờ duyệt', class: 'app-badge--warning' },
+  verified: { label: 'Đã duyệt', class: 'app-badge--success' },
+  rejected: { label: 'Đã trả lại', class: 'app-badge--danger' },
+}
+
+const statusLabel = (status) => {
+  const source = canReview.value ? reviewStatusMeta : storeStatusMeta
+  return source[status]?.label || status || '--'
+}
+const statusClass = (status) => {
+  const source = canReview.value ? reviewStatusMeta : storeStatusMeta
+  return source[status]?.class || 'app-badge--neutral'
+}
 const reviewStatusLabel = (finding) => {
   const form = ensureForm(finding)
-  if (isFindingRemediationReady(finding)) return 'Đã khắc phục'
+  if (!canReview.value && isFindingRemediationReady(finding)) return 'Đã khắc phục'
   if (finding?.status === 'resolved' && form?.reviewDecision === 'verified') return 'Đạt'
   if (finding?.status === 'resolved' && form?.reviewDecision === 'rejected') return 'Chưa đạt'
   return statusLabel(finding?.status)
 }
 const reviewStatusClass = (finding) => {
   const form = ensureForm(finding)
-  if (isFindingRemediationReady(finding)) return 'app-badge--success'
+  if (!canReview.value && isFindingRemediationReady(finding)) return 'app-badge--success'
   if (finding?.status === 'resolved' && form?.reviewDecision === 'verified') return 'app-badge--success'
   if (finding?.status === 'resolved' && form?.reviewDecision === 'rejected') return 'app-badge--danger'
   return statusClass(finding?.status)
@@ -423,7 +435,7 @@ onMounted(loadFindings)
 
     <div
       v-else
-      class="min-h-0 flex-1 overflow-hidden"
+      :class="['qc-remediation-layout', detailPanelOpen && selectedFinding ? 'qc-remediation-layout--detail-open' : '']"
     >
       <section class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--stroke)] bg-white">
         <div class="flex items-center justify-between gap-3 border-b border-[var(--stroke)] px-4 py-3">
@@ -471,16 +483,8 @@ onMounted(loadFindings)
         </div>
       </section>
 
-      <Teleport to="body">
-        <div
-          v-if="detailPanelOpen && selectedFinding"
-          class="fixed inset-0 z-[90] flex items-end justify-center bg-slate-900/35 p-0 tablet:items-center tablet:p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Chi tiết lỗi"
-          @click.self="closeDetailPanel"
-        >
-          <aside class="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-[var(--stroke)] bg-white shadow-2xl tablet:rounded-2xl">
+      <aside class="qc-remediation-detail-panel hidden min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--stroke)] bg-white pc:flex" :aria-hidden="String(!detailPanelOpen || !selectedFinding)">
+      <template v-if="selectedFinding">
       <div class="flex h-14 shrink-0 items-center justify-between border-b border-[var(--stroke)] bg-white px-4">
         <h3 class="text-base font-bold text-[var(--text-primary)]">Chi tiết lỗi</h3>
         <div class="flex items-center gap-2">
@@ -492,12 +496,6 @@ onMounted(loadFindings)
       </div>
 
       <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-          <section class="space-y-2 border-b border-[var(--stroke)] pb-4">
-            <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">{{ selectedFinding.findingCode || `FD-${selectedFinding.id}` }}</p>
-            <h3 class="text-base font-bold text-[var(--text-primary)]">{{ selectedFinding.metaInfo?.criterion_code || '--' }}</h3>
-            <p class="text-sm font-semibold text-[var(--text-primary)]">{{ selectedFinding.criterionName || selectedFinding.metaInfo?.criterion_name || 'Tiêu chí QC không đạt' }}</p>
-          </section>
-
           <section class="rounded-lg border border-[var(--stroke)] bg-white p-4">
             <div class="flex items-center justify-between gap-3">
               <h4 class="text-sm font-bold text-[var(--text-primary)]">QC ghi nhận</h4>
@@ -506,7 +504,7 @@ onMounted(loadFindings)
             <dl class="mt-3 space-y-3 text-sm">
               <div>
                 <dt class="text-xs font-semibold text-[var(--text-secondary)]">Nội dung ghi nhận</dt>
-                <dd class="mt-1 whitespace-pre-wrap text-[var(--text-primary)]">{{ selectedFinding.metaInfo?.qc_note || '--' }}</dd>
+                <dd class="mt-1 whitespace-pre-wrap text-[var(--text-primary)]">{{ selectedFinding.metaInfo?.qc_note || 'Không' }}</dd>
               </div>
             </dl>
             <div class="mt-3">
@@ -541,7 +539,7 @@ onMounted(loadFindings)
               </label>
               <div class="rounded-lg border border-dashed border-[var(--stroke)] p-3">
                 <div class="flex items-center justify-between gap-2">
-                  <span class="text-xs font-semibold text-[var(--text-secondary)]">Ảnh sau khi khắc phục</span>
+                  <p class="text-xs font-semibold text-[var(--text-secondary)]">Ảnh minh chứng</p>
                   <label
                     v-if="canStoreSubmit && ['open', 'in_progress', 'rejected'].includes(selectedFinding.status) && ensureForm(selectedFinding).evidence.length < MAX_EVIDENCE_IMAGES"
                     class="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-[var(--stroke)] bg-white px-2 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
@@ -573,7 +571,144 @@ onMounted(loadFindings)
                     </button>
                   </div>
                 </div>
-                <p v-else class="mt-2 text-xs text-[var(--text-secondary)]">Cửa hàng chưa gửi minh chứng khắc phục.</p>
+              </div>
+            </div>
+          </section>
+
+          <section v-if="canReview && selectedFinding.status === 'resolved'" class="rounded-lg border border-[var(--stroke)] bg-white p-4">
+            <h4 class="text-sm font-bold text-[var(--text-primary)]">QC xác nhận</h4>
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                class="rounded-lg border px-3 py-2 text-sm font-bold transition-colors"
+                :class="ensureForm(selectedFinding).reviewDecision === 'rejected' ? 'border-[var(--danger-border)] bg-[var(--danger-bg)] text-[var(--danger-text)]' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]'"
+                :disabled="actionLoading"
+                @click="markReviewDecision(selectedFinding, 'rejected')"
+              >
+                Chưa đạt
+              </button>
+              <button
+                type="button"
+                class="rounded-lg border px-3 py-2 text-sm font-bold transition-colors"
+                :class="ensureForm(selectedFinding).reviewDecision === 'verified' ? 'border-[var(--success-border)] bg-[var(--success-bg)] text-[var(--success-text)]' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]'"
+                :disabled="actionLoading"
+                @click="markReviewDecision(selectedFinding, 'verified')"
+              >
+                Đạt
+              </button>
+            </div>
+            <label v-if="ensureForm(selectedFinding).reviewDecision === 'rejected'" class="mt-3 block">
+              <span class="text-xs font-semibold text-[var(--danger-text)]">Lý do chưa đạt *</span>
+              <textarea
+                v-model="ensureForm(selectedFinding).rejectReason"
+                rows="3"
+                class="mt-1 w-full rounded-lg border border-[var(--stroke)] px-3 py-2 text-sm focus:border-[var(--primary)] focus:outline-none"
+                :class="!String(ensureForm(selectedFinding).rejectReason || '').trim() ? 'border-[var(--danger-border)]' : ''"
+                placeholder="Nhập lý do để cửa hàng khắc phục lại..."
+              ></textarea>
+            </label>
+          </section>
+      </div>
+                </template>
+          </aside>
+
+
+      <Teleport to="body">
+        <div
+          v-if="detailPanelOpen && selectedFinding"
+          class="fixed inset-0 z-[90] flex items-end justify-center bg-slate-900/35 p-0 tablet:items-center tablet:p-4 pc:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chi tiết lỗi"
+          @click.self="closeDetailPanel"
+        >
+          <aside class="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-[var(--stroke)] bg-white shadow-2xl tablet:rounded-2xl">
+      <div class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-[var(--stroke)] bg-white px-4">
+        <h3 class="min-w-0 flex-1 truncate text-base font-bold text-[var(--text-primary)]" :title="selectedFinding.criterionName || selectedFinding.metaInfo?.criterion_name || 'Chi tiết lỗi'">{{ selectedFinding.criterionName || selectedFinding.metaInfo?.criterion_name || 'Chi tiết lỗi' }}</h3>
+        <div class="flex items-center gap-2">
+          <span class="app-badge inline-flex rounded-full px-2.5 py-1 text-xs font-bold" :class="reviewStatusClass(selectedFinding)">{{ reviewStatusLabel(selectedFinding) }}</span>
+          <button type="button" class="inline-flex size-9 items-center justify-center rounded-lg text-[var(--text-primary)] hover:bg-[var(--surface-muted)]" aria-label="Đóng chi tiết" @click="closeDetailPanel">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+          <section class="rounded-lg border border-[var(--stroke)] bg-white p-4">
+            <div class="flex items-center justify-between gap-3">
+              <h4 class="text-sm font-bold text-[var(--text-primary)]">QC ghi nhận</h4>
+              <span class="text-xs font-semibold text-[var(--text-secondary)]">{{ findingDetectedLabel(selectedFinding) }}</span>
+            </div>
+            <dl class="mt-3 space-y-3 text-sm">
+              <div>
+                <dt class="text-xs font-semibold text-[var(--text-secondary)]">Nội dung ghi nhận</dt>
+                <dd class="mt-1 whitespace-pre-wrap text-[var(--text-primary)]">{{ selectedFinding.metaInfo?.qc_note || 'Không' }}</dd>
+              </div>
+            </dl>
+            <div class="mt-3">
+              <EvidenceGallery
+                :images="buildQcEvidenceImages(selectedFinding)"
+                source="qc"
+                title="Ảnh QC ghi nhận"
+                empty-text="Chưa có ảnh minh chứng từ QC."
+                :max-preview="5"
+                @open="({ index }) => openEvidenceViewer(selectedFinding, 'qc', index)"
+              />
+            </div>
+          </section>
+
+          <section v-if="selectedFinding.status === 'rejected' && latestRejectionReason(selectedFinding)" class="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] p-4">
+            <h4 class="text-sm font-bold text-[var(--danger-text)]">Lý do chưa đạt</h4>
+            <p class="mt-2 whitespace-pre-wrap text-sm font-medium text-[var(--danger-text)]">{{ latestRejectionReason(selectedFinding) }}</p>
+          </section>
+
+          <section class="rounded-lg border border-[var(--stroke)] bg-white p-4">
+            <h4 class="text-sm font-bold text-[var(--text-primary)]">Cửa hàng khắc phục</h4>
+            <div class="mt-3 space-y-3">
+              <label class="block">
+                <span class="text-xs font-semibold text-[var(--text-secondary)]">Nội dung khắc phục *</span>
+                <textarea
+                  v-model="ensureForm(selectedFinding).correctiveNote"
+                  rows="4"
+                  class="mt-1 w-full rounded-lg border border-[var(--stroke)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--primary)] focus:outline-none"
+                  :readonly="!canStoreSubmit || !['open', 'in_progress', 'rejected'].includes(selectedFinding.status)"
+                  placeholder="Nhập nội dung cửa hàng đã khắc phục..."
+                ></textarea>
+              </label>
+              <div class="rounded-lg border border-dashed border-[var(--stroke)] p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs font-semibold text-[var(--text-secondary)]">Ảnh minh chứng</p>
+                  <label
+                    v-if="canStoreSubmit && ['open', 'in_progress', 'rejected'].includes(selectedFinding.status) && ensureForm(selectedFinding).evidence.length < MAX_EVIDENCE_IMAGES"
+                    class="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-[var(--stroke)] bg-white px-2 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+                  >
+                    <span class="material-symbols-outlined text-[15px]">add</span>
+                    {{ uploadTargetId === String(selectedFinding.id) ? 'Đang tải...' : 'Thêm ảnh' }}
+                    <input type="file" accept="image/*" multiple class="hidden" :disabled="Boolean(uploadTargetId)" @change="handleEvidenceUpload(selectedFinding, $event)" />
+                  </label>
+                </div>
+                <div v-if="ensureForm(selectedFinding).evidence.length" class="mt-2">
+                  <EvidenceGallery
+                    :images="buildRemediationEvidenceImages(selectedFinding)"
+                    source="remediation"
+                    title="Minh chứng sau khắc phục"
+                    empty-text="Cửa hàng chưa gửi minh chứng khắc phục."
+                    :max-preview="5"
+                    @open="({ index }) => openEvidenceViewer(selectedFinding, 'remediation', index)"
+                  />
+                  <div v-if="canStoreSubmit && ['open', 'in_progress', 'rejected'].includes(selectedFinding.status)" class="mt-2 flex flex-wrap gap-2">
+                    <button
+                      v-for="(image, index) in ensureForm(selectedFinding).evidence"
+                      :key="image.id || `${image.name}-${index}`"
+                      type="button"
+                      class="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--stroke)] bg-white px-2 text-[11px] font-bold text-[var(--danger-text)] hover:bg-[var(--danger-bg)]"
+                      @click.stop="removeEvidence(selectedFinding, index)"
+                    >
+                      <span class="material-symbols-outlined text-[13px]">close</span>
+                      Xóa ảnh {{ index + 1 }}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -628,3 +763,52 @@ onMounted(loadFindings)
     />
   </div>
 </template>
+
+<style scoped>
+.qc-remediation-layout {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 0%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+}
+
+.qc-remediation-detail-panel {
+  pointer-events: none;
+}
+
+@media (min-width: 64rem) {
+  .qc-remediation-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+    gap: 0;
+    transition: grid-template-columns 0.24s ease, gap 0.24s ease;
+  }
+
+  .qc-remediation-layout--detail-open {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+    gap: 0.75rem;
+  }
+
+  .qc-remediation-detail-panel {
+    min-width: 0;
+    opacity: 0;
+    transform: translateX(18px) scaleX(0.98);
+    transform-origin: right center;
+    transition: opacity 0.18s ease, transform 0.24s ease;
+  }
+
+  .qc-remediation-layout--detail-open .qc-remediation-detail-panel {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateX(0) scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qc-remediation-layout,
+  .qc-remediation-detail-panel {
+    transition: none;
+  }
+}
+</style>

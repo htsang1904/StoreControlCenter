@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AdminQcBuilderTreeNode from '@/components/AdminQcBuilderTreeNode.vue'
 import AdminQcOutlineNode from '@/components/AdminQcOutlineNode.vue'
@@ -78,6 +78,7 @@ const createCriterionNode = (overrides = {}) => {
     maxScore: overrides.maxScore ?? 10,
     minPassScore: overrides.minPassScore ?? overrides.min_pass_score ?? ((overrides.maxScore ?? 10) / 2),
     deductionPercent: overrides.deductionPercent ?? overrides.deduction_percent ?? (overrides.mode === 'deduction' ? overrides.maxScore : undefined) ?? 5,
+    severity: overrides.severity || overrides.defaultSeverity || overrides.default_severity || 'normal',
     children: [],
   }
 }
@@ -200,10 +201,41 @@ const selectedBuilderNodeId = ref('')
 const outlineQuery = ref('')
 const outlineCollapsed = ref(false)
 const mobileBuilderPanel = ref('tree')
+const detailDropdownOpen = ref('')
+const detailDropdownDirection = ref('down')
 const selectedBuilderLocation = computed(() => (
   selectedBuilderNodeId.value ? findNodeLocation(qcForm.criteriaTree, selectedBuilderNodeId.value) : null
 ))
 const selectedBuilderNode = computed(() => selectedBuilderLocation.value?.node || null)
+
+const toggleDetailDropdown = (name, event) => {
+  if (detailDropdownOpen.value === name) {
+    detailDropdownOpen.value = ''
+    return
+  }
+
+  const rect = event?.currentTarget?.getBoundingClientRect?.()
+  const spaceBelow = rect ? window.innerHeight - rect.bottom : 0
+  const spaceAbove = rect ? rect.top : 0
+  detailDropdownDirection.value = spaceBelow < 180 && spaceAbove > spaceBelow ? 'up' : 'down'
+  detailDropdownOpen.value = name
+}
+
+const selectBuilderMode = (value) => {
+  if (!selectedBuilderNode.value) return
+  selectedBuilderNode.value.mode = value
+  detailDropdownOpen.value = ''
+}
+
+const selectBuilderSeverity = (value) => {
+  if (!selectedBuilderNode.value) return
+  selectedBuilderNode.value.severity = value
+  detailDropdownOpen.value = ''
+}
+
+watch(selectedBuilderNodeId, () => {
+  detailDropdownOpen.value = ''
+})
 const selectBuilderNode = (nodeId) => {
   selectedBuilderNodeId.value = nodeId
   mobileBuilderPanel.value = 'detail'
@@ -382,6 +414,7 @@ const serializeCriteriaTree = (nodes = []) => (
       name: String(node.name || '').trim(),
       description: String(node.description || '').trim(),
       mode: String(node.mode || 'point'),
+      severity: String(node.severity || 'normal'),
       ...(node.mode === 'deduction'
         ? { deductionPercent: Number(node.deductionPercent || 0) }
         : {
@@ -1025,10 +1058,61 @@ onMounted(async () => {
                   <section v-if="selectedBuilderNode.nodeType === 'criterion'" class="mt-5 border-t border-[var(--stroke)] pt-4">
                     <p class="mb-3 text-xs font-semibold text-[var(--text-primary)]">Cấu hình chấm điểm</p>
                     <div class="space-y-3">
-                      <label class="block space-y-1.5">
+                      <div class="block space-y-1.5">
                         <span class="text-xs font-medium text-[var(--text-secondary)]">Kiểu chấm <span class="text-red-500">*</span></span>
-                        <select v-model="selectedBuilderNode.mode" :class="customInputClass"><option value="point">Chấm điểm</option><option value="pass_fail">Đạt / Không đạt</option><option value="deduction">Khấu trừ</option></select>
-                      </label>
+                        <div class="relative">
+                          <button type="button" class="app-input flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold" aria-haspopup="menu" :aria-expanded="String(detailDropdownOpen === 'mode')" @click="toggleDetailDropdown('mode', $event)">
+                            <span class="truncate">{{ ({ point: 'Chấm điểm', pass_fail: 'Đạt / Không đạt', deduction: 'Khấu trừ' })[selectedBuilderNode.mode] || 'Chấm điểm' }}</span>
+                            <span class="material-symbols-outlined text-[18px] text-[var(--text-secondary)]">expand_more</span>
+                          </button>
+                          <div v-if="detailDropdownOpen === 'mode'" class="app-menu-panel absolute left-0 z-50 w-full min-w-44 p-1 shadow-lg" :class="detailDropdownDirection === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'" role="menu">
+                            <button
+                              v-for="modeOption in [
+                                { value: 'point', label: 'Chấm điểm' },
+                                { value: 'pass_fail', label: 'Đạt / Không đạt' },
+                                { value: 'deduction', label: 'Khấu trừ' },
+                              ]"
+                              :key="modeOption.value"
+                              type="button"
+                              class="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors hover:bg-[var(--surface-muted)]"
+                              :class="selectedBuilderNode.mode === modeOption.value ? 'text-[var(--primary-strong)]' : 'text-[var(--text-secondary)]'"
+                              role="menuitemradio"
+                              :aria-checked="String(selectedBuilderNode.mode === modeOption.value)"
+                              @click="selectBuilderMode(modeOption.value)"
+                            >
+                              <span>{{ modeOption.label }}</span>
+                              <span v-if="selectedBuilderNode.mode === modeOption.value" class="material-symbols-outlined text-[16px]">check</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="block space-y-1.5">
+                        <span class="text-xs font-medium text-[var(--text-secondary)]">Mức độ</span>
+                        <div class="relative">
+                          <button type="button" class="app-input flex min-h-10 w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold" aria-haspopup="menu" :aria-expanded="String(detailDropdownOpen === 'severity')" @click="toggleDetailDropdown('severity', $event)">
+                            <span class="truncate">{{ selectedBuilderNode.severity === 'critical' ? 'Nặng' : 'Nhẹ' }}</span>
+                            <span class="material-symbols-outlined text-[18px] text-[var(--text-secondary)]">expand_more</span>
+                          </button>
+                          <div v-if="detailDropdownOpen === 'severity'" class="app-menu-panel absolute left-0 z-50 w-full min-w-44 p-1 shadow-lg" :class="detailDropdownDirection === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'" role="menu">
+                            <button
+                              v-for="severityOption in [
+                                { value: 'normal', label: 'Nhẹ' },
+                                { value: 'critical', label: 'Nặng' },
+                              ]"
+                              :key="severityOption.value"
+                              type="button"
+                              class="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors hover:bg-[var(--surface-muted)]"
+                              :class="selectedBuilderNode.severity === severityOption.value ? 'text-[var(--primary-strong)]' : 'text-[var(--text-secondary)]'"
+                              role="menuitemradio"
+                              :aria-checked="String(selectedBuilderNode.severity === severityOption.value)"
+                              @click="selectBuilderSeverity(severityOption.value)"
+                            >
+                              <span>{{ severityOption.label }}</span>
+                              <span v-if="selectedBuilderNode.severity === severityOption.value" class="material-symbols-outlined text-[16px]">check</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                       <label v-if="selectedBuilderNode.mode !== 'deduction'" class="block space-y-1.5">
                         <span class="text-xs font-medium text-[var(--text-secondary)]">{{ selectedBuilderNode.mode === 'pass_fail' ? 'Trọng số' : 'Điểm tối đa' }} <span class="text-red-500">*</span></span>
                         <input v-model.number="selectedBuilderNode.maxScore" type="number" min="1" :class="[customInputClass, 'no-spin']" />

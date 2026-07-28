@@ -25,6 +25,15 @@ const pageCount = ref(1)
 const searchInput = ref('')
 const roleFilter = ref('')
 const statusFilter = ref('')
+const sortDirections = ref({
+  user: null,
+  role: null,
+  department: null,
+  stores: null,
+  isActive: null,
+})
+const sortableFields = ['user', 'role', 'department', 'stores', 'isActive']
+const sortCycle = [null, 'desc', 'asc']
 
 const departmentOptions = ref([])
 const storeOptions = ref([])
@@ -104,6 +113,54 @@ const rangeStart = computed(() => {
 const rangeEnd = computed(() => {
   if (!users.value.length) return 0
   return rangeStart.value + users.value.length - 1
+})
+
+const toggleSort = (field) => {
+  if (!sortableFields.includes(field)) return
+  const currentDirection = sortDirections.value[field] ?? null
+  const currentIndex = sortCycle.indexOf(currentDirection)
+  const nextIndex = (currentIndex + 1) % sortCycle.length
+  sortDirections.value = {
+    user: null,
+    role: null,
+    department: null,
+    stores: null,
+    isActive: null,
+  }
+  sortDirections.value[field] = sortCycle[nextIndex]
+}
+
+const sortIndicator = (field) => {
+  if (sortDirections.value[field] === 'desc') return '↓'
+  if (sortDirections.value[field] === 'asc') return '↑'
+  return '↕'
+}
+
+const sortIndicatorClass = (field) => (sortDirections.value[field] ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]')
+
+const userSortValue = (user, field) => {
+  if (field === 'user') return String(user?.name || user?.email || '').toLowerCase()
+  if (field === 'role') return roleLabel(user?.role).toLowerCase()
+  if (field === 'department') return String(user?.department?.name || '').toLowerCase()
+  if (field === 'stores') return Array.isArray(user?.stores) ? user.stores.length : 0
+  if (field === 'isActive') return user?.isActive ? 1 : 0
+  return ''
+}
+
+const sortedUsers = computed(() => {
+  const activeField = sortableFields.find((field) => sortDirections.value[field])
+  if (!activeField) return users.value
+  const direction = sortDirections.value[activeField]
+  return [...users.value].sort((left, right) => {
+    const leftValue = userSortValue(left, activeField)
+    const rightValue = userSortValue(right, activeField)
+    if (typeof leftValue === 'number' || typeof rightValue === 'number') {
+      return direction === 'asc' ? Number(leftValue) - Number(rightValue) : Number(rightValue) - Number(leftValue)
+    }
+    return direction === 'asc'
+      ? String(leftValue).localeCompare(String(rightValue), 'vi')
+      : String(rightValue).localeCompare(String(leftValue), 'vi')
+  })
 })
 
 const roleLabel = (role) => {
@@ -322,17 +379,42 @@ onMounted(async () => {
         <table class="min-w-[960px] w-full border-collapse text-left">
           <thead>
             <tr class="bg-[var(--surface-muted)]">
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Nhân viên</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Role</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Bộ phận</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Cửa hàng</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Trạng thái</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('user')">
+                  <span>Nhân viên</span>
+                  <span :class="sortIndicatorClass('user')">{{ sortIndicator('user') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('role')">
+                  <span>Role</span>
+                  <span :class="sortIndicatorClass('role')">{{ sortIndicator('role') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('department')">
+                  <span>Bộ phận</span>
+                  <span :class="sortIndicatorClass('department')">{{ sortIndicator('department') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('stores')">
+                  <span>Cửa hàng</span>
+                  <span :class="sortIndicatorClass('stores')">{{ sortIndicator('stores') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('isActive')">
+                  <span>Trạng thái</span>
+                  <span :class="sortIndicatorClass('isActive')">{{ sortIndicator('isActive') }}</span>
+                </button>
+              </th>
             </tr>
           </thead>
 
           <tbody v-if="users.length" class="divide-y divide-slate-100">
             <tr
-              v-for="user in users"
+              v-for="user in sortedUsers"
               :key="user.id"
               class="cursor-pointer transition-colors hover:bg-[var(--surface-muted)]"
               @click="openEditModal(user)"

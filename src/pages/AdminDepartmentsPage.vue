@@ -18,6 +18,13 @@ const deletingId = ref(null)
 const searchInput = ref('')
 const statusFilter = ref('')
 const statusFilterOpen = ref(false)
+const sortDirections = ref({
+  name: null,
+  code: null,
+  isActive: null,
+})
+const sortableFields = ['name', 'code', 'isActive']
+const sortCycle = [null, 'desc', 'asc']
 const currentPage = ref(1)
 const pageSize = ref(20)
 const pageSizeOptions = [20, 50, 100]
@@ -37,6 +44,48 @@ const statusFilterOptions = [
 const modalTitle = computed(() => (modalMode.value === 'edit' ? 'Cập nhật bộ phận' : 'Tạo bộ phận mới'))
 const activeActionDepartment = computed(() => departments.value.find((department) => department.id === openActionMenuId.value) || null)
 const statusFilterLabel = computed(() => statusFilterOptions.find((option) => option.value === statusFilter.value)?.label || 'Tất cả trạng thái')
+
+const toggleSort = (field) => {
+  if (!sortableFields.includes(field)) return
+  const currentDirection = sortDirections.value[field] ?? null
+  const currentIndex = sortCycle.indexOf(currentDirection)
+  const nextIndex = (currentIndex + 1) % sortCycle.length
+  sortDirections.value = {
+    name: null,
+    code: null,
+    isActive: null,
+  }
+  sortDirections.value[field] = sortCycle[nextIndex]
+}
+
+const sortIndicator = (field) => {
+  if (sortDirections.value[field] === 'desc') return '↓'
+  if (sortDirections.value[field] === 'asc') return '↑'
+  return '↕'
+}
+
+const sortIndicatorClass = (field) => (sortDirections.value[field] ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]')
+
+const departmentSortValue = (department, field) => {
+  if (field === 'isActive') return department?.isActive ? 1 : 0
+  return String(department?.[field] || '').toLowerCase()
+}
+
+const sortedDepartments = computed(() => {
+  const activeField = sortableFields.find((field) => sortDirections.value[field])
+  if (!activeField) return departments.value
+  const direction = sortDirections.value[activeField]
+  return [...departments.value].sort((left, right) => {
+    const leftValue = departmentSortValue(left, activeField)
+    const rightValue = departmentSortValue(right, activeField)
+    if (typeof leftValue === 'number' || typeof rightValue === 'number') {
+      return direction === 'asc' ? Number(leftValue) - Number(rightValue) : Number(rightValue) - Number(leftValue)
+    }
+    return direction === 'asc'
+      ? String(leftValue).localeCompare(String(rightValue), 'vi')
+      : String(rightValue).localeCompare(String(leftValue), 'vi')
+  })
+})
 
 const statusLabel = (isActive) => (isActive ? 'Đang hoạt động' : 'Tạm khóa')
 const statusClass = (isActive) => (
@@ -309,14 +358,29 @@ onBeforeUnmount(() => {
           <table class="min-w-full divide-y divide-[var(--stroke)] text-sm">
             <thead class="bg-[var(--surface-muted)] text-left text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
               <tr>
-                <th class="px-4 py-3">Bộ phận</th>
-                <th class="px-4 py-3">Mã</th>
-                <th class="px-4 py-3">Trạng thái</th>
+                <th class="px-4 py-3">
+                  <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('name')">
+                    <span>Bộ phận</span>
+                    <span :class="sortIndicatorClass('name')">{{ sortIndicator('name') }}</span>
+                  </button>
+                </th>
+                <th class="px-4 py-3">
+                  <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('code')">
+                    <span>Mã</span>
+                    <span :class="sortIndicatorClass('code')">{{ sortIndicator('code') }}</span>
+                  </button>
+                </th>
+                <th class="px-4 py-3">
+                  <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('isActive')">
+                    <span>Trạng thái</span>
+                    <span :class="sortIndicatorClass('isActive')">{{ sortIndicator('isActive') }}</span>
+                  </button>
+                </th>
                 <th class="px-4 py-3 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[var(--stroke)] bg-white">
-              <tr v-for="department in departments" :key="department.id" class="hover:bg-[var(--surface-muted)]/60">
+              <tr v-for="department in sortedDepartments" :key="department.id" class="hover:bg-[var(--surface-muted)]/60">
                 <td class="px-4 py-3 font-semibold text-[var(--text-primary)]">{{ department.name }}</td>
                 <td class="px-4 py-3 text-[var(--text-secondary)]">{{ department.code }}</td>
                 <td class="px-4 py-3">

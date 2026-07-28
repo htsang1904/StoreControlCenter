@@ -16,6 +16,7 @@ const emit = defineEmits(['select'])
 
 const rootRef = ref(null)
 const open = ref(false)
+const dropdownDirection = ref('down')
 
 const options = [
   { key: 'today', label: 'Hôm nay' },
@@ -29,8 +30,14 @@ const activeLabel = computed(() => {
   return found ? found.label : 'Tùy chọn'
 })
 
-function toggleDropdown() {
+function toggleDropdown(event) {
   if (props.disabled) return
+  if (!open.value) {
+    const rect = event?.currentTarget?.getBoundingClientRect?.()
+    const spaceBelow = rect ? window.innerHeight - rect.bottom : 0
+    const spaceAbove = rect ? rect.top : 0
+    dropdownDirection.value = spaceBelow < 190 && spaceAbove > spaceBelow ? 'up' : 'down'
+  }
   open.value = !open.value
 }
 
@@ -79,7 +86,8 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open"
-      class="app-menu-panel absolute right-0 z-30 mt-2 w-40 p-1.5"
+      class="app-menu-panel absolute right-0 z-30 w-40 p-1.5"
+      :class="dropdownDirection === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'"
     >
       <button
         v-for="option in options"

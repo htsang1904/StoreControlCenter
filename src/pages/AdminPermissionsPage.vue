@@ -33,6 +33,14 @@ const createPermissionSearch = ref('')
 const createSelectedGroup = ref('')
 const editingPermissionId = ref(null)
 const permissionForm = ref({ code: '', name: '', group: '', description: '', isActive: true, permissions: [] })
+const sortDirections = ref({
+  role: null,
+  description: null,
+  permissionCount: null,
+  groupCount: null,
+})
+const sortableFields = ['role', 'description', 'permissionCount', 'groupCount']
+const sortCycle = [null, 'desc', 'asc']
 
 const roleOptions = computed(() => {
   if (!roles.value.length) return defaultRoleOptions
@@ -48,7 +56,36 @@ const modalOpen = computed(() => Boolean(activeRole.value))
 const activePermissionSet = computed(() => new Set(rolePermissions.value[activeRole.value] || []))
 const permissionGroups = computed(() => [...new Set(permissions.value.map((permission) => permission.group || 'Khác'))])
 
-const roleRows = computed(() => roleOptions.value.map((role) => {
+const toggleSort = (field) => {
+  if (!sortableFields.includes(field)) return
+  const currentDirection = sortDirections.value[field] ?? null
+  const currentIndex = sortCycle.indexOf(currentDirection)
+  const nextIndex = (currentIndex + 1) % sortCycle.length
+  sortDirections.value = {
+    role: null,
+    description: null,
+    permissionCount: null,
+    groupCount: null,
+  }
+  sortDirections.value[field] = sortCycle[nextIndex]
+}
+
+const sortIndicator = (field) => {
+  if (sortDirections.value[field] === 'desc') return '↓'
+  if (sortDirections.value[field] === 'asc') return '↑'
+  return '↕'
+}
+
+const sortIndicatorClass = (field) => (sortDirections.value[field] ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]')
+
+const roleSortValue = (role, field) => {
+  if (field === 'role') return String(role?.label || role?.value || '').toLowerCase()
+  if (field === 'permissionCount' || field === 'groupCount') return Number(role?.[field] || 0)
+  return String(role?.[field] || '').toLowerCase()
+}
+
+const roleRows = computed(() => {
+  const rows = roleOptions.value.map((role) => {
   const permissionCodes = rolePermissions.value[role.value] || []
   const groups = new Set(
     permissions.value
@@ -61,7 +98,22 @@ const roleRows = computed(() => roleOptions.value.map((role) => {
     groupCount: groups.size,
     permissions: permissionCodes,
   }
-}))
+  })
+
+  const activeField = sortableFields.find((field) => sortDirections.value[field])
+  if (!activeField) return rows
+  const direction = sortDirections.value[activeField]
+  return [...rows].sort((left, right) => {
+    const leftValue = roleSortValue(left, activeField)
+    const rightValue = roleSortValue(right, activeField)
+    if (typeof leftValue === 'number' || typeof rightValue === 'number') {
+      return direction === 'asc' ? Number(leftValue) - Number(rightValue) : Number(rightValue) - Number(leftValue)
+    }
+    return direction === 'asc'
+      ? String(leftValue).localeCompare(String(rightValue), 'vi')
+      : String(rightValue).localeCompare(String(leftValue), 'vi')
+  })
+})
 
 const filteredPermissions = computed(() => {
   const keyword = permissionSearch.value.trim().toLowerCase()
@@ -293,10 +345,30 @@ onMounted(() => {
         <table class="min-w-[820px] w-full border-collapse text-left">
           <thead>
             <tr class="bg-[var(--surface-muted)]">
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Nhóm quyền</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Mô tả</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Số quyền</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Module</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('role')">
+                  <span>Nhóm quyền</span>
+                  <span :class="sortIndicatorClass('role')">{{ sortIndicator('role') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('description')">
+                  <span>Mô tả</span>
+                  <span :class="sortIndicatorClass('description')">{{ sortIndicator('description') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('permissionCount')">
+                  <span>Số quyền</span>
+                  <span :class="sortIndicatorClass('permissionCount')">{{ sortIndicator('permissionCount') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('groupCount')">
+                  <span>Module</span>
+                  <span :class="sortIndicatorClass('groupCount')">{{ sortIndicator('groupCount') }}</span>
+                </button>
+              </th>
               <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Thao tác</th>
             </tr>
           </thead>

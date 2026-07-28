@@ -52,6 +52,8 @@ class QCCriterion(Base):
     default_max_score = Column(Numeric(10, 2), default=0)
     default_min_pass_score = Column(Numeric(10, 2), default=0)
     default_deduction_percent = Column(Numeric(10, 2), default=0)
+    # Enum: "normal", "critical"
+    default_severity = Column(String(50), default="normal", nullable=False)
     is_active = Column(Boolean, default=True)
     
     parent_id = Column(Integer, ForeignKey("qc_criteria.id"), nullable=True)

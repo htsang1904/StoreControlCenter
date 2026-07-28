@@ -38,6 +38,7 @@ const sectionExpanded = ref(props.level <= 2)
 const detailsExpanded = ref(false)
 const attachmentMenuOpen = ref(false)
 const statusMenuOpen = ref(false)
+const statusMenuDirection = ref('down')
 const itemRoot = ref(null)
 const attachmentMenuTrigger = ref(null)
 const attachmentMenuRef = ref(null)
@@ -327,9 +328,15 @@ const toggleAttachmentMenu = () => {
   attachmentMenuOpen.value = !attachmentMenuOpen.value
 }
 
-const toggleStatusMenu = () => {
+const toggleStatusMenu = (event) => {
   if (props.readonly) return
   attachmentMenuOpen.value = false
+  if (!statusMenuOpen.value) {
+    const rect = event?.currentTarget?.getBoundingClientRect?.()
+    const spaceBelow = rect ? window.innerHeight - rect.bottom : 0
+    const spaceAbove = rect ? rect.top : 0
+    statusMenuDirection.value = spaceBelow < 110 && spaceAbove > spaceBelow ? 'up' : 'down'
+  }
   statusMenuOpen.value = !statusMenuOpen.value
 }
 
@@ -489,7 +496,8 @@ const toggleDetails = () => {
 
               <div
                 v-if="statusMenuOpen"
-                class="absolute left-0 top-9 z-20 w-full overflow-hidden rounded-lg border border-[var(--stroke)] bg-white py-1 text-xs font-semibold text-[var(--text-primary)] shadow-lg"
+                class="absolute left-0 z-20 w-full overflow-hidden rounded-lg border border-[var(--stroke)] bg-white py-1 text-xs font-semibold text-[var(--text-primary)] shadow-lg"
+                :class="statusMenuDirection === 'up' ? 'bottom-9' : 'top-9'"
               >
                 <button
                   type="button"

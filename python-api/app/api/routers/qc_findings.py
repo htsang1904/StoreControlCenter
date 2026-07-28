@@ -355,7 +355,7 @@ async def resolve_finding(
     current_user: CurrentUser,
     payload: QCFindingResolveRequest,
 ) -> Any:
-    """Submit remediation evidence for a finding."""
+    """Submit remediation content and optional evidence for a finding."""
     finding = await _load_finding(session, id)
     if not _can_resolve_finding(current_user, finding):
         raise HTTPException(status_code=403, detail="Không có quyền gửi khắc phục QC finding này")

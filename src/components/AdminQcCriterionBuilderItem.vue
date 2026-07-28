@@ -128,7 +128,9 @@ const buildHsSelectConfig = (placeholder) => JSON.stringify({
   extraMarkup: '<div class="absolute top-1/2 end-3 -translate-y-1/2"><svg class="shrink-0 size-3.5 text-[var(--text-secondary)]" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></div>',
 })
 const modeSelectId = computed(() => `admin-qc-criterion-mode-${props.node.id}`)
+const severitySelectId = computed(() => `admin-qc-criterion-severity-${props.node.id}`)
 const modeSelectConfig = buildHsSelectConfig('Chọn kiểu chấm')
+const severitySelectConfig = buildHsSelectConfig('Chọn mức độ')
 
 const updateOrderingLabel = (event) => {
   props.node.orderingLabel = String(event?.target?.value || '').trim().toUpperCase()
@@ -157,6 +159,7 @@ async function initCriterionSelects() {
     window.HSStaticMethods.autoInit()
   }
   syncPrelineSelectValue(modeSelectId.value, props.node?.mode || 'point')
+  syncPrelineSelectValue(severitySelectId.value, props.node?.severity || 'normal')
 }
 
 onMounted(() => {
@@ -168,6 +171,14 @@ watch(
   async () => {
     await nextTick()
     syncPrelineSelectValue(modeSelectId.value, props.node?.mode || 'point')
+  }
+)
+
+watch(
+  () => props.node?.severity,
+  async () => {
+    await nextTick()
+    syncPrelineSelectValue(severitySelectId.value, props.node?.severity || 'normal')
   }
 )
 </script>
@@ -320,6 +331,9 @@ watch(
             <span class="inline-flex rounded-full bg-[var(--primary-softer)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
               {{ criterionModeLabel }}
             </span>
+            <span v-if="node.severity === 'critical'" class="inline-flex rounded-full bg-[var(--danger-bg)] px-2.5 py-1 text-[11px] font-semibold text-[var(--danger-text)]">
+              Nặng
+            </span>
           </div>
         </div>
 
@@ -362,6 +376,20 @@ watch(
               <option value="deduction">Khấu trừ phần trăm</option>
             </select>
             <p v-if="fieldErrors.mode" :class="validationMessageClass">{{ fieldErrors.mode }}</p>
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-sm font-semibold text-[var(--text-secondary)]">Mức độ</span>
+            <select
+              :id="severitySelectId"
+              v-model="node.severity"
+              class="hidden"
+              :data-hs-select="severitySelectConfig"
+            >
+              <option value="normal">Nhẹ</option>
+              <option value="critical">Nặng</option>
+            </select>
+            <p v-if="fieldErrors.severity" :class="validationMessageClass">{{ fieldErrors.severity }}</p>
           </label>
 
           <label v-if="node.mode !== 'deduction'" class="space-y-2">

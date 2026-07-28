@@ -132,7 +132,10 @@ const safeParseList = (raw) => {
 }
 
 const parseDate = (value, fallback = new Date()) => {
-  const date = value ? new Date(value) : new Date(fallback)
+  const source = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && !/(Z|[+-]\d{2}:\d{2})$/.test(value)
+    ? `${value}Z`
+    : value
+  const date = source ? new Date(source) : new Date(fallback)
   return Number.isNaN(date.getTime()) ? new Date(fallback) : date
 }
 
@@ -198,6 +201,7 @@ const normalizeCriteria = (criteria = []) => {
       maxScore,
       minPassScore,
       deductionPercent,
+      severity: String(item?.severity || item?.severity_snapshot || item?.defaultSeverity || item?.default_severity || 'normal'),
       applicable: item?.applicable !== false,
       note: String(item?.note || '').trim(),
       attachments: normalizeCriterionAttachments(item?.attachments),
@@ -243,6 +247,7 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
         if (isPass) acc.passedCount += 1
         if (isFail) {
           acc.failedCount += 1
+          if (['critical', 'heavy'].includes(item.severity)) acc.criticalFailedCount += 1
           acc.totalDeduction += item.deductionPercent
         }
         return acc
@@ -263,6 +268,7 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
           acc.totalScore += item.maxScore
         } else {
           acc.failedCount += 1
+          if (['critical', 'heavy'].includes(item.severity)) acc.criticalFailedCount += 1
         }
 
         return acc
@@ -281,6 +287,7 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
       acc.totalScore += score
       if (item.status === 'fail') {
         acc.failedCount += 1
+        if (['critical', 'heavy'].includes(item.severity)) acc.criticalFailedCount += 1
       } else {
         acc.passedCount += 1
       }
@@ -295,6 +302,7 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
       failedCount: 0,
       excludedCount: 0,
       totalDeduction: 0,
+      criticalFailedCount: 0,
     }
   )
 
@@ -304,6 +312,7 @@ const evaluateSession = ({ criteria = [], passThreshold = DEFAULT_PASS_THRESHOLD
   const totalDeduction = clamp(metrics.totalDeduction, 0, 100)
   const finalScoreRate = Math.max(baseScoreRate - totalDeduction, 0)
   if (metrics.maxScore <= 0 || finalScoreRate < threshold) reasons.push('threshold')
+  if (metrics.criticalFailedCount > 0) reasons.push('critical')
 
   const status = reasons.length === 0 ? 'passed' : 'failed'
 
@@ -422,6 +431,7 @@ const normalizeCriteriaFromApi = (items = []) => {
       score: hasScore ? toNumber(item.score) : null,
       maxScore,
       minPassScore,
+      severity: String(item?.severity_snapshot || item?.severity || item?.defaultSeverity || item?.default_severity || 'normal'),
       deductionPercent: mode === 'deduction'
         ? toNumber(item?.deduction_percent_snapshot ?? item?.deductionPercent ?? item?.deduction_percent ?? item?.max_score_snapshot ?? item?.maxScore, 0)
         : 0,
@@ -767,6 +777,7 @@ const normalizeStoreOverviewStat = (item = {}) => ({
   totalSessions: toNumber(item?.totalSessions),
   passed: toNumber(item?.passed),
   failed: toNumber(item?.failed),
+  draftSessions: toNumber(item?.draftSessions ?? item?.draft_sessions),
   avgScore: toNumber(item?.avgScore),
   avgMaxScore: toNumber(item?.avgMaxScore),
   avgScoreRate: toNumber(item?.scoreRate ?? item?.avgScoreRate),
@@ -859,6 +870,7 @@ export const getQcTemplateById = async (formId, options = {}) => {
           ? clamp(toNumber(criterion.minPassScore ?? criterion.min_pass_score ?? (toNumber(criterion.maxScore) / 2)), 0, toNumber(criterion.maxScore))
           : 0,
         deductionPercent: toNumber(criterion.deductionPercent ?? criterion.deduction_percent ?? (mode === 'deduction' ? criterion.maxScore : 0), 0),
+        severity: String(criterion.severity || criterion.defaultSeverity || criterion.default_severity || 'normal'),
         sortOrder: criterion.sortOrder,
       }
     }).filter((criterion) => criterion.id)

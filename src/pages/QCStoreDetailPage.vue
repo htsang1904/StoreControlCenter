@@ -48,6 +48,18 @@ const filters = reactive({
   from: String(route.query.date_from || ''),
   to: String(route.query.date_to || ''),
 })
+const sortDirections = ref({
+  code: null,
+  form: null,
+  auditor: null,
+  score: null,
+  result: null,
+  remediation: null,
+  auditedAt: null,
+  submittedAt: null,
+})
+const sortableFields = ['code', 'form', 'auditor', 'score', 'result', 'remediation', 'auditedAt', 'submittedAt']
+const sortCycle = [null, 'desc', 'asc']
 
 const summary = ref({
   totalSessions: 0,
@@ -60,13 +72,28 @@ const summary = ref({
 })
 const sessions = ref([])
 const hasRows = computed(() => tableRows.value.length > 0)
+const userRole = computed(() => String(state.userInfo?.role || '').toLowerCase())
+const isReviewRole = computed(() => ['admin', 'qc'].includes(userRole.value))
+const remediationColumnLabel = computed(() => (isReviewRole.value ? 'Duyệt' : 'Khắc phục'))
+const remediationActionLabel = computed(() => (isReviewRole.value ? 'Cần duyệt' : 'Cần khắc phục'))
+const remediationSummaryLabel = computed(() => (isReviewRole.value ? 'Yêu cầu cần duyệt' : 'Yêu cầu khắc phục mở'))
+const remediationSummaryMeta = computed(() => (
+  isReviewRole.value
+    ? `${activeFindingSessionCount.value} phiên cần duyệt`
+    : `${activeFindingSessionCount.value} phiên cần khắc phục`
+))
+const remediationSummaryHint = computed(() => (
+  isReviewRole.value
+    ? 'Số yêu cầu khắc phục QC đang cần admin/QC theo dõi hoặc xác nhận.'
+    : 'Số yêu cầu khắc phục QC chưa hoàn tất của cửa hàng này.'
+))
 
-const resultOptions = [
+const resultOptions = computed(() => [
   { value: '', label: 'Tất cả phiên' },
-  { value: 'needs_remediation', label: 'Cần khắc phục', kind: 'remediation' },
+  { value: 'needs_remediation', label: remediationActionLabel.value, kind: 'remediation' },
   { value: 'passed', label: 'Đã đạt' },
   { value: 'failed', label: 'Không đạt' },
-]
+])
 
 const qcTemplateOptions = ref([])
 
@@ -85,16 +112,7 @@ const reasonLabels = {
 const selectedResultCount = computed(() => (filters.status || filters.remediation ? 1 : 0))
 const storeId = computed(() => Number(route.params.storeId || 0))
 
-const selectedStore = computed(() => {
-  const stores = Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []
-  return stores.find((item) => Number(item?.id || 0) === storeId.value) || null
-})
-
-const storeTitle = computed(() => {
-  const store = selectedStore.value
-  if (!store) return `Cửa hàng #${storeId.value || '--'}`
-  return store.shortAddress || store.address || store.code || `Cửa hàng #${store.id}`
-})
+const storeTitle = computed(() => String(route.query.storeName || ''))
 const filteredSummary = computed(() => {
   const totalSessions = tableRows.value.filter((item) => item.rowType === 'session').length
   const passed = tableRows.value.filter((item) => item.rowType === 'session' && item.result === 'passed').length
@@ -140,10 +158,10 @@ const summaryCards = computed(() => [
   },
   {
     key: 'remediation',
-    label: 'Yêu cầu khắc phục mở',
+    label: remediationSummaryLabel.value,
     value: `${openFindingCount.value}`,
-    meta: `${activeFindingSessionCount.value} phiên cần khắc phục`,
-    hint: 'Số yêu cầu khắc phục QC chưa hoàn tất của cửa hàng này.',
+    meta: remediationSummaryMeta.value,
+    hint: remediationSummaryHint.value,
     tone: 'rose',
   },
   {
@@ -183,7 +201,7 @@ const sessionFormLabel = (session) => {
 
 const remediationLabel = (session) => {
   if (isDraftRow(session)) return '--'
-  return Number(session.openFindings || 0) > 0 ? 'Cần khắc phục' : 'Đã hoàn tất'
+  return Number(session.openFindings || 0) > 0 ? remediationActionLabel.value : 'Đã hoàn tất'
 }
 
 const remediationClass = (session) => (
@@ -211,8 +229,17 @@ const toggleActionMenu = (event, row) => {
 
   const rect = event?.currentTarget?.getBoundingClientRect?.()
   if (rect) {
-    actionMenuPosition.top = rect.bottom + 8
-    actionMenuPosition.left = rect.right
+    const menuWidth = 176
+    const menuHeight = 96
+    const viewportPadding = 12
+    const opensUp = rect.bottom + menuHeight + viewportPadding > window.innerHeight
+    actionMenuPosition.top = opensUp
+      ? Math.max(viewportPadding, rect.top - menuHeight - 8)
+      : Math.min(window.innerHeight - menuHeight - viewportPadding, rect.bottom + 8)
+    actionMenuPosition.left = Math.min(
+      window.innerWidth - menuWidth - viewportPadding,
+      Math.max(viewportPadding, rect.right - menuWidth)
+    )
   }
   openActionMenuKey.value = row?.rowKey || ''
 }
@@ -263,6 +290,42 @@ const sessionScoreRate = (session) => {
   const max = Number(session?.maxScore || 0)
   if (max <= 0) return 0
   return Math.round((total / max) * 1000) / 10
+}
+
+const toggleSort = (field) => {
+  if (!sortableFields.includes(field)) return
+  const currentDirection = sortDirections.value[field] ?? null
+  const currentIndex = sortCycle.indexOf(currentDirection)
+  const nextIndex = (currentIndex + 1) % sortCycle.length
+  sortDirections.value = {
+    code: null,
+    form: null,
+    auditor: null,
+    score: null,
+    result: null,
+    remediation: null,
+    auditedAt: null,
+    submittedAt: null,
+  }
+  sortDirections.value[field] = sortCycle[nextIndex]
+}
+
+const sortIndicator = (field) => {
+  if (sortDirections.value[field] === 'desc') return '↓'
+  if (sortDirections.value[field] === 'asc') return '↑'
+  return '↕'
+}
+
+const sortIndicatorClass = (field) => (sortDirections.value[field] ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]')
+
+const rowSortValue = (row, field) => {
+  if (field === 'form') return sessionFormLabel(row).toLowerCase()
+  if (field === 'auditor') return String(row?.auditorName || '').toLowerCase()
+  if (field === 'score') return Number(sessionScoreRate(row) ?? -1)
+  if (field === 'result') return resultLabel(row?.result).toLowerCase()
+  if (field === 'remediation') return remediationLabel(row).toLowerCase()
+  if (field === 'auditedAt' || field === 'submittedAt') return new Date(row?.[field] || 0).getTime() || 0
+  return String(row?.[field] || '').toLowerCase()
 }
 
 const parseBoundaryTime = (value, mode) => {
@@ -332,7 +395,23 @@ const sessionTableRows = computed(() => {
 })
 
 const tableRows = computed(() => {
-  return [...draftTableRows.value, ...sessionTableRows.value].sort((left, right) => {
+  const rows = [...draftTableRows.value, ...sessionTableRows.value]
+  const activeField = sortableFields.find((field) => sortDirections.value[field])
+  if (activeField) {
+    const direction = sortDirections.value[activeField]
+    return rows.sort((left, right) => {
+      const leftValue = rowSortValue(left, activeField)
+      const rightValue = rowSortValue(right, activeField)
+      if (typeof leftValue === 'number' || typeof rightValue === 'number') {
+        return direction === 'asc' ? Number(leftValue) - Number(rightValue) : Number(rightValue) - Number(leftValue)
+      }
+      return direction === 'asc'
+        ? String(leftValue).localeCompare(String(rightValue), 'vi')
+        : String(rightValue).localeCompare(String(leftValue), 'vi')
+    })
+  }
+
+  return rows.sort((left, right) => {
     const leftTime = new Date(left.auditedAt || left.createdAt || 0).getTime()
     const rightTime = new Date(right.auditedAt || right.createdAt || 0).getTime()
     return rightTime - leftTime
@@ -728,7 +807,7 @@ onBeforeUnmount(() => {
                       <span v-else class="font-semibold text-[var(--text-primary)]">{{ session.totalScore }}/{{ session.maxScore }} · {{ sessionScoreRate(session) }}%</span>
                     </div>
                     <div v-if="!isDraftRow(session)" class="min-w-0 text-right">
-                      <span class="text-[var(--text-muted)]">Khắc phục: </span>
+                      <span class="text-[var(--text-muted)]">{{ remediationColumnLabel }}: </span>
                       <span class="font-semibold" :class="session.openFindings > 0 ? 'text-[var(--danger-text)]' : 'text-[var(--success-text)]'">{{ remediationLabel(session) }}</span>
                     </div>
                     <div v-if="session.note" class="col-span-2 min-w-0">
@@ -756,14 +835,54 @@ onBeforeUnmount(() => {
               <table class="min-w-[980px] w-full divide-y divide-[var(--stroke)]">
                 <thead class="bg-[var(--surface-muted)] uppercase text-xs font-semibold text-[var(--text-secondary)]">
                   <tr>
-                    <th class="px-4 py-2.5 text-start">Mã phiếu</th>
-                    <th class="px-4 py-2.5 text-start">Biên bản</th>
-                    <th class="px-4 py-2.5 text-start">Người lập biên bản</th>
-                    <th class="px-4 py-2.5 text-end">Điểm</th>
-                    <th class="px-4 py-2.5 text-start">Kết quả</th>
-                    <th class="px-4 py-2.5 text-start">Khắc phục</th>
-                    <th class="px-4 py-2.5 text-start">Ngày chấm</th>
-                    <th class="px-4 py-2.5 text-start">Hoàn thành</th>
+                    <th class="px-4 py-2.5 text-start">
+                      <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('code')">
+                        <span>Mã phiếu</span>
+                        <span :class="sortIndicatorClass('code')">{{ sortIndicator('code') }}</span>
+                      </button>
+                    </th>
+                    <th class="px-4 py-2.5 text-start">
+                      <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('form')">
+                        <span>Biên bản</span>
+                        <span :class="sortIndicatorClass('form')">{{ sortIndicator('form') }}</span>
+                      </button>
+                    </th>
+                    <th class="px-4 py-2.5 text-start">
+                      <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('auditor')">
+                        <span>Người lập biên bản</span>
+                        <span :class="sortIndicatorClass('auditor')">{{ sortIndicator('auditor') }}</span>
+                      </button>
+                    </th>
+                    <th class="px-4 py-2.5 text-end">
+                      <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('score')">
+                        <span>Điểm</span>
+                        <span :class="sortIndicatorClass('score')">{{ sortIndicator('score') }}</span>
+                      </button>
+                    </th>
+                    <th class="px-4 py-2.5 text-start">
+                      <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('result')">
+                        <span>Kết quả</span>
+                        <span :class="sortIndicatorClass('result')">{{ sortIndicator('result') }}</span>
+                      </button>
+                    </th>
+                    <th class="px-4 py-2.5 text-start">
+                      <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('remediation')">
+                        <span>{{ remediationColumnLabel }}</span>
+                        <span :class="sortIndicatorClass('remediation')">{{ sortIndicator('remediation') }}</span>
+                      </button>
+                    </th>
+                    <th class="px-4 py-2.5 text-start">
+                      <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('auditedAt')">
+                        <span>Ngày chấm</span>
+                        <span :class="sortIndicatorClass('auditedAt')">{{ sortIndicator('auditedAt') }}</span>
+                      </button>
+                    </th>
+                    <th class="px-4 py-2.5 text-start">
+                      <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('submittedAt')">
+                        <span>Hoàn thành</span>
+                        <span :class="sortIndicatorClass('submittedAt')">{{ sortIndicator('submittedAt') }}</span>
+                      </button>
+                    </th>
                     <th class="px-4 py-2.5 text-end"></th>
                   </tr>
                 </thead>
@@ -833,7 +952,7 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <div
         v-if="activeActionRow"
-        class="fixed z-[9999] w-44 -translate-x-full overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
+        class="fixed z-[9999] w-44 overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
         :style="{ top: `${actionMenuPosition.top}px`, left: `${actionMenuPosition.left}px` }"
         @click.stop
       >

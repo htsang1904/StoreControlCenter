@@ -57,6 +57,64 @@ const filteredTickets = computed(() => {
     return assignees.some((assignee) => Number(assignee?.id || 0) === selectedAssigneeId)
   })
 })
+const sortDirections = ref({
+  code: null,
+  store: null,
+  status: null,
+  handler: null,
+  createdAt: null,
+  confirmation: null,
+  resolution: null,
+})
+const sortableFields = ['code', 'store', 'status', 'handler', 'createdAt', 'confirmation', 'resolution']
+const sortCycle = [null, 'desc', 'asc']
+const toggleSort = (field) => {
+  if (!sortableFields.includes(field)) return
+  const currentDirection = sortDirections.value[field] ?? null
+  const currentIndex = sortCycle.indexOf(currentDirection)
+  const nextIndex = (currentIndex + 1) % sortCycle.length
+  sortDirections.value = {
+    code: null,
+    store: null,
+    status: null,
+    handler: null,
+    createdAt: null,
+    confirmation: null,
+    resolution: null,
+  }
+  sortDirections.value[field] = sortCycle[nextIndex]
+}
+const sortIndicator = (field) => {
+  if (sortDirections.value[field] === 'desc') return '↓'
+  if (sortDirections.value[field] === 'asc') return '↑'
+  return '↕'
+}
+const sortIndicatorClass = (field) => (sortDirections.value[field] ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]')
+const ticketSortValue = (ticket, field) => {
+  if (field === 'code') return String(ticket?.ticket_code || ticket?.id || '').toLowerCase()
+  if (field === 'store') return storeDisplay(ticket).toLowerCase()
+  if (field === 'status') return normalizeTicketStatus(ticket?.status).toLowerCase()
+  if (field === 'handler') return handlerDisplay(ticket).toLowerCase()
+  if (field === 'createdAt') return new Date(ticketCreatedAt(ticket) || 0).getTime() || 0
+  if (field === 'confirmation') return ticketConfirmationMeta(ticket).label.toLowerCase()
+  if (field === 'resolution') return ticketResolutionMeta(ticket).label.toLowerCase()
+  return ''
+}
+const sortedTickets = computed(() => {
+  const activeField = sortableFields.find((field) => sortDirections.value[field])
+  if (!activeField) return filteredTickets.value
+  const direction = sortDirections.value[activeField]
+  return [...filteredTickets.value].sort((left, right) => {
+    const leftValue = ticketSortValue(left, activeField)
+    const rightValue = ticketSortValue(right, activeField)
+    if (typeof leftValue === 'number' || typeof rightValue === 'number') {
+      return direction === 'asc' ? Number(leftValue) - Number(rightValue) : Number(rightValue) - Number(leftValue)
+    }
+    return direction === 'asc'
+      ? String(leftValue).localeCompare(String(rightValue), 'vi')
+      : String(rightValue).localeCompare(String(leftValue), 'vi')
+  })
+})
 const hasTickets = computed(() => filteredTickets.value.length > 0)
 const displayPaginationStart = computed(() => (filteredTickets.value.length ? paginationStart.value : 0))
 const displayPaginationEnd = computed(() => (
@@ -139,8 +197,17 @@ function toggleActionMenu(event, ticketId) {
 
   const rect = event.currentTarget?.getBoundingClientRect()
   if (rect) {
-    actionMenuPosition.top = rect.bottom + 8
-    actionMenuPosition.left = rect.right
+    const menuWidth = 160
+    const menuHeight = 132
+    const viewportPadding = 12
+    const opensUp = rect.bottom + menuHeight + viewportPadding > window.innerHeight
+    actionMenuPosition.top = opensUp
+      ? Math.max(viewportPadding, rect.top - menuHeight - 8)
+      : Math.min(window.innerHeight - menuHeight - viewportPadding, rect.bottom + 8)
+    actionMenuPosition.left = Math.min(
+      window.innerWidth - menuWidth - viewportPadding,
+      Math.max(viewportPadding, rect.right - menuWidth)
+    )
   }
 
   openActionMenuId.value = ticketId
@@ -529,20 +596,55 @@ onBeforeUnmount(() => {
             <table class="ticket-table w-full min-w-[1120px] border-separate border-spacing-0 text-left">
               <thead>
                 <tr>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[140px] whitespace-nowrap">Mã ticket</th>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[400px]">Cửa hàng</th>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[160px] whitespace-nowrap">Trạng thái</th>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[180px]">Người xử lý</th>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[140px]">Ngày tạo</th>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[130px] whitespace-nowrap">Tiếp nhận</th>
-                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[130px] whitespace-nowrap">Xử lý</th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[140px] whitespace-nowrap">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('code')">
+                      <span>Mã ticket</span>
+                      <span :class="sortIndicatorClass('code')">{{ sortIndicator('code') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[400px]">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('store')">
+                      <span>Cửa hàng</span>
+                      <span :class="sortIndicatorClass('store')">{{ sortIndicator('store') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[160px] whitespace-nowrap">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('status')">
+                      <span>Trạng thái</span>
+                      <span :class="sortIndicatorClass('status')">{{ sortIndicator('status') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[180px]">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('handler')">
+                      <span>Người xử lý</span>
+                      <span :class="sortIndicatorClass('handler')">{{ sortIndicator('handler') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[140px]">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('createdAt')">
+                      <span>Ngày tạo</span>
+                      <span :class="sortIndicatorClass('createdAt')">{{ sortIndicator('createdAt') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[130px] whitespace-nowrap">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('confirmation')">
+                      <span>Tiếp nhận</span>
+                      <span :class="sortIndicatorClass('confirmation')">{{ sortIndicator('confirmation') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[130px] whitespace-nowrap">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('resolution')">
+                      <span>Xử lý</span>
+                      <span :class="sortIndicatorClass('resolution')">{{ sortIndicator('resolution') }}</span>
+                    </button>
+                  </th>
                   <th class="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] w-[150px] text-right whitespace-nowrap">Thao tác</th>
                 </tr>
               </thead>
 
               <tbody v-if="hasTickets" class="bg-white">
                 <tr
-                  v-for="ticket in filteredTickets"
+                  v-for="ticket in sortedTickets"
                   :key="ticket.id"
                   class="group cursor-pointer transition-colors"
                   @click="goToTicketDetail(ticket.id)"
@@ -788,7 +890,7 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <div
         v-if="activeActionTicket"
-        class="fixed z-[9999] w-40 -translate-x-full overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
+        class="fixed z-[9999] w-40 overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
         :style="{ top: `${actionMenuPosition.top}px`, left: `${actionMenuPosition.left}px` }"
         @click.stop
       >

@@ -21,6 +21,7 @@ logger = logging.getLogger("app.admin_qc")
 MAX_QC_CRITERION_CODE_LENGTH = 50
 MAX_QC_FORM_CODE_LENGTH = 50
 QC_CRITERION_MODES = {"point", "pass_fail", "deduction"}
+QC_CRITERION_SEVERITIES = {"normal", "critical", "light", "heavy"}
 QC_VERSION_STATUSES = {"draft", "published"}
 
 def _require_admin(current_user):
@@ -82,6 +83,7 @@ def _serialize_criterion(criterion: QCCriterion) -> dict:
         "maxScore": float(criterion.default_max_score or 0),
         "minPassScore": float(criterion.default_min_pass_score or 0),
         "deductionPercent": float(criterion.default_deduction_percent or 0),
+        "severity": criterion.default_severity or "normal",
         "level": criterion.level,
         "ordering": criterion.ordering or "",
         "parentId": criterion.parent_id,
@@ -169,6 +171,10 @@ async def _sync_criteria_tree(session, form_code: str, version: QCFormVersion, c
             ordering = f"{parent_ordering}.{ordering_label}" if parent_ordering else ordering_label
             node_type = str(node.get("nodeType", "criterion")).strip()
             mode = str(node.get("mode", "point")).strip() if node_type == "criterion" else "point"
+            severity = str(node.get("severity", "normal")).strip() if node_type == "criterion" else "normal"
+            severity = "critical" if severity == "heavy" else "normal" if severity == "light" else severity
+            if severity not in QC_CRITERION_SEVERITIES:
+                severity = "normal"
             
             try:
                 max_score = float(node.get("maxScore", 10))
@@ -207,6 +213,7 @@ async def _sync_criteria_tree(session, form_code: str, version: QCFormVersion, c
                 default_max_score=max_score,
                 default_min_pass_score=min_pass_score,
                 default_deduction_percent=deduction_percent,
+                default_severity=severity,
                 is_active=True,
                 parent_id=parent_id,
                 level=level,
@@ -263,6 +270,10 @@ def _validate_scoring_payload(payload: dict, require_criteria: bool = True) -> N
             mode = str(node.get("mode", "point")).strip()
             if mode not in QC_CRITERION_MODES:
                 raise HTTPException(status_code=400, detail=f"Kiểu chấm '{mode}' không hợp lệ")
+            severity = str(node.get("severity", "normal")).strip()
+            severity = "critical" if severity == "heavy" else "normal" if severity == "light" else severity
+            if severity not in QC_CRITERION_SEVERITIES:
+                raise HTTPException(status_code=400, detail="Mức độ tiêu chí QC không hợp lệ")
             field_name = "deductionPercent" if mode == "deduction" else "maxScore"
             try:
                 value = float(node.get(field_name, 0))
@@ -507,11 +518,8 @@ async def delete_admin_qc_form_version(form_id: int, version_id: int, session: S
     version = next((item for item in form.versions if item.id == version_id), None)
     if not version:
         raise HTTPException(status_code=404, detail="Version QC Form không tồn tại")
-    if version.status != "draft":
-        raise HTTPException(status_code=409, detail="Chỉ bản nháp mới được xóa")
-    session_count = int((await session.execute(select(func.count()).select_from(QCSession).where(QCSession.form_version_id == version.id))).scalar() or 0)
-    if session_count:
-        raise HTTPException(status_code=409, detail="Version đã được sử dụng trong phiếu QC nên không thể xóa")
+    if version.status == "published":
+        raise HTTPException(status_code=409, detail="Version đang áp dụng không thể xóa")
     await session.execute(delete(QCFormCriterion).where(QCFormCriterion.form_version_id == version.id))
     await session.execute(delete(QCFormVersion).where(QCFormVersion.id == version.id))
     await session.commit()

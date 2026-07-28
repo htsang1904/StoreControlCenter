@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import SessionDep, CurrentUser
 from app.core.datetime_utils import utc_now_naive
-from app.models.qc_session import QCSession, QCSessionItem, QCFinding
+from app.models.qc_session import QCSession, QCSessionItem, QCDraft, QCFinding
 from app.models.qc_form import QCForm, QCFormVersion, QCCriterion, QCFormCriterion
 from app.models.org import Store
 from app.schemas.qc import (
@@ -107,6 +107,7 @@ def _build_session_items_from_version(
         status = _normalize_qc_item_status(incoming.get("status"))
         max_score = float(criterion.default_max_score or 0)
         deduction_percent = float(criterion.default_deduction_percent or 0)
+        severity = criterion.default_severity or "normal"
 
         raw_score = incoming.get("score")
         score = None
@@ -131,6 +132,7 @@ def _build_session_items_from_version(
                 "mode_snapshot": mode,
                 "max_score_snapshot": deduction_percent if mode == "deduction" else max_score,
                 "min_pass_score_snapshot": min_pass_score,
+                "severity_snapshot": severity,
                 "result": status,
                 "score": score if mode == "point" else None,
                 "applicable": incoming.get("applicable", status not in {"na", "skipped_weekly"}),
@@ -325,6 +327,7 @@ def _serialize_qc_form_detail(form: QCForm, form_version_id: Optional[int] = Non
                     "maxScore": float(criterion.default_max_score or 0),
                     "minPassScore": float(criterion.default_min_pass_score or 0),
                     "deductionPercent": float(criterion.default_deduction_percent or 0),
+                    "severity": criterion.default_severity or "normal",
                     "sortOrder": criterion.id,
                 }
             )
@@ -693,6 +696,7 @@ async def create_qc_session(
             mode_snapshot=item_in.get("mode_snapshot", "point"),
             max_score_snapshot=item_in.get("max_score_snapshot", 0),
             min_pass_score_snapshot=item_in.get("min_pass_score_snapshot", 0),
+            severity_snapshot=item_in.get("severity_snapshot", "normal"),
             result=item_in.get("result", "pending"),
             score=item_in.get("score"),
             applicable=item_in.get("applicable", True),
@@ -756,24 +760,29 @@ async def read_qc_stores_overview(
 
     # 2. Filtering
     filters = []
+    draft_filters = []
     if date_from:
         parsed_from = parse_iso_datetime(date_from)
         if "T" not in date_from:
             parsed_from = parsed_from.replace(hour=0, minute=0, second=0, microsecond=0)
         filters.append(QCSession.audited_at >= parsed_from)
+        draft_filters.append(QCDraft.audited_at >= parsed_from)
     if date_to:
         parsed_to = parse_iso_datetime(date_to)
         if "T" not in date_to:
             parsed_to = parsed_to.replace(hour=23, minute=59, second=59, microsecond=999999)
         filters.append(QCSession.audited_at <= parsed_to)
+        draft_filters.append(QCDraft.audited_at <= parsed_to)
 
     if current_user.role != "admin":
         user_store_ids = [s.id for s in current_user.stores]
         filters.append(QCSession.store_id.in_(user_store_ids))
+        draft_filters.append(QCDraft.store_id.in_(user_store_ids))
     elif store_ids:
         ids = [int(i.strip()) for i in store_ids.split(",") if i.strip().isdigit()]
         if ids:
             filters.append(QCSession.store_id.in_(ids))
+            draft_filters.append(QCDraft.store_id.in_(ids))
 
     # 3. Aggregation Logic
     # We'll use a subquery or join for better performance
@@ -793,6 +802,17 @@ async def read_qc_stores_overview(
 
     agg_results = await session.execute(agg_query)
     agg_data = {r.store_id: r for r in agg_results.all()}
+
+    draft_query = (
+        select(
+            QCDraft.store_id,
+            func.count(QCDraft.id).label("draftSessions"),
+        )
+        .where(and_(*draft_filters) if draft_filters else True)
+        .group_by(QCDraft.store_id)
+    )
+    draft_results = await session.execute(draft_query)
+    draft_data = {r.store_id: int(r.draftSessions or 0) for r in draft_results.all()}
 
     # 4. Fetch Stores with Search
     store_query = select(Store)
@@ -824,21 +844,23 @@ async def read_qc_stores_overview(
 
     # 5. Compute Metrics
     store_stats = []
-    summary_metrics = {"totalSessions": 0, "passed": 0, "failed": 0, "totalScore": 0, "maxScore": 0}
+    summary_metrics = {"totalSessions": 0, "passed": 0, "failed": 0, "draftSessions": 0, "totalScore": 0, "maxScore": 0}
 
     for s in all_stores:
         agg = agg_data.get(s.id)
+        draft_sessions = draft_data.get(s.id, 0)
+        summary_metrics["draftSessions"] += draft_sessions
         finding_stat = finding_stats_by_store.get(str(s.id), {
             "openFindings": 0,
             "activeFindingSessions": 0,
             "findingStatusSummary": _empty_finding_status_summary(),
         })
         if not agg:
-            if q: continue # Skip stores with no sessions if searching? Strapi doesn't skip but we might.
+            if q and draft_sessions <= 0: continue # Skip stores with no QC activity if searching.
             stat = {
                 "storeId": s.id, "storeCode": s.code, "storeNo": s.storeId,
                 "storeName": s.shortAddress or s.name, "totalSessions": 0, "passed": 0, "failed": 0,
-                "avgScore": 0, "scoreRate": 0, "avgScoreRate": 0, "passRate": 0, "lastAuditedAt": None,
+                "draftSessions": draft_sessions, "avgScore": 0, "scoreRate": 0, "avgScoreRate": 0, "passRate": 0, "lastAuditedAt": None,
                 **finding_stat,
             }
         else:
@@ -862,6 +884,7 @@ async def read_qc_stores_overview(
                 "totalSessions": totalS,
                 "passed": passed,
                 "failed": failed,
+                "draftSessions": draft_sessions,
                 "avgScore": round(tScore / totalS, 1) if totalS > 0 else 0,
                 "scoreRate": round((tScore / mScore * 100), 1) if mScore > 0 else 0,
                 "avgScoreRate": round((tScore / mScore * 100), 1) if mScore > 0 else 0,
@@ -890,6 +913,7 @@ async def read_qc_stores_overview(
         "totalSessions": summary_metrics["totalSessions"],
         "passed": summary_metrics["passed"],
         "failed": summary_metrics["failed"],
+        "draftSessions": summary_metrics["draftSessions"],
         "avgScore": round(summary_metrics["totalScore"] / summary_metrics["totalSessions"], 1) if summary_metrics["totalSessions"] > 0 else 0,
         "scoreRate": round((summary_metrics["totalScore"] / summary_metrics["maxScore"] * 100), 1) if summary_metrics["maxScore"] > 0 else 0,
         "avgScoreRate": round((summary_metrics["totalScore"] / summary_metrics["maxScore"] * 100), 1) if summary_metrics["maxScore"] > 0 else 0,
@@ -961,7 +985,11 @@ async def submit_qc_session(
     capped_total_deduction = min(total_deduction, 100)
     score_rate = max(base_score_rate - capped_total_deduction, 0)
     final_total_score = (max_score * score_rate / 100) if max_score > 0 else 0
-    is_pass = max_score > 0 and score_rate >= pass_threshold
+    critical_failed_items = [
+        item for item in items
+        if item.result == "fail" and (item.severity_snapshot or "normal") in {"critical", "heavy"}
+    ]
+    is_pass = max_score > 0 and score_rate >= pass_threshold and not critical_failed_items
 
     failed_items = [item for item in items if item.result == "fail"]
     failed_item_ids = [item.id for item in failed_items if item.id is not None]
@@ -1002,13 +1030,14 @@ async def submit_qc_session(
             session_item_id=item.id,
             store_id=qc_session.store_id,
             criterion_name=item.criterion_name,
-            severity="medium", # Default
+            severity="critical" if (item.severity_snapshot or "normal") in {"critical", "heavy"} else "medium",
             status="open",
             due_date=utc_now_naive() + timedelta(days=3), # Default 3 days
             meta_info={
                 "criterion_code": item.criterion_code,
                 "criterion_name": item.criterion_name,
                 "qc_note": item.note,
+                "criterion_severity": item.severity_snapshot or "normal",
                 "qc_attachments": item.attachments or [],
                 "detected_at": qc_session.submitted_at.isoformat() if qc_session.submitted_at else None,
                 "auditor_id": qc_session.auditor_id,

@@ -107,6 +107,7 @@ class QCSessionItemResponse(BaseModel):
     mode_snapshot: str
     max_score_snapshot: Decimal
     min_pass_score_snapshot: Optional[Decimal] = None
+    severity_snapshot: str = "normal"
     result: str
     score: Optional[Decimal] = None
     applicable: bool

@@ -16,14 +16,17 @@ const deleting = ref(false)
 const errorMessage = ref('')
 const formDetail = ref(null)
 const actionMenuOpen = ref(false)
+const actionMenuDirection = ref('down')
 const activeTab = ref('overview')
 const structureSearchInput = ref('')
 const structureSearchKeyword = ref('')
 const structureFilter = ref('all')
 const structureFilterOpen = ref(false)
+const structureFilterDirection = ref('down')
 const expandedStructureIds = ref(new Set())
 const versions = ref([])
 const versionActionId = ref(null)
+const versionActionDirection = ref('down')
 const creatingVersion = ref(false)
 const applyingVersionId = ref(null)
 const deletingVersionId = ref(null)
@@ -167,6 +170,16 @@ const selectStructureFilter = (value) => {
   structureFilter.value = value
   structureFilterOpen.value = false
 }
+
+const toggleStructureFilter = (event) => {
+  if (!structureFilterOpen.value) {
+    const rect = event?.currentTarget?.getBoundingClientRect?.()
+    const spaceBelow = rect ? window.innerHeight - rect.bottom : 0
+    const spaceAbove = rect ? rect.top : 0
+    structureFilterDirection.value = spaceBelow < 230 && spaceAbove > spaceBelow ? 'up' : 'down'
+  }
+  structureFilterOpen.value = !structureFilterOpen.value
+}
 const handleStructureSearchInput = (event) => {
   const value = String(event?.target?.value || '')
   structureSearchInput.value = value
@@ -186,6 +199,20 @@ const tabs = [
 
 const selectTab = (tabId) => {
   activeTab.value = tabId
+}
+
+const toggleVersionActionMenu = (version, event) => {
+  if (versionActionId.value === version.id) {
+    versionActionId.value = null
+    return
+  }
+
+  const buttonRect = event?.currentTarget?.getBoundingClientRect?.()
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 0
+  const spaceBelow = buttonRect ? viewportHeight - buttonRect.bottom : 0
+  const spaceAbove = buttonRect ? buttonRect.top : 0
+  versionActionDirection.value = spaceBelow < 240 && spaceAbove > spaceBelow ? 'up' : 'down'
+  versionActionId.value = version.id
 }
 
 const latestVersionNote = computed(() => {
@@ -296,7 +323,7 @@ const applyVersion = async (version) => {
 }
 
 const deleteVersion = async (version) => {
-  const confirmed = await confirmDialog({ title: `Xóa bản nháp ${version.versionNo}?`, message: 'Cây tiêu chí và các thay đổi trong bản nháp này sẽ bị xóa. Thao tác không thể hoàn tác.', confirmText: 'Xóa bản nháp', cancelText: 'Huỷ', tone: 'danger' })
+  const confirmed = await confirmDialog({ title: `Xóa ${version.versionNo}?`, message: 'Version này sẽ bị xóa khỏi lịch sử biểu mẫu. Thao tác không thể hoàn tác.', confirmText: 'Xóa version', cancelText: 'Huỷ', tone: 'danger' })
   if (!confirmed) return
   deletingVersionId.value = version.id
   versionActionId.value = null
@@ -311,7 +338,13 @@ const deleteVersion = async (version) => {
   }
 }
 
-const toggleActionMenu = () => {
+const toggleActionMenu = (event) => {
+  if (!actionMenuOpen.value) {
+    const rect = event?.currentTarget?.getBoundingClientRect?.()
+    const spaceBelow = rect ? window.innerHeight - rect.bottom : 0
+    const spaceAbove = rect ? rect.top : 0
+    actionMenuDirection.value = spaceBelow < 110 && spaceAbove > spaceBelow ? 'up' : 'down'
+  }
   actionMenuOpen.value = !actionMenuOpen.value
 }
 
@@ -408,7 +441,8 @@ onBeforeUnmount(() => {
 
           <div
             v-if="actionMenuOpen"
-            class="absolute right-0 top-full z-30 mt-2 w-44 overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
+            class="absolute right-0 z-30 w-44 overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
+            :class="actionMenuDirection === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'"
           >
             <button type="button" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]" @click="openEditPage">
               <span class="material-symbols-outlined text-[18px]">edit</span>
@@ -522,11 +556,11 @@ onBeforeUnmount(() => {
               <button v-if="structureSearchInput" type="button" class="absolute right-2 top-1/2 inline-flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]" aria-label="Xóa tìm kiếm" @click="clearStructureSearch"><X :size="14" /></button>
             </label>
             <div class="relative" data-structure-filter>
-              <button type="button" class="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)]" :aria-expanded="structureFilterOpen" @click.stop="structureFilterOpen = !structureFilterOpen">
+              <button type="button" class="flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)]" :aria-expanded="structureFilterOpen" @click.stop="toggleStructureFilter($event)">
                 <span class="truncate">{{ structureFilterLabel }}</span>
                 <ChevronDown :size="16" :stroke-width="2" class="shrink-0 transition-transform" :class="structureFilterOpen ? 'rotate-180' : ''" />
               </button>
-              <div v-if="structureFilterOpen" class="absolute left-0 top-full z-30 mt-2 w-full min-w-48 overflow-hidden rounded-xl border border-[var(--stroke)] bg-white p-1 shadow-xl">
+              <div v-if="structureFilterOpen" class="absolute left-0 z-30 w-full min-w-48 overflow-hidden rounded-xl border border-[var(--stroke)] bg-white p-1 shadow-xl" :class="structureFilterDirection === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'">
                 <button v-for="option in structureFilterOptions" :key="option.value" type="button" class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors" :class="structureFilter === option.value ? 'bg-[var(--primary-softer)] font-semibold text-[var(--primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-primary)]'" @click="selectStructureFilter(option.value)">
                   {{ option.label }}
                   <Check v-if="structureFilter === option.value" :size="15" :stroke-width="2.5" />
@@ -586,13 +620,12 @@ onBeforeUnmount(() => {
               <div class="flex w-full items-center justify-end gap-2 tablet:w-auto">
                 <button v-if="version.status === 'draft'" type="button" class="app-button-primary min-h-10 flex-1 rounded-lg px-3 py-2 text-sm font-semibold tablet:flex-none" @click="editVersion(version)">Tiếp tục chỉnh sửa</button>
                 <div class="relative">
-                  <button type="button" class="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]" aria-label="Mở thao tác version" @click="versionActionId = versionActionId === version.id ? null : version.id"><span class="material-symbols-outlined text-[18px]">more_horiz</span></button>
-                  <div v-if="versionActionId === version.id" class="absolute right-0 top-full z-30 mt-2 w-56 overflow-hidden rounded-xl border border-[var(--stroke)] bg-white p-1 shadow-xl">
+                  <button type="button" class="inline-flex size-9 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]" aria-label="Mở thao tác version" @click="toggleVersionActionMenu(version, $event)"><span class="material-symbols-outlined text-[18px]">more_horiz</span></button>
+                  <div v-if="versionActionId === version.id" class="absolute right-0 z-30 w-56 overflow-hidden rounded-xl border border-[var(--stroke)] bg-white p-1 shadow-xl" :class="versionActionDirection === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'">
                     <button type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]" @click="openVersion(version.id)"><span class="material-symbols-outlined text-[17px]">visibility</span>Xem cấu trúc</button>
                     <button v-if="version.status !== 'draft' && !version.isActive" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] disabled:opacity-60" :disabled="applyingVersionId === version.id" @click="applyVersion(version)"><span class="material-symbols-outlined text-[17px]">publish</span>{{ applyingVersionId === version.id ? 'Đang áp dụng...' : 'Áp dụng lại version' }}</button>
                     <button v-if="!existingDraftVersion && version.status !== 'draft'" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]" @click="createVersionFrom(version.id)"><span class="material-symbols-outlined text-[17px]">content_copy</span>Tạo version mới từ đây</button>
-                    <button v-if="version.status === 'draft'" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--danger-text)] hover:bg-[var(--danger-bg)]" :disabled="deletingVersionId === version.id" @click="deleteVersion(version)"><span class="material-symbols-outlined text-[17px]">delete</span>{{ deletingVersionId === version.id ? 'Đang xóa...' : 'Xóa bản nháp' }}</button>
-                    <p v-if="existingDraftVersion && version.status !== 'draft'" class="px-3 py-2 text-xs leading-5 text-[var(--text-muted)]">Hãy xóa hoặc áp dụng bản nháp hiện tại trước khi tạo version khác.</p>
+                    <button v-if="!version.isActive" type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--danger-text)] hover:bg-[var(--danger-bg)]" :disabled="deletingVersionId === version.id" @click="deleteVersion(version)"><span class="material-symbols-outlined text-[17px]">delete</span>{{ deletingVersionId === version.id ? 'Đang xóa...' : 'Xóa version' }}</button>
                   </div>
                 </div>
               </div>

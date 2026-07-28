@@ -26,6 +26,15 @@ const pageCount = ref(1)
 const searchInput = ref('')
 const statusFilter = ref('')
 const lastSyncSummary = ref(null)
+const sortDirections = ref({
+  code: null,
+  name: null,
+  storeId: null,
+  brandId: null,
+  isActive: null,
+})
+const sortableFields = ['code', 'name', 'storeId', 'brandId', 'isActive']
+const sortCycle = [null, 'desc', 'asc']
 
 const modalMode = ref('')
 const editingStoreId = ref(null)
@@ -70,6 +79,51 @@ const rangeStart = computed(() => {
 const rangeEnd = computed(() => {
   if (!stores.value.length) return 0
   return rangeStart.value + stores.value.length - 1
+})
+
+const toggleSort = (field) => {
+  if (!sortableFields.includes(field)) return
+  const currentDirection = sortDirections.value[field] ?? null
+  const currentIndex = sortCycle.indexOf(currentDirection)
+  const nextIndex = (currentIndex + 1) % sortCycle.length
+  sortDirections.value = {
+    code: null,
+    name: null,
+    storeId: null,
+    brandId: null,
+    isActive: null,
+  }
+  sortDirections.value[field] = sortCycle[nextIndex]
+}
+
+const sortIndicator = (field) => {
+  if (sortDirections.value[field] === 'desc') return '↓'
+  if (sortDirections.value[field] === 'asc') return '↑'
+  return '↕'
+}
+
+const sortIndicatorClass = (field) => (sortDirections.value[field] ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]')
+
+const storeSortValue = (store, field) => {
+  if (field === 'name') return String(store?.name || store?.shortAddress || store?.address || '').toLowerCase()
+  if (field === 'isActive') return store?.isActive ? 1 : 0
+  return String(store?.[field] || '').toLowerCase()
+}
+
+const sortedStores = computed(() => {
+  const activeField = sortableFields.find((field) => sortDirections.value[field])
+  if (!activeField) return stores.value
+  const direction = sortDirections.value[activeField]
+  return [...stores.value].sort((left, right) => {
+    const leftValue = storeSortValue(left, activeField)
+    const rightValue = storeSortValue(right, activeField)
+    if (typeof leftValue === 'number' || typeof rightValue === 'number') {
+      return direction === 'asc' ? Number(leftValue) - Number(rightValue) : Number(rightValue) - Number(leftValue)
+    }
+    return direction === 'asc'
+      ? String(leftValue).localeCompare(String(rightValue), 'vi')
+      : String(rightValue).localeCompare(String(leftValue), 'vi')
+  })
 })
 
 const syncPrelineSelectValue = (elementId, value) => {
@@ -319,17 +373,42 @@ onMounted(async () => {
         <table class="min-w-[960px] w-full border-collapse text-left">
           <thead>
             <tr class="bg-[var(--surface-muted)]">
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Mã</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Thông tin cửa hàng</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Store ID</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Brand ID</th>
-              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Trạng thái</th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('code')">
+                  <span>Mã</span>
+                  <span :class="sortIndicatorClass('code')">{{ sortIndicator('code') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('name')">
+                  <span>Thông tin cửa hàng</span>
+                  <span :class="sortIndicatorClass('name')">{{ sortIndicator('name') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('storeId')">
+                  <span>Store ID</span>
+                  <span :class="sortIndicatorClass('storeId')">{{ sortIndicator('storeId') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('brandId')">
+                  <span>Brand ID</span>
+                  <span :class="sortIndicatorClass('brandId')">{{ sortIndicator('brandId') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('isActive')">
+                  <span>Trạng thái</span>
+                  <span :class="sortIndicatorClass('isActive')">{{ sortIndicator('isActive') }}</span>
+                </button>
+              </th>
               <th class="px-4 py-3 text-end text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Thao tác</th>
             </tr>
           </thead>
 
           <tbody v-if="stores.length" class="divide-y divide-slate-100">
-            <tr v-for="store in stores" :key="store.id" class="transition-colors hover:bg-[var(--surface-muted)]">
+            <tr v-for="store in sortedStores" :key="store.id" class="transition-colors hover:bg-[var(--surface-muted)]">
               <td class="px-4 py-3 text-sm font-semibold text-[var(--text-primary)]">{{ store.code || '--' }}</td>
               <td class="px-4 py-3">
                 <p class="text-sm font-semibold text-[var(--text-primary)]">{{ store.name || 'Chưa đặt tên' }}</p>

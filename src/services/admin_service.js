@@ -138,6 +138,7 @@ const normalizeAdminQcFormDetail = (item = {}) => {
         ?? (String(criterion?.mode || '') === 'deduction' ? criterion?.maxScore : 0)
         ?? 0
       ),
+      severity: String(criterion?.severity || criterion?.defaultSeverity || criterion?.default_severity || 'normal'),
       level: Number(criterion?.level || 1),
       ordering: String(criterion?.ordering || ''),
       parentId: criterion?.parentId ? String(criterion.parentId) : null,

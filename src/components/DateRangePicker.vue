@@ -24,6 +24,7 @@ const emit = defineEmits(['update:from', 'update:to', 'change'])
 
 const rootRef = ref(null)
 const open = ref(false)
+const pickerDirection = ref('down')
 const pickerId = `range-picker-${Math.random().toString(36).slice(2, 9)}`
 const today = toYmd(new Date())
 
@@ -92,8 +93,12 @@ function buildMonthDays(monthDate) {
   return days
 }
 
-function openPicker() {
+function openPicker(event) {
   if (props.disabled) return
+  const rect = event?.currentTarget?.getBoundingClientRect?.()
+  const spaceBelow = rect ? window.innerHeight - rect.bottom : 0
+  const spaceAbove = rect ? rect.top : 0
+  pickerDirection.value = spaceBelow < 390 && spaceAbove > spaceBelow ? 'up' : 'down'
   tempFrom.value = props.from || ''
   tempTo.value = props.to || ''
   currentMonth.value = parseYmd(props.from || props.to || today) || new Date()
@@ -104,12 +109,12 @@ function closePicker() {
   open.value = false
 }
 
-function togglePicker() {
+function togglePicker(event) {
   if (open.value) {
     closePicker()
     return
   }
-  openPicker()
+  openPicker(event)
 }
 
 function prevMonth() {
@@ -262,7 +267,8 @@ onBeforeUnmount(() => {
 
     <div
       v-if="open"
-      class="absolute left-0 top-full z-30 mt-2 w-[18rem] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--stroke)] bg-white p-2.5"
+      class="absolute left-0 z-30 w-[18rem] max-w-[calc(100vw-2rem)] rounded-xl border border-[var(--stroke)] bg-white p-2.5"
+      :class="pickerDirection === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'"
       :aria-labelledby="pickerId"
     >
       <div class="grid grid-cols-3 items-center gap-1.5 px-1 pb-2">

@@ -26,23 +26,11 @@ const numberFormatter = new Intl.NumberFormat('vi-VN')
 const sortDirections = ref({
   totalSessions: null,
   passed: null,
+  draftSessions: null,
+  activeFindingSessions: null,
   avgScoreRate: null,
   failed: null,
 })
-const sortPreset = ref('')
-const sortMenuOpen = ref(false)
-const sortPresetOptions = [
-  { value: '', label: 'Mặc định' },
-  { value: 'failed_desc', label: 'Lỗi giảm dần' },
-  { value: 'failed_asc', label: 'Lỗi tăng dần' },
-  { value: 'avgScoreRate_desc', label: 'Điểm TB giảm dần' },
-  { value: 'avgScoreRate_asc', label: 'Điểm TB tăng dần' },
-  { value: 'totalSessions_desc', label: 'Số phiên giảm dần' },
-  { value: 'totalSessions_asc', label: 'Số phiên tăng dần' },
-  { value: 'passed_desc', label: 'Đạt giảm dần' },
-  { value: 'passed_asc', label: 'Đạt tăng dần' },
-]
-const selectedSortLabel = computed(() => sortPresetOptions.find((option) => option.value === sortPreset.value)?.label || 'Mặc định')
 
 const loading = ref(false)
 const dateFrom = ref(initialRange.from)
@@ -248,7 +236,7 @@ const mergedStoreSources = computed(() => {
   return localRows
 })
 
-const sortableFields = ['totalSessions', 'passed', 'failed', 'avgScoreRate']
+const sortableFields = ['totalSessions', 'passed', 'draftSessions', 'activeFindingSessions', 'failed', 'avgScoreRate']
 const sortCycle = [null, 'desc', 'asc']
 
 const toggleSort = (field) => {
@@ -256,33 +244,15 @@ const toggleSort = (field) => {
   const currentDirection = sortDirections.value[field] ?? null
   const currentIndex = sortCycle.indexOf(currentDirection)
   const nextIndex = (currentIndex + 1) % sortCycle.length
-  sortDirections.value[field] = sortCycle[nextIndex]
-}
-
-const applySortPreset = (value) => {
   sortDirections.value = {
     totalSessions: null,
     passed: null,
+    draftSessions: null,
+    activeFindingSessions: null,
     avgScoreRate: null,
     failed: null,
   }
-
-  const [field, direction] = String(value || '').split('_')
-  if (!sortableFields.includes(field) || !['asc', 'desc'].includes(direction)) return
-  sortDirections.value[field] = direction
-}
-
-const toggleSortMenu = () => {
-  sortMenuOpen.value = !sortMenuOpen.value
-}
-
-const closeSortMenu = () => {
-  sortMenuOpen.value = false
-}
-
-const selectSortPreset = (value) => {
-  sortPreset.value = value
-  closeSortMenu()
+  sortDirections.value[field] = sortCycle[nextIndex]
 }
 
 const sortIndicator = (field) => {
@@ -309,6 +279,8 @@ const normalizedStores = computed(() => {
       avgMaxScore: Number(stat?.avgMaxScore || 0),
       avgScoreRate: Number(stat?.avgScoreRate || 0),
       passRate: Number(stat?.passRate || 0),
+      draftSessions: Number(stat?.draftSessions || 0),
+      activeFindingSessions: Number(stat?.activeFindingSessions || 0),
       lastAuditAt: stat?.lastAuditAt || null,
       lastAuditCode: stat?.lastAuditCode || '--',
       lastAuditResult: stat?.lastAuditResult || null,
@@ -332,6 +304,8 @@ const normalizedStores = computed(() => {
       totalSessionsLabel: numberFormatter.format(totalSessions),
       passedLabel: numberFormatter.format(passed),
       failedLabel: numberFormatter.format(failed),
+      draftSessionsLabel: numberFormatter.format(Number(merged.draftSessions || 0)),
+      activeFindingSessionsLabel: numberFormatter.format(Number(merged.activeFindingSessions || 0)),
       latestAuditLabel: formatDateTime(merged.lastAuditAt),
       lastUpdatedLabel: formatRelativeTime(merged.lastAuditAt),
       lastAuditResultLabel: lastAuditResultMeta.label,
@@ -425,7 +399,7 @@ const summaryCards = computed(() => [
     key: 'need_review',
     label: 'Cần kiểm tra lại',
     value: new Intl.NumberFormat('vi-VN').format(needReviewCount.value),
-    meta: `${summary.value.failed} phiên lỗi`,
+    meta: `${summary.value.failed} phiên không đạt`,
     hint: 'Số cửa hàng có phiên QC lỗi hoặc cần kiểm tra lại.',
     tone: 'rose',
   },
@@ -450,9 +424,11 @@ function changePageSize(size) {
   currentPage.value = 1
 }
 
-function openStoreDetail(storeId) {
+function openStoreDetail(store) {
+  const storeId = Number(store?.id || 0)
   if (!storeId) return
   const query = {}
+  if (store?.name) query.storeName = store.name
   if (route.query.date_from) query.date_from = route.query.date_from
   if (route.query.date_to) query.date_to = route.query.date_to
   router.push({ path: `/QC/store/${storeId}`, query })
@@ -463,12 +439,14 @@ async function handleRefresh() {
 }
 
 function exportReport() {
-  const headers = ['Ma cua hang', 'Ten cua hang', 'Khu vuc', 'QC score', 'Trang thai', 'Cap nhat cuoi']
+  const headers = ['Ma cua hang', 'Ten cua hang', 'Khu vuc', 'QC score', 'Phien nhap', 'Phien loi mo', 'Trang thai', 'Cap nhat cuoi']
   const rows = filteredStores.value.map((store) => [
     store.code || store.storeId || '',
     store.name || '',
     store.region || '',
     store.scoreDisplay,
+    store.draftSessionsLabel,
+    store.activeFindingSessionsLabel,
     store.healthLabel,
     store.lastUpdatedLabel,
   ].map((item) => formatCsvCell(item)).join(','))
@@ -580,10 +558,6 @@ watch(
   { immediate: true }
 )
 
-watch(sortPreset, (value) => {
-  applySortPreset(value)
-})
-
 watch(searchInput, (value) => {
   if (searchDebounce.value) clearTimeout(searchDebounce.value)
   searchDebounce.value = setTimeout(() => {
@@ -596,6 +570,8 @@ watch(
     searchKeyword.value,
     sortDirections.value.totalSessions,
     sortDirections.value.passed,
+    sortDirections.value.draftSessions,
+    sortDirections.value.activeFindingSessions,
     sortDirections.value.avgScoreRate,
     sortDirections.value.failed,
   ],
@@ -610,12 +586,11 @@ watch(filteredStores, () => {
 
 onBeforeUnmount(() => {
   if (searchDebounce.value) clearTimeout(searchDebounce.value)
-  closeSortMenu()
 })
 </script>
 
 <template>
-  <div class="app-page flex min-h-full flex-col pc:h-full pc:min-h-0 pc:overflow-hidden" @click="closeSortMenu">
+  <div class="app-page flex min-h-full flex-col pc:h-full pc:min-h-0 pc:overflow-hidden">
     <div class="flex min-h-0 flex-1 flex-col gap-4 pc:overflow-hidden">
       <section class="shrink-0 grid grid-cols-1 gap-3 tablet:grid-cols-2 pc:grid-cols-4">
         <StatSummaryCard
@@ -647,43 +622,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 tablet:flex tablet:w-auto tablet:flex-wrap tablet:items-center">
-              <div class="relative min-w-0 tablet:w-56" @click.stop>
-                <button
-                  type="button"
-                  class="inline-flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] focus:border-[var(--primary)] focus:outline-hidden"
-                  :aria-expanded="sortMenuOpen"
-                  aria-haspopup="menu"
-                  @click="toggleSortMenu"
-                >
-                  <span class="flex min-w-0 items-center gap-2">
-                    <span class="material-symbols-outlined text-[18px] text-[var(--text-muted)]">sort</span>
-                    <span class="truncate">{{ selectedSortLabel }}</span>
-                  </span>
-                  <span class="material-symbols-outlined shrink-0 text-[18px] text-[var(--text-muted)]">{{ sortMenuOpen ? 'expand_less' : 'expand_more' }}</span>
-                </button>
-
-                <div
-                  v-if="sortMenuOpen"
-                  class="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-full overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 shadow-xl"
-                  role="menu"
-                >
-                  <button
-                    v-for="option in sortPresetOptions"
-                    :key="option.value || 'default'"
-                    type="button"
-                    class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[var(--surface-muted)]"
-                    :class="option.value === sortPreset ? 'text-[var(--primary)]' : 'text-[var(--text-secondary)]'"
-                    role="menuitemradio"
-                    :aria-checked="option.value === sortPreset"
-                    @click="selectSortPreset(option.value)"
-                  >
-                    <span>{{ option.label }}</span>
-                    <span v-if="option.value === sortPreset" class="material-symbols-outlined text-[18px]">check</span>
-                  </button>
-                </div>
-              </div>
-
+            <div class="grid grid-cols-2 gap-2 tablet:flex tablet:w-auto tablet:flex-wrap tablet:items-center tablet:ml-auto">
               <button
                 type="button"
                 class="inline-flex h-9 w-10 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] pc:w-auto pc:gap-1.5 pc:px-3 pc:text-sm pc:font-medium"
@@ -719,14 +658,46 @@ onBeforeUnmount(() => {
 
         <div v-loading="loading" class="min-h-0 flex-1 pc:overflow-y-auto">
           <div class="hidden pc:block">
-            <table class="min-w-[840px] w-full border-collapse text-left">
+            <table class="min-w-[1080px] w-full border-collapse text-left">
               <thead class="sticky top-0 z-10 bg-[var(--surface-muted)] shadow-[0_1px_0_var(--stroke)]">
                 <tr>
                   <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Cửa hàng</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Tổng phiên</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Phiên đạt</th>
-                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Phiên lỗi</th>
-                  <th class="w-[104px] px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Điểm TB</th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('totalSessions')">
+                      <span>Tổng phiên</span>
+                      <span :class="sortIndicatorClass('totalSessions')">{{ sortIndicator('totalSessions') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('passed')">
+                      <span>Phiên đạt</span>
+                      <span :class="sortIndicatorClass('passed')">{{ sortIndicator('passed') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('draftSessions')">
+                      <span>Phiên nháp</span>
+                      <span :class="sortIndicatorClass('draftSessions')">{{ sortIndicator('draftSessions') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('failed')">
+                      <span>Phiên không đạt</span>
+                      <span :class="sortIndicatorClass('failed')">{{ sortIndicator('failed') }}</span>
+                    </button>
+                  </th>
+                  <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('activeFindingSessions')">
+                      <span>Phiên lỗi mở</span>
+                      <span :class="sortIndicatorClass('activeFindingSessions')">{{ sortIndicator('activeFindingSessions') }}</span>
+                    </button>
+                  </th>
+                  <th class="w-[104px] px-3 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                    <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('avgScoreRate')">
+                      <span>Điểm TB</span>
+                      <span :class="sortIndicatorClass('avgScoreRate')">{{ sortIndicator('avgScoreRate') }}</span>
+                    </button>
+                  </th>
                 </tr>
               </thead>
 
@@ -735,7 +706,7 @@ onBeforeUnmount(() => {
                   v-for="store in pagedStores"
                   :key="store.id"
                   class="cursor-pointer transition-colors hover:bg-[var(--surface-muted)]"
-                  @click="openStoreDetail(store.id)"
+                  @click="openStoreDetail(store)"
                 >
                   <td class="px-4 py-3">
                     <div class="min-w-0">
@@ -752,8 +723,24 @@ onBeforeUnmount(() => {
                     </span>
                   </td>
                   <td class="px-4 py-3">
+                    <span
+                      class="app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                      :class="Number(store.draftSessions || 0) > 0 ? 'app-badge--warning' : 'app-badge--neutral'"
+                    >
+                      {{ store.draftSessionsLabel }} phiên
+                    </span>
+                  </td>
+                  <td class="px-4 py-3">
                     <span class="app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium app-badge--danger">
                       {{ store.failedLabel }} phiên
+                    </span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span
+                      class="app-badge inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
+                      :class="Number(store.activeFindingSessions || 0) > 0 ? 'app-badge--warning' : 'app-badge--neutral'"
+                    >
+                      {{ store.activeFindingSessionsLabel }} phiên
                     </span>
                   </td>
                   <td class="w-[104px] px-3 py-3">
@@ -768,7 +755,7 @@ onBeforeUnmount(() => {
 
               <tbody v-else>
                 <tr>
-                  <td colspan="5" class="px-4 py-10">
+                  <td colspan="7" class="px-4 py-10">
                     <div class="app-state-panel app-state-panel--compact">
                       <div class="app-state-stack mx-auto">
                         <div class="app-state-icon mx-auto">
@@ -789,14 +776,14 @@ onBeforeUnmount(() => {
               v-for="store in pagedStores"
               :key="store.id"
               class="cursor-pointer rounded-lg border border-[var(--stroke)] bg-white p-3 shadow-sm transition-colors hover:border-[var(--stroke-strong)] hover:bg-[var(--surface-muted)]"
-              @click="openStoreDetail(store.id)"
+              @click="openStoreDetail(store)"
             >
               <div class="min-w-0">
                 <p class="truncate text-sm font-semibold leading-5 text-[var(--text-primary)]">{{ store.name }}</p>
                 <p class="mt-0.5 truncate text-xs leading-4 text-[var(--text-secondary)]">{{ store.storeSubtitle }}</p>
               </div>
 
-              <div class="mt-2 grid grid-cols-4 gap-1.5 text-xs">
+              <div class="mt-2 grid grid-cols-3 gap-1.5 text-xs">
                 <div class="rounded-md bg-[var(--surface-muted)] px-2 py-1.5">
                   <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Tổng</p>
                   <p class="mt-0.5 font-bold text-[var(--text-primary)]">{{ store.totalSessionsLabel }}</p>
@@ -805,9 +792,17 @@ onBeforeUnmount(() => {
                   <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Đạt</p>
                   <p class="mt-0.5 font-bold text-[var(--success-text)]">{{ store.passedLabel }}</p>
                 </div>
+                <div class="rounded-md bg-[var(--warning-bg)] px-2 py-1.5">
+                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Nháp</p>
+                  <p class="mt-0.5 font-bold text-[var(--warning-text)]">{{ store.draftSessionsLabel }}</p>
+                </div>
                 <div class="rounded-md bg-[var(--danger-bg)] px-2 py-1.5">
-                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Lỗi</p>
+                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Không đạt</p>
                   <p class="mt-0.5 font-bold text-[var(--danger-text)]">{{ store.failedLabel }}</p>
+                </div>
+                <div class="rounded-md bg-[var(--warning-bg)] px-2 py-1.5">
+                  <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Phiên mở</p>
+                  <p class="mt-0.5 font-bold text-[var(--warning-text)]">{{ store.activeFindingSessionsLabel }}</p>
                 </div>
                 <div class="rounded-md bg-[var(--primary-softer)] px-2 py-1.5">
                   <p class="text-[10px] font-semibold uppercase text-[var(--text-secondary)]">Điểm</p>

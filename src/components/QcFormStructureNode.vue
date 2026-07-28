@@ -19,6 +19,7 @@ const leaves = computed(() => {
 })
 const maxScore = computed(() => leaves.value.reduce((total, item) => item.mode === 'deduction' ? total : total + Number(item.maxScore || 0), 0))
 const modeLabel = computed(() => props.node.mode === 'deduction' ? `-${Number(props.node.deductionPercent || 0)} điểm %` : `${Number(props.node.maxScore || 0)} điểm`)
+const isCriticalCriterion = computed(() => ['critical', 'heavy'].includes(String(props.node.severity || '').toLowerCase()))
 const modeName = computed(() => {
   if (props.node.mode === 'deduction') return 'Khấu trừ'
   if (props.node.mode === 'pass_fail') return 'Đạt / Không đạt'
@@ -57,6 +58,7 @@ const criterionIndent = computed(() => `${30 + Math.max(props.depth - 1, 0) * 10
           {{ modeName }}
         </span>
         <span class="inline-flex h-5 items-center whitespace-nowrap rounded-full px-1.5 text-[10px] font-bold leading-none" :class="node.mode === 'deduction' ? 'bg-amber-100 text-amber-800' : node.mode === 'pass_fail' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'">{{ modeLabel }}</span>
+        <span v-if="isCriticalCriterion" class="inline-flex h-5 items-center whitespace-nowrap rounded-full border border-[var(--danger-border)] bg-[var(--danger-bg)] px-1.5 text-[10px] font-bold leading-none text-[var(--danger-text)]">Nặng</span>
       </div>
     </div>
     <div v-if="isGroup && expanded">

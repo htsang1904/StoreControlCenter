@@ -558,6 +558,7 @@ const criteriaPayload = computed(() => {
       maxScore: criterion.maxScore,
       minPassScore: criterion.minPassScore ?? (Number(criterion.maxScore || 0) / 2),
       deductionPercent: criterion.deductionPercent || 0,
+      severity: criterion.severity || 'normal',
       applicable: status !== 'na',
       status: status,
       note: String(state.note || '').trim(),
@@ -723,7 +724,7 @@ watch(
 
 const predictedConclusion = computed(() => {
   if (remainingCriteria.value > 0) return 'pending'
-  return sessionEvaluation.value.finalScoreRate >= Number(selectedTemplate.value.passThreshold || 0) ? 'pass' : 'fail'
+  return sessionEvaluation.value.status === 'passed' ? 'pass' : 'fail'
 })
 
 const predictedConclusionLabel = computed(() => {
