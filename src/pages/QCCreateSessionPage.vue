@@ -1234,7 +1234,7 @@ onBeforeUnmount(() => {
             <h2 class="text-sm font-semibold text-[var(--text-primary)]">Tổng quan phiếu</h2>
           </div>
 
-          <div class="space-y-4 px-4 py-4">
+          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
             <section class="space-y-3">
               <div class="flex items-end justify-between gap-3">
                 <div>
@@ -1249,26 +1249,26 @@ onBeforeUnmount(() => {
               </div>
             </section>
 
-            <section class="grid grid-cols-2 gap-2 text-center">
-              <div class="rounded-lg border border-[var(--stroke)] bg-white px-2 py-2">
-                <p class="text-lg font-bold text-[var(--text-primary)]">{{ completedCriteria }}</p>
-                <p class="mt-0.5 text-[11px] font-medium text-[var(--text-secondary)]">Đã chấm</p>
+            <section class="overflow-hidden rounded-lg border border-[var(--stroke)] bg-white">
+              <div class="flex items-center justify-between gap-3 border-b border-[var(--stroke)] px-3 py-2.5">
+                <span class="text-xs font-medium text-[var(--text-secondary)]">Đã chấm</span>
+                <strong class="text-sm font-bold text-[var(--text-primary)]">{{ completedCriteria }}</strong>
               </div>
-              <div class="rounded-lg border border-[var(--stroke)] bg-white px-2 py-2">
-                <p class="text-lg font-bold text-[var(--warning-text)]">{{ pendingCriteria.length }}</p>
-                <p class="mt-0.5 text-[11px] font-medium text-[var(--text-secondary)]">Còn lại</p>
+              <div class="flex items-center justify-between gap-3 border-b border-[var(--stroke)] px-3 py-2.5">
+                <span class="text-xs font-medium text-[var(--text-secondary)]">Còn lại</span>
+                <strong class="text-sm font-bold text-[var(--warning-text)]">{{ pendingCriteria.length }}</strong>
               </div>
-              <div class="rounded-lg border border-[var(--stroke)] bg-white px-2 py-2">
-                <p class="text-lg font-bold text-[var(--danger-text)]">{{ failedCriteriaCount }}</p>
-                <p class="mt-0.5 text-[11px] font-medium text-[var(--text-secondary)]">Không đạt</p>
+              <div class="flex items-center justify-between gap-3 border-b border-[var(--stroke)] px-3 py-2.5">
+                <span class="text-xs font-medium text-[var(--text-secondary)]">Không đạt</span>
+                <strong class="text-sm font-bold text-[var(--danger-text)]">{{ failedCriteriaCount }}</strong>
               </div>
-              <div class="rounded-lg border border-[var(--danger-border)] bg-[var(--danger-bg)] px-2 py-2">
-                <p class="text-lg font-bold text-[var(--danger-text)]">{{ failedCriteriaCount }}</p>
-                <p class="mt-0.5 text-[11px] font-medium text-[var(--danger-text)]">Khắc phục</p>
+              <div class="flex items-center justify-between gap-3 border-b border-[var(--danger-border)] bg-[var(--danger-bg)] px-3 py-2.5">
+                <span class="text-xs font-medium text-[var(--danger-text)]">Khắc phục</span>
+                <strong class="text-sm font-bold text-[var(--danger-text)]">{{ failedCriteriaCount }}</strong>
               </div>
-              <div class="rounded-lg border border-[var(--stroke)] bg-[var(--surface-muted)] px-2 py-2">
-                <p class="text-lg font-bold text-[var(--text-primary)]">{{ excludedCriteriaCount }}</p>
-                <p class="mt-0.5 text-[11px] font-medium text-[var(--text-secondary)]">N/A</p>
+              <div class="flex items-center justify-between gap-3 bg-[var(--surface-muted)] px-3 py-2.5">
+                <span class="text-xs font-medium text-[var(--text-secondary)]">N/A</span>
+                <strong class="text-sm font-bold text-[var(--text-primary)]">{{ excludedCriteriaCount }}</strong>
               </div>
             </section>
 
