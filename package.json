@@ -27,6 +27,7 @@
     "dropzone": "^6.0.0-beta.2",
     "jquery": "^3.7.1",
     "lodash": "^4.17.21",
+    "pinia": "^4.0.2",
     "preline": "^3.2.1",
     "sass": "^1.94.0",
     "sass-loader": "^16.0.6",

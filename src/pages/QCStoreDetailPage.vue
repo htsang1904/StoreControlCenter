@@ -112,7 +112,24 @@ const reasonLabels = {
 const selectedResultCount = computed(() => (filters.status || filters.remediation ? 1 : 0))
 const storeId = computed(() => Number(route.params.storeId || 0))
 
-const storeTitle = computed(() => String(route.query.storeName || ''))
+const storeTitle = computed(() => {
+  const queryName = String(route.query.storeName || '').trim()
+  if (queryName) return queryName
+
+  const userStores = Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []
+  const matchedUserStore = userStores.find((store) => Number(store?.id || 0) === storeId.value)
+  if (matchedUserStore) {
+    return matchedUserStore.shortAddress || matchedUserStore.address || matchedUserStore.name || matchedUserStore.code || `Cửa hàng #${storeId.value}`
+  }
+
+  const matchedSession = sessions.value.find((session) => String(session?.storeName || '').trim())
+  if (matchedSession?.storeName) return matchedSession.storeName
+
+  const matchedDraft = draftSessions.value.find((draft) => String(draft?.storeName || '').trim())
+  if (matchedDraft?.storeName) return matchedDraft.storeName
+
+  return storeId.value ? `Cửa hàng #${storeId.value}` : ''
+})
 const filteredSummary = computed(() => {
   const totalSessions = tableRows.value.filter((item) => item.rowType === 'session').length
   const passed = tableRows.value.filter((item) => item.rowType === 'session' && item.result === 'passed').length

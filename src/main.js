@@ -1,6 +1,7 @@
 import './assets/main.css'
 
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from './App.vue'
 import loading from '@/directives/loading'
 import { useApp } from '@/plugins/app'
@@ -55,6 +56,7 @@ router.beforeEach((to, from, next) => {
 
 const app = createApp(App)
 app.directive('loading',loading)
+app.use(createPinia())
 app.use(router)
 app.mount('#app')
 

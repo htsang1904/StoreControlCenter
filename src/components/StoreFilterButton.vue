@@ -1,26 +1,35 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { useApp } from '@/plugins/app'
+import { getMyStoreGroups } from '@/services/auth_service'
 
 const props = defineProps({
   modelValue: {
+    type: Array,
+    default: () => []
+  },
+  stores: {
     type: Array,
     default: () => []
   }
 })
 const emit = defineEmits(['update:modelValue'])
 
-const { state } = useApp()
-const stores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))
+const stores = computed(() => (Array.isArray(props.stores) ? props.stores : []))
 
 const showStoreFilterPopup = ref(false)
 const storeSearchQuery = ref('')
+const savedGroups = ref([])
+const loadingSavedGroups = ref(false)
 
 const localSelection = ref([...props.modelValue])
 
 watch(() => props.modelValue, (newVal) => {
   localSelection.value = [...newVal]
 }, { deep: true })
+
+watch(showStoreFilterPopup, (isOpen) => {
+  if (isOpen) loadSuiteSavedGroups()
+})
 
 const selectedStoreText = computed(() => {
   if (props.modelValue.length === 1) {
@@ -45,6 +54,27 @@ const filteredStores = computed(() => {
   })
 })
 
+const normalizedSavedGroups = computed(() => {
+  const storeRefToLocalId = new Map()
+  stores.value.forEach((store) => {
+    const localId = Number(store?.id || 0)
+    if (!Number.isInteger(localId) || localId <= 0) return
+    ;[store.id, store.storeId, store.store_id, store.code].forEach((ref) => {
+      const key = String(ref || '').trim()
+      if (key) storeRefToLocalId.set(key, localId)
+    })
+  })
+
+  return savedGroups.value
+    .map((group) => {
+      const storeIds = Array.from(new Set((Array.isArray(group.storeIds) ? group.storeIds : [])
+        .map((id) => storeRefToLocalId.get(String(id || '').trim()) || Number(id))
+        .filter((id) => Number.isInteger(id) && id > 0)))
+      return { ...group, storeIds }
+    })
+    .filter((group) => group.name && group.storeIds.length > 0)
+})
+
 function storeTitle(store) {
   return store?.name || store?.shortAddress || `Store #${store?.id || '--'}`
 }
@@ -53,6 +83,43 @@ function storeAddress(store) {
   const address = store?.address || ''
   if (address && address !== storeTitle(store)) return address
   return store?.shortAddress && store?.shortAddress !== storeTitle(store) ? store.shortAddress : ''
+}
+
+function normalizeSavedGroupRows(rows) {
+  if (!Array.isArray(rows)) return []
+
+  return rows.map((group, index) => {
+    const storeIds = (Array.isArray(group?.storeIds) ? group.storeIds : (Array.isArray(group?.store_ids) ? group.store_ids : []))
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+    return {
+      id: String(group?.id || `group-${index + 1}`),
+      name: String(group?.name || '').trim(),
+      storeIds: Array.from(new Set(storeIds)),
+    }
+  }).filter((group) => group.name && group.storeIds.length > 0)
+}
+
+async function loadSuiteSavedGroups() {
+  loadingSavedGroups.value = true
+  try {
+    const payload = await getMyStoreGroups({ key: 'store_groups' })
+    savedGroups.value = normalizeSavedGroupRows(payload?.store_groups)
+  } catch (_error) {
+    savedGroups.value = []
+  } finally {
+    loadingSavedGroups.value = false
+  }
+}
+
+function applySavedGroup(group) {
+  localSelection.value = [...group.storeIds]
+}
+
+function isSavedGroupActive(group) {
+  const groupIds = Array.isArray(group?.storeIds) ? group.storeIds.map((id) => Number(id)).sort((a, b) => a - b) : []
+  const selectedIds = localSelection.value.map((id) => Number(id)).sort((a, b) => a - b)
+  return groupIds.length > 0 && groupIds.length === selectedIds.length && groupIds.every((id, index) => id === selectedIds[index])
 }
 
 function toggleStoreSelection(storeId) {
@@ -104,7 +171,7 @@ function applySelection() {
             </button>
           </div>
           
-          <div class="border-b border-[var(--stroke)] bg-[var(--surface-muted)] p-3">
+          <div class="space-y-3 border-b border-[var(--stroke)] bg-[var(--surface-muted)] p-3">
             <div class="relative flex items-center">
               <span class="material-symbols-outlined pointer-events-none absolute left-3 text-[20px] text-[var(--text-muted)]">search</span>
               <input 
@@ -113,6 +180,27 @@ function applySelection() {
                 placeholder="Tìm kiếm cửa hàng..." 
                 class="app-input w-full rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium outline-none transition-all"
               />
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">Nhóm đã lưu</p>
+              </div>
+              <p v-if="loadingSavedGroups" class="text-[11px] font-medium text-[var(--text-secondary)]">Đang tải nhóm...</p>
+              <div v-if="normalizedSavedGroups.length" class="flex max-h-16 flex-wrap gap-1 overflow-y-auto pr-1">
+                <span
+                  v-for="group in normalizedSavedGroups"
+                  :key="group.id"
+                  class="group inline-flex max-w-full items-center rounded-md border text-[11px] font-semibold transition-colors"
+                  :class="isSavedGroupActive(group) ? 'border-[var(--primary)] bg-[var(--primary-softer)] text-[var(--primary-strong)]' : 'border-[var(--stroke)] bg-white text-[var(--text-secondary)]'"
+                  :title="`${group.name} · ${group.storeIds.length}`"
+                >
+                  <button type="button" class="inline-flex min-w-0 items-center gap-1 px-2 py-1 transition-colors hover:text-[var(--primary-strong)]" @click="applySavedGroup(group)">
+                    <span class="truncate">{{ group.name }}</span>
+                    <span class="shrink-0 text-[10px] font-bold" :class="isSavedGroupActive(group) ? 'text-[var(--primary-strong)]' : 'text-[var(--text-muted)]'">{{ group.storeIds.length }}</span>
+                  </button>
+                </span>
+              </div>
             </div>
           </div>
 

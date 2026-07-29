@@ -44,7 +44,6 @@ def _serialize_form_list_item(form: QCForm) -> dict:
         "code": form.code,
         "name": form.name,
         "description": form.description or "",
-        "is_active": form.is_active,
         "isActive": form.is_active,
         "versions": [
             {

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useHeaderBreadcrumb } from '@/composables/useHeaderBreadcrumb'
+import { useStoresStore } from '@/stores/stores'
 import { useApp } from '@/plugins/app'
 import StoreFilterButton from '@/components/StoreFilterButton.vue'
 import HeaderDateControls from './HeaderDateControls.vue'
@@ -29,6 +30,7 @@ const HEADER_TAB_SUBTITLES = {
 const route = useRoute()
 const router = useRouter()
 const { state } = useApp()
+const storesStore = useStoresStore()
 const { breadcrumbLabel } = useHeaderBreadcrumb()
 
 const headerContext = computed(() => resolveHeaderContext(route))
@@ -39,7 +41,7 @@ const showHeaderBreadcrumb = computed(() => headerContext.value.display === 'bre
 const visibleTitle = computed(() => headerContext.value.title)
 const visibleSubtitle = computed(() => HEADER_TAB_SUBTITLES[activeRootTab.value] || '')
 const breadcrumbItems = computed(() => resolveBreadcrumbItems(route, headerContext.value, breadcrumbLabel.value))
-const stores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))
+const stores = computed(() => storesStore.availableStores)
 const dashboardStoreFilter = ref([])
 
 const isQcSessionView = computed(() => route.path.startsWith('/QC/store/') && route.path.includes('/session/'))
@@ -219,6 +221,20 @@ function navigateTo(path) {
 }
 
 watch(
+  () => route.path,
+  () => {
+    if (
+      route.path.startsWith('/dashboard') ||
+      route.path.startsWith('/QC') ||
+      route.path.startsWith('/ticket')
+    ) {
+      storesStore.loadAdminStores().catch((error) => console.warn('Failed to load admin header stores:', error))
+    }
+  },
+  { immediate: true }
+)
+
+watch(
   () => [route.path, route.query.store_ids, stores.value.map((store) => store.id).join(',')],
   () => {
     if (!route.path.startsWith('/dashboard')) return
@@ -340,7 +356,7 @@ watch(
         </div>
 
         <div class="flex shrink-0 items-center justify-end gap-2">
-          <StoreFilterButton v-if="activeRootTab === 'dashboard'" v-model="dashboardStoreFilter" />
+          <StoreFilterButton v-if="activeRootTab === 'dashboard'" v-model="dashboardStoreFilter" :stores="stores" />
           <HeaderDateControls v-if="showHeaderDateFilter" />
           <HeaderNotifications />
         </div>

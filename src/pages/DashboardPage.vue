@@ -5,6 +5,7 @@ import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/
 import { useApp } from '@/plugins/app'
 import { useToast } from '@/plugins/toast'
 import { getDashboardOverview, listTickets } from '@/services/ticket_service'
+import { useStoresStore } from '@/stores/stores'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
 
 const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'))
@@ -12,6 +13,7 @@ const VueApexCharts = defineAsyncComponent(() => import('vue3-apexcharts'))
 const route = useRoute()
 const router = useRouter()
 const { state } = useApp()
+const storesStore = useStoresStore()
 const toast = useToast()
 
 const loading = ref(false)
@@ -77,7 +79,8 @@ const dashboardRange = computed(() => {
   return normalizeDateRangeFromQuery(route.query || {}, getDefaultDateRange())
 })
 
-const stores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))
+const isAdmin = computed(() => storesStore.isAdmin)
+const stores = computed(() => storesStore.availableStores)
 
 function normalizeStatus(status) {
   const value = String(status || '').toLowerCase()
@@ -314,39 +317,35 @@ function hideKpiTooltip() {
 
 const chartStoreFilter = ref([])
 
+const storeIdsFromRows = (rows = []) => rows
+  .map((store) => Number(store?.id || 0))
+  .filter((id) => Number.isInteger(id) && id > 0)
+
 watch(
-  () => route.query.store_ids,
-  (newVal) => {
+  () => [route.query.store_ids, stores.value.map((store) => store.id).join(',')],
+  ([newVal]) => {
     if (typeof newVal === 'string' && newVal.trim() !== '') {
       const parsed = newVal.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
       if (parsed.join(',') !== chartStoreFilter.value.join(',')) {
         chartStoreFilter.value = parsed
       }
-    } else if (!newVal && stores.value.length > 0) {
-      // If no query parameter, assume ALL stores are selected
-      const allIds = stores.value.map(s => s.id)
-      if (allIds.join(',') !== chartStoreFilter.value.join(',')) {
-         chartStoreFilter.value = allIds
-      }
+      return
+    }
+
+    const allIds = storeIdsFromRows(stores.value)
+    if (allIds.length > 0 && allIds.join(',') !== chartStoreFilter.value.join(',')) {
+      chartStoreFilter.value = allIds
     }
   },
   { immediate: true }
 )
 
-watch(stores, (newStores) => {
-  // Only auto-select all stores if there is no store_ids query and no current selection (first load)
-  if (newStores.length > 0 && chartStoreFilter.value.length === 0 && !route.query.store_ids) {
-    chartStoreFilter.value = newStores.map(s => s.id)
-  } else if (newStores.length > 0 && !route.query.store_ids) {
-    chartStoreFilter.value = newStores.map(s => s.id)
-  }
-}, { immediate: true })
-
 watch(chartStoreFilter, (newVal) => {
   const currentQ = String(route.query.store_ids || '')
   let newQ = newVal.join(',')
+  const allIds = storeIdsFromRows(stores.value)
   
-  if (stores.value.length > 0 && newVal.length === stores.value.length) {
+  if (allIds.length > 0 && newVal.length === allIds.length) {
     newQ = '' // Clear from URL if all selected
   }
 
@@ -480,10 +479,14 @@ function resolveDashboardStoreFilters() {
   const storeIds = chartStoreFilter.value
     .map((id) => Number(id || 0))
     .filter((storeId) => Number.isInteger(storeId) && storeId > 0)
+  const allStoreIds = storeIdsFromRows(stores.value)
+  const isAllSelected = allStoreIds.length > 0 && storeIds.length === allStoreIds.length
+  const shouldUseAllAccess = isAdmin.value && (!route.query.store_ids || isAllSelected)
+  const apiStoreIds = shouldUseAllAccess ? [] : storeIds
 
   return {
-    apiStoreIdsStr: storeIds.join(',') || undefined,
-    apiStoreIdsArr: storeIds.length > 0 ? storeIds : undefined,
+    apiStoreIdsStr: apiStoreIds.join(',') || undefined,
+    apiStoreIdsArr: apiStoreIds.length > 0 ? apiStoreIds : undefined,
   }
 }
 
@@ -564,6 +567,8 @@ async function loadTicketOverview({ showLoading = false } = {}) {
 async function loadDashboard() {
   loading.value = true
   errorMessage.value = ''
+
+  await storesStore.loadAdminStores().catch((error) => notifyError(error?.response?.data?.message || error?.message || 'Không tải được danh sách cửa hàng cho admin.'))
 
   const { apiStoreIdsStr, apiStoreIdsArr } = resolveDashboardStoreFilters()
 

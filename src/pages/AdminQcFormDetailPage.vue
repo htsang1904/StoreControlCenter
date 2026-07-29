@@ -53,6 +53,9 @@ const statusClass = (status) => {
   return 'app-badge--warning'
 }
 
+const formActiveLabel = computed(() => (formDetail.value?.isActive === false ? 'Ngưng dùng' : 'Đang dùng'))
+const formActiveClass = computed(() => (formDetail.value?.isActive === false ? 'app-badge--neutral' : 'app-badge--success'))
+
 const criteriaRows = computed(() => {
   return Array.isArray(formDetail.value?.latestVersion?.criteria)
     ? formDetail.value.latestVersion.criteria
@@ -410,7 +413,10 @@ onBeforeUnmount(() => {
           <h1 class="min-w-0 max-w-full truncate text-xl font-bold tracking-tight text-[var(--text-primary)] tablet:text-2xl">
             {{ formDetail?.code || formDetail?.name || 'Chi tiết biểu mẫu QC' }}
           </h1>
-          <div v-if="formDetail" class="flex shrink-0 items-center gap-1.5">
+          <div v-if="formDetail" class="flex shrink-0 flex-wrap items-center gap-1.5">
+            <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="formActiveClass">
+              {{ formActiveLabel }}
+            </span>
             <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(formDetail.latestVersion?.status)">
               {{ statusLabel(formDetail.latestVersion?.status) }} {{ formDetail.latestVersion?.versionNo || '' }}
             </span>
@@ -520,6 +526,7 @@ onBeforeUnmount(() => {
             <dl class="mt-5 space-y-4 text-sm">
               <div class="grid grid-cols-[92px_minmax(0,1fr)] gap-3 tablet:grid-cols-[110px_minmax(0,1fr)]"><dt class="text-[var(--text-muted)]">Mã biểu mẫu</dt><dd class="break-words font-semibold text-[var(--text-primary)]">{{ formDetail.code }}</dd></div>
               <div class="grid grid-cols-[92px_minmax(0,1fr)] gap-3 tablet:grid-cols-[110px_minmax(0,1fr)]"><dt class="text-[var(--text-muted)]">Tên biểu mẫu</dt><dd class="break-words font-semibold text-[var(--text-primary)]">{{ formDetail.name }}</dd></div>
+              <div class="grid grid-cols-[92px_minmax(0,1fr)] gap-3 tablet:grid-cols-[110px_minmax(0,1fr)]"><dt class="text-[var(--text-muted)]">Trạng thái form</dt><dd><span class="app-badge inline-flex rounded-lg px-2.5 py-1 text-xs font-semibold" :class="formActiveClass">{{ formActiveLabel }}</span></dd></div>
               <div class="grid grid-cols-[92px_minmax(0,1fr)] gap-3 tablet:grid-cols-[110px_minmax(0,1fr)]"><dt class="text-[var(--text-muted)]">Mô tả</dt><dd class="break-words leading-6 text-[var(--text-secondary)]">{{ formDetail.description || 'Chưa có mô tả.' }}</dd></div>
             </dl>
           </section>

@@ -19,6 +19,7 @@ const router = useRouter()
 const toast = useToast()
 
 const savingMode = ref('')
+const publishMenuOpen = ref(false)
 const loadingForm = ref(false)
 const loadError = ref('')
 const activeStep = ref(1)
@@ -127,7 +128,7 @@ const currentVersion = reactive({
 const isEditMode = computed(() => route.name === 'Admin QC Form Edit' || route.name === 'Admin QC Form Version Edit')
 const isSaving = computed(() => Boolean(savingMode.value))
 const isSavingDraft = computed(() => savingMode.value === 'draft')
-const isPublishing = computed(() => savingMode.value === 'published')
+const isPublishing = computed(() => String(savingMode.value || '').startsWith('published'))
 
 const parseVersionNo = (value) => {
   const matched = String(value || '').trim().match(/^v(\d+)(?:\.(\d+))?$/i)
@@ -158,7 +159,7 @@ const pageDescription = computed(() => (
 ))
 
 const saveDraftLabel = computed(() => (isSavingDraft.value ? 'Đang lưu nháp...' : 'Lưu nháp'))
-const publishLabel = computed(() => (isPublishing.value ? 'Đang phát hành...' : 'Phát hành và áp dụng'))
+const publishLabel = computed(() => (isPublishing.value ? 'Đang phát hành...' : 'Phát hành'))
 const customInputClass = 'h-11 px-3.5 block w-full border border-[var(--stroke)] rounded-lg bg-white text-[var(--text-primary)] text-sm placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/10 disabled:opacity-70 disabled:pointer-events-none disabled:bg-[var(--surface-muted)]'
 const customTextareaClass = 'min-h-24 py-3 px-3.5 block w-full resize-none border border-[var(--stroke)] rounded-lg bg-white text-[var(--text-primary)] text-sm placeholder:text-[var(--text-muted)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/10 disabled:opacity-70 disabled:pointer-events-none disabled:bg-[var(--surface-muted)]'
 const validationInputClass = 'app-input-invalid'
@@ -622,7 +623,7 @@ const loadFormDetail = async () => {
   }
 }
 
-const submitForm = async (targetStatus) => {
+const submitForm = async (targetStatus, options = {}) => {
   if (isSaving.value) return
 
   revealAllValidation()
@@ -633,24 +634,30 @@ const submitForm = async (targetStatus) => {
     return
   }
 
-  if (targetStatus === 'published') {
+  const shouldPublish = targetStatus === 'published'
+  const activateForm = shouldPublish ? options.activateForm === true : qcForm.isActive
+
+  if (shouldPublish) {
     const confirmed = await confirmDialog({
-      title: 'Phát hành và áp dụng biểu mẫu QC?',
-      message: 'Version này sẽ trở thành bản đang dùng cho các phiếu QC tạo mới. Phiếu đã tạo trước đó vẫn giữ version cũ.',
-      confirmText: 'Phát hành và áp dụng',
+      title: activateForm ? 'Phát hành và dùng ngay biểu mẫu QC?' : 'Chỉ phát hành biểu mẫu QC?',
+      message: activateForm
+        ? 'Version này sẽ trở thành bản đang dùng cho các phiếu QC tạo mới và form sẽ xuất hiện trong popup tạo phiếu QC.'
+        : 'Version này sẽ được phát hành để lưu lại, nhưng form chưa xuất hiện trong popup tạo phiếu QC cho đến khi được phát hành dùng ngay.',
+      confirmText: activateForm ? 'Phát hành và dùng ngay' : 'Chỉ phát hành',
       cancelText: 'Huỷ',
     })
     if (!confirmed) return
+    publishMenuOpen.value = false
   }
 
-  savingMode.value = targetStatus
+  savingMode.value = shouldPublish ? (activateForm ? 'published_active' : 'published_inactive') : targetStatus
   try {
     const payload = {
       code: String(qcForm.code || '').trim().toUpperCase(),
       name: String(qcForm.name || '').trim(),
       description: String(qcForm.description || '').trim(),
       passThreshold: Number(qcForm.passThreshold || 0),
-      isActive: qcForm.isActive,
+      isActive: activateForm,
       status: targetStatus,
       criteria: serializeCriteriaTree(qcForm.criteriaTree),
     }
@@ -674,10 +681,10 @@ const submitForm = async (targetStatus) => {
       } else {
         detail = await updateAdminQcForm(qcForm.id, payload)
       }
-      toast.success(targetStatus === 'published' ? 'Đã phát hành và áp dụng biểu mẫu QC' : 'Lưu nháp biểu mẫu QC thành công')
+      toast.success(targetStatus === 'published' ? (payload.isActive ? 'Đã phát hành và dùng ngay biểu mẫu QC' : 'Đã phát hành biểu mẫu QC') : 'Lưu nháp biểu mẫu QC thành công')
     } else {
       detail = await createAdminQcForm(payload)
-      toast.success(targetStatus === 'published' ? 'Tạo, phát hành và áp dụng biểu mẫu QC thành công' : 'Tạo biểu mẫu QC dạng nháp thành công')
+      toast.success(targetStatus === 'published' ? (payload.isActive ? 'Tạo, phát hành và dùng ngay biểu mẫu QC thành công' : 'Tạo và phát hành biểu mẫu QC thành công') : 'Tạo biểu mẫu QC dạng nháp thành công')
     }
 
     applyFormDetail(detail)
@@ -1171,51 +1178,25 @@ onMounted(async () => {
         </div>
 
         <div class="sticky bottom-0 z-40 -mx-3 mt-auto border-t border-[var(--stroke)] bg-white/95 px-3 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur tablet:flex tablet:items-center tablet:justify-end tablet:py-4">
-          <div class="grid w-full grid-cols-2 gap-2 tablet:flex tablet:w-auto tablet:flex-wrap tablet:items-center tablet:justify-end">
-            <button
-              type="button"
-              class="order-1 inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-[var(--stroke-strong)] bg-white px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] tablet:order-none tablet:min-h-11 tablet:w-auto tablet:px-5"
-              @click="goBack"
-            >
-              Hủy
-            </button>
+          <div class="flex w-full flex-col gap-2 tablet:flex-row tablet:items-center tablet:justify-between">
+            <div class="tablet:flex tablet:items-center">
+              <button v-if="activeStep > 1" type="button" class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:min-h-11 tablet:w-auto tablet:py-2.5" @click="goToPreviousStep"><span class="material-symbols-outlined text-[18px]">arrow_back</span>Quay lại</button>
+            </div>
 
-            <button
-              type="button"
-              class="order-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--primary)] bg-white px-4 py-2 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--primary-softer)] disabled:opacity-60 tablet:order-none tablet:min-h-11 tablet:w-auto tablet:px-5 tablet:py-2.5"
-              :disabled="isSaving"
-              @click="submitForm('draft')"
-            ><span class="material-symbols-outlined text-[18px]">save</span>{{ saveDraftLabel }}</button>
+            <div class="grid grid-cols-2 gap-2 tablet:flex tablet:items-center tablet:justify-end">
+              <button type="button" class="inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-[var(--stroke-strong)] bg-white px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-muted)] tablet:min-h-11 tablet:w-auto tablet:px-5" @click="goBack">Hủy</button>
+              <button type="button" class="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--primary)] bg-white px-4 py-2 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--primary-softer)] disabled:opacity-60 tablet:min-h-11 tablet:w-auto tablet:px-5 tablet:py-2.5" :disabled="isSaving" @click="submitForm('draft')"><span class="material-symbols-outlined text-[18px]">save</span>{{ saveDraftLabel }}</button>
 
-            <button
-              v-if="activeStep > 1"
-              type="button"
-              class="order-3 col-span-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--stroke)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:order-none tablet:w-auto tablet:py-2.5"
-              @click="goToPreviousStep"
-            >
-              <span class="material-symbols-outlined text-[18px]">arrow_back</span>
-              Quay lại
-            </button>
+              <button v-if="activeStep < FORM_STEPS.length" type="button" class="col-span-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] tablet:w-auto" @click="goToNextStep">Tiếp tục tạo tiêu chí<span class="material-symbols-outlined text-[18px]">arrow_forward</span></button>
 
-            <button
-              v-if="activeStep < FORM_STEPS.length"
-              type="button"
-              class="order-4 col-span-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] tablet:order-none tablet:w-auto"
-              @click="goToNextStep"
-            >
-              Tiếp tục tạo tiêu chí
-              <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
-            </button>
-
-            <button
-              v-else
-              type="button"
-              class="order-4 col-span-2 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] disabled:cursor-not-allowed disabled:opacity-60 tablet:order-none tablet:w-auto"
-              :disabled="isSaving"
-              @click="submitForm('published')"
-            >
-              {{ publishLabel }}
-            </button>
+              <div v-else class="relative col-span-2 tablet:col-auto">
+                <button type="button" class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--primary-strong)] disabled:cursor-not-allowed disabled:opacity-60 tablet:w-auto" :disabled="isSaving" :aria-expanded="String(publishMenuOpen)" @click="publishMenuOpen = !publishMenuOpen">{{ publishLabel }}<span class="material-symbols-outlined text-[18px]">expand_less</span></button>
+                <div v-if="publishMenuOpen" class="absolute bottom-full right-0 z-50 mb-2 w-72 overflow-hidden rounded-xl border border-[var(--stroke)] bg-white py-1 text-sm shadow-xl">
+                  <button type="button" class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2.5 text-left font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60" :disabled="isSaving" @click="submitForm('published', { activateForm: true })"><span class="material-symbols-outlined shrink-0 text-[18px] text-[var(--success-text)]">rocket_launch</span><span class="min-w-0">Phát hành và dùng ngay</span></button>
+                  <button type="button" class="flex w-full items-center gap-2 whitespace-nowrap px-3 py-2.5 text-left font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-muted)] disabled:cursor-not-allowed disabled:opacity-60" :disabled="isSaving" @click="submitForm('published', { activateForm: false })"><span class="material-symbols-outlined shrink-0 text-[18px] text-[var(--text-secondary)]">inventory_2</span><span class="min-w-0">Chỉ phát hành, chưa dùng</span></button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

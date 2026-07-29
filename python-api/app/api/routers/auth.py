@@ -311,12 +311,63 @@ async def sso_callback(
 import httpx
 from urllib.parse import urljoin
 
+def suite_staff_id_from_user(user: User) -> str:
+    staff_id = str(getattr(user, "suite_staff_id", "") or "").strip()
+    if staff_id:
+        return staff_id
+
+    suite_staff_ref = str(user.suite_token or "").strip()
+    return suite_staff_ref.removeprefix("staff:").strip() if suite_staff_ref.startswith("staff:") else ""
+
+def extract_suite_store_groups(payload: Any) -> Any:
+    if not isinstance(payload, dict):
+        return None
+    for key in ("store_groups", "store_group", "storeGroups", "groups"):
+        if key in payload:
+            return payload.get(key)
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in ("store_groups", "store_group", "storeGroups", "groups"):
+            if key in data:
+                return data.get(key)
+    return None
+
+def normalize_suite_store_groups(payload: Any) -> list[dict] | None:
+    raw_groups = extract_suite_store_groups(payload)
+    if raw_groups is None:
+        return None
+    if not isinstance(raw_groups, list):
+        return []
+
+    groups = []
+    for item in raw_groups:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        raw_store_ids = item.get("store_ids") if "store_ids" in item else item.get("storeIds")
+        store_ids = []
+        if isinstance(raw_store_ids, list):
+            for store_id in raw_store_ids:
+                try:
+                    normalized_store_id = int(store_id)
+                except (TypeError, ValueError):
+                    continue
+                if normalized_store_id > 0 and normalized_store_id not in store_ids:
+                    store_ids.append(normalized_store_id)
+        if not name:
+            continue
+        groups.append({
+            "id": item.get("id"),
+            "name": name,
+            "store_ids": store_ids,
+        })
+    return groups
+
 async def map_suite_stores_to_user(session: AsyncSession, user: User) -> list:
     """
     Fetch current staff stores from Suite Platform API and link them to the local User record.
     """
-    suite_staff_ref = str(user.suite_token or "").strip()
-    staff_id = suite_staff_ref.removeprefix("staff:").strip() if suite_staff_ref.startswith("staff:") else ""
+    staff_id = suite_staff_id_from_user(user)
     if not staff_id:
         logger.warning(f"[auth] sync suite stores skipped for user {user.id}: missing Suite staff id")
         return []
@@ -436,6 +487,52 @@ async def update_my_avatar(
         "data": {
             "user": serialize_user(current_user, permissions),
         },
+    }
+
+
+@router.get("/me/store-groups", response_model=dict)
+async def get_my_store_groups(
+    current_user: CurrentUser,
+    key: str = "store_groups",
+) -> Any:
+    staff_id = suite_staff_id_from_user(current_user)
+    if not staff_id:
+        raise HTTPException(status_code=400, detail="Không có Suite staff id để lấy nhóm cửa hàng")
+    if not settings.SUITE_PLATFORM_TOKEN:
+        raise HTTPException(status_code=500, detail="Thiếu cấu hình SUITE_PLATFORM_TOKEN")
+
+    normalized_key = str(key or "store_groups").strip() or "store_groups"
+    url = urljoin(settings.SUITE_API, f"/platform/v1/staffs/{staff_id}/store-groups")
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                url,
+                params={"key": normalized_key},
+                headers={"Authorization": f"Bearer {settings.SUITE_PLATFORM_TOKEN}"},
+            )
+            payload = response.json() if response.content else {}
+            response.raise_for_status()
+        groups = normalize_suite_store_groups(payload)
+    except httpx.HTTPStatusError as exc:
+        status_code = exc.response.status_code
+        detail = None
+        try:
+            detail = exc.response.json().get("message")
+        except Exception:
+            detail = None
+        raise HTTPException(status_code=status_code, detail=detail or "Không thể lấy nhóm cửa hàng từ Suite")
+    except Exception as exc:
+        logger.warning(f"[auth] get suite store groups failed for user {current_user.id}: {exc}")
+        raise HTTPException(status_code=502, detail="Không thể lấy nhóm cửa hàng từ Suite")
+
+    if not payload.get("success"):
+        raise HTTPException(status_code=502, detail=payload.get("message") or "Không thể lấy nhóm cửa hàng từ Suite")
+
+    return {
+        "success": True,
+        "key": payload.get("key") or normalized_key,
+        "store_groups": groups,
     }
 
 @router.post("/logout", response_model=dict)

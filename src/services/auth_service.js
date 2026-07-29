@@ -27,3 +27,7 @@ export const updateAvatar = (formData) => {
     },
   })
 }
+
+export const getMyStoreGroups = (params = {}) => {
+  return http.get('/api/auth/me/store-groups', { params })
+}

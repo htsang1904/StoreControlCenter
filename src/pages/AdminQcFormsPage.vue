@@ -20,11 +20,12 @@ const sortDirections = ref({
   code: null,
   name: null,
   version: null,
+  formActive: null,
   status: null,
   createdAt: null,
   updatedAt: null,
 })
-const sortableFields = ['code', 'name', 'version', 'status', 'createdAt', 'updatedAt']
+const sortableFields = ['code', 'name', 'version', 'formActive', 'status', 'createdAt', 'updatedAt']
 const sortCycle = [null, 'desc', 'asc']
 
 const statusFilterSelectConfig = JSON.stringify({
@@ -49,6 +50,7 @@ const toggleSort = (field) => {
     code: null,
     name: null,
     version: null,
+    formActive: null,
     status: null,
     createdAt: null,
     updatedAt: null,
@@ -72,6 +74,7 @@ const formStatusValue = (form) => (
 
 const formSortValue = (form, field) => {
   if (field === 'version') return String(form?.displayVersionNo || form?.latestVersionNo || '').toLowerCase()
+  if (field === 'formActive') return form?.isActive === false ? 0 : 1
   if (field === 'status') return formStatusValue(form)
   if (field === 'createdAt' || field === 'updatedAt') return new Date(form?.[field] || 0).getTime() || 0
   return String(form?.[field] || '').toLowerCase()
@@ -162,6 +165,9 @@ const statusClass = (status, hasLatestVersion = true) => {
   if (normalized === 'archived') return 'app-badge--neutral'
   return 'app-badge--warning'
 }
+
+const formActiveLabel = (form) => (form?.isActive === false ? 'Ngưng dùng' : 'Đang dùng')
+const formActiveClass = (form) => (form?.isActive === false ? 'app-badge--neutral' : 'app-badge--success')
 
 const loadQcForms = async (page = currentPage.value) => {
   loadingForms.value = true
@@ -274,12 +280,21 @@ onMounted(async () => {
               <p class="mt-1 line-clamp-2 text-sm font-medium leading-5 text-[var(--text-primary)]">{{ form.name }}</p>
               <p class="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{{ form.description || 'Không có mô tả' }}</p>
             </div>
-            <span class="app-badge shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion)">
-              {{ statusLabel(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion) }}
-            </span>
+            <div class="flex shrink-0 flex-col items-end gap-1.5">
+              <span class="app-badge rounded-lg px-2.5 py-1 text-xs font-semibold" :class="formActiveClass(form)">
+                {{ formActiveLabel(form) }}
+              </span>
+              <span class="app-badge rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion)">
+                {{ statusLabel(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion) }}
+              </span>
+            </div>
           </div>
 
-          <div class="mt-4 grid grid-cols-3 gap-2 text-xs">
+          <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-lg bg-[var(--surface-muted)] px-2.5 py-2">
+              <p class="text-[var(--text-muted)]">Trạng thái form</p>
+              <p class="mt-1 truncate font-semibold" :class="form.isActive === false ? 'text-[var(--text-secondary)]' : 'text-[var(--success-text)]'">{{ formActiveLabel(form) }}</p>
+            </div>
             <div class="rounded-lg bg-[var(--surface-muted)] px-2.5 py-2">
               <p class="text-[var(--text-muted)]">Version</p>
               <p class="mt-1 truncate font-semibold text-[var(--text-primary)]">{{ form.displayVersionNo || '--' }}</p>
@@ -309,7 +324,7 @@ onMounted(async () => {
       </div>
 
       <div class="app-table-scroll hidden tablet:block">
-        <table class="min-w-[1040px] w-full border-collapse text-left">
+        <table class="min-w-[1160px] w-full border-collapse text-left">
           <thead>
             <tr class="bg-[var(--surface-muted)]">
               <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
@@ -331,8 +346,14 @@ onMounted(async () => {
                 </button>
               </th>
               <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
+                <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('formActive')">
+                  <span>Trạng thái form</span>
+                  <span :class="sortIndicatorClass('formActive')">{{ sortIndicator('formActive') }}</span>
+                </button>
+              </th>
+              <th class="px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-[var(--text-secondary)]">
                 <button type="button" class="inline-flex items-center gap-1 transition-colors hover:text-[var(--text-primary)]" @click="toggleSort('status')">
-                  <span>Trạng thái</span>
+                  <span>Trạng thái version</span>
                   <span :class="sortIndicatorClass('status')">{{ sortIndicator('status') }}</span>
                 </button>
               </th>
@@ -367,6 +388,11 @@ onMounted(async () => {
                 <p class="text-sm font-semibold text-[var(--text-primary)]">{{ form.displayVersionNo || '--' }}</p>
               </td>
               <td class="px-4 py-3">
+                <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="formActiveClass(form)">
+                  {{ formActiveLabel(form) }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
                 <span class="app-badge inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold" :class="statusClass(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion)">
                   {{ statusLabel(form.displayVersionStatus || form.latestVersionStatus, form.hasLatestVersion) }}
                 </span>
@@ -378,7 +404,7 @@ onMounted(async () => {
 
           <tbody v-else>
             <tr>
-              <td colspan="6" class="px-4 py-10">
+              <td colspan="7" class="px-4 py-10">
                 <div class="app-state-panel app-state-panel--compact">
                   <div class="app-state-stack mx-auto">
                     <div class="app-state-icon mx-auto">
