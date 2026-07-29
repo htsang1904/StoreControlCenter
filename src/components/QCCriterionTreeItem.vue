@@ -485,12 +485,12 @@ const toggleDetails = () => {
           <p v-if="criterion.description" class="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]" :title="criterion.description">{{ criterion.description }}</p>
         </div>
 
-        <div class="flex min-w-0 items-center justify-end gap-2">
+        <div class="flex min-w-0 flex-wrap items-center gap-2 tablet:flex-nowrap tablet:justify-end">
           <span class="inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-md border px-2 text-[10px] font-medium leading-none" :class="modeBadgeClass">
             {{ modeName }}
           </span>
 
-          <div class="w-[126px] shrink-0">
+          <div class="min-w-[118px] flex-1 tablet:w-[126px] tablet:flex-none">
             <div v-if="criterionMode === 'point'" class="flex h-8 items-center rounded-lg border border-[var(--stroke)] bg-white px-2 shadow-sm focus-within:border-[var(--primary)]">
               <input
                 type="number"
@@ -564,7 +564,7 @@ const toggleDetails = () => {
             N/A
           </button>
 
-          <span v-if="currentStatus !== 'pending'" class="inline-flex min-w-[76px] shrink-0 justify-center rounded-md border px-2 py-1 text-xs font-semibold" :class="statusBadgeClass">
+          <span v-if="currentStatus !== 'pending'" class="inline-flex min-w-[72px] flex-1 justify-center rounded-md border px-2 py-1 text-xs font-semibold tablet:flex-none" :class="statusBadgeClass">
             {{ statusLabel }}
           </span>
 

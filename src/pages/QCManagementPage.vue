@@ -622,21 +622,21 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-2 tablet:flex tablet:w-auto tablet:flex-wrap tablet:items-center tablet:ml-auto">
+            <div class="grid w-full grid-cols-2 gap-2 tablet:ml-auto tablet:flex tablet:w-auto tablet:flex-wrap">
               <button
                 type="button"
-                class="inline-flex h-9 w-10 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] pc:w-auto pc:gap-1.5 pc:px-3 pc:text-sm pc:font-medium"
+                class="inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:w-auto"
                 title="Tải lại"
                 aria-label="Tải lại"
                 @click="handleRefresh"
               >
                 <span class="material-symbols-outlined text-[18px]">refresh</span>
-                <span class="hidden pc:inline">Tải lại</span>
+                <span class="truncate">Tải lại</span>
               </button>
 
               <button
                 type="button"
-                class="inline-flex h-9 w-10 items-center justify-center rounded-lg border border-[var(--stroke)] bg-white text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:ml-auto pc:w-auto pc:gap-1.5 pc:px-3 pc:text-sm pc:font-medium"
+                class="inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--stroke)] bg-white px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-muted)] tablet:w-auto"
                 title="Xuất báo cáo"
                 aria-label="Xuất báo cáo"
                 @click="exportReport"
@@ -646,7 +646,7 @@ onBeforeUnmount(() => {
                   <path d="m7 10 5 5 5-5" />
                   <path d="M5 21h14" />
                 </svg>
-                <span class="hidden pc:inline">Xuất báo cáo</span>
+                <span class="truncate">Xuất báo cáo</span>
               </button>
             </div>
           </div>
