@@ -59,6 +59,7 @@ const evidenceViewerOpen = ref(false)
 const evidenceViewerImages = ref([])
 const evidenceViewerIndex = ref(0)
 const expandedStructureNodeIds = ref(new Set())
+const structureOutlineOpen = ref(false)
 
 const storeId = computed(() => Number(route.params.storeId || 0))
 const selectedStore = computed(() => {
@@ -797,12 +798,19 @@ const buildStructureNode = (node, level = 1, ancestors = [], index = 0, parentDi
   const failed = failedCountForNode(node)
   const segment = getStructureOrderingSegment(node, index)
   const displayOrdering = parentDisplayOrdering ? `${parentDisplayOrdering}.${segment}` : segment
+  const outlineId = [displayOrdering, node.id, node.code, node.name]
+    .filter((part) => part !== null && part !== undefined && String(part).trim() !== '')
+    .map((part) => String(part).trim())
+    .join('::')
+
   const current = {
     ...node,
     id: node.id,
+    outlineId: outlineId || `${level}:${index}:${displayOrdering}`,
     ordering: node.ordering || node.code || '',
     displayOrdering,
     name: node.name || 'Tiêu chí',
+    ancestors,
   }
 
   return {
@@ -813,7 +821,7 @@ const buildStructureNode = (node, level = 1, ancestors = [], index = 0, parentDi
     completed,
     failed,
     tone: structureNodeTone(completed, total, failed),
-    expanded: expandedStructureNodeIds.value.has(String(node.id)),
+    expanded: expandedStructureNodeIds.value.has(current.outlineId),
     children: Array.isArray(node.children) ? node.children.map((child, childIndex) => buildStructureNode(child, level + 1, [...ancestors, current], childIndex, displayOrdering)) : [],
   }
 }
@@ -825,7 +833,7 @@ const structureTree = computed(() => (
 const collectExpandableStructureNodeIds = (nodes = []) => (
   nodes.reduce((acc, node) => {
     if (node.children?.length) {
-      acc.push(String(node.id))
+      acc.push(String(node.outlineId || node.id))
       acc.push(...collectExpandableStructureNodeIds(node.children))
     }
     return acc
@@ -833,20 +841,23 @@ const collectExpandableStructureNodeIds = (nodes = []) => (
 )
 
 const isStructureNodeExpanded = (node) => (
-  expandedStructureNodeIds.value.has(String(node?.id || ''))
+  expandedStructureNodeIds.value.has(String(node?.outlineId || node?.id || ''))
 )
+
+const expandablePathIdsForNode = (node) => {
+  const pathNodes = [...(Array.isArray(node?.ancestors) ? node.ancestors : []), node]
+  return pathNodes
+    .map((item) => String(item?.outlineId || item?.id || ''))
+    .filter(Boolean)
+}
+
+const focusOutlineBranch = (node) => {
+  expandedStructureNodeIds.value = new Set(expandablePathIdsForNode(node))
+}
 
 const toggleStructureNode = (node) => {
   if (!node?.children?.length) return
-
-  const nodeId = String(node.id)
-  const nextExpanded = new Set(expandedStructureNodeIds.value)
-  if (nextExpanded.has(nodeId)) {
-    nextExpanded.delete(nodeId)
-  } else {
-    nextExpanded.add(nodeId)
-  }
-  expandedStructureNodeIds.value = nextExpanded
+  focusOutlineBranch(node)
 }
 
 const structureTreeSignature = computed(() => (
@@ -857,15 +868,16 @@ watch(
   () => structureTreeSignature.value,
   () => {
     const sourceTree = selectedTemplate.value.criteriaTree || []
-    expandedStructureNodeIds.value = new Set(collectExpandableStructureNodeIds(sourceTree).slice(0, 2))
     if (!activeStructureNodeId.value && sourceTree[0]) {
       activeStructureNodeId.value = String(sourceTree[0].id)
     }
+    const activeNode = findStructureNodeById(structureTree.value, activeStructureNodeId.value) || structureTree.value[0] || null
+    expandedStructureNodeIds.value = new Set(activeNode ? expandablePathIdsForNode(activeNode) : [])
   },
   { immediate: true }
 )
 
-const findStructureNodeById = (nodes = [], nodeId = '') => {
+function findStructureNodeById(nodes = [], nodeId = '') {
   for (const node of nodes) {
     if (String(node.id) === String(nodeId)) return node
     const matchedChild = findStructureNodeById(node.children || [], nodeId)
@@ -885,6 +897,8 @@ const activeHeaderBreadcrumb = computed(() => {
   if (!headerNode) return []
   return [...(headerNode.ancestors || []), headerNode]
 })
+
+const structureToggleLabel = computed(() => (structureOutlineOpen.value ? 'Ẩn cấu trúc' : 'Hiện cấu trúc'))
 
 const activeHeaderTitle = computed(() => {
   const node = activeHeaderNode.value
@@ -916,9 +930,7 @@ const activateStructureNode = async (node, focusCriterionId = '') => {
   activeStructureNodeId.value = String(node.id)
   activeFocusCriterionId.value = focusCriterionId ? String(focusCriterionId) : ''
 
-  if (node.children?.length && !isStructureNodeExpanded(node)) {
-    toggleStructureNode(node)
-  }
+  focusOutlineBranch(node)
 
   if (focusCriterionId) {
     await focusCriterion(focusCriterionId)
@@ -936,7 +948,11 @@ const focusStructureNode = async (node) => {
   const parentNode = node.ancestors?.length
     ? node.ancestors[node.ancestors.length - 1]
     : node
-  await activateStructureNode(parentNode, node.id)
+
+  activeStructureNodeId.value = String(parentNode.id)
+  activeFocusCriterionId.value = String(node.id)
+  focusOutlineBranch(node)
+  await focusCriterion(node.id)
 }
 
 const selectWorkspaceGroup = async (node) => {
@@ -1121,16 +1137,29 @@ onBeforeUnmount(() => {
       </div>
 
       <section v-if="!isReadonlySession || activeReadonlyTab === 'qc'" class="qc-create-grid min-h-0 flex-1">
-        <aside class="qc-create-panel qc-create-outline">
-          <div class="border-b border-[var(--stroke)] px-4 py-4">
-            <h2 class="text-sm font-semibold text-[var(--text-primary)]">Cấu trúc biểu mẫu</h2>
+        <aside class="qc-create-panel qc-create-outline" :class="{ 'qc-create-outline--open': structureOutlineOpen }">
+          <div class="qc-create-outline-header">
+            <div class="min-w-0">
+              <h2 class="text-sm font-semibold text-[var(--text-primary)]">Cấu trúc biểu mẫu</h2>
+              <p class="mt-0.5 truncate text-xs text-[var(--text-secondary)] tablet:hidden">{{ activeHeaderTitle }}</p>
+            </div>
+            <button
+              type="button"
+              class="qc-outline-toggle"
+              :aria-expanded="structureOutlineOpen"
+              :aria-label="structureToggleLabel"
+              @click="structureOutlineOpen = !structureOutlineOpen"
+            >
+              <span class="material-symbols-outlined text-[20px]">{{ structureOutlineOpen ? 'expand_less' : 'expand_more' }}</span>
+              <span class="text-xs font-bold">{{ structureOutlineOpen ? 'Ẩn' : 'Hiện' }}</span>
+            </button>
           </div>
 
           <div class="qc-create-outline-scroll">
             <div v-if="structureTree.length" class="qc-outline-tree">
               <QCCreateStructureNode
                 v-for="node in structureTree"
-                :key="node.id"
+                :key="node.outlineId || node.id"
                 :node="node"
                 :active-node-id="activeFocusCriterionId || activeStructureNodeId"
                 @select="focusStructureNode"
@@ -1376,6 +1405,35 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
+.qc-create-outline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--stroke);
+  padding: 1rem;
+}
+
+.qc-outline-toggle {
+  display: none;
+  min-height: 2.25rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--stroke);
+  background: #ffffff;
+  padding: 0 0.625rem;
+  color: var(--text-secondary);
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.qc-outline-toggle:hover {
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
 .qc-create-outline-scroll,
 .qc-create-workspace {
   overflow-y: auto;
@@ -1447,6 +1505,34 @@ onBeforeUnmount(() => {
 
 
 @media (max-width: 767px) {
+  .qc-create-outline {
+    max-height: 4.5rem;
+    transition: max-height 0.2s ease;
+  }
+
+  .qc-create-outline--open {
+    max-height: min(24rem, 58vh);
+  }
+
+  .qc-create-outline-header {
+    min-height: 4.5rem;
+    padding: 0.75rem;
+  }
+
+  .qc-outline-toggle {
+    display: inline-flex;
+  }
+
+  .qc-create-outline-scroll {
+    display: none;
+  }
+
+  .qc-create-outline--open .qc-create-outline-scroll {
+    display: block;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
   .qc-create-controls {
     position: static;
     display: grid;
@@ -1519,9 +1605,16 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
-  .qc-create-outline,
   .qc-create-summary {
     max-height: none;
+  }
+
+  .qc-create-outline {
+    max-height: 4.5rem;
+  }
+
+  .qc-create-outline--open {
+    max-height: min(24rem, 58vh);
   }
 
 }

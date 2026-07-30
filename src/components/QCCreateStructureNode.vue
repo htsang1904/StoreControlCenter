@@ -9,7 +9,7 @@ const props = defineProps({
 
 const emit = defineEmits(['select', 'toggle'])
 
-const nodeId = () => String(props.node?.id || '')
+const nodeId = () => String(props.node?.outlineId || props.node?.id || '')
 const isActive = () => props.activeNodeId === nodeId()
 const hasChildren = () => Array.isArray(props.node?.children) && props.node.children.length > 0
 
@@ -55,7 +55,7 @@ const toggleNode = () => {
     >
       <QCCreateStructureNode
         v-for="child in node.children"
-        :key="child.id"
+        :key="child.outlineId || child.id"
         :node="child"
         :active-node-id="activeNodeId"
         :depth="depth + 1"
