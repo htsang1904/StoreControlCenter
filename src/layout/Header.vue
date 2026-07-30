@@ -288,7 +288,7 @@ watch(
   >
     <div class="px-3 py-3.5 tablet:px-5 tablet:py-4 pc:px-8">
       <div :class="isQcSessionView ? 'flex items-center justify-between gap-3 pc:grid pc:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]' : showHeaderDateFilter ? 'flex items-center justify-between gap-3 tablet:gap-4' : 'flex items-center justify-between gap-3'">
-        <div class="flex min-w-0 flex-1 items-center gap-3">
+        <div class="flex min-w-0 flex-1 items-center gap-3 overflow-hidden">
           <button
             v-if="props.drawerMode"
             type="button"
@@ -299,22 +299,22 @@ watch(
             <span class="material-symbols-outlined text-[20px]">menu</span>
           </button>
 
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1 overflow-hidden">
             <div
               v-if="showHeaderBreadcrumb"
-              class="flex min-w-0 items-center gap-2 text-sm text-[var(--text-secondary)]"
+              class="flex min-w-0 max-w-full items-center gap-2 overflow-hidden text-sm text-[var(--text-secondary)]"
             >
               <span class="h-4 w-px shrink-0 rounded-full bg-[var(--stroke-strong)]"></span>
               <template v-for="(item, index) in breadcrumbItems" :key="`${item.label}-${index}`">
                 <button
                   v-if="item.to"
                   type="button"
-                  class="shrink-0 cursor-pointer transition-colors hover:text-[var(--text-secondary)]"
+                  class="min-w-0 shrink truncate cursor-pointer transition-colors hover:text-[var(--text-secondary)]"
                   @click="navigateTo(item.to)"
                 >
                   {{ item.label }}
                 </button>
-                <span v-else class="truncate font-medium text-[var(--text-secondary)]" aria-current="page">{{ item.label }}</span>
+                <span v-else class="min-w-0 flex-1 truncate font-medium text-[var(--text-secondary)]" aria-current="page">{{ item.label }}</span>
                 <span
                   v-if="index < breadcrumbItems.length - 1"
                   class="material-symbols-outlined shrink-0 text-[16px] text-[var(--text-muted)]"
@@ -360,7 +360,7 @@ watch(
           </div>
         </div>
 
-        <div class="flex shrink-0 items-center justify-end gap-2">
+        <div class="relative z-10 flex shrink-0 items-center justify-end gap-2 bg-white">
           <StoreFilterButton v-if="showStoreFilter" v-model="sharedStoreFilter" :stores="stores" />
           <HeaderDateControls v-if="showHeaderDateFilter" />
           <HeaderNotifications />
