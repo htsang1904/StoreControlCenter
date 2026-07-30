@@ -3,6 +3,7 @@ import { deleteTicket as deleteTicketApi, listTickets, reopenTicket } from '@/se
 import { confirmDialog } from '@/composables/useConfirmDialog'
 import { useRoute } from 'vue-router'
 import { useToast } from '@/plugins/toast'
+import { useStoresStore } from '@/stores/stores'
 
 function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 20, fallbackTotal = 0) {
   const currentPage = Number(payload.page || payload.currentPage || fallbackPage || 1)
@@ -24,6 +25,7 @@ function normalizePagination(payload = {}, fallbackPage = 1, fallbackPageSize = 
 
 export function useTicketList(userInfo) {
   const toast = useToast()
+  const storesStore = useStoresStore()
   const loading = ref(false)
   const loadingMore = ref(false)
   const deletingId = ref(null)
@@ -43,13 +45,14 @@ export function useTicketList(userInfo) {
   })
 
   const route = useRoute()
+  const selectedStoreIdsQuery = computed(() => storesStore.selectedStoreIds.join(','))
 
   watch(
-    () => [route.query.date_from, route.query.date_to, route.query.store_ids],
-    ([newFrom, newTo, newStoreIds]) => {
+    () => [route.query.date_from, route.query.date_to, route.query.store_ids, selectedStoreIdsQuery.value],
+    ([newFrom, newTo, newStoreIds, fallbackStoreIds]) => {
       filters.dateFrom = newFrom || ''
       filters.dateTo = newTo || ''
-      filters.storeIds = newStoreIds || ''
+      filters.storeIds = newStoreIds || fallbackStoreIds || ''
       // Only auto-fetch if we're not initially setting up, but you can also leave it passive
       // or handle the trigger in components, which we do anyway on route changes.
     },

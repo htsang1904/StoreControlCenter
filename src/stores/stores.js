@@ -11,6 +11,7 @@ export const useStoresStore = defineStore('stores', () => {
   const adminStoresLoaded = ref(false)
   const adminStoresLoading = ref(false)
   const adminStoresError = ref('')
+  const selectedStoreIds = ref([])
 
   const userRole = computed(() => String(state.userInfo?.role || '').toLowerCase())
   const isAdmin = computed(() => userRole.value === 'admin')
@@ -20,6 +21,13 @@ export const useStoresStore = defineStore('stores', () => {
   const availableStoreIds = computed(() => availableStores.value
     .map((store) => normalizeStoreId(store))
     .filter((id) => Number.isInteger(id) && id > 0))
+
+  const effectiveSelectedStoreIds = computed(() => {
+    const selectedIds = selectedStoreIds.value
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+    return selectedIds.length > 0 ? selectedIds : availableStoreIds.value
+  })
 
   async function loadAdminStores({ force = false, isActive = true } = {}) {
     if (!isAdmin.value) return []
@@ -59,6 +67,16 @@ export const useStoresStore = defineStore('stores', () => {
     return store.shortAddress || store.address || store.name || store.code || `Cửa hàng #${normalizeStoreId(store) || '--'}`
   }
 
+  function setSelectedStoreIds(storeIds = []) {
+    selectedStoreIds.value = Array.from(new Set((Array.isArray(storeIds) ? storeIds : [])
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)))
+  }
+
+  function clearSelectedStoreIds() {
+    selectedStoreIds.value = []
+  }
+
   function resetAdminStores() {
     adminStores.value = []
     adminStoresLoaded.value = false
@@ -76,6 +94,10 @@ export const useStoresStore = defineStore('stores', () => {
     userStores,
     availableStores,
     availableStoreIds,
+    selectedStoreIds,
+    effectiveSelectedStoreIds,
+    setSelectedStoreIds,
+    clearSelectedStoreIds,
     loadAdminStores,
     findStoreById,
     storeLabel,

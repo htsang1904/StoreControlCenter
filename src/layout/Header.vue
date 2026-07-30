@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useHeaderBreadcrumb } from '@/composables/useHeaderBreadcrumb'
 import { useStoresStore } from '@/stores/stores'
@@ -42,7 +42,11 @@ const visibleTitle = computed(() => headerContext.value.title)
 const visibleSubtitle = computed(() => HEADER_TAB_SUBTITLES[activeRootTab.value] || '')
 const breadcrumbItems = computed(() => resolveBreadcrumbItems(route, headerContext.value, breadcrumbLabel.value))
 const stores = computed(() => storesStore.availableStores)
-const dashboardStoreFilter = ref([])
+const sharedStoreFilter = computed({
+  get: () => storesStore.effectiveSelectedStoreIds,
+  set: (value) => storesStore.setSelectedStoreIds(value),
+})
+const showStoreFilter = computed(() => ['dashboard', 'ticket', 'qc'].includes(activeRootTab.value))
 
 const isQcSessionView = computed(() => route.path.startsWith('/QC/store/') && route.path.includes('/session/'))
 const qcSessionViewTab = computed(() => (String(route.query.view || 'qc') === 'findings' ? 'findings' : 'qc'))
@@ -235,35 +239,36 @@ watch(
 )
 
 watch(
-  () => [route.path, route.query.store_ids, stores.value.map((store) => store.id).join(',')],
+  () => [route.path, showStoreFilter.value, route.query.store_ids, stores.value.map((store) => store.id).join(',')],
   () => {
-    if (!route.path.startsWith('/dashboard')) return
+    if (!showStoreFilter.value) return
 
     const queryStoreIds = route.query.store_ids
     if (typeof queryStoreIds === 'string' && queryStoreIds.trim() !== '') {
       const parsed = queryStoreIds.split(',').map(Number).filter((id) => Number.isInteger(id) && id > 0)
-      if (parsed.join(',') !== dashboardStoreFilter.value.join(',')) {
-        dashboardStoreFilter.value = parsed
+      if (parsed.join(',') !== storesStore.selectedStoreIds.join(',')) {
+        storesStore.setSelectedStoreIds(parsed)
       }
       return
     }
 
-    const allStoreIds = stores.value.map((store) => store.id).filter((id) => Number.isInteger(Number(id)))
-    if (allStoreIds.length && allStoreIds.join(',') !== dashboardStoreFilter.value.join(',')) {
-      dashboardStoreFilter.value = allStoreIds
-    }
   },
   { immediate: true }
 )
 
 watch(
-  dashboardStoreFilter,
-  (newValue) => {
-    if (!route.path.startsWith('/dashboard')) return
+  () => [route.path, showStoreFilter.value, storesStore.selectedStoreIds.join(','), stores.value.map((store) => store.id).join(',')],
+  () => {
+    if (!showStoreFilter.value) return
 
-    const selectedIds = newValue.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)
-    const allSelected = stores.value.length > 0 && selectedIds.length === stores.value.length
-    const nextStoreIds = allSelected ? '' : selectedIds.join(',')
+    const selectedIds = storesStore.selectedStoreIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+    const availableIds = stores.value
+      .map((store) => Number(store?.id || 0))
+      .filter((id) => Number.isInteger(id) && id > 0)
+    const allSelected = availableIds.length > 0 && selectedIds.length === availableIds.length
+    const nextStoreIds = selectedIds.length > 0 && !allSelected ? selectedIds.join(',') : ''
     const currentStoreIds = String(route.query.store_ids || '')
 
     if (currentStoreIds === nextStoreIds) return
@@ -271,9 +276,9 @@ watch(
     const query = { ...route.query }
     if (nextStoreIds) query.store_ids = nextStoreIds
     else delete query.store_ids
+    if (route.query.page) delete query.page
     router.replace({ path: route.path, query })
-  },
-  { deep: true }
+  }
 )
 </script>
 
@@ -356,7 +361,7 @@ watch(
         </div>
 
         <div class="flex shrink-0 items-center justify-end gap-2">
-          <StoreFilterButton v-if="activeRootTab === 'dashboard'" v-model="dashboardStoreFilter" :stores="stores" />
+          <StoreFilterButton v-if="showStoreFilter" v-model="sharedStoreFilter" :stores="stores" />
           <HeaderDateControls v-if="showHeaderDateFilter" />
           <HeaderNotifications />
         </div>

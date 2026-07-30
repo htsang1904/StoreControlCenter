@@ -6,11 +6,12 @@ import StatSummaryCard from '@/components/StatSummaryCard.vue'
 import AppPagination from '@/components/AppPagination.vue'
 import { useApp } from '@/plugins/app'
 import { getQcStoresOverviewApi } from '@/services/qc_service'
-import { listAdminStores } from '@/services/admin_service'
+import { useStoresStore } from '@/stores/stores'
 
 const router = useRouter()
 const route = useRoute()
 const { state } = useApp()
+const storesStore = useStoresStore()
 
 const SEARCH_DEBOUNCE_MS = 300
 const pageSizeOptions = [20, 50, 100]
@@ -45,42 +46,9 @@ const summary = ref({
   passRate: 0,
 })
 const storeStats = ref([])
-const adminStoreRows = ref([])
-const adminStoresLoaded = ref(false)
-const adminStoresLoading = ref(false)
 const loadError = ref('')
 
 const isAdmin = computed(() => String(state.userInfo?.role || '').toLowerCase() === 'admin')
-
-const selectedStores = ref([])
-watch(
-  () => route.query.store_ids,
-  (newVal) => {
-    if (typeof newVal === 'string' && newVal.trim() !== '') {
-      const parsed = newVal.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
-      if (parsed.join(',') !== selectedStores.value.join(',')) {
-        selectedStores.value = parsed
-      }
-    } else {
-       selectedStores.value = []
-    }
-  },
-  { immediate: true }
-)
-
-watch(selectedStores, (newVal) => {
-  const currentQ = String(route.query.store_ids || '')
-  const newQ = newVal.join(',')
-  if (currentQ !== newQ) {
-    const q = { ...route.query }
-    if (newQ === '') {
-      delete q.store_ids
-    } else {
-      q.store_ids = newQ
-    }
-    router.replace({ query: q })
-  }
-})
 
 function syncRangeFromRoute() {
   const range = normalizeDateRangeFromQuery(route.query || {}, getDefaultDateRange())
@@ -194,19 +162,24 @@ function formatCsvCell(value) {
   return `"${text}"`
 }
 
+const activeStoreIds = computed(() => storesStore.selectedStoreIds
+  .map((id) => Number(id))
+  .filter((id) => Number.isInteger(id) && id > 0))
+
 const stores = computed(() => {
-  const source = isAdmin.value
-    ? adminStoreRows.value
-    : (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : [])
-  return source.map((store) => ({
-    id: Number(store?.id || 0),
-    storeId: String(store?.storeId || ''),
-    code: store?.code || '',
-    name: store?.name || store?.code || `Cửa hàng #${store?.id || ''}`,
-    address: store?.address || '',
-    shortAddress: store?.shortAddress || store?.address || '',
-    managerName: store?.managerName || store?.manager || store?.ownerName || 'Chưa gán',
-  }))
+  const selectedIds = new Set(activeStoreIds.value)
+  const source = storesStore.availableStores
+  return source
+    .filter((store) => selectedIds.size === 0 || selectedIds.has(Number(store?.id || 0)))
+    .map((store) => ({
+      id: Number(store?.id || 0),
+      storeId: String(store?.storeId || ''),
+      code: store?.code || '',
+      name: store?.name || store?.code || `Cửa hàng #${store?.id || ''}`,
+      address: store?.address || '',
+      shortAddress: store?.shortAddress || store?.address || '',
+      managerName: store?.managerName || store?.manager || store?.ownerName || 'Chưa gán',
+    }))
 })
 
 const mergedStoreSources = computed(() => {
@@ -463,41 +436,17 @@ function exportReport() {
   window.URL.revokeObjectURL(url)
 }
 
-async function loadAdminStores() {
-  if (!isAdmin.value || adminStoresLoaded.value || adminStoresLoading.value) return
-
-  adminStoresLoading.value = true
-  try {
-    const firstPage = await listAdminStores({ page: 1, pageSize: 500 })
-    const rows = Array.isArray(firstPage.items) ? [...firstPage.items] : []
-    const pageCount = Number(firstPage.pagination?.pageCount || 1)
-
-    for (let page = 2; page <= pageCount; page += 1) {
-      const result = await listAdminStores({ page, pageSize: 500 })
-      if (Array.isArray(result.items)) rows.push(...result.items)
-    }
-
-    adminStoreRows.value = rows
-    adminStoresLoaded.value = true
-  } catch (error) {
-    loadError.value = error?.response?.data?.message || error?.message || 'Không tải được danh sách cửa hàng cho admin.'
-  } finally {
-    adminStoresLoading.value = false
-  }
-}
-
 async function loadOverview() {
   loading.value = true
   loadError.value = ''
 
   try {
-    await loadAdminStores()
+    await storesStore.loadAdminStores().catch((error) => {
+      loadError.value = error?.response?.data?.message || error?.message || 'Không tải được danh sách cửa hàng cho admin.'
+    })
 
-    const queryStoreIds = route.query.store_ids
-      ? route.query.store_ids.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
-      : []
-    const storeIds = queryStoreIds.length > 0
-      ? queryStoreIds
+    const storeIds = activeStoreIds.value.length > 0
+      ? activeStoreIds.value
       : isAdmin.value
         ? []
         : stores.value.map((store) => Number(store?.id || 0)).filter((id) => Number.isInteger(id) && id > 0)

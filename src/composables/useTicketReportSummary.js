@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { getDefaultDateRange, normalizeDateRangeFromQuery } from '@/composables/useDateRange'
 import { getDashboardOverview } from '@/services/ticket_service'
+import { useStoresStore } from '@/stores/stores'
 
 const numberFormatter = new Intl.NumberFormat('vi-VN')
 
@@ -14,6 +15,7 @@ function createEmptySummary() {
 }
 
 export function useTicketReportSummary() {
+  const storesStore = useStoresStore()
   const initialReportRange = getDefaultDateRange()
   const reportDateFrom = ref(initialReportRange.from)
   const reportDateTo = ref(initialReportRange.to)
@@ -60,7 +62,7 @@ export function useTicketReportSummary() {
     const range = normalizeDateRangeFromQuery(query, getDefaultDateRange())
     reportDateFrom.value = range.from
     reportDateTo.value = range.to
-    storeIdsFilter.value = query.store_ids || ''
+    storeIdsFilter.value = query.store_ids || storesStore.selectedStoreIds.join(',') || ''
   }
 
   async function fetchTicketReports() {

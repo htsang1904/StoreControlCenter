@@ -315,50 +315,11 @@ function hideKpiTooltip() {
   kpiTooltip.visible = false
 }
 
-const chartStoreFilter = ref([])
+const chartStoreFilter = computed(() => storesStore.effectiveSelectedStoreIds)
 
 const storeIdsFromRows = (rows = []) => rows
   .map((store) => Number(store?.id || 0))
   .filter((id) => Number.isInteger(id) && id > 0)
-
-watch(
-  () => [route.query.store_ids, stores.value.map((store) => store.id).join(',')],
-  ([newVal]) => {
-    if (typeof newVal === 'string' && newVal.trim() !== '') {
-      const parsed = newVal.split(',').map(Number).filter(n => !isNaN(n) && n > 0)
-      if (parsed.join(',') !== chartStoreFilter.value.join(',')) {
-        chartStoreFilter.value = parsed
-      }
-      return
-    }
-
-    const allIds = storeIdsFromRows(stores.value)
-    if (allIds.length > 0 && allIds.join(',') !== chartStoreFilter.value.join(',')) {
-      chartStoreFilter.value = allIds
-    }
-  },
-  { immediate: true }
-)
-
-watch(chartStoreFilter, (newVal) => {
-  const currentQ = String(route.query.store_ids || '')
-  let newQ = newVal.join(',')
-  const allIds = storeIdsFromRows(stores.value)
-  
-  if (allIds.length > 0 && newVal.length === allIds.length) {
-    newQ = '' // Clear from URL if all selected
-  }
-
-  if (currentQ !== newQ && newVal.length > 0) {
-    const query = { ...route.query }
-    if (newQ) {
-      query.store_ids = newQ
-    } else {
-      delete query.store_ids
-    }
-    router.replace({ query })
-  }
-}, { deep: true })
 
 const chartMultiplier = computed(() => {
   if (chartStoreFilter.value.length === 0) return 0
