@@ -58,7 +58,7 @@ def assert_store_access(current_user: User, store_id: int) -> None:
     if current_user.role == "admin":
         return
     user_store_ids = {
-        s.id for s in (current_user.stores or []) if getattr(s, "id", None) is not None
+        s.id for s in (current_user.stores or []) if getattr(s, "id", None) is not None and getattr(s, "is_active", True)
     }
     if store_id not in user_store_ids:
         raise HTTPException(

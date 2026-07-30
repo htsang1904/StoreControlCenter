@@ -13,6 +13,10 @@ const router = useRouter()
 const { state } = useApp()
 const toast = useToast()
 
+function isStoreActive(store) {
+  return store?.is_active !== false && store?.isActive !== false
+}
+
 const chatState = useTicketCreateChat()
 
 const pageLoading = ref(true)
@@ -65,10 +69,10 @@ function normalizeStoreOption(rawStore) {
 
 const availableStores = computed(() => {
   const userStores = Array.isArray(state.userInfo?.stores)
-    ? state.userInfo.stores
+    ? state.userInfo.stores.filter(isStoreActive)
     : (Array.isArray(state.userInfo?.store_list)
-      ? state.userInfo.store_list
-      : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store : []))
+      ? state.userInfo.store_list.filter(isStoreActive)
+      : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store.filter(isStoreActive) : []))
 
   const normalized = userStores
     .map(normalizeStoreOption)

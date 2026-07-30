@@ -69,7 +69,7 @@ async def _get_ticket_with_details(session: AsyncSession, ticket_id: int) -> Opt
     return result.scalar_one_or_none()
 
 def _get_user_store_ids(current_user: CurrentUser) -> set[int]:
-    return {s.id for s in current_user.stores if getattr(s, "id", None) is not None}
+    return {s.id for s in current_user.stores if getattr(s, "id", None) is not None and getattr(s, "is_active", True)}
 
 async def _resolve_store_entity(session: AsyncSession, store_ref: object) -> Optional[Store]:
     raw_ref = str(store_ref or "").strip()
@@ -205,7 +205,7 @@ async def read_tickets(
     
     # RBAC Filters
     if current_user.role == "store":
-        store_ids = [s.id for s in current_user.stores]
+        store_ids = [s.id for s in current_user.stores if getattr(s, "is_active", True)]
         filters.append(Ticket.store_id.in_(store_ids))
     elif current_user.role == "handler":
         filters.append(or_(

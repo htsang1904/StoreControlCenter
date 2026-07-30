@@ -17,7 +17,7 @@ from app.services.ticket_policy import OPEN_TICKET_STATUSES, can_access_ticket
 router = APIRouter()
 
 def _get_user_store_ids(current_user: CurrentUser) -> set[int]:
-    return {s.id for s in current_user.stores if getattr(s, "id", None) is not None}
+    return {s.id for s in current_user.stores if getattr(s, "id", None) is not None and getattr(s, "is_active", True)}
 
 async def _ensure_ticket_access(session: SessionDep, ticket: Ticket, current_user: CurrentUser) -> None:
     is_assignee = False

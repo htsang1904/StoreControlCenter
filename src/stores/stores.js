@@ -4,6 +4,7 @@ import { listAdminStores } from '@/services/admin_service'
 import { useApp } from '@/plugins/app'
 
 const normalizeStoreId = (store) => Number(store?.id || 0)
+const isStoreActive = (store) => store?.is_active !== false && store?.isActive !== false
 
 export const useStoresStore = defineStore('stores', () => {
   const { state } = useApp()
@@ -15,8 +16,8 @@ export const useStoresStore = defineStore('stores', () => {
 
   const userRole = computed(() => String(state.userInfo?.role || '').toLowerCase())
   const isAdmin = computed(() => userRole.value === 'admin')
-  const userStores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))
-  const availableStores = computed(() => (isAdmin.value && adminStores.value.length > 0 ? adminStores.value : userStores.value))
+  const userStores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores.filter(isStoreActive) : []))
+  const availableStores = computed(() => (isAdmin.value && adminStores.value.length > 0 ? adminStores.value.filter(isStoreActive) : userStores.value))
 
   const availableStoreIds = computed(() => availableStores.value
     .map((store) => normalizeStoreId(store))
@@ -46,9 +47,9 @@ export const useStoresStore = defineStore('stores', () => {
         if (Array.isArray(result.items)) rows.push(...result.items)
       }
 
-      adminStores.value = rows
+      adminStores.value = rows.filter(isStoreActive)
       adminStoresLoaded.value = true
-      return rows
+      return adminStores.value
     } catch (error) {
       adminStoresError.value = error?.response?.data?.message || error?.message || 'Không tải được danh sách cửa hàng.'
       throw error

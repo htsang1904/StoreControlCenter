@@ -91,6 +91,7 @@ async def map_staff_stores_to_user(session: AsyncSession, user: User, stores_pay
         return []
 
     query = select(Store).where(
+        Store.is_active == True,
         (Store.storeId.in_(suite_store_refs)) |
         (Store.code.in_(suite_store_refs))
     )
@@ -405,12 +406,15 @@ def serialize_user(user: User, permissions: list[str] | None = None) -> dict:
     role = serialize_role(user.role)
     stores = []
     for s in user.stores:
+        if not getattr(s, "is_active", True):
+            continue
         stores.append({
             "id": s.id,
             "storeId": s.storeId,
             "code": s.code,
             "address": s.address,
             "shortAddress": s.shortAddress or s.address,
+            "is_active": bool(s.is_active),
         })
         
     primary_store = stores[0] if stores else None

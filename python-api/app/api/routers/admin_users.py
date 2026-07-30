@@ -42,7 +42,6 @@ def _serialize_user(user: User) -> dict:
             "storeId": store.storeId,
             "brandId": store.brandId,
             "is_active": bool(store.is_active),
-            "isActive": bool(store.is_active),
         }
         for store in (user.stores or [])
     ]

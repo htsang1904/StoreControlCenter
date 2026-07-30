@@ -36,7 +36,7 @@ def _role_value(current_user: CurrentUser) -> str:
 
 
 def _user_store_ids(current_user: CurrentUser) -> set[int]:
-    return {s.id for s in (current_user.stores or []) if getattr(s, "id", None) is not None}
+    return {s.id for s in (current_user.stores or []) if getattr(s, "id", None) is not None and getattr(s, "is_active", True)}
 
 
 def _can_manage_findings(current_user: CurrentUser) -> bool:

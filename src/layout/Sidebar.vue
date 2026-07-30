@@ -9,6 +9,10 @@ import appLogo from '@/assets/images/logo-color.png'
 const route = useRoute()
 const { state, logout, syncUserStores, updateUserAvatar } = useApp()
 const toast = useToast()
+
+function isStoreActive(store) {
+  return store?.is_active !== false && store?.isActive !== false
+}
 const syncingStores = ref(false)
 const savingAvatar = ref(false)
 const userMenuOpen = ref(false)
@@ -172,7 +176,7 @@ const userMonogram = computed(() => userInitials.value?.slice(0, 1) || 'S')
 const userDepartmentName = computed(() => state.userInfo?.department?.name || state.userInfo?.department_name || '')
 const userEmail = computed(() => state.userInfo?.email || '')
 const userPhone = computed(() => state.userInfo?.phone_number || state.userInfo?.phoneNumber || '')
-const userStores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []))
+const userStores = computed(() => (Array.isArray(state.userInfo?.stores) ? state.userInfo.stores.filter(isStoreActive) : []))
 const userStoreCount = computed(() => userStores.value.length)
 const userStoreLabel = computed(() => `${userStoreCount.value} cửa hàng`)
 const userAvatarUrl = computed(() => {

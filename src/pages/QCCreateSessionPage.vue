@@ -22,6 +22,10 @@ const router = useRouter()
 const { state } = useApp()
 const toast = useToast()
 
+function isStoreActive(store) {
+  return store?.is_active !== false && store?.isActive !== false
+}
+
 const saving = ref(false)
 const errorMessage = ref('')
 const MAX_ATTACHMENTS_PER_CRITERION = 3
@@ -58,7 +62,7 @@ const expandedStructureNodeIds = ref(new Set())
 
 const storeId = computed(() => Number(route.params.storeId || 0))
 const selectedStore = computed(() => {
-  const stores = Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []
+  const stores = Array.isArray(state.userInfo?.stores) ? state.userInfo.stores.filter(isStoreActive) : []
   return stores.find((item) => Number(item?.id || 0) === storeId.value) || null
 })
 const storeTitle = computed(() => {

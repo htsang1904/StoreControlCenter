@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 def _get_user_store_ids(user: User) -> set[int]:
-    return {store.id for store in user.stores if getattr(store, "id", None) is not None}
+    return {store.id for store in user.stores if getattr(store, "id", None) is not None and getattr(store, "is_active", True)}
 
 
 def _extract_token(websocket: WebSocket) -> Optional[str]:

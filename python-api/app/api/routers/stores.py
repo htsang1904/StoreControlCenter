@@ -22,6 +22,29 @@ def extract_store_list(payload: Any) -> List[Any]:
             return payload["data"]["stores"]
     return []
 
+def is_suite_store_active(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return True
+
+    # Suite store payload currently has operation/availability fields, but those
+    # describe temporary serving status, not lifecycle visibility. Only honor an
+    # explicit root-level active flag if Suite adds one; otherwise keep stores active.
+    for key in ("is_active", "isActive", "active", "enabled", "is_enabled", "isEnabled"):
+        if key not in item:
+            continue
+        value = item.get(key)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        normalized = str(value or "").strip().lower()
+        if normalized in {"0", "false", "no", "n", "inactive", "disabled"}:
+            return False
+        if normalized in {"1", "true", "yes", "y", "active", "enabled"}:
+            return True
+
+    return True
+
 def normalize_store_item(item: Any) -> Any:
     store_id = str(item.get("storeId") or item.get("store_id") or item.get("id") or "").strip()
     if not store_id: return None
@@ -33,7 +56,7 @@ def normalize_store_item(item: Any) -> Any:
         "address": str(item.get("address") or "").strip() or None,
         "shortAddress": str(item.get("shortAddress") or item.get("short_address") or "").strip() or None,
         "brandId": str(item.get("brandId") or item.get("brand_id") or "").strip() or None,
-        "is_active": True
+        "is_active": is_suite_store_active(item)
     }
 
 @router.get("/", response_model=dict)
@@ -44,7 +67,7 @@ async def read_stores(
     limit: int = 100
 ) -> Any:
     """Read all stores."""
-    result = await session.execute(select(Store).offset(skip).limit(limit))
+    result = await session.execute(select(Store).where(Store.is_active == True).offset(skip).limit(limit))
     items = result.scalars().all()
     serialized_items = [StoreResponse.model_validate(item) for item in items]
     return {"success": True, "data": serialized_items}

@@ -37,7 +37,6 @@ def _serialize_store(store: Store) -> dict:
         "storeId": store.storeId,
         "brandId": store.brandId,
         "is_active": bool(store.is_active),
-        "isActive": bool(store.is_active),
         "created_at": store.created_at.isoformat() if store.created_at else None,
         "updated_at": store.updated_at.isoformat() if store.updated_at else None,
     }

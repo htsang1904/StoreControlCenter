@@ -543,7 +543,7 @@ async def read_qc_sessions_overview(
         filters.append(or_(*template_filters))
 
     if current_user.role != "admin":
-        user_store_ids = [s.id for s in current_user.stores]
+        user_store_ids = [s.id for s in current_user.stores if getattr(s, "is_active", True)]
         filters.append(QCSession.store_id.in_(user_store_ids))
     elif store_id:
         filters.append(QCSession.store_id == store_id)
@@ -665,7 +665,7 @@ async def read_qc_session(
 
     # Additional access check: if user is store role, they must be assigned to this store.
     if current_user.role != "admin" and qc_session.store_id:
-        store_ids = [s.id for s in current_user.stores]
+        store_ids = [s.id for s in current_user.stores if getattr(s, "is_active", True)]
         if qc_session.store_id not in store_ids:
             raise HTTPException(status_code=403, detail="Không có quyền truy cập phiên QC này")
 
@@ -779,7 +779,7 @@ async def read_qc_stores_overview(
         draft_filters.append(QCDraft.audited_at <= parsed_to)
 
     if current_user.role != "admin":
-        user_store_ids = [s.id for s in current_user.stores]
+        user_store_ids = [s.id for s in current_user.stores if getattr(s, "is_active", True)]
         filters.append(QCSession.store_id.in_(user_store_ids))
         draft_filters.append(QCDraft.store_id.in_(user_store_ids))
     elif store_ids:
@@ -831,7 +831,7 @@ async def read_qc_stores_overview(
         store_query = store_query.where(search_filter)
 
     if current_user.role != "admin":
-        user_store_ids = [s.id for s in current_user.stores]
+        user_store_ids = [s.id for s in current_user.stores if getattr(s, "is_active", True)]
         store_query = store_query.where(Store.id.in_(user_store_ids))
     elif store_ids:
         ids = [int(i.strip()) for i in store_ids.split(",") if i.strip().isdigit()]

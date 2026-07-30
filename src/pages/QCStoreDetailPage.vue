@@ -22,6 +22,10 @@ const router = useRouter()
 const { state } = useApp()
 const toast = useToast()
 
+function isStoreActive(store) {
+  return store?.is_active !== false && store?.isActive !== false
+}
+
 const loading = ref(false)
 const searchInput = ref('')
 const SEARCH_DEBOUNCE_MS = 300
@@ -116,7 +120,7 @@ const storeTitle = computed(() => {
   const queryName = String(route.query.storeName || '').trim()
   if (queryName) return queryName
 
-  const userStores = Array.isArray(state.userInfo?.stores) ? state.userInfo.stores : []
+  const userStores = Array.isArray(state.userInfo?.stores) ? state.userInfo.stores.filter(isStoreActive) : []
   const matchedUserStore = userStores.find((store) => Number(store?.id || 0) === storeId.value)
   if (matchedUserStore) {
     return matchedUserStore.shortAddress || matchedUserStore.address || matchedUserStore.name || matchedUserStore.code || `Cửa hàng #${storeId.value}`

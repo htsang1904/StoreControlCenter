@@ -44,6 +44,10 @@ const route = useRoute()
 const { state } = useApp()
 const toast = useToast()
 
+function isStoreActive(store) {
+  return store?.is_active !== false && store?.isActive !== false
+}
+
 const loading = ref(false)
 const errorMessage = ref('')
 const ticket = ref(null)
@@ -213,10 +217,10 @@ const issueTypes = [
 ]
 const editStoreOptions = computed(() => {
   const userStores = Array.isArray(state.userInfo?.stores)
-    ? state.userInfo.stores
+    ? state.userInfo.stores.filter(isStoreActive)
     : (Array.isArray(state.userInfo?.store_list)
-      ? state.userInfo.store_list
-      : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store : []))
+      ? state.userInfo.store_list.filter(isStoreActive)
+      : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store.filter(isStoreActive) : []))
 
   const options = userStores.map(normalizeStoreOption).filter(Boolean)
   if (editTicketStoreOption.value?.value && !options.some((store) => store.value === editTicketStoreOption.value.value)) {

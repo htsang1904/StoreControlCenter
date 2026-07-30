@@ -18,6 +18,10 @@ const emit = defineEmits(['close', 'ticket-created'])
 const { state, syncUserStores } = useApp()
 const toast = useToast()
 
+function isStoreActive(store) {
+  return store?.is_active !== false && store?.isActive !== false
+}
+
 const {
   currentStep,
   formData,
@@ -72,12 +76,12 @@ function normalizeStoreOption(s) {
 
 const availableStores = computed(() => {
   const sourceStores = isAdmin.value
-    ? adminStores.value
+    ? adminStores.value.filter(isStoreActive)
     : (Array.isArray(state.userInfo?.stores)
-      ? state.userInfo.stores
+      ? state.userInfo.stores.filter(isStoreActive)
       : (Array.isArray(state.userInfo?.store_list)
-        ? state.userInfo.store_list
-        : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store : [])))
+        ? state.userInfo.store_list.filter(isStoreActive)
+        : (Array.isArray(state.userInfo?.list_store) ? state.userInfo.list_store.filter(isStoreActive) : [])))
 
   const normalized = sourceStores
     .map(normalizeStoreOption)

@@ -54,7 +54,7 @@ def build_ticket_base_filters(
         filters.append(Ticket.responsible_department_id == request.department_id)
 
     if current_user.role == "store":
-        user_store_ids = [s.id for s in current_user.stores]
+        user_store_ids = [s.id for s in current_user.stores if getattr(s, "is_active", True)]
         filters.append(or_(
             Ticket.requester_id == current_user.id,
             Ticket.store_id.in_(user_store_ids)
@@ -81,7 +81,7 @@ def build_ticket_scope_filters(
         filters.append(Ticket.responsible_department_id == request.department_id)
 
     if current_user.role == "store":
-        user_store_ids = [s.id for s in current_user.stores]
+        user_store_ids = [s.id for s in current_user.stores if getattr(s, "is_active", True)]
         filters.append(or_(
             Ticket.requester_id == current_user.id,
             Ticket.store_id.in_(user_store_ids)
@@ -208,7 +208,7 @@ def build_qc_base_filters(
     ]
 
     if current_user.role != "admin":
-        user_store_ids = [s.id for s in current_user.stores]
+        user_store_ids = [s.id for s in current_user.stores if getattr(s, "is_active", True)]
         filters.append(QCSession.store_id.in_(user_store_ids))
     elif request.store_ids:
         ids = [int(i.strip()) for i in request.store_ids.split(",") if i.strip().isdigit()]
@@ -224,7 +224,7 @@ def build_qc_scope_filters(
     filters = []
 
     if current_user.role != "admin":
-        user_store_ids = [s.id for s in current_user.stores]
+        user_store_ids = [s.id for s in current_user.stores if getattr(s, "is_active", True)]
         filters.append(QCSession.store_id.in_(user_store_ids))
     elif request.store_ids:
         ids = [int(i.strip()) for i in request.store_ids.split(",") if i.strip().isdigit()]
