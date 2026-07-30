@@ -925,6 +925,46 @@ const visibleCriteriaCount = computed(() => (
   visibleCriteriaTree.value.reduce((total, node) => total + leafCountForNode(node), 0)
 ))
 
+const visibleLeafCriteria = computed(() => visibleCriteriaTree.value.flatMap((node) => collectLeafNodes(node)))
+const orderedLeafCriteria = computed(() => structureTree.value.flatMap((node) => collectLeafNodes(node)))
+const activeSubtreeLeafCriteria = computed(() => (
+  activeStructureNode.value ? collectLeafNodes(activeStructureNode.value) : []
+))
+
+const activeLeafCriterionId = computed(() => (
+  activeFocusCriterionId.value || (!activeStructureNode.value?.children?.length ? String(activeStructureNode.value?.id || '') : '')
+))
+
+const isCriterionCompletedById = (criterionId) => {
+  const snapshot = criterionSnapshotMap.value.get(String(criterionId || ''))
+  return Boolean(snapshot && snapshot.status !== 'pending')
+}
+
+const nextVisibleCriterion = computed(() => {
+  const activeRows = activeSubtreeLeafCriteria.value
+  const orderedRows = orderedLeafCriteria.value
+  if (orderedRows.length <= 0) return null
+
+  const activeLeafId = String(activeLeafCriterionId.value || '')
+  const activeIndexInSubtree = activeRows.findIndex((criterion) => String(criterion?.id || '') === activeLeafId)
+  const startInSubtree = activeIndexInSubtree >= 0 ? activeIndexInSubtree + 1 : 0
+  const nextPendingInSubtree = activeRows
+    .slice(startInSubtree)
+    .find((criterion) => !isCriterionCompletedById(criterion?.id))
+
+  if (nextPendingInSubtree) return nextPendingInSubtree
+
+  const subtreeLeafIds = new Set(activeRows.map((criterion) => String(criterion?.id || '')).filter(Boolean))
+  const lastSubtreeIndex = orderedRows.reduce((lastIndex, criterion, index) => (
+    subtreeLeafIds.has(String(criterion?.id || '')) ? index : lastIndex
+  ), -1)
+  const globalStartIndex = lastSubtreeIndex >= 0 ? lastSubtreeIndex + 1 : 0
+
+  return orderedRows.slice(globalStartIndex).find((criterion) => !isCriterionCompletedById(criterion?.id)) || null
+})
+
+const nextCriterionButtonLabel = computed(() => (nextVisibleCriterion.value ? 'Tiêu chí tiếp theo' : 'Hết tiêu chí'))
+
 const activateStructureNode = async (node, focusCriterionId = '') => {
   if (!node) return
   activeStructureNodeId.value = String(node.id)
@@ -980,6 +1020,25 @@ const focusCriterion = async (criterionId) => {
   if (element) {
     element.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
+}
+
+const goToNextCriterion = async () => {
+  const nextCriterion = nextVisibleCriterion.value
+  if (!nextCriterion) return
+
+  const outlineNode = findStructureNodeById(structureTree.value, nextCriterion.id)
+  if (outlineNode) {
+    const parentNode = outlineNode.ancestors?.length
+      ? outlineNode.ancestors[outlineNode.ancestors.length - 1]
+      : outlineNode
+    activeStructureNodeId.value = String(parentNode.id)
+    activeFocusCriterionId.value = String(outlineNode.id)
+    focusOutlineBranch(outlineNode)
+  } else {
+    activeFocusCriterionId.value = String(nextCriterion.id)
+  }
+
+  await focusCriterion(nextCriterion.id)
 }
 
 
@@ -1150,8 +1209,7 @@ onBeforeUnmount(() => {
               :aria-label="structureToggleLabel"
               @click="structureOutlineOpen = !structureOutlineOpen"
             >
-              <span class="material-symbols-outlined text-[20px]">{{ structureOutlineOpen ? 'expand_less' : 'expand_more' }}</span>
-              <span class="text-xs font-bold">{{ structureOutlineOpen ? 'Ẩn' : 'Hiện' }}</span>
+              <span class="material-symbols-outlined text-[20px]">{{ structureOutlineOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down' }}</span>
             </button>
           </div>
 
@@ -1259,6 +1317,18 @@ onBeforeUnmount(() => {
               @select-group="selectWorkspaceGroup"
               @open-evidence="openCriterionEvidence"
             />
+
+            <div v-if="visibleLeafCriteria.length > 0" class="qc-next-criterion-section">
+              <button
+                type="button"
+                class="qc-next-criterion-button qc-next-criterion-button--section"
+                :disabled="!nextVisibleCriterion"
+                @click="goToNextCriterion"
+              >
+                <span class="material-symbols-outlined text-[18px]">skip_next</span>
+                <span>{{ nextCriterionButtonLabel }}</span>
+              </button>
+            </div>
           </div>
         </main>
 
@@ -1416,15 +1486,12 @@ onBeforeUnmount(() => {
 
 .qc-outline-toggle {
   display: none;
-  min-height: 2.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--stroke);
-  background: #ffffff;
-  padding: 0 0.625rem;
+  border-radius: 999px;
   color: var(--text-secondary);
   transition: background-color 0.16s ease, color 0.16s ease;
 }
@@ -1503,6 +1570,48 @@ onBeforeUnmount(() => {
   color: var(--primary-strong);
 }
 
+.qc-next-criterion-button {
+  display: inline-flex;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  padding: 0 0.75rem;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+}
+
+.qc-next-criterion-button:hover {
+  border-color: var(--primary-strong);
+  background: var(--primary-strong);
+}
+
+.qc-next-criterion-button:disabled {
+  cursor: not-allowed;
+  border-color: var(--stroke);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.qc-next-criterion-section {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 0 0.25rem;
+}
+
+.qc-next-criterion-button--section {
+  width: 100%;
+  min-height: 2.5rem;
+}
+
+
 
 @media (max-width: 767px) {
   .qc-create-outline {
@@ -1556,6 +1665,11 @@ onBeforeUnmount(() => {
     padding: 0 0.5rem;
     white-space: nowrap;
   }
+
+  .qc-next-criterion-button--toolbar {
+    display: none;
+  }
+
 }
 
 .qc-toolbar-button {
