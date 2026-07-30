@@ -926,44 +926,40 @@ const visibleCriteriaCount = computed(() => (
 ))
 
 const visibleLeafCriteria = computed(() => visibleCriteriaTree.value.flatMap((node) => collectLeafNodes(node)))
-const orderedLeafCriteria = computed(() => structureTree.value.flatMap((node) => collectLeafNodes(node)))
-const activeSubtreeLeafCriteria = computed(() => (
-  activeStructureNode.value ? collectLeafNodes(activeStructureNode.value) : []
-))
 
-const activeLeafCriterionId = computed(() => (
-  activeFocusCriterionId.value || (!activeStructureNode.value?.children?.length ? String(activeStructureNode.value?.id || '') : '')
-))
+const collectNavigableGroups = (nodes = []) => (
+  nodes.reduce((acc, node) => {
+    if (Array.isArray(node?.children) && node.children.length > 0) {
+      acc.push(node)
+      acc.push(...collectNavigableGroups(node.children))
+    }
+    return acc
+  }, [])
+)
 
-const isCriterionCompletedById = (criterionId) => {
-  const snapshot = criterionSnapshotMap.value.get(String(criterionId || ''))
-  return Boolean(snapshot && snapshot.status !== 'pending')
-}
+const navigableGroups = computed(() => collectNavigableGroups(structureTree.value))
 
-const nextVisibleCriterion = computed(() => {
-  const activeRows = activeSubtreeLeafCriteria.value
-  const orderedRows = orderedLeafCriteria.value
-  if (orderedRows.length <= 0) return null
-
-  const activeLeafId = String(activeLeafCriterionId.value || '')
-  const activeIndexInSubtree = activeRows.findIndex((criterion) => String(criterion?.id || '') === activeLeafId)
-  const startInSubtree = activeIndexInSubtree >= 0 ? activeIndexInSubtree + 1 : 0
-  const nextPendingInSubtree = activeRows
-    .slice(startInSubtree)
-    .find((criterion) => !isCriterionCompletedById(criterion?.id))
-
-  if (nextPendingInSubtree) return nextPendingInSubtree
-
-  const subtreeLeafIds = new Set(activeRows.map((criterion) => String(criterion?.id || '')).filter(Boolean))
-  const lastSubtreeIndex = orderedRows.reduce((lastIndex, criterion, index) => (
-    subtreeLeafIds.has(String(criterion?.id || '')) ? index : lastIndex
-  ), -1)
-  const globalStartIndex = lastSubtreeIndex >= 0 ? lastSubtreeIndex + 1 : 0
-
-  return orderedRows.slice(globalStartIndex).find((criterion) => !isCriterionCompletedById(criterion?.id)) || null
+const activeGroupIndex = computed(() => {
+  const activeOutlineId = String(activeStructureNode.value?.outlineId || activeStructureNode.value?.id || '')
+  return navigableGroups.value.findIndex((node) => String(node?.outlineId || node?.id || '') === activeOutlineId)
 })
 
-const nextCriterionButtonLabel = computed(() => (nextVisibleCriterion.value ? 'Tiêu chí tiếp theo' : 'Hết tiêu chí'))
+const previousVisibleCriterion = computed(() => {
+  const rows = navigableGroups.value
+  if (rows.length <= 0) return null
+  const currentIndex = activeGroupIndex.value >= 0 ? activeGroupIndex.value : 0
+  return rows[currentIndex - 1] || null
+})
+
+const nextVisibleCriterion = computed(() => {
+  const rows = navigableGroups.value
+  if (rows.length <= 0) return null
+  const currentIndex = activeGroupIndex.value >= 0 ? activeGroupIndex.value : -1
+  return rows[currentIndex + 1] || null
+})
+
+const previousCriterionButtonLabel = computed(() => (previousVisibleCriterion.value ? 'Nhóm trước' : 'Đầu danh sách'))
+const nextCriterionButtonLabel = computed(() => (nextVisibleCriterion.value ? 'Nhóm tiếp theo' : 'Hết nhóm'))
 
 const activateStructureNode = async (node, focusCriterionId = '') => {
   if (!node) return
@@ -1022,23 +1018,23 @@ const focusCriterion = async (criterionId) => {
   }
 }
 
-const goToNextCriterion = async () => {
-  const nextCriterion = nextVisibleCriterion.value
-  if (!nextCriterion) return
+const goToCriterion = async (groupNode) => {
+  if (!groupNode) return
+  await activateStructureNode(groupNode)
 
-  const outlineNode = findStructureNodeById(structureTree.value, nextCriterion.id)
-  if (outlineNode) {
-    const parentNode = outlineNode.ancestors?.length
-      ? outlineNode.ancestors[outlineNode.ancestors.length - 1]
-      : outlineNode
-    activeStructureNodeId.value = String(parentNode.id)
-    activeFocusCriterionId.value = String(outlineNode.id)
-    focusOutlineBranch(outlineNode)
-  } else {
-    activeFocusCriterionId.value = String(nextCriterion.id)
+  await nextTick()
+  const workspace = document.querySelector('.qc-create-workspace')
+  if (workspace) {
+    workspace.scrollTo({ top: 0, behavior: 'smooth' })
   }
+}
 
-  await focusCriterion(nextCriterion.id)
+const goToPreviousCriterion = async () => {
+  await goToCriterion(previousVisibleCriterion.value)
+}
+
+const goToNextCriterion = async () => {
+  await goToCriterion(nextVisibleCriterion.value)
 }
 
 
@@ -1318,15 +1314,24 @@ onBeforeUnmount(() => {
               @open-evidence="openCriterionEvidence"
             />
 
-            <div v-if="visibleLeafCriteria.length > 0" class="qc-next-criterion-section">
+            <div v-if="visibleLeafCriteria.length > 0" class="qc-criterion-nav-section">
               <button
                 type="button"
-                class="qc-next-criterion-button qc-next-criterion-button--section"
+                class="qc-criterion-nav-button qc-criterion-nav-button--secondary"
+                :disabled="!previousVisibleCriterion"
+                @click="goToPreviousCriterion"
+              >
+                <span class="material-symbols-outlined text-[18px]">skip_previous</span>
+                <span>{{ previousCriterionButtonLabel }}</span>
+              </button>
+              <button
+                type="button"
+                class="qc-criterion-nav-button qc-criterion-nav-button--primary"
                 :disabled="!nextVisibleCriterion"
                 @click="goToNextCriterion"
               >
-                <span class="material-symbols-outlined text-[18px]">skip_next</span>
                 <span>{{ nextCriterionButtonLabel }}</span>
+                <span class="material-symbols-outlined text-[18px]">skip_next</span>
               </button>
             </div>
           </div>
@@ -1570,29 +1575,44 @@ onBeforeUnmount(() => {
   color: var(--primary-strong);
 }
 
-.qc-next-criterion-button {
+.qc-criterion-nav-button {
   display: inline-flex;
-  height: 2.25rem;
-  flex: 0 0 auto;
+  min-height: 2.5rem;
+  flex: 1 1 0;
   align-items: center;
   justify-content: center;
   gap: 0.375rem;
   border-radius: 0.5rem;
-  border: 1px solid var(--primary);
-  background: var(--primary);
+  border: 1px solid var(--stroke);
   padding: 0 0.75rem;
-  color: #ffffff;
   font-size: 0.75rem;
   font-weight: 700;
-  transition: background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, opacity 0.16s ease;
 }
 
-.qc-next-criterion-button:hover {
+.qc-criterion-nav-button--primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.qc-criterion-nav-button--primary:hover {
   border-color: var(--primary-strong);
   background: var(--primary-strong);
 }
 
-.qc-next-criterion-button:disabled {
+.qc-criterion-nav-button--secondary {
+  background: #ffffff;
+  color: var(--text-secondary);
+}
+
+.qc-criterion-nav-button--secondary:hover {
+  border-color: var(--stroke-strong);
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
+.qc-criterion-nav-button:disabled {
   cursor: not-allowed;
   border-color: var(--stroke);
   background: var(--surface-muted);
@@ -1600,15 +1620,10 @@ onBeforeUnmount(() => {
   opacity: 0.8;
 }
 
-.qc-next-criterion-section {
+.qc-criterion-nav-section {
   display: flex;
-  justify-content: center;
+  gap: 0.5rem;
   padding: 0.75rem 0 0.25rem;
-}
-
-.qc-next-criterion-button--section {
-  width: 100%;
-  min-height: 2.5rem;
 }
 
 
@@ -1666,7 +1681,7 @@ onBeforeUnmount(() => {
     white-space: nowrap;
   }
 
-  .qc-next-criterion-button--toolbar {
+  .qc-criterion-nav-button--toolbar {
     display: none;
   }
 
